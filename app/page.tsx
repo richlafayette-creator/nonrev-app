@@ -53,13 +53,18 @@ export default function Home() {
     }
   }
 
-  const filtered = flights.filter((flight) =>
-    `${flight.origin} ${flight.destination} ${flight.flight_number}`.toLowerCase().includes(search.toLowerCase())
-  )
+const cleanedSearch = search
+  .toLowerCase()
+  .replace(/\bto\b/g, '')
+  .trim()
 
-  function hasOpenRequest(flightId: number) {
-    return requests.some((r) => r.flight_id === flightId && r.status === 'open')
-  }
+const filtered = flights.filter((flight) => {
+  const route =
+    `${flight.origin} ${flight.destination} ${flight.flight_number}`
+      .toLowerCase()
+
+  return route.includes(cleanedSearch)
+})
 
   return (
     <main style={{

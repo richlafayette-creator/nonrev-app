@@ -56,14 +56,16 @@ export default function Home() {
 const cleanedSearch = search
   .toLowerCase()
   .replace(/\bto\b/g, '')
+  .replace(/-/g, ' ')
   .trim()
 
-const filtered = flights.filter((flight) => {
-  const route =
-    `${flight.origin} ${flight.destination} ${flight.flight_number}`
-      .toLowerCase()
+const filtered = !cleanedSearch
+  ? flights
+  : flights.filter((flight) => {
+      const route = `${flight.origin} ${flight.destination} ${flight.flight_number}`.toLowerCase()
+      return route.includes(cleanedSearch)
+    })
 
-  return route.includes(cleanedSearch)
 })
 
   return (

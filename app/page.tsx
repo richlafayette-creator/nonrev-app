@@ -11,18 +11,42 @@ function recommendation(score: number) {
 export default function Home() {
   const [flights, setFlights] = useState<any[]>([])
   const [search, setSearch] = useState('')
+  const [message, setMessage] = useState('')
+
+  async function loadFlights() {
+    const res = await fetch(
+      `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/flights?select=*&order=created_at.desc&limit=100`,
+      { headers: { apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '' } }
+    )
+    const data = await res.json()
+    setFlights(Array.isArray(data) ? data : [])
+  }
 
   useEffect(() => {
-    async function loadFlights() {
-      const res = await fetch(
-        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/flights?select=*&order=created_at.desc&limit=100`,
-        { headers: { apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '' } }
-      )
-      const data = await res.json()
-      setFlights(Array.isArray(data) ? data : [])
-    }
     loadFlights()
   }, [])
+
+  async function requestLoad(flightId: number) {
+    const res = await fetch(
+      `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/load_requests`,
+      {
+        method: 'POST',
+        headers: {
+          apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
+          Authorization: `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY}`,
+          'Content-Type': 'application/json',
+          Prefer: 'return=minimal'
+        },
+        body: JSON.stringify({
+          flight_id: flightId,
+          credits_spent: 1,
+          status: 'open'
+        })
+      }
+    )
+
+    setMessage(res.ok ? 'Load request created.' : `Request failed: ${res.status}`)
+  }
 
   const q = search.toLowerCase().replace(/\bto\b/g, '').replace(/-/g, ' ').trim()
 
@@ -42,6 +66,7 @@ export default function Home() {
 
       <h1 style={{ fontSize: 42 }}>Best Flights Right Now</h1>
       <p style={{ color: '#94a3b8' }}>Flights loaded: {flights.length}</p>
+      {message && <p style={{ color: '#38bdf8' }}>{message}</p>}
 
       <input
         placeholder="Search LAX, HNL, LAX-HNL, or LAX to HNL"
@@ -58,6 +83,13 @@ export default function Home() {
           <p>Aircraft: {flight.aircraft}</p>
           <p>Status: {flight.status}</p>
           <p>Score: {flight.score}</p>
+
+          <button
+            onClick={() => requestLoad(flight.id)}
+            style={{ padding: 12, borderRadius: 10, border: 'none', background: '#38bdf8', fontWeight: 'bold' }}
+          >
+            Verify Load - 1 Credit
+          </button>
         </div>
       ))}
     </main>

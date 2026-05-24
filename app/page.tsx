@@ -14,6 +14,7 @@ export default function Home() {
   const [requests, setRequests] = useState<any[]>([])
   const [search, setSearch] = useState('')
   const [message, setMessage] = useState('')
+  const [userEmail, setUserEmail] = useState('')
 
   async function loadData() {
     const flightsResult = await supabase.from('flights').select('*').order('score', { ascending: false }).limit(50)
@@ -22,7 +23,15 @@ export default function Home() {
     setRequests(requestsResult.data || [])
   }
 
-  useEffect(() => { loadData() }, [])
+  useEffect(() => {
+    loadData()
+
+    supabase.auth.getUser().then(({ data }) => {
+      if (data.user?.email) {
+        setUserEmail(data.user.email)
+      }
+    })
+  }, [])
 
   async function requestLoad(flightId: number) {
     const { error } = await supabase.from('load_requests').insert({
@@ -63,11 +72,27 @@ export default function Home() {
       padding: 28,
       fontFamily: 'Arial'
     }}>
-      <nav style={{ marginBottom: 28, display: 'flex', gap: 16 }}>
+      <nav style={{ marginBottom: 28, display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
         <a href="/" style={{ color: '#38bdf8' }}>Flights</a>
         <a href="/requests" style={{ color: '#c084fc' }}>Open Requests</a>
         <a href="/my-requests" style={{ color: '#facc15' }}>My Requests</a>
         <a href="/outcomes" style={{ color: '#22c55e' }}>Outcomes</a>
+
+        {!userEmail && (
+          <a href="/login" style={{ color: '#f472b6' }}>
+            Login
+          </a>
+        )}
+
+        {userEmail && (
+          <div style={{
+            marginLeft: 'auto',
+            color: '#38bdf8',
+            fontWeight: 'bold'
+          }}>
+            {userEmail}
+          </div>
+        )}
       </nav>
 
       <section style={{

@@ -5,29 +5,54 @@ import { supabase } from '../../lib/supabase'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [message, setMessage] = useState('')
 
-  async function signIn() {
-    const { error } = await supabase.auth.signInWithOtp({
+  async function signUp() {
+    const { error } = await supabase.auth.signUp({
       email,
-      options: { emailRedirectTo: 'https://nonrev-app.vercel.app' }
+      password
     })
 
-    setMessage(error ? error.message : 'Magic link sent. Check your email.')
+    setMessage(error ? error.message : 'Account created.')
+  }
+
+  async function signIn() {
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password
+    })
+
+    setMessage(error ? error.message : 'Logged in.')
   }
 
   return (
     <main style={{ padding: 40, fontFamily: 'Arial' }}>
       <h1>Login</h1>
+
       <input
+        placeholder="Email"
         value={email}
         onChange={(e) => setEmail(e.target.value)}
-        placeholder="Email"
-        style={{ padding: 12, width: 320 }}
+        style={{ display: 'block', padding: 12, marginBottom: 12, width: 320 }}
       />
-      <button onClick={signIn} style={{ padding: 12, marginLeft: 8 }}>
-        Send Magic Link
+
+      <input
+        type="password"
+        placeholder="Password"
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+        style={{ display: 'block', padding: 12, marginBottom: 12, width: 320 }}
+      />
+
+      <button onClick={signUp} style={{ padding: 12, marginRight: 8 }}>
+        Sign Up
       </button>
+
+      <button onClick={signIn} style={{ padding: 12 }}>
+        Login
+      </button>
+
       <p>{message}</p>
     </main>
   )

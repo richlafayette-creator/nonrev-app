@@ -1,0 +1,184 @@
+'use client'
+
+import { useState } from 'react'
+
+const mockItineraries = [
+  {
+    id: 1,
+    title: 'Island hop with backup options',
+    route: 'LAX → HNL → OGG',
+    confidence: 'Strong',
+    window: 'Apr 12-18',
+    notes: 'Start with the earliest LAX-HNL bank, keep OGG as a same-day fallback, and verify return loads 48 hours out.',
+    segments: ['LAX to HNL: morning widebody preferred', 'HNL to OGG: flexible island hop', 'OGG to LAX: midweek return']
+  },
+  {
+    id: 2,
+    title: 'Europe shoulder-season sprint',
+    route: 'JFK → LHR → CDG',
+    confidence: 'Verify',
+    window: 'May 3-9',
+    notes: 'Prioritize nonstop transatlantic options, then use rail or short-haul backup positioning if Paris loads tighten.',
+    segments: ['JFK to LHR: overnight departure', 'London stopover: 2 nights', 'CDG return: monitor premium spillover']
+  },
+  {
+    id: 3,
+    title: 'Long weekend mileage saver',
+    route: 'SFO → DEN → SFO',
+    confidence: 'Strong',
+    window: 'Next 3-day weekend',
+    notes: 'A simple out-and-back with multiple daily frequencies and easy same-day recovery options.',
+    segments: ['SFO to DEN: Friday afternoon', 'Denver: flexible stay', 'DEN to SFO: Monday morning']
+  }
+]
+
+function confidenceColor(confidence: string) {
+  if (confidence === 'Strong') return '#22c55e'
+  if (confidence === 'Verify') return '#facc15'
+  return '#f87171'
+}
+
+export default function PlanPage() {
+  const [tripGoal, setTripGoal] = useState('')
+  const [homeAirport, setHomeAirport] = useState('')
+  const [travelWindow, setTravelWindow] = useState('')
+  const [travelerCount, setTravelerCount] = useState('1')
+  const [voiceStatus, setVoiceStatus] = useState('Voice capture scaffold ready.')
+  const [submitted, setSubmitted] = useState(false)
+
+  function submitPlanRequest(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setSubmitted(true)
+  }
+
+  function startVoiceScaffold() {
+    setVoiceStatus('Listening scaffold active — speech-to-itinerary capture will plug in here.')
+  }
+
+  return (
+    <main style={{ minHeight: '100vh', background: '#020617', color: 'white', padding: 32, fontFamily: 'Arial' }}>
+      <nav style={{ marginBottom: 24 }}>
+        <a href="/" style={{ marginRight: 16, color: '#38bdf8' }}>Flights</a>
+        <a href="/plan" style={{ marginRight: 16, color: '#fb7185' }}>Plan</a>
+        <a href="/requests" style={{ marginRight: 16, color: '#c084fc' }}>Open Requests</a>
+        <a href="/my-requests" style={{ marginRight: 16, color: '#facc15' }}>My Requests</a>
+        <a href="/outcomes" style={{ marginRight: 16, color: '#22c55e' }}>Outcomes</a>
+        <a href="/login" style={{ color: '#f472b6' }}>Login</a>
+      </nav>
+
+      <section style={{ maxWidth: 1120, margin: '0 auto' }}>
+        <p style={{ color: '#fb7185', fontWeight: 'bold', letterSpacing: 1, textTransform: 'uppercase' }}>
+          Nonrev trip planner
+        </p>
+        <h1 style={{ fontSize: 44, lineHeight: 1.05, margin: '8px 0 12px' }}>
+          Build a flexible itinerary before loads move.
+        </h1>
+        <p style={{ color: '#94a3b8', maxWidth: 720, fontSize: 18 }}>
+          Request a route plan, capture trip ideas by voice, and compare mock itinerary cards while the planning engine comes online.
+        </p>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 18, marginTop: 28 }}>
+          <form
+            onSubmit={submitPlanRequest}
+            style={{ border: '1px solid #334155', borderRadius: 22, padding: 22, background: '#0f172a' }}
+          >
+            <h2 style={{ marginTop: 0 }}>Itinerary request</h2>
+            <label style={{ display: 'block', color: '#cbd5e1', marginBottom: 12 }}>
+              Trip goal
+              <textarea
+                value={tripGoal}
+                onChange={(event) => setTripGoal(event.target.value)}
+                placeholder="Beach weekend, Europe backup plan, mileage run..."
+                rows={4}
+                style={{ boxSizing: 'border-box', width: '100%', marginTop: 6, padding: 12, borderRadius: 12, border: '1px solid #475569', background: '#020617', color: 'white' }}
+              />
+            </label>
+            <label style={{ display: 'block', color: '#cbd5e1', marginBottom: 12 }}>
+              Home airport
+              <input
+                value={homeAirport}
+                onChange={(event) => setHomeAirport(event.target.value.toUpperCase())}
+                placeholder="LAX"
+                style={{ boxSizing: 'border-box', width: '100%', marginTop: 6, padding: 12, borderRadius: 12, border: '1px solid #475569', background: '#020617', color: 'white' }}
+              />
+            </label>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <label style={{ display: 'block', color: '#cbd5e1', marginBottom: 12 }}>
+                Travel window
+                <input
+                  value={travelWindow}
+                  onChange={(event) => setTravelWindow(event.target.value)}
+                  placeholder="Apr 12-18"
+                  style={{ boxSizing: 'border-box', width: '100%', marginTop: 6, padding: 12, borderRadius: 12, border: '1px solid #475569', background: '#020617', color: 'white' }}
+                />
+              </label>
+              <label style={{ display: 'block', color: '#cbd5e1', marginBottom: 12 }}>
+                Travelers
+                <input
+                  value={travelerCount}
+                  onChange={(event) => setTravelerCount(event.target.value)}
+                  inputMode="numeric"
+                  style={{ boxSizing: 'border-box', width: '100%', marginTop: 6, padding: 12, borderRadius: 12, border: '1px solid #475569', background: '#020617', color: 'white' }}
+                />
+              </label>
+            </div>
+            <button
+              type="submit"
+              style={{ width: '100%', padding: 14, borderRadius: 12, border: 'none', background: '#38bdf8', color: '#020617', fontWeight: 'bold' }}
+            >
+              Generate mock plan
+            </button>
+            {submitted && (
+              <p style={{ color: '#38bdf8', marginBottom: 0 }}>
+                Draft request staged for {homeAirport || 'your home airport'} · {travelWindow || 'flexible dates'} · {travelerCount || '1'} traveler(s).
+              </p>
+            )}
+          </form>
+
+          <aside style={{ border: '1px solid #334155', borderRadius: 22, padding: 22, background: 'linear-gradient(135deg, #111827, #312e81)' }}>
+            <h2 style={{ marginTop: 0 }}>Voice input scaffold</h2>
+            <p style={{ color: '#cbd5e1' }}>
+              Capture spoken trip ideas here, then convert them into structured itinerary requests in a later integration.
+            </p>
+            <button
+              type="button"
+              onClick={startVoiceScaffold}
+              style={{ padding: 14, borderRadius: 999, border: '1px solid #fda4af', background: '#fb7185', color: 'white', fontWeight: 'bold' }}
+            >
+              🎙 Start voice note
+            </button>
+            <p style={{ color: '#fecdd3' }}>{voiceStatus}</p>
+            <div style={{ marginTop: 20, padding: 14, borderRadius: 16, background: 'rgba(15, 23, 42, 0.7)' }}>
+              <strong>Example transcript</strong>
+              <p style={{ color: '#cbd5e1', marginBottom: 0 }}>
+                “Find me a warm long weekend from SFO with at least two return options and low-risk Monday loads.”
+              </p>
+            </div>
+          </aside>
+        </div>
+
+        <section style={{ marginTop: 30 }}>
+          <h2 style={{ fontSize: 30 }}>Mock itinerary cards</h2>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 16 }}>
+            {mockItineraries.map((itinerary) => (
+              <article key={itinerary.id} style={{ border: '1px solid #334155', borderRadius: 20, padding: 18, background: '#0f172a' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
+                  <h3 style={{ margin: 0 }}>{itinerary.title}</h3>
+                  <span style={{ color: confidenceColor(itinerary.confidence), fontWeight: 'bold' }}>{itinerary.confidence}</span>
+                </div>
+                <p style={{ color: '#38bdf8', fontSize: 18, fontWeight: 'bold' }}>{itinerary.route}</p>
+                <p style={{ color: '#94a3b8' }}>Window: {itinerary.window}</p>
+                <p>{itinerary.notes}</p>
+                <ul style={{ color: '#cbd5e1', paddingLeft: 20 }}>
+                  {itinerary.segments.map((segment) => (
+                    <li key={segment}>{segment}</li>
+                  ))}
+                </ul>
+              </article>
+            ))}
+          </div>
+        </section>
+      </section>
+    </main>
+  )
+}

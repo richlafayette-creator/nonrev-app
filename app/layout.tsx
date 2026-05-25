@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Sacramento } from "next/font/google";
+import { Geist, Geist_Mono, Lobster } from "next/font/google";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -12,8 +12,8 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-const sacramento = Sacramento({
-  variable: "--font-sacramento",
+const lobster = Lobster({
+  variable: "--font-lobster",
   subsets: ["latin"],
   weight: "400",
 });
@@ -31,7 +31,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} ${sacramento.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${lobster.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">{children}</body>
     </html>

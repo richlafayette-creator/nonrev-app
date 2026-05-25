@@ -1,35 +1,14 @@
 'use client'
 
 import { type FormEvent, useEffect, useState } from 'react'
-import { supabase } from '../lib/supabase'
 
 export default function Home() {
   const [search, setSearch] = useState('')
   const [message, setMessage] = useState('')
-  const [userEmail, setUserEmail] = useState('')
 
   useEffect(() => {
-    async function loadUser() {
-      const { data } = await supabase.auth.getUser()
-      setUserEmail(data.user?.email || '')
-    }
-
-    loadUser()
-
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUserEmail(session?.user?.email || '')
-    })
-
-    return () => {
-      listener.subscription.unsubscribe()
-    }
+    setMessage('')
   }, [])
-
-  async function logout() {
-    await supabase.auth.signOut()
-    setUserEmail('')
-    setMessage('Logged out.')
-  }
 
   function submitSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -59,14 +38,6 @@ export default function Home() {
         <a href="/requests" style={{ marginRight: 16, color: '#c084fc' }}>Open Requests</a>
         <a href="/my-requests" style={{ marginRight: 16, color: '#facc15' }}>My Requests</a>
         <a href="/outcomes" style={{ marginRight: 16, color: '#22c55e' }}>Outcomes</a>
-        {userEmail ? (
-          <>
-            <span style={{ color: '#38bdf8', marginRight: 12 }}>{userEmail}</span>
-            <button onClick={logout} style={{ padding: 8, borderRadius: 8, border: 'none' }}>Logout</button>
-          </>
-        ) : (
-          <a href="/login" style={{ color: '#f472b6' }}>Login</a>
-        )}
       </nav>
 
       <section style={{ minHeight: '70vh', display: 'grid', placeItems: 'center' }}>

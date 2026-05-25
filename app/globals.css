@@ -35,6 +35,51 @@ main:has(> nav) {
   padding-left: 280px !important;
 }
 
+.account-menu {
+  position: fixed;
+  top: 24px;
+  right: 24px;
+  z-index: 20;
+  width: min(360px, calc(100vw - 48px));
+  padding: 14px;
+  border: 1px solid #334155;
+  border-radius: 18px;
+  background: rgba(15, 23, 42, 0.94);
+  color: white;
+  box-shadow: 0 20px 50px rgba(2, 6, 23, 0.35);
+}
+
+.account-menu__identity {
+  margin-bottom: 10px;
+  color: #38bdf8;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.account-menu__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.account-menu a,
+.account-menu button {
+  color: #f8fafc;
+  background: #020617;
+  border: 1px solid #334155;
+  border-radius: 999px;
+  padding: 7px 10px;
+  text-decoration: none;
+  font: inherit;
+  cursor: pointer;
+}
+
+.account-menu a:hover,
+.account-menu button:hover {
+  border-color: #38bdf8;
+}
+
 .top-nav {
   display: flex;
   flex-direction: column;
@@ -96,6 +141,12 @@ main > nav button,
 
   .app-shell {
     padding: 20px !important;
+  }
+
+  .account-menu {
+    position: static;
+    width: auto;
+    margin: 12px 20px 0;
   }
 
   main > nav,

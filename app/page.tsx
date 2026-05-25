@@ -13,25 +13,47 @@ export default function Home() {
   const [search, setSearch] = useState('')
   const [message, setMessage] = useState('')
 
-  async function loadFlights() {
-    const res = await fetch(
-      `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/flights?select=*&order=created_at.desc&limit=100`,
-      { headers: { apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '' } }
-    )
-    const data = await res.json()
-    setFlights(Array.isArray(data) ? data : [])
+async function requestLoad(flightId: number) {
+  const checkRes = await fetch(
+    `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/load_requests?flight_id=eq.${flightId}&status=eq.open`,
+    {
+      headers: {
+        apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
+      }
+    }
+  )
+
+  const existing = await checkRes.json()
+
+  if (Array.isArray(existing) && existing.length > 0) {
+    setMessage('Load request already open.')
+    return
   }
 
-  useEffect(() => {
-    loadFlights()
-  }, [])
+  const res = await fetch(
+    `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/load_requests`,
+    {
+      method: 'POST',
+      headers: {
+        apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
+        Authorization: `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY}`,
+        'Content-Type': 'application/json',
+        Prefer: 'return=minimal'
+      },
+      body: JSON.stringify({
+        flight_id: flightId,
+        credits_spent: 1,
+        status: 'open'
+      })
+    }
+  )
 
-  async function requestLoad(flightId: number) {
-    const res = await fetch(
-      `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/load_requests`,
-      {
-        method: 'POST',
-        headers: {
+  setMessage(
+    res.ok
+      ? 'Load request created.'
+      : `Request failed: ${res.status}`
+  )
+}
           apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
           Authorization: `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY}`,
           'Content-Type': 'application/json',

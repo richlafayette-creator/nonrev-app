@@ -8,53 +8,72 @@ export default function RequestsPage() {
 
   async function loadRequests() {
     const res = await fetch(
-      `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/load_requests?select=*,flights(*)&order=created_at.desc&limit=50`,
+      `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/load_requests?select=*,flights(*)&status=eq.open&order=created_at.desc&limit=50`,
       { headers: { apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '' } }
     )
 
     const data = await res.json()
 
-    if (Array.isArray(data)) {
-      setRequests(data)
-    } else {
-      setMessage(JSON.stringify(data))
-    }
+    if (Array.isArray(data)) setRequests(data)
+    else setMessage(JSON.stringify(data))
   }
 
   useEffect(() => {
     loadRequests()
   }, [])
 
-async function answerRequest(requestId: number) {
-  const notes = prompt('Load notes?')
+  async function answerRequest(requestId: number) {
+    const intel = prompt('Load notes?')
+    if (!intel) return
 
-  if (!notes) return
+    const responseRes = await fetch(
+      `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/load_responses`,
+      {
+        method: 'POST',
+        headers: {
+          apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
+          Authorization: `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY}`,
+          'Content-Type': 'application/json',
+          Prefer: 'return=minimal'
+        },
+        body: JSON.stringify({
+          request_id: requestId,
+          intel,
+          trust_score: 0
+        })
+      }
+    )
 
-  const res = await fetch(
-    `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/load_responses`,
-    {
-      method: 'POST',
-      headers: {
-        apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
-        Authorization: `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY}`,
-        'Content-Type': 'application/json',
-        Prefer: 'return=minimal'
-      },
-      body: JSON.stringify({
-        request_id: requestId,
-        intel: notes,
-trust_score: 0
-      })
+    if (!responseRes.ok) {
+      setMessage(`Failed to submit response: ${responseRes.status}`)
+      return
     }
-  )
 
-  if (res.ok) {
-    alert('Response submitted')
-    window.location.reload()
-  } else {
-    alert('Failed to submit response')
+    const closeRes = await fetch(
+      `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/load_requests?id=eq.${requestId}`,
+      {
+        method: 'PATCH',
+        headers: {
+          apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
+          Authorization: `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY}`,
+          'Content-Type': 'application/json',
+          Prefer: 'return=minimal'
+        },
+        body: JSON.stringify({
+          status: 'answered'
+        })
+      }
+    )
+
+    if (!closeRes.ok) {
+      setMessage(`Response saved, but failed to close request: ${closeRes.status}`)
+      return
+    }
+
+    setMessage('Response submitted and request closed.')
+    loadRequests()
   }
-}
+
   return (
     <main style={{ minHeight: '100vh', background: '#020617', color: 'white', padding: 32, fontFamily: 'Arial' }}>
       <nav style={{ marginBottom: 24 }}>
@@ -67,7 +86,7 @@ trust_score: 0
 
       <h1>Open Load Requests</h1>
       <p>Requests loaded: {requests.length}</p>
-      {message && <pre>{message}</pre>}
+      {message && <p style={{ color: '#38bdf8' }}>{message}</p>}
 
       {requests.map((request) => (
         <div key={request.id} style={{ border: '1px solid #334155', borderRadius: 18, padding: 18, marginBottom: 14, background: '#0f172a' }}>
@@ -75,22 +94,21 @@ trust_score: 0
           <p>{request.flights?.origin} → {request.flights?.destination}</p>
           <p>Status: {request.status}</p>
           <p>Credits spent: {request.credits_spent}</p>
-<p>Credits spent: {request.credits_spent}</p>
 
-<button
-  onClick={() => answerRequest(request.id)}
-  style={{
-    padding: 10,
-    borderRadius: 8,
-    border: 'none',
-    background: '#22c55e',
-    fontWeight: 'bold',
-    marginTop: 10
-  }}
->
-  Answer Request
-</button> 
-       </div>
+          <button
+            onClick={() => answerRequest(request.id)}
+            style={{
+              padding: 10,
+              borderRadius: 8,
+              border: 'none',
+              background: '#22c55e',
+              fontWeight: 'bold',
+              marginTop: 10
+            }}
+          >
+            Answer Request
+          </button>
+        </div>
       ))}
     </main>
   )

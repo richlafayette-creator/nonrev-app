@@ -25,11 +25,48 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
+.nonrevy-logo {
+  font-family: var(--font-sacramento), "Brush Script MT", "Segoe Script", cursive;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+
+main:has(> nav) {
+  padding-left: 280px !important;
+}
+
 .top-nav {
   display: flex;
-  flex-wrap: wrap;
-  gap: 10px 0;
-  align-items: center;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+main > nav,
+.top-nav {
+  position: fixed;
+  top: 24px;
+  left: 24px;
+  width: 220px;
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+  z-index: 10;
+  padding: 18px;
+  border: 1px solid #334155;
+  border-radius: 22px;
+  background: rgba(15, 23, 42, 0.94);
+  box-shadow: 0 20px 50px rgba(2, 6, 23, 0.35);
+}
+
+main > nav a,
+main > nav span,
+main > nav button,
+.top-nav a,
+.top-nav span,
+.top-nav button {
+  display: block;
+  margin-right: 0 !important;
 }
 
 .hero-grid {
@@ -53,11 +90,22 @@ body {
 }
 
 @media (max-width: 720px) {
+  main:has(> nav) {
+    padding-left: 20px !important;
+  }
+
   .app-shell {
     padding: 20px !important;
   }
 
+  main > nav,
   .top-nav {
+    position: static;
+    width: auto;
+    max-height: none;
+    flex-direction: row;
+    flex-wrap: wrap;
+    margin-bottom: 24px !important;
     gap: 10px;
   }
 
@@ -74,6 +122,10 @@ body {
   h1 {
     font-size: 32px !important;
     line-height: 1.1;
+  }
+
+  .nonrevy-logo {
+    font-size: 58px !important;
   }
 
   input,

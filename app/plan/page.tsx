@@ -3,6 +3,7 @@
 import { type FormEvent, useEffect, useMemo, useState } from 'react'
 import { flightMatchesSearch } from '../../lib/flightSearch'
 import { delayRiskScore, rankItinerary } from '../../lib/intelligence'
+import { allFlightFields, fieldValue, passengerFlightCoverageNotes, richFlightFieldLabels } from '../../lib/flightDataScaffold'
 
 const mockItineraries = [
   {
@@ -122,6 +123,12 @@ export default function PlanPage() {
         <p style={{ color: '#94a3b8', maxWidth: 720, fontSize: 18 }}>
           Flight results, itinerary results, and searchable flight data live here so the homepage can stay focused on search.
         </p>
+        <div style={{ border: '1px solid #334155', borderRadius: 18, padding: 16, background: '#0f172a', color: '#cbd5e1' }}>
+          <strong style={{ color: '#38bdf8' }}>Passenger flight coverage scaffold</strong>
+          <ul style={{ marginBottom: 0 }}>
+            {passengerFlightCoverageNotes.map((note) => <li key={note}>{note}</li>)}
+          </ul>
+        </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 18, marginTop: 28 }}>
           <form
@@ -216,6 +223,25 @@ export default function PlanPage() {
                 <p style={{ color: '#38bdf8' }}>{flight.origin} → {flight.destination}</p>
                 <p>Aircraft: {flight.aircraft || 'Unknown'} · Status: {flight.status || 'Unknown'} · Score: {flight.score ?? 'Not scored'}</p>
                 <p>Delay risk: {risk.label} ({risk.score}/100)</p>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10, marginTop: 12 }}>
+                  {richFlightFieldLabels.map((field) => (
+                    <div key={field.key} style={{ border: '1px solid #334155', borderRadius: 12, padding: 10, background: '#020617' }}>
+                      <small style={{ color: '#94a3b8' }}>{field.label}</small>
+                      <p style={{ margin: '4px 0 0' }}>{fieldValue(flight, field.key)}</p>
+                    </div>
+                  ))}
+                </div>
+                <details style={{ marginTop: 12 }}>
+                  <summary style={{ color: '#38bdf8', cursor: 'pointer' }}>Show all DB fields</summary>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 8, marginTop: 10 }}>
+                    {allFlightFields(flight).map(([key, value]) => (
+                      <div key={key} style={{ border: '1px solid #334155', borderRadius: 10, padding: 8, background: '#020617' }}>
+                        <small style={{ color: '#94a3b8' }}>{key}</small>
+                        <p style={{ margin: '4px 0 0', overflowWrap: 'anywhere' }}>{value === null || value === undefined || value === '' ? 'Not available yet' : String(value)}</p>
+                      </div>
+                    ))}
+                  </div>
+                </details>
                 <a href={`/flights/${flight.id}`} style={{ color: '#38bdf8' }}>View flight detail</a>
               </article>
             )

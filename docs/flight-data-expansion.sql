@@ -2,9 +2,25 @@
 -- These statements are intentionally documented as notes first. Review RLS,
 -- backfill behavior, and source licensing before applying to production.
 
--- 1) Candidate columns for richer flight snapshots.
+-- 1) Candidate columns for richer passenger-flight snapshots.
+-- Coverage target: all commercial airports and all available passenger flights.
+-- Actual coverage depends on Aviationstack/API plan limits, endpoint access,
+-- rate limits, commercial licensing, and provider field availability.
+-- alter table public.flights add column if not exists airline text;
+-- alter table public.flights add column if not exists operator text;
 -- alter table public.flights add column if not exists departure_time timestamptz;
 -- alter table public.flights add column if not exists arrival_time timestamptz;
+-- alter table public.flights add column if not exists boarding_time timestamptz;
+-- alter table public.flights add column if not exists departure_terminal text;
+-- alter table public.flights add column if not exists arrival_terminal text;
+-- alter table public.flights add column if not exists departure_gate text;
+-- alter table public.flights add column if not exists arrival_gate text;
+-- alter table public.flights add column if not exists delay_minutes integer;
+-- alter table public.flights add column if not exists delay_reason text;
+-- alter table public.flights add column if not exists lounges_nearby jsonb;
+-- alter table public.flights add column if not exists airport_map_url text;
+-- alter table public.flights add column if not exists gps_latitude numeric;
+-- alter table public.flights add column if not exists gps_longitude numeric;
 -- alter table public.flights add column if not exists cabin_open_seats integer;
 -- alter table public.flights add column if not exists standby_count integer;
 -- alter table public.flights add column if not exists source_name text;

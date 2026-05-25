@@ -71,7 +71,7 @@ export default function Home() {
 
       <section style={{ minHeight: '70vh', display: 'grid', placeItems: 'center' }}>
         <div style={{ width: '100%', maxWidth: 760, textAlign: 'center' }}>
-          <h1 style={{ fontSize: 56, lineHeight: 1, margin: '0 0 42px', letterSpacing: '-0.05em' }}>
+          <h1 className="nonrevy-logo" style={{ fontSize: 72, lineHeight: 1, margin: '0 0 42px' }}>
             nonrevy
           </h1>
 

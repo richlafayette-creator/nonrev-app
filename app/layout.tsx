@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Lobster } from "next/font/google";
+import { Bungee, Geist, Geist_Mono } from "next/font/google";
 import AccountMenu from "./AccountMenu";
 import "./globals.css";
 
@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-const lobster = Lobster({
-  variable: "--font-lobster",
+const bungee = Bungee({
+  variable: "--font-brooklyn-display",
   subsets: ["latin"],
   weight: "400",
 });
@@ -32,7 +32,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} ${lobster.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${bungee.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
         <AccountMenu />

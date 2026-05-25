@@ -33,21 +33,21 @@ export default function AccountMenu() {
 
   return (
     <aside className="account-menu" aria-label="Account menu">
-      <div className="account-menu__identity">
-        {userEmail ? (
-          <span>{userEmail}</span>
-        ) : (
-          <a href="/login">Login</a>
-        )}
-      </div>
-      <div className="account-menu__links">
-        <a href="/account">My Account</a>
-        <a href="/billing">Billing</a>
-        <a href="/membership">Upgrade Membership</a>
-        <a href="/membership#cancel">Cancel Membership</a>
-        {userEmail && <button onClick={logout}>Logout</button>}
-      </div>
-      {message && <small>{message}</small>}
+      <details className="account-menu__details">
+        <summary className="account-menu__summary">
+          <span className="account-menu__label">Account</span>
+          <span className="account-menu__identity">{userEmail || 'Guest'}</span>
+        </summary>
+        <div className="account-menu__links">
+          {!userEmail && <a href="/login">Login</a>}
+          <a href="/account">My Account</a>
+          <a href="/billing">Billing</a>
+          <a href="/membership">Upgrade Membership</a>
+          <a href="/membership#cancel">Cancel Membership</a>
+          {userEmail && <button onClick={logout}>Logout</button>}
+        </div>
+        {message && <small>{message}</small>}
+      </details>
     </aside>
   )
 }

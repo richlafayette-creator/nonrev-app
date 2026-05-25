@@ -26,9 +26,10 @@ body {
 }
 
 .nonrevy-logo {
-  font-family: var(--font-lobster), "Brush Script MT", "Segoe Script", cursive;
+  font-family: var(--font-brooklyn-display), Impact, "Arial Black", "Trebuchet MS", sans-serif;
   font-weight: 400;
-  letter-spacing: 0;
+  letter-spacing: 0.02em;
+  text-transform: lowercase;
 }
 
 main:has(> nav) {
@@ -40,8 +41,8 @@ main:has(> nav) {
   top: 24px;
   right: 24px;
   z-index: 20;
-  width: min(360px, calc(100vw - 48px));
-  padding: 14px;
+  width: min(320px, calc(100vw - 48px));
+  padding: 0;
   border: 1px solid #334155;
   border-radius: 18px;
   background: rgba(15, 23, 42, 0.94);
@@ -49,11 +50,44 @@ main:has(> nav) {
   box-shadow: 0 20px 50px rgba(2, 6, 23, 0.35);
 }
 
+.account-menu__details {
+  padding: 0;
+}
+
+.account-menu__summary {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  padding: 14px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.account-menu__summary::-webkit-details-marker {
+  display: none;
+}
+
+.account-menu__summary::after {
+  content: "⌄";
+  color: #94a3b8;
+}
+
+.account-menu__details[open] .account-menu__summary::after {
+  content: "⌃";
+}
+
+.account-menu__label {
+  color: white;
+  font-weight: 700;
+}
+
 .account-menu__identity {
-  margin-bottom: 10px;
   color: #38bdf8;
   font-weight: 700;
   overflow-wrap: anywhere;
+  min-width: 0;
+  text-align: right;
 }
 
 .account-menu__links {
@@ -61,6 +95,7 @@ main:has(> nav) {
   flex-wrap: wrap;
   gap: 8px;
   align-items: center;
+  padding: 0 14px 14px;
 }
 
 .account-menu a,
@@ -93,8 +128,8 @@ main > nav,
   position: fixed;
   top: 24px;
   left: 24px;
-  width: 220px;
-  max-height: calc(100vh - 48px);
+  width: 76px;
+  max-height: 58px;
   overflow-y: auto;
   z-index: 10;
   padding: 18px;
@@ -102,6 +137,26 @@ main > nav,
   border-radius: 22px;
   background: rgba(15, 23, 42, 0.94);
   box-shadow: 0 20px 50px rgba(2, 6, 23, 0.35);
+  transition: width 180ms ease, max-height 180ms ease, border-color 180ms ease;
+}
+
+main > nav::before,
+.top-nav::before {
+  content: "☰ Menu";
+  display: block;
+  color: #f8fafc;
+  font-weight: 800;
+  margin-bottom: 14px;
+  white-space: nowrap;
+}
+
+main > nav:hover,
+main > nav:focus-within,
+.top-nav:hover,
+.top-nav:focus-within {
+  width: 220px;
+  max-height: calc(100vh - 48px);
+  border-color: #38bdf8;
 }
 
 main > nav a,
@@ -112,6 +167,27 @@ main > nav button,
 .top-nav button {
   display: block;
   margin-right: 0 !important;
+  opacity: 0;
+  transform: translateY(-4px);
+  transition: opacity 140ms ease, transform 140ms ease;
+  pointer-events: none;
+}
+
+main > nav:hover a,
+main > nav:hover span,
+main > nav:hover button,
+main > nav:focus-within a,
+main > nav:focus-within span,
+main > nav:focus-within button,
+.top-nav:hover a,
+.top-nav:hover span,
+.top-nav:hover button,
+.top-nav:focus-within a,
+.top-nav:focus-within span,
+.top-nav:focus-within button {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
 }
 
 .hero-grid {
@@ -160,10 +236,22 @@ main > nav button,
     gap: 10px;
   }
 
+  main > nav::before,
+  .top-nav::before {
+    width: 100%;
+    margin-bottom: 4px;
+  }
+
   .top-nav a,
   .top-nav span,
-  .top-nav button {
+  .top-nav button,
+  main > nav a,
+  main > nav span,
+  main > nav button {
     margin-right: 0 !important;
+    opacity: 1;
+    transform: none;
+    pointer-events: auto;
   }
 
   .hero-grid {
@@ -176,7 +264,7 @@ main > nav button,
   }
 
   .nonrevy-logo {
-    font-size: 58px !important;
+    font-size: 86px !important;
   }
 
   input,

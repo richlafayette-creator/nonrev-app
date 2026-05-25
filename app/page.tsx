@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { flightMatchesSearch } from '../lib/flightSearch'
 
 function recommendation(score: number) {
   if (score >= 75) return '🟢 Strong'
@@ -84,24 +85,25 @@ export default function Home() {
       }
     )
 
-if (res.ok) {
-  setMessage('Load request created.')
-} else if (res.status === 409) {
-  setMessage('Load request already pending.')
-} else {
-  setMessage(`Request failed: ${res.status}`)
-}  }
+    if (res.ok) {
+      setMessage('Load request created.')
+    } else if (res.status === 409) {
+      setMessage('Load request already pending.')
+    } else {
+      setMessage(`Request failed: ${res.status}`)
+    }
+  }
 
-  const q = search.toLowerCase().replace(/\bto\b/g, '').replace(/-/g, ' ').trim()
-
-  const filtered = !q ? flights : flights.filter((f) =>
-    `${f.origin} ${f.destination} ${f.flight_number}`.toLowerCase().includes(q)
-  )
+  const filtered = flights.filter((flight) => flightMatchesSearch(flight, search))
 
   return (
     <main style={{ minHeight: '100vh', background: '#020617', color: 'white', padding: 32, fontFamily: 'Arial' }}>
       <nav style={{ marginBottom: 24 }}>
         <a href="/" style={{ marginRight: 16, color: '#38bdf8' }}>Flights</a>
+        <a href="/best-routes" style={{ marginRight: 16, color: '#fb7185' }}>Best Routes</a>
+        <a href="/plan" style={{ marginRight: 16, color: '#fb7185' }}>Plan</a>
+        <a href="/watchlist" style={{ marginRight: 16, color: '#facc15' }}>Watchlist</a>
+        <a href="/agent" style={{ marginRight: 16, color: '#a78bfa' }}>Agent</a>
         <a href="/requests" style={{ marginRight: 16, color: '#c084fc' }}>Open Requests</a>
         <a href="/my-requests" style={{ marginRight: 16, color: '#facc15' }}>My Requests</a>
         <a href="/outcomes" style={{ marginRight: 16, color: '#22c55e' }}>Outcomes</a>
@@ -125,7 +127,7 @@ if (res.ok) {
       {message && <p style={{ color: '#38bdf8' }}>{message}</p>}
 
       <input
-        placeholder="Search LAX, HNL, LAX-HNL, or LAX to HNL"
+        placeholder="Search LAX, HNL, LAX-HNL, LAX to HNL, or flight number"
         value={search}
         onChange={(e) => setSearch(e.target.value)}
         style={{ padding: 14, width: '100%', maxWidth: 520, borderRadius: 12, marginBottom: 20 }}
@@ -139,6 +141,7 @@ if (res.ok) {
           <p>Aircraft: {flight.aircraft}</p>
           <p>Status: {flight.status}</p>
           <p>Score: {flight.score}</p>
+          <a href={`/flights/${flight.id}`} style={{ display: 'inline-block', marginRight: 12, marginBottom: 12, color: '#38bdf8' }}>View details</a>
 
           <button
             onClick={() => requestLoad(flight.id)}

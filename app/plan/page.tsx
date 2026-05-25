@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { type FormEvent, useState } from 'react'
 
 const mockItineraries = [
   {
@@ -46,7 +46,7 @@ export default function PlanPage() {
   const [voiceStatus, setVoiceStatus] = useState('Voice capture scaffold ready.')
   const [submitted, setSubmitted] = useState(false)
 
-  function submitPlanRequest(event: React.FormEvent<HTMLFormElement>) {
+  function submitPlanRequest(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setSubmitted(true)
   }

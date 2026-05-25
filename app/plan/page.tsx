@@ -1,7 +1,8 @@
 'use client'
 
-import { type FormEvent, useState } from 'react'
-import { rankItinerary } from '../../lib/intelligence'
+import { type FormEvent, useEffect, useMemo, useState } from 'react'
+import { flightMatchesSearch } from '../../lib/flightSearch'
+import { delayRiskScore, rankItinerary } from '../../lib/intelligence'
 
 const mockItineraries = [
   {
@@ -56,20 +57,54 @@ export default function PlanPage() {
   const [travelerCount, setTravelerCount] = useState('1')
   const [voiceStatus, setVoiceStatus] = useState('Voice capture scaffold ready.')
   const [submitted, setSubmitted] = useState(false)
+  const [query, setQuery] = useState('')
+  const [flights, setFlights] = useState<any[]>([])
+  const [lastUpdated, setLastUpdated] = useState('')
+
+  useEffect(() => {
+    const initialQuery = new URLSearchParams(window.location.search).get('q') || ''
+    setQuery(initialQuery)
+    if (initialQuery) setTripGoal(initialQuery)
+  }, [])
+
+  useEffect(() => {
+    async function loadFlights() {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/flights?select=*&order=created_at.desc&limit=100`,
+        { headers: { apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '' } }
+      )
+      const data = await res.json()
+      setFlights(Array.isArray(data) ? data : [])
+      setLastUpdated(new Date().toLocaleTimeString())
+    }
+
+    loadFlights()
+    const refresh = window.setInterval(loadFlights, 30000)
+    return () => window.clearInterval(refresh)
+  }, [])
 
   function submitPlanRequest(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setSubmitted(true)
+    if (tripGoal.trim()) {
+      setQuery(tripGoal.trim())
+      window.history.replaceState(null, '', `/plan?q=${encodeURIComponent(tripGoal.trim())}`)
+    }
   }
 
   function startVoiceScaffold() {
     setVoiceStatus('Listening scaffold active — speech-to-itinerary capture will plug in here.')
   }
 
+  const matchingFlights = useMemo(
+    () => flights.filter((flight) => flightMatchesSearch(flight, query || tripGoal)),
+    [flights, query, tripGoal]
+  )
+
   return (
-    <main style={{ minHeight: '100vh', background: '#020617', color: 'white', padding: 32, fontFamily: 'Arial' }}>
-      <nav style={{ marginBottom: 24 }}>
-        <a href="/" style={{ marginRight: 16, color: '#38bdf8' }}>Flights</a>
+    <main className="app-shell" style={{ minHeight: '100vh', background: '#020617', color: 'white', padding: 32, fontFamily: 'Arial' }}>
+      <nav className="top-nav" style={{ marginBottom: 24 }}>
+        <a href="/" style={{ marginRight: 16, color: '#38bdf8' }}>nonrevy Home</a>
         <a href="/plan" style={{ marginRight: 16, color: '#fb7185' }}>Plan</a>
         <a href="/requests" style={{ marginRight: 16, color: '#c084fc' }}>Open Requests</a>
         <a href="/my-requests" style={{ marginRight: 16, color: '#facc15' }}>My Requests</a>
@@ -79,13 +114,13 @@ export default function PlanPage() {
 
       <section style={{ maxWidth: 1120, margin: '0 auto' }}>
         <p style={{ color: '#fb7185', fontWeight: 'bold', letterSpacing: 1, textTransform: 'uppercase' }}>
-          Nonrev trip planner
+          Search and itinerary planner
         </p>
         <h1 style={{ fontSize: 44, lineHeight: 1.05, margin: '8px 0 12px' }}>
-          Build a flexible itinerary before loads move.
+          Plan your nonrevy route.
         </h1>
         <p style={{ color: '#94a3b8', maxWidth: 720, fontSize: 18 }}>
-          Request a route plan, capture trip ideas by voice, and compare mock itinerary cards while the planning engine comes online.
+          Flight results, itinerary results, and searchable flight data live here so the homepage can stay focused on search.
         </p>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 18, marginTop: 28 }}>
@@ -95,11 +130,11 @@ export default function PlanPage() {
           >
             <h2 style={{ marginTop: 0 }}>Itinerary request</h2>
             <label style={{ display: 'block', color: '#cbd5e1', marginBottom: 12 }}>
-              Trip goal
+              Trip goal or flight search
               <textarea
                 value={tripGoal}
                 onChange={(event) => setTripGoal(event.target.value)}
-                placeholder="Beach weekend, Europe backup plan, mileage run..."
+                placeholder="LAX-HNL, LAX to HNL, AA123, beach weekend from SFO..."
                 rows={4}
                 style={{ boxSizing: 'border-box', width: '100%', marginTop: 6, padding: 12, borderRadius: 12, border: '1px solid #475569', background: '#020617', color: 'white' }}
               />
@@ -137,7 +172,7 @@ export default function PlanPage() {
               type="submit"
               style={{ width: '100%', padding: 14, borderRadius: 12, border: 'none', background: '#38bdf8', color: '#020617', fontWeight: 'bold' }}
             >
-              Generate mock plan
+              Update planner results
             </button>
             {submitted && (
               <p style={{ color: '#38bdf8', marginBottom: 0 }}>
@@ -160,13 +195,32 @@ export default function PlanPage() {
             </button>
             <p style={{ color: '#fecdd3' }}>{voiceStatus}</p>
             <div style={{ marginTop: 20, padding: 14, borderRadius: 16, background: 'rgba(15, 23, 42, 0.7)' }}>
-              <strong>Example transcript</strong>
+              <strong>Current search</strong>
               <p style={{ color: '#cbd5e1', marginBottom: 0 }}>
-                “Find me a warm long weekend from SFO with at least two return options and low-risk Monday loads.”
+                {query || 'No homepage query yet. Try searching from nonrevy home.'}
               </p>
             </div>
           </aside>
         </div>
+
+        <section style={{ marginTop: 30 }}>
+          <h2 style={{ fontSize: 30 }}>Flight results</h2>
+          <p style={{ color: '#94a3b8' }}>
+            {query || tripGoal ? `${matchingFlights.length} matching flights` : `${flights.length} searchable flights loaded`} · Last refresh {lastUpdated || 'pending'}
+          </p>
+          {(query || tripGoal ? matchingFlights : flights).map((flight) => {
+            const risk = delayRiskScore(flight)
+            return (
+              <article key={flight.id} className="flight-card" style={{ border: '1px solid #334155', borderRadius: 18, padding: 18, marginBottom: 14, background: '#0f172a' }}>
+                <h3 style={{ marginTop: 0 }}>{flight.flight_number}</h3>
+                <p style={{ color: '#38bdf8' }}>{flight.origin} → {flight.destination}</p>
+                <p>Aircraft: {flight.aircraft || 'Unknown'} · Status: {flight.status || 'Unknown'} · Score: {flight.score ?? 'Not scored'}</p>
+                <p>Delay risk: {risk.label} ({risk.score}/100)</p>
+                <a href={`/flights/${flight.id}`} style={{ color: '#38bdf8' }}>View flight detail</a>
+              </article>
+            )
+          })}
+        </section>
 
         <section style={{ marginTop: 30 }}>
           <h2 style={{ fontSize: 30 }}>Smart-ranked itinerary cards</h2>

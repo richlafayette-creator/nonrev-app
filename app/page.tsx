@@ -1,55 +1,14 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { type FormEvent, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { flightMatchesSearch } from '../lib/flightSearch'
-import { delayRiskScore } from '../lib/intelligence'
-import { REQUEST_CREDIT_COST, canSpendCredits, settleRequestCredit, spendRequestCredit } from '../lib/monetization'
-
-function recommendation(score: number) {
-  if (score >= 75) return '🟢 Strong'
-  if (score >= 55) return '🟡 Verify'
-  return '🔴 Avoid'
-}
-
-function airlineFromFlightNumber(flightNumber?: string) {
-  const match = (flightNumber || '').toUpperCase().match(/^[A-Z]+/)
-  return match?.[0] || 'Unknown'
-}
 
 export default function Home() {
-  const [flights, setFlights] = useState<any[]>([])
   const [search, setSearch] = useState('')
-  const [airlineFilter, setAirlineFilter] = useState('all')
-  const [originFilter, setOriginFilter] = useState('all')
-  const [destinationFilter, setDestinationFilter] = useState('all')
   const [message, setMessage] = useState('')
-  const [lastUpdated, setLastUpdated] = useState('')
   const [userEmail, setUserEmail] = useState('')
-  const [creditBalance, setCreditBalance] = useState({ available: 12, reserved: 0, earned: 0 })
-
-  async function loadFlights(showMessage = false) {
-    const res = await fetch(
-      `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/flights?select=*&order=created_at.desc&limit=100`,
-      { headers: { apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '' } }
-    )
-    const data = await res.json()
-    setFlights(Array.isArray(data) ? data : [])
-    setLastUpdated(new Date().toLocaleTimeString())
-    if (showMessage) setMessage(Array.isArray(data) ? 'Flight data refreshed.' : 'Could not refresh flight data.')
-  }
 
   useEffect(() => {
-    loadFlights()
-    const refresh = window.setInterval(() => loadFlights(), 30000)
-    const flightChannel = supabase
-      .channel('flight-updates-home')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'flights' }, () => {
-        loadFlights()
-        setMessage('Realtime flight update received.')
-      })
-      .subscribe()
-
     async function loadUser() {
       const { data } = await supabase.auth.getUser()
       setUserEmail(data.user?.email || '')
@@ -62,8 +21,6 @@ export default function Home() {
     })
 
     return () => {
-      window.clearInterval(refresh)
-      supabase.removeChannel(flightChannel)
       listener.subscription.unsubscribe()
     }
   }, [])
@@ -74,88 +31,26 @@ export default function Home() {
     setMessage('Logged out.')
   }
 
-  async function requestLoad(flightId: number) {
-    if (!canSpendCredits(creditBalance, REQUEST_CREDIT_COST)) {
-      setMessage('Not enough scaffold credits for this request.')
+  function submitSearch(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const query = search.trim()
+    if (!query) {
+      setMessage('Add a destination, route, or flight number to start planning.')
       return
     }
 
-    const checkRes = await fetch(
-      `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/load_requests?flight_id=eq.${flightId}&status=eq.open`,
-      {
-        headers: {
-          apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-        }
-      }
-    )
-
-    const existing = await checkRes.json()
-
-    if (Array.isArray(existing) && existing.length > 0) {
-      setMessage('Load request already open.')
-      return
-    }
-
-    const heldBalance = spendRequestCredit(creditBalance, REQUEST_CREDIT_COST)
-    setCreditBalance(heldBalance)
-
-    const res = await fetch(
-      `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/load_requests`,
-      {
-        method: 'POST',
-        headers: {
-          apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
-          Authorization: `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY}`,
-          'Content-Type': 'application/json',
-          Prefer: 'return=minimal'
-        },
-        body: JSON.stringify({
-          flight_id: flightId,
-          credits_spent: 1,
-          status: 'open'
-        })
-      }
-    )
-
-    if (res.ok) {
-      setCreditBalance(settleRequestCredit(heldBalance, REQUEST_CREDIT_COST))
-      setMessage('Load request created.')
-    } else if (res.status === 409) {
-      setCreditBalance(creditBalance)
-      setMessage('Load request already pending.')
-    } else {
-      setCreditBalance(creditBalance)
-      setMessage(`Request failed: ${res.status}`)
-    }
+    window.location.href = `/plan?q=${encodeURIComponent(query)}`
   }
 
-  const airlineOptions = useMemo(
-    () => Array.from(new Set(flights.map((flight) => airlineFromFlightNumber(flight.flight_number)))).sort(),
-    [flights]
-  )
-  const originOptions = useMemo(
-    () => Array.from(new Set(flights.map((flight) => flight.origin).filter(Boolean))).sort(),
-    [flights]
-  )
-  const destinationOptions = useMemo(
-    () => Array.from(new Set(flights.map((flight) => flight.destination).filter(Boolean))).sort(),
-    [flights]
-  )
-
-  const filtered = flights.filter((flight) => {
-    if (!flightMatchesSearch(flight, search)) return false
-    if (airlineFilter !== 'all' && airlineFromFlightNumber(flight.flight_number) !== airlineFilter) return false
-    if (originFilter !== 'all' && flight.origin !== originFilter) return false
-    if (destinationFilter !== 'all' && flight.destination !== destinationFilter) return false
-    return true
-  })
+  function startVoiceScaffold() {
+    setMessage('Voice input scaffold ready — speech capture will fill the search box here.')
+  }
 
   return (
     <main className="app-shell" style={{ minHeight: '100vh', background: '#020617', color: 'white', padding: 32, fontFamily: 'Arial' }}>
-      <nav className="top-nav" style={{ marginBottom: 24 }}>
-        <a href="/" style={{ marginRight: 16, color: '#38bdf8' }}>Flights</a>
-        <a href="/best-routes" style={{ marginRight: 16, color: '#fb7185' }}>Best Routes</a>
+      <nav className="top-nav" style={{ marginBottom: 24, justifyContent: 'center' }}>
         <a href="/plan" style={{ marginRight: 16, color: '#fb7185' }}>Plan</a>
+        <a href="/best-routes" style={{ marginRight: 16, color: '#fb7185' }}>Best Routes</a>
         <a href="/watchlist" style={{ marginRight: 16, color: '#facc15' }}>Watchlist</a>
         <a href="/credits" style={{ marginRight: 16, color: '#fbbf24' }}>Credits</a>
         <a href="/reputation" style={{ marginRight: 16, color: '#34d399' }}>Trust</a>
@@ -174,66 +69,41 @@ export default function Home() {
         )}
       </nav>
 
-      <section className="hero-grid">
-        <div>
-          <h1 style={{ fontSize: 42 }}>Best Flights Right Now</h1>
-          <p style={{ color: '#94a3b8' }}>Flights loaded: {flights.length} · Showing: {filtered.length} · Auto-refresh every 30s{lastUpdated ? ` · Last refresh ${lastUpdated}` : ''}</p>
-        </div>
-        <aside className="mini-card" style={{ border: '1px solid #334155', borderRadius: 18, padding: 16, background: '#0f172a' }}>
-          <strong>Credits scaffold</strong>
-          <p style={{ color: '#cbd5e1', marginBottom: 8 }}>Balance: {creditBalance.available} · Reserved: {creditBalance.reserved}</p>
-          <a href="/credits" style={{ color: '#fbbf24' }}>Manage credits</a>
-        </aside>
-      </section>
+      <section style={{ minHeight: '70vh', display: 'grid', placeItems: 'center' }}>
+        <div style={{ width: '100%', maxWidth: 760, textAlign: 'center' }}>
+          <h1 style={{ fontSize: 56, lineHeight: 1, margin: '0 0 42px', letterSpacing: '-0.05em' }}>
+            nonrevy
+          </h1>
 
-      {message && <p style={{ color: '#38bdf8' }}>{message}</p>}
+          <form onSubmit={submitSearch}>
+            <label htmlFor="homepage-search" style={{ display: 'block', fontSize: 28, fontWeight: 'bold', marginBottom: 18 }}>
+              Where are we headed?
+            </label>
+            <div style={{ position: 'relative' }}>
+              <input
+                id="homepage-search"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Try LAX-HNL, LAX to HNL, AA123, or beach weekend from SFO"
+                style={{ boxSizing: 'border-box', width: '100%', padding: '18px 58px 18px 20px', borderRadius: 999, border: '1px solid #334155', background: '#0f172a', color: 'white', fontSize: 16 }}
+              />
+              <button
+                type="button"
+                aria-label="Voice input scaffold"
+                onClick={startVoiceScaffold}
+                style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', width: 40, height: 40, borderRadius: 999, border: '1px solid #475569', background: '#020617', color: '#f472b6', fontSize: 18 }}
+              >
+                🎙️
+              </button>
+            </div>
+            <button type="submit" style={{ marginTop: 18, padding: '14px 24px', borderRadius: 999, border: 'none', background: '#38bdf8', color: '#020617', fontWeight: 'bold' }}>
+              Search flights and plan
+            </button>
+          </form>
 
-      <section className="filter-panel" style={{ border: '1px solid #334155', borderRadius: 18, padding: 16, marginBottom: 20, background: '#0f172a' }}>
-        <input
-          placeholder="Search LAX, HNL, LAX-HNL, LAX to HNL, or flight number"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          style={{ padding: 14, width: '100%', maxWidth: 520, borderRadius: 12, marginBottom: 12 }}
-        />
-        <div className="filter-grid">
-          <select value={airlineFilter} onChange={(e) => setAirlineFilter(e.target.value)} style={{ padding: 12, borderRadius: 10 }}>
-            <option value="all">All airlines</option>
-            {airlineOptions.map((airline) => <option key={airline} value={airline}>{airline}</option>)}
-          </select>
-          <select value={originFilter} onChange={(e) => setOriginFilter(e.target.value)} style={{ padding: 12, borderRadius: 10 }}>
-            <option value="all">All origins</option>
-            {originOptions.map((origin) => <option key={origin} value={origin}>{origin}</option>)}
-          </select>
-          <select value={destinationFilter} onChange={(e) => setDestinationFilter(e.target.value)} style={{ padding: 12, borderRadius: 10 }}>
-            <option value="all">All destinations</option>
-            {destinationOptions.map((destination) => <option key={destination} value={destination}>{destination}</option>)}
-          </select>
-          <button onClick={() => loadFlights(true)} style={{ padding: 12, borderRadius: 10, border: 'none', background: '#38bdf8', fontWeight: 'bold' }}>
-            Refresh now
-          </button>
+          {message && <p style={{ color: '#38bdf8', marginTop: 18 }}>{message}</p>}
         </div>
       </section>
-
-      {filtered.map((flight) => (
-        <div className="flight-card" key={flight.id} style={{ border: '1px solid #334155', borderRadius: 18, padding: 18, marginBottom: 14, background: '#0f172a' }}>
-          <h2>{flight.flight_number}</h2>
-          <h3>{recommendation(flight.score)}</h3>
-          <p>{flight.origin} → {flight.destination}</p>
-          <p>Airline: {airlineFromFlightNumber(flight.flight_number)}</p>
-          <p>Aircraft: {flight.aircraft}</p>
-          <p>Status: {flight.status}</p>
-          <p>Score: {flight.score}</p>
-          <p>Delay risk: {delayRiskScore(flight).label} ({delayRiskScore(flight).score}/100)</p>
-          <a href={`/flights/${flight.id}`} style={{ display: 'inline-block', marginRight: 12, marginBottom: 12, color: '#38bdf8' }}>View details</a>
-
-          <button
-            onClick={() => requestLoad(flight.id)}
-            style={{ padding: 12, borderRadius: 10, border: 'none', background: '#38bdf8', fontWeight: 'bold' }}
-          >
-            Verify Load - 1 Credit
-          </button>
-        </div>
-      ))}
     </main>
   )
 }

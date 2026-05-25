@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { flightMatchesSearch } from '../lib/flightSearch'
 
@@ -10,23 +10,35 @@ function recommendation(score: number) {
   return '🔴 Avoid'
 }
 
+function airlineFromFlightNumber(flightNumber?: string) {
+  const match = (flightNumber || '').toUpperCase().match(/^[A-Z]+/)
+  return match?.[0] || 'Unknown'
+}
+
 export default function Home() {
   const [flights, setFlights] = useState<any[]>([])
   const [search, setSearch] = useState('')
+  const [airlineFilter, setAirlineFilter] = useState('all')
+  const [originFilter, setOriginFilter] = useState('all')
+  const [destinationFilter, setDestinationFilter] = useState('all')
   const [message, setMessage] = useState('')
+  const [lastUpdated, setLastUpdated] = useState('')
   const [userEmail, setUserEmail] = useState('')
 
-  async function loadFlights() {
+  async function loadFlights(showMessage = false) {
     const res = await fetch(
       `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/flights?select=*&order=created_at.desc&limit=100`,
       { headers: { apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '' } }
     )
     const data = await res.json()
     setFlights(Array.isArray(data) ? data : [])
+    setLastUpdated(new Date().toLocaleTimeString())
+    if (showMessage) setMessage(Array.isArray(data) ? 'Flight data refreshed.' : 'Could not refresh flight data.')
   }
 
   useEffect(() => {
     loadFlights()
+    const refresh = window.setInterval(() => loadFlights(), 30000)
 
     async function loadUser() {
       const { data } = await supabase.auth.getUser()
@@ -40,6 +52,7 @@ export default function Home() {
     })
 
     return () => {
+      window.clearInterval(refresh)
       listener.subscription.unsubscribe()
     }
   }, [])
@@ -94,15 +107,37 @@ export default function Home() {
     }
   }
 
-  const filtered = flights.filter((flight) => flightMatchesSearch(flight, search))
+  const airlineOptions = useMemo(
+    () => Array.from(new Set(flights.map((flight) => airlineFromFlightNumber(flight.flight_number)))).sort(),
+    [flights]
+  )
+  const originOptions = useMemo(
+    () => Array.from(new Set(flights.map((flight) => flight.origin).filter(Boolean))).sort(),
+    [flights]
+  )
+  const destinationOptions = useMemo(
+    () => Array.from(new Set(flights.map((flight) => flight.destination).filter(Boolean))).sort(),
+    [flights]
+  )
+
+  const filtered = flights.filter((flight) => {
+    if (!flightMatchesSearch(flight, search)) return false
+    if (airlineFilter !== 'all' && airlineFromFlightNumber(flight.flight_number) !== airlineFilter) return false
+    if (originFilter !== 'all' && flight.origin !== originFilter) return false
+    if (destinationFilter !== 'all' && flight.destination !== destinationFilter) return false
+    return true
+  })
 
   return (
-    <main style={{ minHeight: '100vh', background: '#020617', color: 'white', padding: 32, fontFamily: 'Arial' }}>
-      <nav style={{ marginBottom: 24 }}>
+    <main className="app-shell" style={{ minHeight: '100vh', background: '#020617', color: 'white', padding: 32, fontFamily: 'Arial' }}>
+      <nav className="top-nav" style={{ marginBottom: 24 }}>
         <a href="/" style={{ marginRight: 16, color: '#38bdf8' }}>Flights</a>
         <a href="/best-routes" style={{ marginRight: 16, color: '#fb7185' }}>Best Routes</a>
         <a href="/plan" style={{ marginRight: 16, color: '#fb7185' }}>Plan</a>
         <a href="/watchlist" style={{ marginRight: 16, color: '#facc15' }}>Watchlist</a>
+        <a href="/credits" style={{ marginRight: 16, color: '#fbbf24' }}>Credits</a>
+        <a href="/reputation" style={{ marginRight: 16, color: '#34d399' }}>Trust</a>
+        <a href="/notifications" style={{ marginRight: 16, color: '#f472b6' }}>Notifications</a>
         <a href="/agent" style={{ marginRight: 16, color: '#a78bfa' }}>Agent</a>
         <a href="/requests" style={{ marginRight: 16, color: '#c084fc' }}>Open Requests</a>
         <a href="/my-requests" style={{ marginRight: 16, color: '#facc15' }}>My Requests</a>
@@ -110,34 +145,59 @@ export default function Home() {
         {userEmail ? (
           <>
             <span style={{ color: '#38bdf8', marginRight: 12 }}>{userEmail}</span>
-            <button
-              onClick={logout}
-              style={{ padding: 8, borderRadius: 8, border: 'none' }}
-            >
-              Logout
-            </button>
+            <button onClick={logout} style={{ padding: 8, borderRadius: 8, border: 'none' }}>Logout</button>
           </>
         ) : (
           <a href="/login" style={{ color: '#f472b6' }}>Login</a>
         )}
       </nav>
 
-      <h1 style={{ fontSize: 42 }}>Best Flights Right Now</h1>
-      <p style={{ color: '#94a3b8' }}>Flights loaded: {flights.length}</p>
+      <section className="hero-grid">
+        <div>
+          <h1 style={{ fontSize: 42 }}>Best Flights Right Now</h1>
+          <p style={{ color: '#94a3b8' }}>Flights loaded: {flights.length} · Showing: {filtered.length} · Auto-refresh every 30s{lastUpdated ? ` · Last refresh ${lastUpdated}` : ''}</p>
+        </div>
+        <aside className="mini-card" style={{ border: '1px solid #334155', borderRadius: 18, padding: 16, background: '#0f172a' }}>
+          <strong>Credits scaffold</strong>
+          <p style={{ color: '#cbd5e1', marginBottom: 8 }}>Balance: 12 · Reserved: 0</p>
+          <a href="/credits" style={{ color: '#fbbf24' }}>Manage credits</a>
+        </aside>
+      </section>
+
       {message && <p style={{ color: '#38bdf8' }}>{message}</p>}
 
-      <input
-        placeholder="Search LAX, HNL, LAX-HNL, LAX to HNL, or flight number"
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        style={{ padding: 14, width: '100%', maxWidth: 520, borderRadius: 12, marginBottom: 20 }}
-      />
+      <section className="filter-panel" style={{ border: '1px solid #334155', borderRadius: 18, padding: 16, marginBottom: 20, background: '#0f172a' }}>
+        <input
+          placeholder="Search LAX, HNL, LAX-HNL, LAX to HNL, or flight number"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          style={{ padding: 14, width: '100%', maxWidth: 520, borderRadius: 12, marginBottom: 12 }}
+        />
+        <div className="filter-grid">
+          <select value={airlineFilter} onChange={(e) => setAirlineFilter(e.target.value)} style={{ padding: 12, borderRadius: 10 }}>
+            <option value="all">All airlines</option>
+            {airlineOptions.map((airline) => <option key={airline} value={airline}>{airline}</option>)}
+          </select>
+          <select value={originFilter} onChange={(e) => setOriginFilter(e.target.value)} style={{ padding: 12, borderRadius: 10 }}>
+            <option value="all">All origins</option>
+            {originOptions.map((origin) => <option key={origin} value={origin}>{origin}</option>)}
+          </select>
+          <select value={destinationFilter} onChange={(e) => setDestinationFilter(e.target.value)} style={{ padding: 12, borderRadius: 10 }}>
+            <option value="all">All destinations</option>
+            {destinationOptions.map((destination) => <option key={destination} value={destination}>{destination}</option>)}
+          </select>
+          <button onClick={() => loadFlights(true)} style={{ padding: 12, borderRadius: 10, border: 'none', background: '#38bdf8', fontWeight: 'bold' }}>
+            Refresh now
+          </button>
+        </div>
+      </section>
 
       {filtered.map((flight) => (
-        <div key={flight.id} style={{ border: '1px solid #334155', borderRadius: 18, padding: 18, marginBottom: 14, background: '#0f172a' }}>
+        <div className="flight-card" key={flight.id} style={{ border: '1px solid #334155', borderRadius: 18, padding: 18, marginBottom: 14, background: '#0f172a' }}>
           <h2>{flight.flight_number}</h2>
           <h3>{recommendation(flight.score)}</h3>
           <p>{flight.origin} → {flight.destination}</p>
+          <p>Airline: {airlineFromFlightNumber(flight.flight_number)}</p>
           <p>Aircraft: {flight.aircraft}</p>
           <p>Status: {flight.status}</p>
           <p>Score: {flight.score}</p>

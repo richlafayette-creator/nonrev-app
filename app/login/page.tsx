@@ -23,7 +23,13 @@ export default function LoginPage() {
       password
     })
 
-    setMessage(error ? error.message : 'Logged in.')
+    if (error) {
+      setMessage(error.message)
+    } else {
+      localStorage.setItem('nonrev_user_email', email)
+      setMessage('Logged in.')
+      window.location.href = '/'
+    }
   }
 
   return (

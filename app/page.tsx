@@ -84,8 +84,13 @@ export default function Home() {
       }
     )
 
-    setMessage(res.ok ? 'Load request created.' : `Request failed: ${res.status}`)
-  }
+if (res.ok) {
+  setMessage('Load request created.')
+} else if (res.status === 409) {
+  setMessage('Load request already pending.')
+} else {
+  setMessage(`Request failed: ${res.status}`)
+}  }
 
   const q = search.toLowerCase().replace(/\bto\b/g, '').replace(/-/g, ' ').trim()
 

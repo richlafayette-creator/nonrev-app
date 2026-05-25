@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react'
 export default function RequestsPage() {
   const [requests, setRequests] = useState<any[]>([])
   const [message, setMessage] = useState('')
-const [pendingIds, setPendingIds] = useState<number[]>([])
+  const [pendingIds, setPendingIds] = useState<number[]>([])
 
   async function loadRequests() {
     const res = await fetch(
@@ -23,14 +23,16 @@ const [pendingIds, setPendingIds] = useState<number[]>([])
     loadRequests()
   }, [])
 
-  async function answerRequestif (!intel) return (requestId: number) {
-    const intel = prompt('Load notes?')
-    if (!intel) return if (pendingIds.includes(requestId)) {
-  setMessage('Pending load submission by agent.')
-  return
-}
+  async function answerRequest(requestId: number) {
+    if (pendingIds.includes(requestId)) {
+      setMessage('Pending load submission by agent.')
+      return
+    }
 
-setPendingIds((ids) => [...ids, requestId])
+    const intel = prompt('Load notes?')
+    if (!intel) return
+
+    setPendingIds((ids) => [...ids, requestId])
 
     const responseRes = await fetch(
       `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/load_responses`,
@@ -52,6 +54,7 @@ setPendingIds((ids) => [...ids, requestId])
 
     if (!responseRes.ok) {
       setMessage(`Failed to submit response: ${responseRes.status}`)
+      setPendingIds((ids) => ids.filter((id) => id !== requestId))
       return
     }
 
@@ -73,11 +76,12 @@ setPendingIds((ids) => [...ids, requestId])
 
     if (!closeRes.ok) {
       setMessage(`Response saved, but failed to close request: ${closeRes.status}`)
+      setPendingIds((ids) => ids.filter((id) => id !== requestId))
       return
     }
 
     setMessage('Response submitted and request closed.')
-    loadRequests()
+    setRequests((items) => items.filter((item) => item.id !== requestId))
   }
 
   return (
@@ -101,23 +105,24 @@ setPendingIds((ids) => [...ids, requestId])
           <p>Status: {request.status}</p>
           <p>Credits spent: {request.credits_spent}</p>
 
-<button
-  disabled={pendingIds.includes(request.id)}
-  onClick={() => answerRequest(request.id)}
-  style={{
-    padding: 10,
-    borderRadius: 8,
-    border: 'none',
-    background: pendingIds.includes(request.id) ? '#64748b' : '#22c55e',
-    fontWeight: 'bold',
-    marginTop: 10
-  }}
->
-  {pendingIds.includes(request.id)
-    ? 'Pending load submission by agent'
-    : 'Answer Request'}
-</button>          >
-            Answer Request
+          <button
+            disabled={pendingIds.includes(request.id)}
+            onClick={() => answerRequest(request.id)}
+            style={{
+              padding: 10,
+              borderRadius: 8,
+              border: 'none',
+              background: pendingIds.includes(request.id) ? '#64748b' : '#22c55e',
+              fontWeight: 'bold',
+              marginTop: 10
+            }}
+          >
+            {pendingIds.includes(request.id)
+              ? 'Pending load submission by agent'
+              : 'Answer Request'}
+          </button>
+        </div>
+      ))}
     </main>
   )
 }

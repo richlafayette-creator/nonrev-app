@@ -35,7 +35,6 @@ export default function AccountMenu() {
     <aside className="account-menu" aria-label="Account menu">
       <details className="account-menu__details">
         <summary className="account-menu__summary">
-          <span className="account-menu__label">Account</span>
           <span className="account-menu__identity">{userEmail || 'Guest'}</span>
         </summary>
         <div className="account-menu__links">

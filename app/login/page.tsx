@@ -9,12 +9,8 @@ export default function LoginPage() {
   const [message, setMessage] = useState('')
 
   async function signUp() {
-    const { error } = await supabase.auth.signUp({
-      email,
-      password
-    })
-
-    setMessage(error ? error.message : 'Account created.')
+    const { error } = await supabase.auth.signUp({ email, password })
+    setMessage(error ? error.message : 'Account created. You can now log in.')
   }
 
   async function signIn() {
@@ -26,7 +22,6 @@ export default function LoginPage() {
     if (error) {
       setMessage(error.message)
     } else {
-      localStorage.setItem('nonrev_user_email', email)
       setMessage('Logged in.')
       window.location.href = '/'
     }

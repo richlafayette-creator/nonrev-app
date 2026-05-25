@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { flightMatchesSearch } from '../lib/flightSearch'
+import { delayRiskScore } from '../lib/intelligence'
+import { REQUEST_CREDIT_COST, canSpendCredits, settleRequestCredit, spendRequestCredit } from '../lib/monetization'
 
 function recommendation(score: number) {
   if (score >= 75) return '🟢 Strong'
@@ -24,6 +26,7 @@ export default function Home() {
   const [message, setMessage] = useState('')
   const [lastUpdated, setLastUpdated] = useState('')
   const [userEmail, setUserEmail] = useState('')
+  const [creditBalance, setCreditBalance] = useState({ available: 12, reserved: 0, earned: 0 })
 
   async function loadFlights(showMessage = false) {
     const res = await fetch(
@@ -39,6 +42,13 @@ export default function Home() {
   useEffect(() => {
     loadFlights()
     const refresh = window.setInterval(() => loadFlights(), 30000)
+    const flightChannel = supabase
+      .channel('flight-updates-home')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'flights' }, () => {
+        loadFlights()
+        setMessage('Realtime flight update received.')
+      })
+      .subscribe()
 
     async function loadUser() {
       const { data } = await supabase.auth.getUser()
@@ -53,6 +63,7 @@ export default function Home() {
 
     return () => {
       window.clearInterval(refresh)
+      supabase.removeChannel(flightChannel)
       listener.subscription.unsubscribe()
     }
   }, [])
@@ -64,6 +75,11 @@ export default function Home() {
   }
 
   async function requestLoad(flightId: number) {
+    if (!canSpendCredits(creditBalance, REQUEST_CREDIT_COST)) {
+      setMessage('Not enough scaffold credits for this request.')
+      return
+    }
+
     const checkRes = await fetch(
       `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/load_requests?flight_id=eq.${flightId}&status=eq.open`,
       {
@@ -79,6 +95,9 @@ export default function Home() {
       setMessage('Load request already open.')
       return
     }
+
+    const heldBalance = spendRequestCredit(creditBalance, REQUEST_CREDIT_COST)
+    setCreditBalance(heldBalance)
 
     const res = await fetch(
       `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/load_requests`,
@@ -99,10 +118,13 @@ export default function Home() {
     )
 
     if (res.ok) {
+      setCreditBalance(settleRequestCredit(heldBalance, REQUEST_CREDIT_COST))
       setMessage('Load request created.')
     } else if (res.status === 409) {
+      setCreditBalance(creditBalance)
       setMessage('Load request already pending.')
     } else {
+      setCreditBalance(creditBalance)
       setMessage(`Request failed: ${res.status}`)
     }
   }
@@ -159,7 +181,7 @@ export default function Home() {
         </div>
         <aside className="mini-card" style={{ border: '1px solid #334155', borderRadius: 18, padding: 16, background: '#0f172a' }}>
           <strong>Credits scaffold</strong>
-          <p style={{ color: '#cbd5e1', marginBottom: 8 }}>Balance: 12 · Reserved: 0</p>
+          <p style={{ color: '#cbd5e1', marginBottom: 8 }}>Balance: {creditBalance.available} · Reserved: {creditBalance.reserved}</p>
           <a href="/credits" style={{ color: '#fbbf24' }}>Manage credits</a>
         </aside>
       </section>
@@ -201,6 +223,7 @@ export default function Home() {
           <p>Aircraft: {flight.aircraft}</p>
           <p>Status: {flight.status}</p>
           <p>Score: {flight.score}</p>
+          <p>Delay risk: {delayRiskScore(flight).label} ({delayRiskScore(flight).score}/100)</p>
           <a href={`/flights/${flight.id}`} style={{ display: 'inline-block', marginRight: 12, marginBottom: 12, color: '#38bdf8' }}>View details</a>
 
           <button

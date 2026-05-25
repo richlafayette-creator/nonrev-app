@@ -1,12 +1,15 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { ANSWER_REWARD_CREDITS, rewardResponder } from '../../lib/monetization'
+import { supabase } from '../../lib/supabase'
 
 export default function RequestsPage() {
   const [requests, setRequests] = useState<any[]>([])
   const [message, setMessage] = useState('')
   const [lastUpdated, setLastUpdated] = useState('')
   const [pendingIds, setPendingIds] = useState<number[]>([])
+  const [rewardBalance, setRewardBalance] = useState({ available: 0, reserved: 0, earned: 0 })
 
   async function loadRequests(showMessage = false) {
     const res = await fetch(
@@ -28,7 +31,19 @@ export default function RequestsPage() {
   useEffect(() => {
     loadRequests()
     const refresh = window.setInterval(() => loadRequests(), 20000)
-    return () => window.clearInterval(refresh)
+    const requestChannel = supabase
+      .channel('open-request-updates')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'load_requests' }, () => loadRequests())
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'load_responses' }, () => {
+        loadRequests()
+        setMessage('Realtime answer received; notifications scaffold would fan this out.')
+      })
+      .subscribe()
+
+    return () => {
+      window.clearInterval(refresh)
+      supabase.removeChannel(requestChannel)
+    }
   }, [])
 
   async function answerRequest(requestId: number) {
@@ -88,6 +103,7 @@ export default function RequestsPage() {
       return
     }
 
+    setRewardBalance((balance) => rewardResponder(balance, ANSWER_REWARD_CREDITS))
     setMessage('Response submitted and request closed.')
     setRequests((items) => items.filter((item) => item.id !== requestId))
   }
@@ -111,6 +127,7 @@ export default function RequestsPage() {
         <div>
           <h1>Open Load Requests</h1>
           <p style={{ color: '#94a3b8' }}>Requests loaded: {requests.length} · Auto-refresh every 20s{lastUpdated ? ` · Last refresh ${lastUpdated}` : ''}</p>
+          <p style={{ color: '#34d399' }}>Responder reward scaffold: +{ANSWER_REWARD_CREDITS} credits per accepted answer · Earned this session: {rewardBalance.earned}</p>
         </div>
         <button onClick={() => loadRequests(true)} style={{ alignSelf: 'start', padding: 12, borderRadius: 10, border: 'none', background: '#c084fc', color: '#020617', fontWeight: 'bold' }}>
           Refresh requests

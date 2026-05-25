@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
+import { delayRiskScore } from '../../../lib/intelligence'
+import { supabase } from '../../../lib/supabase'
 
 type Flight = {
   id: number
@@ -46,9 +48,18 @@ export default function FlightDetailPage() {
     const refresh = window.setInterval(() => {
       if (params.id) loadFlight()
     }, 30000)
+    const flightChannel = supabase
+      .channel(`flight-detail-${params.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'flights', filter: `id=eq.${params.id}` }, () => loadFlight())
+      .subscribe()
 
-    return () => window.clearInterval(refresh)
+    return () => {
+      window.clearInterval(refresh)
+      supabase.removeChannel(flightChannel)
+    }
   }, [params.id])
+
+  const risk = flight ? delayRiskScore(flight) : null
 
   return (
     <main className="app-shell" style={{ minHeight: '100vh', background: '#020617', color: 'white', padding: 32, fontFamily: 'Arial' }}>
@@ -72,6 +83,14 @@ export default function FlightDetailPage() {
           <p>Aircraft: {flight.aircraft || 'Unknown'}</p>
           <p>Status: {flight.status || 'Unknown'}</p>
           <p>Score: {flight.score ?? 'Not scored'}</p>
+          {risk && (
+            <div style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, marginTop: 12, background: '#020617' }}>
+              <strong>Delay-risk scaffold: {risk.label} ({risk.score}/100)</strong>
+              <ul style={{ color: '#cbd5e1' }}>
+                {risk.reasons.map((reason) => <li key={reason}>{reason}</li>)}
+              </ul>
+            </div>
+          )}
           <p style={{ color: '#cbd5e1' }}>Created: {flight.created_at || 'Not available'}</p>
           <a href="/watchlist" style={{ display: 'inline-block', marginTop: 12, padding: 12, borderRadius: 10, background: '#facc15', color: '#020617', textDecoration: 'none', fontWeight: 'bold' }}>
             Watch this route scaffold

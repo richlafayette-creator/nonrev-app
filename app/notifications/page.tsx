@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { supabase } from '../../lib/supabase'
 
 const initialNotifications = [
   { id: 1, title: 'LAX → HNL score improved', body: 'Watchlist scaffold would alert you when a saved route crosses your threshold.', read: false },
@@ -10,6 +11,38 @@ const initialNotifications = [
 
 export default function NotificationsPage() {
   const [notifications, setNotifications] = useState(initialNotifications)
+
+  useEffect(() => {
+    const channel = supabase
+      .channel('notification-center-triggers')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'load_responses' }, (payload) => {
+        setNotifications((items) => [
+          {
+            id: Date.now(),
+            title: 'Request answered',
+            body: `Realtime trigger scaffold received response ${payload.new?.id || ''}.`,
+            read: false
+          },
+          ...items
+        ])
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'flights' }, () => {
+        setNotifications((items) => [
+          {
+            id: Date.now() + 1,
+            title: 'Flight update received',
+            body: 'Realtime flight-change trigger scaffold fired from Supabase.',
+            read: false
+          },
+          ...items
+        ])
+      })
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [])
 
   function markAllRead() {
     setNotifications((items) => items.map((item) => ({ ...item, read: true })))

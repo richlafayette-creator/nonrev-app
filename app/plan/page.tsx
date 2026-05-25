@@ -1,6 +1,7 @@
 'use client'
 
 import { type FormEvent, useState } from 'react'
+import { rankItinerary } from '../../lib/intelligence'
 
 const mockItineraries = [
   {
@@ -10,7 +11,9 @@ const mockItineraries = [
     confidence: 'Strong',
     window: 'Apr 12-18',
     notes: 'Start with the earliest LAX-HNL bank, keep OGG as a same-day fallback, and verify return loads 48 hours out.',
-    segments: ['LAX to HNL: morning widebody preferred', 'HNL to OGG: flexible island hop', 'OGG to LAX: midweek return']
+    segments: ['LAX to HNL: morning widebody preferred', 'HNL to OGG: flexible island hop', 'OGG to LAX: midweek return'],
+    backupOptions: 4,
+    travelerFriction: 4
   },
   {
     id: 2,
@@ -19,7 +22,9 @@ const mockItineraries = [
     confidence: 'Verify',
     window: 'May 3-9',
     notes: 'Prioritize nonstop transatlantic options, then use rail or short-haul backup positioning if Paris loads tighten.',
-    segments: ['JFK to LHR: overnight departure', 'London stopover: 2 nights', 'CDG return: monitor premium spillover']
+    segments: ['JFK to LHR: overnight departure', 'London stopover: 2 nights', 'CDG return: monitor premium spillover'],
+    backupOptions: 3,
+    travelerFriction: 9
   },
   {
     id: 3,
@@ -28,9 +33,15 @@ const mockItineraries = [
     confidence: 'Strong',
     window: 'Next 3-day weekend',
     notes: 'A simple out-and-back with multiple daily frequencies and easy same-day recovery options.',
-    segments: ['SFO to DEN: Friday afternoon', 'Denver: flexible stay', 'DEN to SFO: Monday morning']
+    segments: ['SFO to DEN: Friday afternoon', 'Denver: flexible stay', 'DEN to SFO: Monday morning'],
+    backupOptions: 5,
+    travelerFriction: 2
   }
 ]
+
+const rankedItineraries = [...mockItineraries]
+  .map((itinerary) => ({ ...itinerary, ranking: rankItinerary(itinerary) }))
+  .sort((a, b) => b.ranking.score - a.ranking.score)
 
 function confidenceColor(confidence: string) {
   if (confidence === 'Strong') return '#22c55e'
@@ -158,17 +169,19 @@ export default function PlanPage() {
         </div>
 
         <section style={{ marginTop: 30 }}>
-          <h2 style={{ fontSize: 30 }}>Mock itinerary cards</h2>
+          <h2 style={{ fontSize: 30 }}>Smart-ranked itinerary cards</h2>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 16 }}>
-            {mockItineraries.map((itinerary) => (
+            {rankedItineraries.map((itinerary) => (
               <article key={itinerary.id} style={{ border: '1px solid #334155', borderRadius: 20, padding: 18, background: '#0f172a' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
                   <h3 style={{ margin: 0 }}>{itinerary.title}</h3>
                   <span style={{ color: confidenceColor(itinerary.confidence), fontWeight: 'bold' }}>{itinerary.confidence}</span>
                 </div>
+                <p style={{ color: '#facc15', fontWeight: 'bold' }}>{itinerary.ranking.label}: {itinerary.ranking.score}/100</p>
                 <p style={{ color: '#38bdf8', fontSize: 18, fontWeight: 'bold' }}>{itinerary.route}</p>
                 <p style={{ color: '#94a3b8' }}>Window: {itinerary.window}</p>
                 <p>{itinerary.notes}</p>
+                <p style={{ color: '#cbd5e1' }}>Ranking notes: {itinerary.ranking.notes.join(' · ')}</p>
                 <ul style={{ color: '#cbd5e1', paddingLeft: 20 }}>
                   {itinerary.segments.map((segment) => (
                     <li key={segment}>{segment}</li>

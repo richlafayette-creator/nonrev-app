@@ -7,6 +7,7 @@ export default function MyRequestsPage() {
   const [requests, setRequests] = useState<any[]>([])
   const [statusFilter, setStatusFilter] = useState('all')
   const [lastUpdated, setLastUpdated] = useState('')
+  const [notification, setNotification] = useState('')
 
   async function loadRequests() {
     const { data } = await supabase
@@ -37,6 +38,7 @@ export default function MyRequestsPage() {
         },
         () => {
           loadRequests()
+          setNotification('Answered request notification trigger received.')
         }
       )
       .subscribe()
@@ -85,6 +87,7 @@ export default function MyRequestsPage() {
           Refresh my requests
         </button>
       </section>
+      {notification && <p style={{ color: '#f472b6' }}>{notification}</p>}
 
       <section className="stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, margin: '18px 0' }}>
         <div className="mini-card" style={{ border: '1px solid #334155', borderRadius: 16, padding: 14, background: '#0f172a' }}><strong>{requests.length}</strong><p>Total requests</p></div>

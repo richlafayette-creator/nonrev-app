@@ -42,7 +42,8 @@ async function answerRequest(requestId: number) {
       },
       body: JSON.stringify({
         request_id: requestId,
-        notes
+        intel: notes,
+trust_score: 0
       })
     }
   )

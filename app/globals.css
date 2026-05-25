@@ -92,27 +92,33 @@ main:has(> nav) {
 
 .account-menu__links {
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  align-items: center;
-  padding: 0 14px 14px;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  gap: 10px;
+  align-items: stretch;
+  padding: 4px 14px 16px;
 }
 
 .account-menu a,
 .account-menu button {
   color: #f8fafc;
-  background: #020617;
+  background: rgba(2, 6, 23, 0.72);
   border: 1px solid #334155;
-  border-radius: 999px;
-  padding: 7px 10px;
+  border-radius: 12px;
+  padding: 11px 12px;
   text-decoration: none;
   font: inherit;
   cursor: pointer;
+  text-align: left;
+  width: 100%;
+  transition: border-color 140ms ease, background 140ms ease, transform 140ms ease;
 }
 
 .account-menu a:hover,
 .account-menu button:hover {
   border-color: #38bdf8;
+  background: rgba(15, 23, 42, 0.92);
+  transform: translateY(-1px);
 }
 
 .top-nav {

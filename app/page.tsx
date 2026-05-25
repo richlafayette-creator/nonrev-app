@@ -98,7 +98,6 @@ export default function Home() {
             </button>
           </>
         ) : (
-          <a href="/login" style={{ color: '#f472b6' }}>Login</a>
         )}
       </nav>
 

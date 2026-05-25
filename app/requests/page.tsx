@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react'
 export default function RequestsPage() {
   const [requests, setRequests] = useState<any[]>([])
   const [message, setMessage] = useState('')
+const [pendingIds, setPendingIds] = useState<number[]>([])
 
   async function loadRequests() {
     const res = await fetch(
@@ -22,9 +23,14 @@ export default function RequestsPage() {
     loadRequests()
   }, [])
 
-  async function answerRequest(requestId: number) {
+  async function answerRequestif (!intel) return (requestId: number) {
     const intel = prompt('Load notes?')
-    if (!intel) return
+    if (!intel) return if (pendingIds.includes(requestId)) {
+  setMessage('Pending load submission by agent.')
+  return
+}
+
+setPendingIds((ids) => [...ids, requestId])
 
     const responseRes = await fetch(
       `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/load_responses`,
@@ -95,21 +101,23 @@ export default function RequestsPage() {
           <p>Status: {request.status}</p>
           <p>Credits spent: {request.credits_spent}</p>
 
-          <button
-            onClick={() => answerRequest(request.id)}
-            style={{
-              padding: 10,
-              borderRadius: 8,
-              border: 'none',
-              background: '#22c55e',
-              fontWeight: 'bold',
-              marginTop: 10
-            }}
-          >
+<button
+  disabled={pendingIds.includes(request.id)}
+  onClick={() => answerRequest(request.id)}
+  style={{
+    padding: 10,
+    borderRadius: 8,
+    border: 'none',
+    background: pendingIds.includes(request.id) ? '#64748b' : '#22c55e',
+    fontWeight: 'bold',
+    marginTop: 10
+  }}
+>
+  {pendingIds.includes(request.id)
+    ? 'Pending load submission by agent'
+    : 'Answer Request'}
+</button>          >
             Answer Request
-          </button>
-        </div>
-      ))}
     </main>
   )
 }

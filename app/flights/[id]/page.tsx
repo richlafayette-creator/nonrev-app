@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation'
 import { delayRiskScore } from '../../../lib/intelligence'
 import { allFlightFields, fieldValue, richFlightFieldLabels } from '../../../lib/flightDataScaffold'
 import { supabase } from '../../../lib/supabase'
+import MapboxAirportMap from '../../MapboxAirportMap'
 
 type Flight = {
   id: number
@@ -101,6 +102,23 @@ export default function FlightDetailPage() {
                 Future airport maps, walking directions, lounge proximity, terminal GPS, and gate-level wayfinding will render here when provider data is connected.
               </p>
             </div>
+            <details style={{ marginTop: 12 }}>
+              <summary style={{ color: '#38bdf8', cursor: 'pointer', fontWeight: 'bold' }}>Airport maps and terminal navigation</summary>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 12, marginTop: 12 }}>
+                <MapboxAirportMap airportCode={flight.origin} title={`${flight.origin || 'Origin'} airport terminal map`} />
+                <MapboxAirportMap airportCode={flight.destination} title={`${flight.destination || 'Destination'} airport terminal map`} />
+              </div>
+              <div style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, marginTop: 12, background: '#020617' }}>
+                <strong>Navigation placeholders</strong>
+                <ul style={{ color: '#cbd5e1', marginBottom: 0 }}>
+                  <li>Gates: {fieldValue(flight, 'departure_gate')} / {fieldValue(flight, 'arrival_gate')}</li>
+                  <li>Terminals: {fieldValue(flight, 'departure_terminal')} / {fieldValue(flight, 'arrival_terminal')}</li>
+                  <li>Lounges nearby: {fieldValue(flight, 'lounges_nearby')}</li>
+                  <li>GPS positioning: {fieldValue(flight, 'gps_latitude')} · {fieldValue(flight, 'gps_longitude')}</li>
+                  <li>Airport navigation: Mapbox preview now; indoor wayfinding provider pending.</li>
+                </ul>
+              </div>
+            </details>
           </section>
           {risk && (
             <div style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, marginTop: 12, background: '#020617' }}>

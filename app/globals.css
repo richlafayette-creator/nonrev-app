@@ -235,8 +235,13 @@ main > nav:focus-within button,
 
 .flight-card,
 .mini-card,
-.filter-panel {
+.filter-panel,
+.mapbox-card {
   box-shadow: 0 16px 40px rgba(2, 6, 23, 0.28);
+}
+
+.mapbox-card {
+  overflow: hidden;
 }
 
 @media (max-width: 720px) {

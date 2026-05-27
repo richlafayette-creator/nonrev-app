@@ -4,6 +4,8 @@ import { type FormEvent, useEffect, useMemo, useState } from 'react'
 import { flightMatchesSearch } from '../../lib/flightSearch'
 import { delayRiskScore, rankItinerary } from '../../lib/intelligence'
 import { allFlightFields, fieldValue, passengerFlightCoverageNotes, richFlightFieldLabels } from '../../lib/flightDataScaffold'
+import { airportCodesFromRoute } from '../../lib/airportMapScaffold'
+import MapboxAirportMap from '../MapboxAirportMap'
 
 const mockItineraries = [
   {
@@ -223,6 +225,10 @@ export default function PlanPage() {
                 <p style={{ color: '#38bdf8' }}>{flight.origin} → {flight.destination}</p>
                 <p>Aircraft: {flight.aircraft || 'Unknown'} · Status: {flight.status || 'Unknown'} · Score: {flight.score ?? 'Not scored'}</p>
                 <p>Delay risk: {risk.label} ({risk.score}/100)</p>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 12, marginTop: 12 }}>
+                  <MapboxAirportMap airportCode={flight.origin} title={`${flight.origin || 'Origin'} airport map`} compact />
+                  <MapboxAirportMap airportCode={flight.destination} title={`${flight.destination || 'Destination'} airport map`} compact />
+                </div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10, marginTop: 12 }}>
                   {richFlightFieldLabels.map((field) => (
                     <div key={field.key} style={{ border: '1px solid #334155', borderRadius: 12, padding: 10, background: '#020617' }}>
@@ -261,6 +267,11 @@ export default function PlanPage() {
                 <p style={{ color: '#38bdf8', fontSize: 18, fontWeight: 'bold' }}>{itinerary.route}</p>
                 <p style={{ color: '#94a3b8' }}>Window: {itinerary.window}</p>
                 <p>{itinerary.notes}</p>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: 10, margin: '12px 0' }}>
+                  {airportCodesFromRoute(itinerary.route).map((code) => (
+                    <MapboxAirportMap key={`${itinerary.id}-${code}`} airportCode={code} title={`${code} airport preview`} compact />
+                  ))}
+                </div>
                 <p style={{ color: '#cbd5e1' }}>Ranking notes: {itinerary.ranking.notes.join(' · ')}</p>
                 <ul style={{ color: '#cbd5e1', paddingLeft: 20 }}>
                   {itinerary.segments.map((segment) => (

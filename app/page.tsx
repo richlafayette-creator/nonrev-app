@@ -42,9 +42,11 @@ export default function Home() {
 
       <section style={{ minHeight: '70vh', display: 'grid', placeItems: 'center' }}>
         <div style={{ width: '100%', maxWidth: 760, textAlign: 'center' }}>
-          <h1 className="nonrevy-logo" style={{ fontSize: 108, lineHeight: 1, margin: '0 0 42px' }}>
-            nonrevy
-          </h1>
+          <img
+            src="/brand/nonrevy-logo.png"
+            alt="NONREVY"
+            style={{ width: 280, maxWidth: '80%', margin: '0 0 42px' }}
+          />
 
           <form onSubmit={submitSearch}>
             <label htmlFor="homepage-search" style={{ display: 'block', fontSize: 28, fontWeight: 'bold', marginBottom: 18 }}>

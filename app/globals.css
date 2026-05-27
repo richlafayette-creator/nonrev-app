@@ -308,3 +308,48 @@ main > nav:focus-within button,
     max-width: 100%;
   }
 }
+
+/* NONREVY premium aviation theme */
+body {
+  background:
+    radial-gradient(circle at top, rgba(56,189,248,.18), transparent 35%),
+    linear-gradient(135deg, #020617 0%, #071426 45%, #0f172a 100%) !important;
+  color: #f8fafc !important;
+}
+
+main {
+  background: transparent !important;
+}
+
+nav, .card, section, article {
+  backdrop-filter: blur(14px);
+}
+
+a {
+  text-decoration: none;
+}
+
+button {
+  box-shadow: 0 10px 30px rgba(56,189,248,.18);
+  transition: transform .15s ease, opacity .15s ease;
+}
+
+button:hover {
+  transform: translateY(-1px);
+  opacity: .92;
+}
+
+input, textarea, select {
+  background: rgba(15, 23, 42, .9) !important;
+  color: white !important;
+  border: 1px solid rgba(56,189,248,.35) !important;
+}
+
+div {
+  border-color: rgba(56,189,248,.22) !important;
+}
+
+.nonrevy-logo {
+  color: #f8fafc;
+  text-shadow: 0 0 30px rgba(56,189,248,.55);
+}

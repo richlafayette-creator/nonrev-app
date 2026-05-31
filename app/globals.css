@@ -429,3 +429,22 @@ main > nav {
     margin: 12px 20px 0;
   }
 }
+
+/* Explicit button-driven left nav fix: avoid legacy details/summary hover behavior. */
+.app-menu .app-menu__summary {
+  width: 100%;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #f8fafc;
+  box-shadow: none;
+  text-align: left;
+}
+
+.app-menu .app-menu__summary[aria-expanded="true"]::before {
+  content: "×";
+}
+
+.app-menu .app-menu__links {
+  display: flex;
+}

@@ -1,24 +1,42 @@
+'use client'
+
+import { useState } from 'react'
+
+const navItems = [
+  ['Home', '/'],
+  ['Plan', '/plan'],
+  ['Best Routes', '/best-routes'],
+  ['Watchlist', '/watchlist'],
+  ['Credits', '/credits'],
+  ['Trust', '/reputation'],
+  ['Notifications', '/notifications'],
+  ['Agent', '/agent'],
+  ['Open Requests', '/requests'],
+  ['My Requests', '/my-requests'],
+  ['Outcomes', '/outcomes']
+]
+
 export default function AppNavigation() {
+  const [open, setOpen] = useState(false)
+
   return (
     <aside className="app-menu" aria-label="Main navigation">
-      <details className="app-menu__details">
-        <summary className="app-menu__summary">
-          <span>Menu</span>
-        </summary>
-        <nav className="app-menu__links">
-          <a href="/">Home</a>
-          <a href="/plan">Plan</a>
-          <a href="/best-routes">Best Routes</a>
-          <a href="/watchlist">Watchlist</a>
-          <a href="/credits">Credits</a>
-          <a href="/reputation">Trust</a>
-          <a href="/notifications">Notifications</a>
-          <a href="/agent">Agent</a>
-          <a href="/requests">Open Requests</a>
-          <a href="/my-requests">My Requests</a>
-          <a href="/outcomes">Outcomes</a>
+      <button
+        className="app-menu__summary"
+        type="button"
+        aria-expanded={open}
+        aria-controls="app-menu-links"
+        onClick={() => setOpen((value) => !value)}
+      >
+        <span>Menu</span>
+      </button>
+      {open && (
+        <nav id="app-menu-links" className="app-menu__links">
+          {navItems.map(([label, href]) => (
+            <a key={href} href={href}>{label}</a>
+          ))}
         </nav>
-      </details>
+      )}
     </aside>
   )
 }

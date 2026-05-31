@@ -23,6 +23,36 @@ export const carrierFamilyMembers: Record<SupportedCarrierValue, string[]> = {
   'alaska-group': alaskaGroupAirlines
 }
 
+export const carrierScoringProfiles: Record<Exclude<SupportedCarrierValue, 'all'>, { label: string; weights: Record<string, string> }> = {
+  united: {
+    label: 'United',
+    weights: {
+      'Hub Strength': '40%',
+      'Route Complexity': '20%',
+      'Seasonal Demand': '20%',
+      'Historical Performance': '20%'
+    }
+  },
+  delta: {
+    label: 'Delta',
+    weights: {
+      'Hub Strength': '40%',
+      'Route Complexity': '20%',
+      'Seasonal Demand': '20%',
+      'Historical Performance': '20%'
+    }
+  },
+  'alaska-group': {
+    label: 'Alaska Group',
+    weights: {
+      'Hub Strength': '40%',
+      'Route Complexity': '20%',
+      'Seasonal Demand': '20%',
+      'Historical Performance': '20%'
+    }
+  }
+}
+
 export function normalizeCarrierFamily(value: string): SupportedCarrierValue {
   if (value === 'united' || value === 'delta' || value === 'alaska-group') return value
   return 'all'
@@ -40,17 +70,20 @@ export function getCarrierFamilySummary(value: string) {
 export function getCarrierScoringScaffold(value: string) {
   const carrier = normalizeCarrierFamily(value)
   const family = getCarrierFamilySummary(carrier)
+  const profile = carrier === 'all' ? carrierScoringProfiles.united : carrierScoringProfiles[carrier]
 
   return {
     carrier,
     familyLabel: family.label,
+    selectedCarrier: profile.label,
     members: family.members,
+    weights: profile.weights,
     breakdown: [
       { label: 'Overall Score', value: '82', note: `Placeholder composite score for ${family.label}` },
-      { label: 'Hub Strength', value: '8/10', note: `Hub signal scaffold treats ${family.members.join(' + ')} as ${family.label}` },
-      { label: 'Route Complexity', value: 'Moderate', note: 'Connection and fallback complexity placeholder' },
-      { label: 'Seasonal Demand', value: 'Medium', note: 'Holiday and peak-travel demand scaffold' },
-      { label: 'Historical Performance', value: 'Good', note: 'Future outcome history signal placeholder' }
+      { label: 'Hub Strength', value: '8/10', note: `Weight ${profile.weights['Hub Strength']} · Hub signal scaffold treats ${family.members.join(' + ')} as ${family.label}` },
+      { label: 'Route Complexity', value: 'Moderate', note: `Weight ${profile.weights['Route Complexity']} · Connection and fallback complexity placeholder` },
+      { label: 'Seasonal Demand', value: 'Medium', note: `Weight ${profile.weights['Seasonal Demand']} · Holiday and peak-travel demand scaffold` },
+      { label: 'Historical Performance', value: 'Good', note: `Weight ${profile.weights['Historical Performance']} · Future outcome history signal placeholder` }
     ]
   }
 }

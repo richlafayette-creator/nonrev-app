@@ -141,7 +141,10 @@ export default function PlanPage() {
             Placeholder airline-aware scoring model for {scoringScaffold.familyLabel}. Alaska Group is treated as one supported carrier family covering Alaska Airlines and Hawaiian Airlines. No live load integration yet.
           </p>
           <p style={{ color: '#cbd5e1' }}>
-            Active family: {scoringScaffold.familyLabel} · Members: {scoringScaffold.members.join(', ')}
+            Selected carrier profile: {scoringScaffold.selectedCarrier} · Active family: {scoringScaffold.familyLabel} · Members: {scoringScaffold.members.join(', ')}
+          </p>
+          <p style={{ color: '#cbd5e1' }}>
+            Placeholder weights: Hub Strength {scoringScaffold.weights['Hub Strength']} · Route Complexity {scoringScaffold.weights['Route Complexity']} · Seasonal Demand {scoringScaffold.weights['Seasonal Demand']} · Historical Performance {scoringScaffold.weights['Historical Performance']}
           </p>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
             {scoringScaffold.breakdown.map((item) => (

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Bungee, Geist, Geist_Mono } from "next/font/google";
 import AccountMenu from "./AccountMenu";
+import AppNavigation from "./AppNavigation";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -35,6 +36,7 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} ${bungee.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
+        <AppNavigation />
         <AccountMenu />
         {children}
       </body>

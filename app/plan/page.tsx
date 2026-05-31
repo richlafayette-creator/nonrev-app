@@ -5,6 +5,7 @@ import { flightMatchesSearch } from '../../lib/flightSearch'
 import { delayRiskScore, rankItinerary } from '../../lib/intelligence'
 import { allFlightFields, fieldValue, passengerFlightCoverageNotes, richFlightFieldLabels } from '../../lib/flightDataScaffold'
 import { airportCodesFromRoute } from '../../lib/airportMapScaffold'
+import { supportedCarrierOptions } from '../../lib/carrierScope'
 import MapboxAirportMap from '../MapboxAirportMap'
 
 const mockItineraries = [
@@ -58,6 +59,7 @@ export default function PlanPage() {
   const [homeAirport, setHomeAirport] = useState('')
   const [travelWindow, setTravelWindow] = useState('')
   const [travelerCount, setTravelerCount] = useState('1')
+  const [carrier, setCarrier] = useState('all')
   const [voiceStatus, setVoiceStatus] = useState('Voice capture scaffold ready.')
   const [submitted, setSubmitted] = useState(false)
   const [query, setQuery] = useState('')
@@ -177,6 +179,21 @@ export default function PlanPage() {
                 />
               </label>
             </div>
+            <label style={{ display: 'block', color: '#cbd5e1', marginBottom: 12 }}>
+              Carrier scope scaffold
+              <select
+                value={carrier}
+                onChange={(event) => setCarrier(event.target.value)}
+                style={{ boxSizing: 'border-box', width: '100%', marginTop: 6, padding: 12, borderRadius: 12, border: '1px solid #475569', background: '#020617', color: 'white' }}
+              >
+                {supportedCarrierOptions.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+            </label>
+            <p style={{ color: '#94a3b8' }}>
+              Supported today: United, Delta, Alaska Group. Alaska Group includes Alaska and Hawaiian. Selector is UI-only for now.
+            </p>
             <button
               type="submit"
               style={{ width: '100%', padding: 14, borderRadius: 12, border: 'none', background: '#38bdf8', color: '#020617', fontWeight: 'bold' }}

@@ -23,7 +23,7 @@ export const carrierFamilyMembers: Record<SupportedCarrierValue, string[]> = {
   'alaska-group': alaskaGroupAirlines
 }
 
-export const carrierScoringProfiles: Record<Exclude<SupportedCarrierValue, 'all'>, { label: string; weights: Record<string, string>; routeIntelligence: Record<string, string> }> = {
+export const carrierScoringProfiles: Record<Exclude<SupportedCarrierValue, 'all'>, { label: string; weights: Record<string, string>; routeIntelligence: Record<string, string>; routeRecommendations: { rank: number; route: string; score: string; risk: string }[] }> = {
   united: {
     label: 'United',
     weights: {
@@ -37,7 +37,12 @@ export const carrierScoringProfiles: Record<Exclude<SupportedCarrierValue, 'all'
       'Alternate Routing': 'ORD or IAH backup path',
       'Risk Level': 'Medium',
       'Connection Count': '1 connection preferred'
-    }
+    },
+    routeRecommendations: [
+      { rank: 1, route: 'LAX → DEN → HNL', score: '82', risk: 'Medium' },
+      { rank: 2, route: 'SFO → ORD → EWR', score: '78', risk: 'Medium-Low' },
+      { rank: 3, route: 'IAH → DEN → SEA', score: '74', risk: 'Medium' }
+    ]
   },
   delta: {
     label: 'Delta',
@@ -52,7 +57,12 @@ export const carrierScoringProfiles: Record<Exclude<SupportedCarrierValue, 'all'
       'Alternate Routing': 'MSP or DTW backup path',
       'Risk Level': 'Medium-Low',
       'Connection Count': '1 connection preferred'
-    }
+    },
+    routeRecommendations: [
+      { rank: 1, route: 'LAX → ATL → FLL', score: '84', risk: 'Medium-Low' },
+      { rank: 2, route: 'SFO → MSP → JFK', score: '79', risk: 'Medium' },
+      { rank: 3, route: 'SEA → DTW → BOS', score: '76', risk: 'Medium' }
+    ]
   },
   'alaska-group': {
     label: 'Alaska Group',
@@ -67,7 +77,12 @@ export const carrierScoringProfiles: Record<Exclude<SupportedCarrierValue, 'all'
       'Alternate Routing': 'PDX, SFO, or HNL backup path',
       'Risk Level': 'Medium',
       'Connection Count': '0-1 connections preferred'
-    }
+    },
+    routeRecommendations: [
+      { rank: 1, route: 'SEA → HNL', score: '83', risk: 'Medium' },
+      { rank: 2, route: 'PDX → SEA → OGG', score: '80', risk: 'Medium' },
+      { rank: 3, route: 'SFO → HNL → KOA', score: '77', risk: 'Medium-High' }
+    ]
   }
 }
 
@@ -97,6 +112,7 @@ export function getCarrierScoringScaffold(value: string) {
     members: family.members,
     weights: profile.weights,
     routeIntelligence: profile.routeIntelligence,
+    routeRecommendations: profile.routeRecommendations,
     breakdown: [
       { label: 'Overall Score', value: '82', note: `Placeholder composite score for ${family.label}` },
       { label: 'Hub Strength', value: '8/10', note: `Weight ${profile.weights['Hub Strength']} · Hub signal scaffold treats ${family.members.join(' + ')} as ${family.label}` },

@@ -169,6 +169,22 @@ export default function PlanPage() {
               ))}
             </div>
           </section>
+          <section style={{ border: '1px solid #334155', borderRadius: 16, padding: 14, background: '#020617', marginTop: 14 }}>
+            <strong style={{ color: '#22c55e' }}>Top 3 route recommendations</strong>
+            <p style={{ color: '#94a3b8' }}>
+              Placeholder ranking tied to the score card and route intelligence for {scoringScaffold.selectedCarrier}.
+            </p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
+              {scoringScaffold.routeRecommendations.map((recommendation) => (
+                <article key={`${recommendation.rank}-${recommendation.route}`} style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#0f172a' }}>
+                  <small style={{ color: '#94a3b8' }}>Rank {recommendation.rank}</small>
+                  <h3 style={{ color: '#f8fafc', margin: '6px 0' }}>{recommendation.route}</h3>
+                  <p style={{ margin: 0, color: '#cbd5e1' }}>Score: {recommendation.score}</p>
+                  <p style={{ margin: '4px 0 0', color: '#cbd5e1' }}>Risk: {recommendation.risk}</p>
+                </article>
+              ))}
+            </div>
+          </section>
         </section>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 18, marginTop: 28 }}>

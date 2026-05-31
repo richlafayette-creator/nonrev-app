@@ -5,7 +5,7 @@ import { flightMatchesSearch } from '../../lib/flightSearch'
 import { delayRiskScore, rankItinerary } from '../../lib/intelligence'
 import { allFlightFields, fieldValue, passengerFlightCoverageNotes, richFlightFieldLabels } from '../../lib/flightDataScaffold'
 import { airportCodesFromRoute } from '../../lib/airportMapScaffold'
-import { supportedCarrierOptions } from '../../lib/carrierScope'
+import { getCarrierScoringScaffold, supportedCarrierOptions } from '../../lib/carrierScope'
 import MapboxAirportMap from '../MapboxAirportMap'
 
 const mockItineraries = [
@@ -47,14 +47,6 @@ const mockItineraries = [
 const rankedItineraries = [...mockItineraries]
   .map((itinerary) => ({ ...itinerary, ranking: rankItinerary(itinerary) }))
   .sort((a, b) => b.ranking.score - a.ranking.score)
-
-const scoringBreakdown = [
-  { label: 'Overall Score', value: '82', note: 'Placeholder composite readiness score' },
-  { label: 'Hub Strength', value: '8/10', note: 'Supported carrier hub signal scaffold' },
-  { label: 'Route Complexity', value: 'Moderate', note: 'Connection and fallback complexity placeholder' },
-  { label: 'Seasonal Demand', value: 'Medium', note: 'Holiday and peak-travel demand scaffold' },
-  { label: 'Historical Performance', value: 'Good', note: 'Future outcome history signal placeholder' }
-]
 
 function confidenceColor(confidence: string) {
   if (confidence === 'Strong') return '#22c55e'
@@ -113,6 +105,7 @@ export default function PlanPage() {
     () => flights.filter((flight) => flightMatchesSearch(flight, query || tripGoal)),
     [flights, query, tripGoal]
   )
+  const scoringScaffold = useMemo(() => getCarrierScoringScaffold(carrier), [carrier])
 
   return (
     <main className="app-shell" style={{ minHeight: '100vh', background: '#020617', color: 'white', padding: 32, fontFamily: 'Arial' }}>
@@ -145,10 +138,13 @@ export default function PlanPage() {
         <section style={{ border: '1px solid #334155', borderRadius: 18, padding: 16, background: '#0f172a', color: '#cbd5e1', marginTop: 18 }}>
           <strong style={{ color: '#38bdf8' }}>Scoring engine scaffold</strong>
           <p style={{ color: '#94a3b8' }}>
-            Placeholder airline-aware scoring model for United, Delta, and Alaska Group. No live load integration yet.
+            Placeholder airline-aware scoring model for {scoringScaffold.familyLabel}. Alaska Group is treated as one supported carrier family covering Alaska Airlines and Hawaiian Airlines. No live load integration yet.
+          </p>
+          <p style={{ color: '#cbd5e1' }}>
+            Active family: {scoringScaffold.familyLabel} · Members: {scoringScaffold.members.join(', ')}
           </p>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
-            {scoringBreakdown.map((item) => (
+            {scoringScaffold.breakdown.map((item) => (
               <article key={item.label} style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#020617' }}>
                 <small style={{ color: '#94a3b8' }}>{item.label}</small>
                 <h3 style={{ color: '#f8fafc', margin: '6px 0' }}>{item.value}</h3>
@@ -216,7 +212,7 @@ export default function PlanPage() {
               </select>
             </label>
             <p style={{ color: '#94a3b8' }}>
-              Supported today: United, Delta, Alaska Group. Alaska Group includes Alaska and Hawaiian. Selector is UI-only for now.
+              Supported today: United, Delta, Alaska Group. Alaska Group includes Alaska Airlines and Hawaiian Airlines. Selector is UI-only for now.
             </p>
             <button
               type="submit"

@@ -1,9 +1,11 @@
 'use client'
 
 import { type FormEvent, useEffect, useState } from 'react'
+import { supportedCarrierOptions } from '../lib/carrierScope'
 
 export default function Home() {
   const [search, setSearch] = useState('')
+  const [carrier, setCarrier] = useState('all')
   const [message, setMessage] = useState('')
 
   useEffect(() => {
@@ -72,6 +74,22 @@ export default function Home() {
             <button type="submit" style={{ marginTop: 18, padding: '14px 24px', borderRadius: 999, border: 'none', background: '#38bdf8', color: '#020617', fontWeight: 'bold' }}>
               Search flights and plan
             </button>
+            <label htmlFor="homepage-carrier" style={{ display: 'block', color: '#cbd5e1', marginTop: 16 }}>
+              Carrier scope scaffold
+            </label>
+            <select
+              id="homepage-carrier"
+              value={carrier}
+              onChange={(event) => setCarrier(event.target.value)}
+              style={{ marginTop: 8, padding: 12, width: '100%', maxWidth: 360, borderRadius: 12, border: '1px solid #334155', background: '#0f172a', color: 'white' }}
+            >
+              {supportedCarrierOptions.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+            <p style={{ color: '#94a3b8', marginTop: 8 }}>
+              Supported today: United, Delta, Alaska Group.
+            </p>
           </form>
 
           {message && <p style={{ color: '#38bdf8', marginTop: 18 }}>{message}</p>}

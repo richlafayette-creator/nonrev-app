@@ -155,6 +155,20 @@ export default function PlanPage() {
               </article>
             ))}
           </div>
+          <section style={{ border: '1px solid #334155', borderRadius: 16, padding: 14, background: '#020617', marginTop: 14 }}>
+            <strong style={{ color: '#facc15' }}>Historical route intelligence scaffold</strong>
+            <p style={{ color: '#94a3b8' }}>
+              Placeholder route guidance tied to the selected carrier profile. No backend APIs yet.
+            </p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
+              {Object.entries(scoringScaffold.routeIntelligence).map(([label, value]) => (
+                <article key={label} style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#0f172a' }}>
+                  <small style={{ color: '#94a3b8' }}>{label}</small>
+                  <h3 style={{ color: '#f8fafc', margin: '6px 0 0' }}>{value}</h3>
+                </article>
+              ))}
+            </div>
+          </section>
         </section>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 18, marginTop: 28 }}>

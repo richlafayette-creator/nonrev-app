@@ -23,7 +23,7 @@ export const carrierFamilyMembers: Record<SupportedCarrierValue, string[]> = {
   'alaska-group': alaskaGroupAirlines
 }
 
-export const carrierScoringProfiles: Record<Exclude<SupportedCarrierValue, 'all'>, { label: string; weights: Record<string, string> }> = {
+export const carrierScoringProfiles: Record<Exclude<SupportedCarrierValue, 'all'>, { label: string; weights: Record<string, string>; routeIntelligence: Record<string, string> }> = {
   united: {
     label: 'United',
     weights: {
@@ -31,6 +31,12 @@ export const carrierScoringProfiles: Record<Exclude<SupportedCarrierValue, 'all'
       'Route Complexity': '20%',
       'Seasonal Demand': '20%',
       'Historical Performance': '20%'
+    },
+    routeIntelligence: {
+      'Best Hub': 'DEN',
+      'Alternate Routing': 'ORD or IAH backup path',
+      'Risk Level': 'Medium',
+      'Connection Count': '1 connection preferred'
     }
   },
   delta: {
@@ -40,6 +46,12 @@ export const carrierScoringProfiles: Record<Exclude<SupportedCarrierValue, 'all'
       'Route Complexity': '20%',
       'Seasonal Demand': '20%',
       'Historical Performance': '20%'
+    },
+    routeIntelligence: {
+      'Best Hub': 'ATL',
+      'Alternate Routing': 'MSP or DTW backup path',
+      'Risk Level': 'Medium-Low',
+      'Connection Count': '1 connection preferred'
     }
   },
   'alaska-group': {
@@ -49,6 +61,12 @@ export const carrierScoringProfiles: Record<Exclude<SupportedCarrierValue, 'all'
       'Route Complexity': '20%',
       'Seasonal Demand': '20%',
       'Historical Performance': '20%'
+    },
+    routeIntelligence: {
+      'Best Hub': 'SEA',
+      'Alternate Routing': 'PDX, SFO, or HNL backup path',
+      'Risk Level': 'Medium',
+      'Connection Count': '0-1 connections preferred'
     }
   }
 }
@@ -78,6 +96,7 @@ export function getCarrierScoringScaffold(value: string) {
     selectedCarrier: profile.label,
     members: family.members,
     weights: profile.weights,
+    routeIntelligence: profile.routeIntelligence,
     breakdown: [
       { label: 'Overall Score', value: '82', note: `Placeholder composite score for ${family.label}` },
       { label: 'Hub Strength', value: '8/10', note: `Weight ${profile.weights['Hub Strength']} · Hub signal scaffold treats ${family.members.join(' + ')} as ${family.label}` },

@@ -48,6 +48,14 @@ const rankedItineraries = [...mockItineraries]
   .map((itinerary) => ({ ...itinerary, ranking: rankItinerary(itinerary) }))
   .sort((a, b) => b.ranking.score - a.ranking.score)
 
+const scoringBreakdown = [
+  { label: 'Overall Score', value: '82', note: 'Placeholder composite readiness score' },
+  { label: 'Hub Strength', value: 'Strong', note: 'Supported carrier hub signal scaffold' },
+  { label: 'Route Complexity', value: 'Moderate', note: 'Connection and fallback complexity placeholder' },
+  { label: 'Seasonal Demand', value: 'Elevated', note: 'Holiday and peak-travel demand scaffold' },
+  { label: 'Historical Performance', value: 'Stable', note: 'Future outcome history signal placeholder' }
+]
+
 function confidenceColor(confidence: string) {
   if (confidence === 'Strong') return '#22c55e'
   if (confidence === 'Verify') return '#facc15'
@@ -133,6 +141,22 @@ export default function PlanPage() {
             {passengerFlightCoverageNotes.map((note) => <li key={note}>{note}</li>)}
           </ul>
         </div>
+
+        <section style={{ border: '1px solid #334155', borderRadius: 18, padding: 16, background: '#0f172a', color: '#cbd5e1', marginTop: 18 }}>
+          <strong style={{ color: '#38bdf8' }}>Scoring engine scaffold</strong>
+          <p style={{ color: '#94a3b8' }}>
+            Placeholder airline-aware scoring model for United, Delta, and Alaska Group. No live load integration yet.
+          </p>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
+            {scoringBreakdown.map((item) => (
+              <article key={item.label} style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#020617' }}>
+                <small style={{ color: '#94a3b8' }}>{item.label}</small>
+                <h3 style={{ color: '#f8fafc', margin: '6px 0' }}>{item.value}</h3>
+                <p style={{ margin: 0, color: '#cbd5e1' }}>{item.note}</p>
+              </article>
+            ))}
+          </div>
+        </section>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 18, marginTop: 28 }}>
           <form

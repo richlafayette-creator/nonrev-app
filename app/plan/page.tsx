@@ -212,7 +212,7 @@ export default function PlanPage() {
               </select>
             </label>
             <p style={{ color: '#94a3b8' }}>
-              Supported today: United, Delta, Alaska Group. Alaska Group includes Alaska Airlines and Hawaiian Airlines. Selector is UI-only for now.
+              Supported today: United, Delta, Alaska Group. Alaska Group includes Alaska and Hawaiian. Selector is UI-only for now.
             </p>
             <button
               type="submit"

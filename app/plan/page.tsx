@@ -50,10 +50,10 @@ const rankedItineraries = [...mockItineraries]
 
 const scoringBreakdown = [
   { label: 'Overall Score', value: '82', note: 'Placeholder composite readiness score' },
-  { label: 'Hub Strength', value: 'Strong', note: 'Supported carrier hub signal scaffold' },
+  { label: 'Hub Strength', value: '8/10', note: 'Supported carrier hub signal scaffold' },
   { label: 'Route Complexity', value: 'Moderate', note: 'Connection and fallback complexity placeholder' },
-  { label: 'Seasonal Demand', value: 'Elevated', note: 'Holiday and peak-travel demand scaffold' },
-  { label: 'Historical Performance', value: 'Stable', note: 'Future outcome history signal placeholder' }
+  { label: 'Seasonal Demand', value: 'Medium', note: 'Holiday and peak-travel demand scaffold' },
+  { label: 'Historical Performance', value: 'Good', note: 'Future outcome history signal placeholder' }
 ]
 
 function confidenceColor(confidence: string) {

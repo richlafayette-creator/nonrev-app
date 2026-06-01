@@ -7,6 +7,7 @@ const navItems = [
   ['Plan', '/plan'],
   ['Profile', '/profile'],
   ['Best Routes', '/best-routes'],
+  ['Historical Routes', '/historical-routes'],
   ['Watchlist', '/watchlist'],
   ['Credits', '/credits'],
   ['Trust', '/reputation'],

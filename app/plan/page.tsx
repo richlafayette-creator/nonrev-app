@@ -6,6 +6,7 @@ import { delayRiskScore, rankItinerary } from '../../lib/intelligence'
 import { allFlightFields, fieldValue, passengerFlightCoverageNotes, richFlightFieldLabels } from '../../lib/flightDataScaffold'
 import { airportCodesFromRoute } from '../../lib/airportMapScaffold'
 import { getCarrierScoringScaffold, supportedCarrierOptions } from '../../lib/carrierScope'
+import { historicalRouteStats } from '../../lib/historicalRoutes'
 import { defaultTravelerProfile, loadTravelerProfileFromStorage } from '../../lib/travelerProfile'
 import MapboxAirportMap from '../MapboxAirportMap'
 import OutcomeCapture from '../OutcomeCapture'
@@ -110,6 +111,7 @@ export default function PlanPage() {
     [flights, query, tripGoal]
   )
   const scoringScaffold = useMemo(() => getCarrierScoringScaffold(carrier, travelerProfile), [carrier, travelerProfile])
+  const historicalStats = useMemo(() => historicalRouteStats(carrier), [carrier])
 
   return (
     <main className="app-shell" style={{ minHeight: '100vh', background: '#020617', color: 'white', padding: 32, fontFamily: 'Arial' }}>
@@ -118,6 +120,7 @@ export default function PlanPage() {
         <a href="/plan" style={{ marginRight: 16, color: '#fb7185' }}>Plan</a>
         <a href="/requests" style={{ marginRight: 16, color: '#c084fc' }}>Open Requests</a>
         <a href="/my-requests" style={{ marginRight: 16, color: '#facc15' }}>My Requests</a>
+        <a href="/historical-routes" style={{ marginRight: 16, color: '#facc15' }}>Historical Routes</a>
         <a href="/outcomes" style={{ marginRight: 16, color: '#22c55e' }}>Outcomes</a>
         <a href="/load-reports" style={{ marginRight: 16, color: '#facc15' }}>Load Reports</a>
         <a href="/profile" style={{ marginRight: 16, color: '#34d399' }}>Profile</a>
@@ -152,6 +155,28 @@ export default function PlanPage() {
           <p style={{ color: '#cbd5e1' }}>
             Placeholder weights: Hub Strength {scoringScaffold.weights['Hub Strength']} · Route Complexity {scoringScaffold.weights['Route Complexity']} · Seasonal Demand {scoringScaffold.weights['Seasonal Demand']} · Historical Performance {scoringScaffold.weights['Historical Performance']}
           </p>
+          <section style={{ border: '1px solid #334155', borderRadius: 16, padding: 14, background: '#020617', marginBottom: 14 }}>
+            <strong style={{ color: '#facc15' }}>Historical route score explanation</strong>
+            <p style={{ color: '#94a3b8' }}>
+              {historicalStats.explanation}
+            </p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>
+              {[
+                ['Historical score', historicalStats.averageScore],
+                ['Historical success', `${historicalStats.averageSuccessRate}%`],
+                ['Report count', historicalStats.reportCount],
+                ['Top sample', historicalStats.topRoute?.route || 'Pending']
+              ].map(([label, value]) => (
+                <article key={label} style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#0f172a' }}>
+                  <small style={{ color: '#94a3b8' }}>{label}</small>
+                  <h3 style={{ color: '#f8fafc', margin: '6px 0 0' }}>{value}</h3>
+                </article>
+              ))}
+            </div>
+            <a href="/historical-routes" style={{ display: 'inline-block', color: '#38bdf8', marginTop: 12 }}>
+              View historical route database scaffold
+            </a>
+          </section>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
             {scoringScaffold.breakdown.map((item) => (
               <article key={item.label} style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#020617' }}>

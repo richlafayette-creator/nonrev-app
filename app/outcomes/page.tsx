@@ -47,6 +47,7 @@ export default function OutcomesPage() {
         <a href="/watchlist" style={{ marginRight: 16, color: '#facc15' }}>Watchlist</a>
         <a href="/credits" style={{ marginRight: 16, color: '#fbbf24' }}>Credits</a>
         <a href="/reputation" style={{ marginRight: 16, color: '#34d399' }}>Trust</a>
+        <a href="/load-reports" style={{ marginRight: 16, color: '#facc15' }}>Load Reports</a>
         <a href="/requests" style={{ marginRight: 16, color: '#c084fc' }}>Open Requests</a>
         <a href="/outcomes" style={{ color: '#22c55e' }}>Outcomes</a>
       </nav>

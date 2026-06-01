@@ -13,6 +13,7 @@ export default function ReputationPage() {
         <a href="/my-requests" style={{ marginRight: 16, color: '#facc15' }}>My Requests</a>
         <a href="/credits" style={{ marginRight: 16, color: '#fbbf24' }}>Credits</a>
         <a href="/reputation" style={{ marginRight: 16, color: '#34d399' }}>Trust</a>
+        <a href="/load-reports" style={{ marginRight: 16, color: '#facc15' }}>Load Reports</a>
         <a href="/outcomes" style={{ color: '#22c55e' }}>Outcomes</a>
       </nav>
 
@@ -23,6 +24,13 @@ export default function ReputationPage() {
           Local placeholder reputation signals for contributor reliability, outcome-confirmed answers, and future load-report quality weighting.
         </p>
         <TrustScoreSection />
+        <section style={{ border: '1px solid #334155', borderRadius: 18, padding: 18, background: '#0f172a', marginTop: 18 }}>
+          <strong style={{ color: '#facc15' }}>Community load verification</strong>
+          <p style={{ color: '#94a3b8' }}>
+            Load reports update the verified report count and placeholder trusted-contributor weighting in this score.
+          </p>
+          <a href="/load-reports" style={{ color: '#38bdf8' }}>Open Load Reports</a>
+        </section>
       </section>
     </main>
   )

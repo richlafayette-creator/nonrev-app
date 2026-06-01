@@ -1,6 +1,7 @@
+import { loadLoadReports, loadReportsStorageKey, loadReportStats } from './loadReports'
 import { tripOutcomeStats, type TripOutcome } from './tripOutcomes'
 
-export const verifiedLoadReportsStorageKey = 'nonrevy.verifiedLoadReports'
+export const verifiedLoadReportsStorageKey = loadReportsStorageKey
 
 export type ContributorBadge = 'New Contributor' | 'Trusted Contributor' | 'Elite Contributor'
 
@@ -16,14 +17,7 @@ export type TrustScoreScaffold = {
 export function loadVerifiedLoadReportCount() {
   if (typeof window === 'undefined') return 0
 
-  try {
-    const storedReports = window.localStorage.getItem(verifiedLoadReportsStorageKey)
-    if (!storedReports) return 0
-    const reports = JSON.parse(storedReports)
-    return Array.isArray(reports) ? reports.length : 0
-  } catch {
-    return 0
-  }
+  return loadReportStats(loadLoadReports()).verifiedReportsCount
 }
 
 export function calculateTrustScore(outcomes: TripOutcome[], verifiedLoadReports: number): TrustScoreScaffold {
@@ -49,6 +43,7 @@ export function calculateTrustScore(outcomes: TripOutcome[], verifiedLoadReports
     predictionImpact: [
       'Verified outcomes calibrate whether route recommendations were realistic after travel day conditions played out.',
       'Verified load reports can later weight fresh seat and standby-list signals from trusted contributors more heavily.',
+      'Trusted load verification gives future predictions stronger community confidence when multiple contributors report the same route.',
       'Higher trust can reduce noisy community inputs and improve confidence levels for future success probability estimates.'
     ]
   }

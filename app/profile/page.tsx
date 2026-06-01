@@ -67,6 +67,7 @@ export default function ProfilePage() {
         <a href="/plan" style={{ marginRight: 16, color: '#fb7185' }}>Plan</a>
         <a href="/profile" style={{ marginRight: 16, color: '#22c55e' }}>Profile</a>
         <a href="/account" style={{ marginRight: 16, color: '#fbbf24' }}>Account</a>
+        <a href="/load-reports" style={{ marginRight: 16, color: '#facc15' }}>Load Reports</a>
         <a href="/requests" style={{ color: '#c084fc' }}>Open Requests</a>
       </nav>
 
@@ -180,6 +181,10 @@ export default function ProfilePage() {
             </section>
             <a href="/plan" style={{ display: 'inline-block', color: '#38bdf8', marginTop: 16 }}>
               View planner probability assumptions
+            </a>
+            <br />
+            <a href="/load-reports" style={{ display: 'inline-block', color: '#facc15', marginTop: 10 }}>
+              Verify community load report
             </a>
           </aside>
         </div>

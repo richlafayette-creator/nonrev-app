@@ -16,9 +16,11 @@ export default function TrustScoreSection() {
 
     refreshTrustSignals()
     window.addEventListener('nonrevy-trip-outcomes-updated', refreshTrustSignals)
+    window.addEventListener('nonrevy-load-reports-updated', refreshTrustSignals)
     window.addEventListener('storage', refreshTrustSignals)
     return () => {
       window.removeEventListener('nonrevy-trip-outcomes-updated', refreshTrustSignals)
+      window.removeEventListener('nonrevy-load-reports-updated', refreshTrustSignals)
       window.removeEventListener('storage', refreshTrustSignals)
     }
   }, [])

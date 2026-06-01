@@ -10,6 +10,7 @@ const navItems = [
   ['Watchlist', '/watchlist'],
   ['Credits', '/credits'],
   ['Trust', '/reputation'],
+  ['Load Reports', '/load-reports'],
   ['Notifications', '/notifications'],
   ['Agent', '/agent'],
   ['Open Requests', '/requests'],

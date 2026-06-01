@@ -119,6 +119,7 @@ export default function PlanPage() {
         <a href="/requests" style={{ marginRight: 16, color: '#c084fc' }}>Open Requests</a>
         <a href="/my-requests" style={{ marginRight: 16, color: '#facc15' }}>My Requests</a>
         <a href="/outcomes" style={{ marginRight: 16, color: '#22c55e' }}>Outcomes</a>
+        <a href="/load-reports" style={{ marginRight: 16, color: '#facc15' }}>Load Reports</a>
         <a href="/profile" style={{ marginRight: 16, color: '#34d399' }}>Profile</a>
         <a href="/login" style={{ color: '#f472b6' }}>Login</a>
       </nav>
@@ -258,6 +259,9 @@ export default function PlanPage() {
                 </tbody>
               </table>
             </div>
+            <a href="/load-reports" style={{ display: 'inline-block', color: '#38bdf8', marginTop: 12 }}>
+              Verify a load for these recommendations
+            </a>
             <div style={{ display: 'grid', gap: 12, marginTop: 14 }}>
               {scoringScaffold.routeRecommendations.map((recommendation) => (
                 <OutcomeCapture

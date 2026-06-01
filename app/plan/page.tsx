@@ -6,11 +6,12 @@ import { delayRiskScore, rankItinerary } from '../../lib/intelligence'
 import { allFlightFields, fieldValue, passengerFlightCoverageNotes, richFlightFieldLabels } from '../../lib/flightDataScaffold'
 import { airportCodesFromRoute } from '../../lib/airportMapScaffold'
 import { carrierScoringProfiles, getCarrierScoringScaffold, normalizeCarrierFamily, supportedCarrierOptions } from '../../lib/carrierScope'
-import { historicalRouteStats } from '../../lib/historicalRoutes'
+import { historicalRouteStats, type HistoricalRoute } from '../../lib/historicalRoutes'
 import { loadLoadReports, type LoadReport } from '../../lib/loadReports'
 import { calculatePredictionEngine } from '../../lib/predictionEngine'
 import { defaultTravelerProfile, loadTravelerProfileFromStorage } from '../../lib/travelerProfile'
 import { loadTripOutcomes, type TripOutcome } from '../../lib/tripOutcomes'
+import { saveTripWatch } from '../../lib/watchlist'
 import MapboxAirportMap from '../MapboxAirportMap'
 import OutcomeCapture from '../OutcomeCapture'
 
@@ -111,6 +112,324 @@ function riskColor(risk: string) {
   if (risk.includes('Low')) return '#22c55e'
   if (risk.includes('Medium')) return '#facc15'
   return '#f87171'
+}
+
+type ItineraryComparison = {
+  id: string
+  route: string
+  carrier: string
+  score: number
+  successProbability: number
+  riskLevel: string
+  connections: number
+  totalTravelTime: string
+  flightNumber: string
+  isLive: boolean
+  why: string[]
+}
+
+type FallbackItineraryResult = (typeof rankedItineraries)[number]
+
+function clampScore(value: number) {
+  return Math.max(1, Math.min(99, Math.round(value)))
+}
+
+function normalizeRouteText(route: string) {
+  return route
+    .toUpperCase()
+    .replace(/\s*(?:→|->|–|—|-)\s*/g, ' → ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function routeLooksRelated(sourceRoute: string, targetRoute: string) {
+  const source = normalizeRouteText(sourceRoute)
+  const target = normalizeRouteText(targetRoute)
+  return source === target || source.includes(target) || target.includes(source)
+}
+
+function matchingHistoricalRoute(route: string, historicalRoutes: HistoricalRoute[]) {
+  return historicalRoutes.find((historicalRoute) => routeLooksRelated(route, historicalRoute.route))
+}
+
+function matchingRouteLoadReports(route: string, loadReports: LoadReport[]) {
+  return loadReports.filter((report) => routeLooksRelated(route, report.route))
+}
+
+function matchingRouteOutcomes(route: string, outcomes: TripOutcome[]) {
+  return outcomes.filter((outcome) => routeLooksRelated(route, outcome.route))
+}
+
+function loadReportAdjustment(reports: LoadReport[]) {
+  return reports.reduce((total, report) => {
+    const weight = report.trustedWeight || 1
+    if (report.loadStatus === 'Seats open') return total + 3 * weight
+    if (report.loadStatus === 'Looks workable') return total + 1.5 * weight
+    if (report.loadStatus === 'Tight') return total - 2 * weight
+    if (report.loadStatus === 'Full') return total - 5 * weight
+    return total
+  }, 0)
+}
+
+function outcomeSuccessRate(outcomes: TripOutcome[]) {
+  if (!outcomes.length) return null
+  const successes = outcomes.filter((outcome) => outcome.status === 'Yes, got on').length
+  return Math.round((successes / outcomes.length) * 100)
+}
+
+function riskFromProbability(probability: number, fallbackRisk: string) {
+  if (fallbackRisk && fallbackRisk !== 'Unknown') return fallbackRisk
+  if (probability >= 82) return 'Low'
+  if (probability >= 72) return 'Medium-Low'
+  if (probability >= 60) return 'Medium'
+  if (probability >= 48) return 'Medium-High'
+  return 'High'
+}
+
+function parseScheduleTime(value: string) {
+  const time = Date.parse(value)
+  return Number.isFinite(time) ? time : null
+}
+
+function totalTravelTimeFromItinerary(itinerary: LiveItineraryResult) {
+  const departure = parseScheduleTime(itinerary.legs[0]?.departureTime || itinerary.departureTime)
+  const arrival = parseScheduleTime(itinerary.legs[itinerary.legs.length - 1]?.arrivalTime || itinerary.arrivalTime)
+  if (!departure || !arrival || arrival <= departure) return 'Pending schedule data'
+  const totalMinutes = Math.round((arrival - departure) / 60000)
+  const hours = Math.floor(totalMinutes / 60)
+  const minutes = totalMinutes % 60
+  return `${hours}h ${minutes.toString().padStart(2, '0')}m`
+}
+
+function fallbackTravelTimeEstimate(itinerary: FallbackItineraryResult) {
+  const airportCount = itinerary.route.split('→').length
+  if (airportCount <= 1) return 'Pending schedule data'
+  const estimatedMinutes = (airportCount - 1) * 165 + Math.max(0, airportCount - 2) * 75
+  const hours = Math.floor(estimatedMinutes / 60)
+  const minutes = estimatedMinutes % 60
+  return `${hours}h ${minutes.toString().padStart(2, '0')}m estimate`
+}
+
+function buildLiveItineraryComparison(
+  itinerary: LiveItineraryResult,
+  predictionEngine: ReturnType<typeof calculatePredictionEngine>,
+  historicalRoutes: HistoricalRoute[],
+  loadReports: LoadReport[],
+  outcomes: TripOutcome[]
+): ItineraryComparison {
+  const historicalRoute = matchingHistoricalRoute(itinerary.route, historicalRoutes)
+  const routeReports = matchingRouteLoadReports(itinerary.route, loadReports)
+  const routeOutcomes = matchingRouteOutcomes(itinerary.route, outcomes)
+  const outcomeRate = outcomeSuccessRate(routeOutcomes)
+  const connections = Math.max(0, itinerary.legs.length - 1)
+  const loadAdjustment = Math.max(-8, Math.min(8, loadReportAdjustment(routeReports)))
+  const historicalScore = historicalRoute?.score || predictionEngine.inputSummary.historicalAverageScore || itinerary.score
+  const historicalSuccess = historicalRoute?.successRate || predictionEngine.inputSummary.historicalSuccessRate || predictionEngine.successProbability
+  const outcomeSignal = outcomeRate === null ? 0 : (outcomeRate - historicalSuccess) * 0.16
+  const connectionPenalty = connections * 4
+  const successProbability = clampScore(
+    predictionEngine.successProbability * 0.34 +
+    itinerary.score * 0.26 +
+    historicalSuccess * 0.22 +
+    historicalScore * 0.12 +
+    loadAdjustment +
+    outcomeSignal -
+    connectionPenalty
+  )
+  const score = clampScore(itinerary.score * 0.52 + successProbability * 0.32 + historicalScore * 0.16 - connectionPenalty)
+
+  return {
+    id: `live-${itinerary.id}`,
+    route: itinerary.route,
+    carrier: itinerary.carrier,
+    score,
+    successProbability,
+    riskLevel: riskFromProbability(successProbability, itinerary.risk),
+    connections,
+    totalTravelTime: totalTravelTimeFromItinerary(itinerary),
+    flightNumber: itinerary.flightNumber,
+    isLive: true,
+    why: [
+      `Blends live itinerary score ${itinerary.score}/100 with probability engine baseline ${predictionEngine.successProbability}%.`,
+      historicalRoute
+        ? `Historical route match ${historicalRoute.route} contributes ${historicalRoute.successRate}% success and ${historicalRoute.reportCount} reports.`
+        : `Carrier historical scaffold contributes ${predictionEngine.inputSummary.historicalSuccessRate}% average success.` ,
+      routeReports.length
+        ? `${routeReports.length} community load report${routeReports.length === 1 ? '' : 's'} add a ${loadAdjustment >= 0 ? '+' : ''}${loadAdjustment.toFixed(1)} weighted load signal.`
+        : 'No matching community load reports yet, so the comparison keeps the route-neutral load assumption.',
+      routeOutcomes.length
+        ? `${routeOutcomes.length} saved outcome${routeOutcomes.length === 1 ? '' : 's'} calibrate this route at ${outcomeRate}% success.`
+        : 'No saved outcomes for this exact route yet; traveler profile and historical signals carry more weight.',
+      connections === 0 ? 'Nonstop option avoids connection risk.' : `${connections} connection${connections === 1 ? '' : 's'} adds a controlled recovery-risk penalty.`
+    ]
+  }
+}
+
+function buildFallbackItineraryComparison(
+  itinerary: FallbackItineraryResult,
+  predictionEngine: ReturnType<typeof calculatePredictionEngine>,
+  historicalRoutes: HistoricalRoute[],
+  loadReports: LoadReport[],
+  outcomes: TripOutcome[],
+  carrierLabel: string
+): ItineraryComparison {
+  const historicalRoute = matchingHistoricalRoute(itinerary.route, historicalRoutes)
+  const routeReports = matchingRouteLoadReports(itinerary.route, loadReports)
+  const routeOutcomes = matchingRouteOutcomes(itinerary.route, outcomes)
+  const outcomeRate = outcomeSuccessRate(routeOutcomes)
+  const airportCount = itinerary.route.split('→').length
+  const connections = Math.max(0, airportCount - 2)
+  const loadAdjustment = Math.max(-8, Math.min(8, loadReportAdjustment(routeReports)))
+  const historicalScore = historicalRoute?.score || predictionEngine.inputSummary.historicalAverageScore || itinerary.ranking.score
+  const historicalSuccess = historicalRoute?.successRate || predictionEngine.inputSummary.historicalSuccessRate || predictionEngine.successProbability
+  const outcomeSignal = outcomeRate === null ? 0 : (outcomeRate - historicalSuccess) * 0.16
+  const connectionPenalty = connections * 4
+  const successProbability = clampScore(
+    predictionEngine.successProbability * 0.36 +
+    itinerary.ranking.score * 0.24 +
+    historicalSuccess * 0.22 +
+    historicalScore * 0.12 +
+    loadAdjustment +
+    outcomeSignal -
+    connectionPenalty
+  )
+  const score = clampScore(itinerary.ranking.score * 0.5 + successProbability * 0.34 + historicalScore * 0.16 - connectionPenalty)
+
+  return {
+    id: `fallback-${itinerary.id}`,
+    route: itinerary.route,
+    carrier: carrierLabel,
+    score,
+    successProbability,
+    riskLevel: riskFromProbability(successProbability, itinerary.confidence === 'Strong' ? 'Medium-Low' : 'Medium'),
+    connections,
+    totalTravelTime: fallbackTravelTimeEstimate(itinerary),
+    flightNumber: itinerary.title,
+    isLive: false,
+    why: [
+      `Combines fallback ranking ${itinerary.ranking.score}/100 with probability engine baseline ${predictionEngine.successProbability}%.`,
+      historicalRoute
+        ? `Historical route match ${historicalRoute.route} contributes ${historicalRoute.successRate}% success and ${historicalRoute.reportCount} reports.`
+        : `Historical carrier scaffold contributes ${predictionEngine.inputSummary.historicalSuccessRate}% average success.`,
+      routeReports.length
+        ? `${routeReports.length} community load report${routeReports.length === 1 ? '' : 's'} add a ${loadAdjustment >= 0 ? '+' : ''}${loadAdjustment.toFixed(1)} weighted load signal.`
+        : 'No matching community load reports yet; use this as planning guidance only.',
+      routeOutcomes.length
+        ? `${routeOutcomes.length} saved outcome${routeOutcomes.length === 1 ? '' : 's'} calibrate this route at ${outcomeRate}% success.`
+        : 'No saved route outcomes yet; traveler profile and route intelligence remain the main signals.',
+      connections === 0 ? 'Nonstop shape keeps connection risk low.' : `${connections} connection${connections === 1 ? '' : 's'} creates backup flexibility but adds transfer risk.`
+    ]
+  }
+}
+
+function comparisonMetricColor(value: number) {
+  if (value >= 80) return '#22c55e'
+  if (value >= 70) return '#38bdf8'
+  if (value >= 60) return '#facc15'
+  return '#f87171'
+}
+
+function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: ItineraryComparison[]; travelDate: string }) {
+  const [watchStatus, setWatchStatus] = useState('')
+
+  if (comparisons.length < 2) return null
+
+  function watchRoute(comparison: ItineraryComparison) {
+    const saved = saveTripWatch({
+      travelDate: travelDate.trim() || 'Flexible',
+      carrier: comparison.carrier,
+      selectedItinerary: comparison.route,
+      score: comparison.score,
+      successProbability: comparison.successProbability,
+      riskLevel: comparison.riskLevel,
+      connections: comparison.connections,
+      totalTravelTime: comparison.totalTravelTime
+    })
+
+    if (saved) {
+      setWatchStatus(`Watching ${saved.origin} → ${saved.destination} for ${saved.travelDate}.`)
+    }
+  }
+
+  return (
+    <section style={{ border: '1px solid #38bdf8', borderRadius: 24, padding: 20, background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.96), rgba(30, 41, 59, 0.9))', marginBottom: 18 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+        <div>
+          <strong style={{ color: '#38bdf8', textTransform: 'uppercase', letterSpacing: 1 }}>Itinerary comparison engine</strong>
+          <h3 style={{ fontSize: 28, margin: '8px 0' }}>Top 3 recommended itineraries</h3>
+          <p style={{ color: '#94a3b8', marginTop: 0 }}>
+            Ranked with traveler profile, route intelligence, historical routes, community load reports, saved outcomes, and the probability engine.
+          </p>
+        </div>
+        <span style={{ border: '1px solid #22c55e', borderRadius: 999, color: '#22c55e', padding: '8px 12px', fontWeight: 'bold' }}>
+          Best: {comparisons[0]?.route}
+        </span>
+      </div>
+
+      {watchStatus && <p style={{ color: '#22c55e', fontWeight: 'bold' }}>{watchStatus} <a href="/watchlist" style={{ color: '#38bdf8' }}>Open watchlist</a></p>}
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14, marginTop: 16 }}>
+        {comparisons.map((comparison, index) => {
+          const isBest = index === 0
+          return (
+            <article
+              key={comparison.id}
+              className="flight-card"
+              style={{
+                border: isBest ? '2px solid #22c55e' : '1px solid #334155',
+                borderRadius: 20,
+                padding: 18,
+                background: isBest ? 'linear-gradient(135deg, rgba(20, 83, 45, 0.42), #0f172a)' : '#0f172a',
+                position: 'relative'
+              }}
+            >
+              {isBest && (
+                <div style={{ position: 'absolute', top: -12, right: 16, borderRadius: 999, background: '#22c55e', color: '#020617', padding: '5px 10px', fontWeight: 'bold', fontSize: 12 }}>
+                  Best Recommendation
+                </div>
+              )}
+              <small style={{ color: isBest ? '#86efac' : '#94a3b8', textTransform: 'uppercase', fontWeight: 800, letterSpacing: 1 }}>
+                #{index + 1} · {comparison.isLive ? 'Live option' : 'Planning scaffold'}
+              </small>
+              <h4 style={{ color: '#f8fafc', fontSize: 22, margin: '8px 0' }}>{comparison.route}</h4>
+              <p style={{ color: '#cbd5e1', margin: '0 0 12px' }}>
+                Carrier: {comparison.carrier} · {comparison.flightNumber}
+              </p>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 10 }}>
+                {[
+                  ['Score', comparison.score, comparisonMetricColor(comparison.score)],
+                  ['Success Probability', `${comparison.successProbability}%`, comparisonMetricColor(comparison.successProbability)],
+                  ['Risk Level', comparison.riskLevel, riskColor(comparison.riskLevel)],
+                  ['Connections', comparison.connections, comparison.connections === 0 ? '#22c55e' : '#facc15'],
+                  ['Total Travel Time', comparison.totalTravelTime, '#38bdf8']
+                ].map(([label, value, color]) => (
+                  <div key={`${comparison.id}-${label}`} style={{ border: '1px solid #334155', borderRadius: 12, padding: 10, background: '#020617' }}>
+                    <small style={{ color: '#94a3b8' }}>{label}</small>
+                    <p style={{ margin: '4px 0 0', color: String(color), fontWeight: 'bold' }}>{value}</p>
+                  </div>
+                ))}
+              </div>
+
+              <details open={isBest} style={{ marginTop: 14 }}>
+                <summary style={{ color: '#facc15', cursor: 'pointer', fontWeight: 'bold' }}>Why this route?</summary>
+                <ul style={{ color: '#cbd5e1', paddingLeft: 20, marginBottom: 0 }}>
+                  {comparison.why.map((reason) => <li key={reason}>{reason}</li>)}
+                </ul>
+              </details>
+              <button
+                type="button"
+                onClick={() => watchRoute(comparison)}
+                style={{ width: '100%', marginTop: 14, padding: 12, borderRadius: 12, border: 'none', background: isBest ? '#22c55e' : '#facc15', color: '#020617', fontWeight: 'bold' }}
+              >
+                Watch Route
+              </button>
+            </article>
+          )
+        })}
+      </div>
+    </section>
+  )
 }
 
 export default function PlanPage() {
@@ -257,6 +576,29 @@ export default function PlanPage() {
     loadReports,
     outcomes
   }), [carrier, travelerProfile, carrierProfile, scoringScaffold, historicalStats, loadReports, outcomes])
+
+  const itineraryComparisons = useMemo(() => {
+    const comparisons = liveItineraries.length > 0
+      ? liveItineraries.map((itinerary) => buildLiveItineraryComparison(
+        itinerary,
+        predictionEngine,
+        historicalStats.routes,
+        loadReports,
+        outcomes
+      ))
+      : rankedItineraries.map((itinerary) => buildFallbackItineraryComparison(
+        itinerary,
+        predictionEngine,
+        historicalStats.routes,
+        loadReports,
+        outcomes,
+        scoringScaffold.recommendationScope
+      ))
+
+    return comparisons
+      .sort((a, b) => b.score - a.score || b.successProbability - a.successProbability)
+      .slice(0, 3)
+  }, [liveItineraries, predictionEngine, historicalStats.routes, loadReports, outcomes, scoringScaffold.recommendationScope])
 
   return (
     <main className="app-shell" style={{ minHeight: '100vh', background: '#020617', color: 'white', padding: 32, fontFamily: 'Arial' }}>
@@ -437,6 +779,7 @@ export default function PlanPage() {
               </div>
             ) : null}
           </div>
+          <ItineraryComparisonPanel comparisons={itineraryComparisons} travelDate={travelWindow} />
           {liveItineraries.length > 0 ? (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
               {liveItineraries.map((itinerary) => (

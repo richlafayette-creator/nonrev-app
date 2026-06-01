@@ -11,6 +11,7 @@ import {
   type TravelerType
 } from '../../lib/travelerProfile'
 import OutcomeHistorySection from '../OutcomeHistorySection'
+import TrustScoreSection from '../TrustScoreSection'
 
 const travelerTypes: TravelerType[] = ['Employee', 'Retiree', 'Companion', 'Buddy Pass']
 
@@ -182,6 +183,7 @@ export default function ProfilePage() {
             </a>
           </aside>
         </div>
+        <TrustScoreSection />
         <OutcomeHistorySection />
       </section>
     </main>

@@ -10,6 +10,13 @@ export type RouteRecommendation = {
   carrier: string
 }
 
+export type SuccessProbability = {
+  probability: number
+  confidenceLevel: string
+  riskCategory: string
+  signals: string[]
+}
+
 export const supportedCarrierOptions: { value: SupportedCarrierValue; label: string }[] = [
   { value: 'all', label: 'All Supported Carriers' },
   { value: 'united', label: 'United' },
@@ -31,7 +38,7 @@ export const carrierFamilyMembers: Record<SupportedCarrierValue, string[]> = {
   'alaska-group': alaskaGroupAirlines
 }
 
-export const carrierScoringProfiles: Record<Exclude<SupportedCarrierValue, 'all'>, { label: string; weights: Record<string, string>; routeIntelligence: Record<string, string>; routeRecommendations: Omit<RouteRecommendation, 'rank' | 'carrier'>[] }> = {
+export const carrierScoringProfiles: Record<Exclude<SupportedCarrierValue, 'all'>, { label: string; weights: Record<string, string>; routeIntelligence: Record<string, string>; routeRecommendations: Omit<RouteRecommendation, 'rank' | 'carrier'>[]; successDefaults: { probability: number; confidenceLevel: string; riskCategory: string } }> = {
   united: {
     label: 'United',
     weights: {
@@ -50,7 +57,12 @@ export const carrierScoringProfiles: Record<Exclude<SupportedCarrierValue, 'all'
       { route: 'LAX → DEN → HNL', score: 82, risk: 'Medium' },
       { route: 'SFO → ORD → EWR', score: 78, risk: 'Medium-Low' },
       { route: 'IAH → DEN → SEA', score: 74, risk: 'Medium' }
-    ]
+    ],
+    successDefaults: {
+      probability: 74,
+      confidenceLevel: 'Medium',
+      riskCategory: 'Medium'
+    }
   },
   delta: {
     label: 'Delta',
@@ -70,7 +82,12 @@ export const carrierScoringProfiles: Record<Exclude<SupportedCarrierValue, 'all'
       { route: 'LAX → ATL → FLL', score: 84, risk: 'Medium-Low' },
       { route: 'SFO → MSP → JFK', score: 79, risk: 'Medium' },
       { route: 'SEA → DTW → BOS', score: 76, risk: 'Medium' }
-    ]
+    ],
+    successDefaults: {
+      probability: 77,
+      confidenceLevel: 'Medium-High',
+      riskCategory: 'Medium-Low'
+    }
   },
   'alaska-group': {
     label: 'Alaska Group',
@@ -90,7 +107,12 @@ export const carrierScoringProfiles: Record<Exclude<SupportedCarrierValue, 'all'
       { route: 'SEA → HNL', score: 83, risk: 'Medium' },
       { route: 'PDX → SEA → OGG', score: 80, risk: 'Medium' },
       { route: 'SFO → HNL → KOA', score: 77, risk: 'Medium-High' }
-    ]
+    ],
+    successDefaults: {
+      probability: 75,
+      confidenceLevel: 'Medium',
+      riskCategory: 'Medium'
+    }
   }
 }
 
@@ -129,10 +151,41 @@ function rankedRouteRecommendations(carrier: SupportedCarrierValue): RouteRecomm
     }))
 }
 
+function average(values: number[]) {
+  return values.reduce((sum, value) => sum + value, 0) / values.length
+}
+
+function calculateSuccessProbability(
+  carrier: SupportedCarrierValue,
+  profile: (typeof carrierScoringProfiles)[Exclude<SupportedCarrierValue, 'all'>],
+  recommendations: RouteRecommendation[]
+): SuccessProbability {
+  const defaultProbability =
+    carrier === 'all'
+      ? Math.round(average(Object.values(carrierScoringProfiles).map((item) => item.successDefaults.probability)))
+      : profile.successDefaults.probability
+  const averageRecommendationScore = Math.round(average(recommendations.map((recommendation) => recommendation.score)))
+  const riskPenalty = profile.successDefaults.riskCategory.includes('High') ? 4 : profile.successDefaults.riskCategory.includes('Low') ? -2 : 0
+  const probability = Math.max(1, Math.min(99, Math.round(defaultProbability * 0.65 + averageRecommendationScore * 0.35 - riskPenalty)))
+
+  return {
+    probability,
+    confidenceLevel: carrier === 'all' ? 'Medium' : profile.successDefaults.confidenceLevel,
+    riskCategory: carrier === 'all' ? 'Medium' : profile.successDefaults.riskCategory,
+    signals: [
+      `Score card blend: ${defaultProbability}% default plus ${averageRecommendationScore} average recommendation score`,
+      `Route intelligence risk: ${profile.routeIntelligence['Risk Level']}`,
+      `Recommendation ranking sample: ${recommendations[0]?.route || 'No ranked route yet'}`
+    ]
+  }
+}
+
 export function getCarrierScoringScaffold(value: string) {
   const carrier = normalizeCarrierFamily(value)
   const family = getCarrierFamilySummary(carrier)
   const profile = carrier === 'all' ? carrierScoringProfiles.united : carrierScoringProfiles[carrier]
+  const routeRecommendations = rankedRouteRecommendations(carrier)
+  const successProbability = calculateSuccessProbability(carrier, profile, routeRecommendations)
 
   return {
     carrier,
@@ -142,7 +195,8 @@ export function getCarrierScoringScaffold(value: string) {
     members: family.members,
     weights: profile.weights,
     routeIntelligence: profile.routeIntelligence,
-    routeRecommendations: rankedRouteRecommendations(carrier),
+    routeRecommendations,
+    successProbability,
     breakdown: [
       { label: 'Overall Score', value: '82', note: `Placeholder composite score for ${family.label}` },
       { label: 'Hub Strength', value: '8/10', note: `Weight ${profile.weights['Hub Strength']} · Hub signal scaffold treats ${family.members.join(' + ')} as ${family.label}` },

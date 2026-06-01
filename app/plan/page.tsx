@@ -156,6 +156,29 @@ export default function PlanPage() {
             ))}
           </div>
           <section style={{ border: '1px solid #334155', borderRadius: 16, padding: 14, background: '#020617', marginTop: 14 }}>
+            <strong style={{ color: '#38bdf8' }}>Success Probability</strong>
+            <p style={{ color: '#94a3b8' }}>
+              Placeholder success estimate blended from the score card, route intelligence, and recommendation ranking for {scoringScaffold.recommendationScope}.
+            </p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
+              <article style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#0f172a' }}>
+                <small style={{ color: '#94a3b8' }}>Probability %</small>
+                <h3 style={{ color: '#f8fafc', margin: '6px 0 0' }}>{scoringScaffold.successProbability.probability}%</h3>
+              </article>
+              <article style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#0f172a' }}>
+                <small style={{ color: '#94a3b8' }}>Confidence level</small>
+                <h3 style={{ color: '#f8fafc', margin: '6px 0 0' }}>{scoringScaffold.successProbability.confidenceLevel}</h3>
+              </article>
+              <article style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#0f172a' }}>
+                <small style={{ color: '#94a3b8' }}>Risk category</small>
+                <h3 style={{ color: '#f8fafc', margin: '6px 0 0' }}>{scoringScaffold.successProbability.riskCategory}</h3>
+              </article>
+            </div>
+            <p style={{ color: '#cbd5e1', marginBottom: 0 }}>
+              Signals: {scoringScaffold.successProbability.signals.join(' · ')}
+            </p>
+          </section>
+          <section style={{ border: '1px solid #334155', borderRadius: 16, padding: 14, background: '#020617', marginTop: 14 }}>
             <strong style={{ color: '#facc15' }}>Historical route intelligence scaffold</strong>
             <p style={{ color: '#94a3b8' }}>
               Placeholder route guidance tied to the selected carrier profile. No backend APIs yet.

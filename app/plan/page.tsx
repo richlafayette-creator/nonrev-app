@@ -5,9 +5,12 @@ import { flightMatchesSearch } from '../../lib/flightSearch'
 import { delayRiskScore, rankItinerary } from '../../lib/intelligence'
 import { allFlightFields, fieldValue, passengerFlightCoverageNotes, richFlightFieldLabels } from '../../lib/flightDataScaffold'
 import { airportCodesFromRoute } from '../../lib/airportMapScaffold'
-import { getCarrierScoringScaffold, supportedCarrierOptions } from '../../lib/carrierScope'
+import { carrierScoringProfiles, getCarrierScoringScaffold, normalizeCarrierFamily, supportedCarrierOptions } from '../../lib/carrierScope'
 import { historicalRouteStats } from '../../lib/historicalRoutes'
+import { loadLoadReports, type LoadReport } from '../../lib/loadReports'
+import { calculatePredictionEngine } from '../../lib/predictionEngine'
 import { defaultTravelerProfile, loadTravelerProfileFromStorage } from '../../lib/travelerProfile'
+import { loadTripOutcomes, type TripOutcome } from '../../lib/tripOutcomes'
 import MapboxAirportMap from '../MapboxAirportMap'
 import OutcomeCapture from '../OutcomeCapture'
 
@@ -69,12 +72,31 @@ export default function PlanPage() {
   const [flights, setFlights] = useState<any[]>([])
   const [lastUpdated, setLastUpdated] = useState('')
   const [travelerProfile, setTravelerProfile] = useState(defaultTravelerProfile)
+  const [loadReports, setLoadReports] = useState<LoadReport[]>([])
+  const [outcomes, setOutcomes] = useState<TripOutcome[]>([])
 
   useEffect(() => {
     const initialQuery = new URLSearchParams(window.location.search).get('q') || ''
     setQuery(initialQuery)
     if (initialQuery) setTripGoal(initialQuery)
-    setTravelerProfile(loadTravelerProfileFromStorage())
+  }, [])
+
+  useEffect(() => {
+    function refreshLocalScaffolds() {
+      setTravelerProfile(loadTravelerProfileFromStorage())
+      setLoadReports(loadLoadReports())
+      setOutcomes(loadTripOutcomes())
+    }
+
+    refreshLocalScaffolds()
+    window.addEventListener('nonrevy-load-reports-updated', refreshLocalScaffolds)
+    window.addEventListener('nonrevy-trip-outcomes-updated', refreshLocalScaffolds)
+    window.addEventListener('storage', refreshLocalScaffolds)
+    return () => {
+      window.removeEventListener('nonrevy-load-reports-updated', refreshLocalScaffolds)
+      window.removeEventListener('nonrevy-trip-outcomes-updated', refreshLocalScaffolds)
+      window.removeEventListener('storage', refreshLocalScaffolds)
+    }
   }, [])
 
   useEffect(() => {
@@ -112,6 +134,21 @@ export default function PlanPage() {
   )
   const scoringScaffold = useMemo(() => getCarrierScoringScaffold(carrier, travelerProfile), [carrier, travelerProfile])
   const historicalStats = useMemo(() => historicalRouteStats(carrier), [carrier])
+  const carrierProfile = useMemo(() => {
+    const normalizedCarrier = normalizeCarrierFamily(carrier)
+    return normalizedCarrier === 'all' ? carrierScoringProfiles.united : carrierScoringProfiles[normalizedCarrier]
+  }, [carrier])
+  const predictionEngine = useMemo(() => calculatePredictionEngine({
+    carrier,
+    travelerProfile,
+    carrierProfile,
+    recommendationScope: scoringScaffold.recommendationScope,
+    routeIntelligence: scoringScaffold.routeIntelligence,
+    routeRecommendations: scoringScaffold.routeRecommendations,
+    historicalStats,
+    loadReports,
+    outcomes
+  }), [carrier, travelerProfile, carrierProfile, scoringScaffold, historicalStats, loadReports, outcomes])
 
   return (
     <main className="app-shell" style={{ minHeight: '100vh', background: '#020617', color: 'white', padding: 32, fontFamily: 'Arial' }}>
@@ -189,29 +226,47 @@ export default function PlanPage() {
           <section style={{ border: '1px solid #334155', borderRadius: 16, padding: 14, background: '#020617', marginTop: 14 }}>
             <strong style={{ color: '#38bdf8' }}>Success Probability</strong>
             <p style={{ color: '#94a3b8' }}>
-              Placeholder success estimate blended from the score card, route intelligence, and recommendation ranking for {scoringScaffold.recommendationScope}.
+              Prediction engine scaffold blended from traveler profile, carrier scoring, route intelligence, historical route stats, community load reports, and outcome history for {scoringScaffold.recommendationScope}.
             </p>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
               <article style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#0f172a' }}>
                 <small style={{ color: '#94a3b8' }}>Probability %</small>
-                <h3 style={{ color: '#f8fafc', margin: '6px 0 0' }}>{scoringScaffold.successProbability.probability}%</h3>
+                <h3 style={{ color: '#f8fafc', margin: '6px 0 0' }}>{predictionEngine.successProbability}%</h3>
               </article>
               <article style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#0f172a' }}>
                 <small style={{ color: '#94a3b8' }}>Confidence level</small>
-                <h3 style={{ color: '#f8fafc', margin: '6px 0 0' }}>{scoringScaffold.successProbability.confidenceLevel}</h3>
+                <h3 style={{ color: '#f8fafc', margin: '6px 0 0' }}>{predictionEngine.confidenceLevel}</h3>
               </article>
               <article style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#0f172a' }}>
                 <small style={{ color: '#94a3b8' }}>Risk category</small>
-                <h3 style={{ color: '#f8fafc', margin: '6px 0 0' }}>{scoringScaffold.successProbability.riskCategory}</h3>
+                <h3 style={{ color: '#f8fafc', margin: '6px 0 0' }}>{predictionEngine.riskCategory}</h3>
               </article>
             </div>
-            <p style={{ color: '#cbd5e1', marginBottom: 0 }}>
-              Signals: {scoringScaffold.successProbability.signals.join(' · ')}
-            </p>
+            <div style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#0f172a', marginTop: 14 }}>
+              <strong style={{ color: '#facc15' }}>Explanation bullets</strong>
+              <ul style={{ color: '#cbd5e1', marginBottom: 0, paddingLeft: 20 }}>
+                {predictionEngine.explanationBullets.map((bullet) => (
+                  <li key={bullet}>{bullet}</li>
+                ))}
+              </ul>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginTop: 14 }}>
+              {[
+                ['Carrier base', `${predictionEngine.inputSummary.carrierDefaultProbability}%`],
+                ['Route risk', predictionEngine.inputSummary.routeRisk],
+                ['Load reports', predictionEngine.inputSummary.communityReportCount],
+                ['Outcome rate', `${predictionEngine.inputSummary.outcomeSuccessRate}%`]
+              ].map(([label, value]) => (
+                <article key={label} style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#0f172a' }}>
+                  <small style={{ color: '#94a3b8' }}>{label}</small>
+                  <h3 style={{ color: '#f8fafc', margin: '6px 0 0' }}>{value}</h3>
+                </article>
+              ))}
+            </div>
             <div style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#0f172a', marginTop: 14 }}>
               <strong style={{ color: '#34d399' }}>Profile assumptions</strong>
               <ul style={{ color: '#cbd5e1', marginBottom: 0, paddingLeft: 20 }}>
-                {scoringScaffold.successProbability.travelerAssumptions.map((assumption) => (
+                {predictionEngine.inputSummary.travelerProfileSignals.map((assumption) => (
                   <li key={assumption}>{assumption}</li>
                 ))}
               </ul>

@@ -10,6 +10,7 @@ import {
   travelerProfileStorageKey,
   type TravelerType
 } from '../../lib/travelerProfile'
+import OutcomeHistorySection from '../OutcomeHistorySection'
 
 const travelerTypes: TravelerType[] = ['Employee', 'Retiree', 'Companion', 'Buddy Pass']
 
@@ -181,6 +182,7 @@ export default function ProfilePage() {
             </a>
           </aside>
         </div>
+        <OutcomeHistorySection />
       </section>
     </main>
   )

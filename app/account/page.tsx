@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
+import OutcomeHistorySection from '../OutcomeHistorySection'
 
 export default function AccountPage() {
   const [userEmail, setUserEmail] = useState('')
@@ -45,6 +46,7 @@ export default function AccountPage() {
           <p style={{ color: '#cbd5e1' }}>Future fields: home airport, employee/companion traveler settings, preferred airlines, and accessibility/travel preferences.</p>
           <a href="/profile" style={{ color: '#38bdf8' }}>Open traveler profile scaffold</a>
         </div>
+        <OutcomeHistorySection />
       </section>
     </main>
   )

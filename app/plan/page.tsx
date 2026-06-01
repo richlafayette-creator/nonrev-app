@@ -8,6 +8,7 @@ import { airportCodesFromRoute } from '../../lib/airportMapScaffold'
 import { getCarrierScoringScaffold, supportedCarrierOptions } from '../../lib/carrierScope'
 import { defaultTravelerProfile, loadTravelerProfileFromStorage } from '../../lib/travelerProfile'
 import MapboxAirportMap from '../MapboxAirportMap'
+import OutcomeCapture from '../OutcomeCapture'
 
 const mockItineraries = [
   {
@@ -257,6 +258,17 @@ export default function PlanPage() {
                 </tbody>
               </table>
             </div>
+            <div style={{ display: 'grid', gap: 12, marginTop: 14 }}>
+              {scoringScaffold.routeRecommendations.map((recommendation) => (
+                <OutcomeCapture
+                  key={`outcome-${recommendation.rank}-${recommendation.route}`}
+                  subjectType="route-recommendation"
+                  subjectId={`${recommendation.carrier}-${recommendation.rank}-${recommendation.route}`}
+                  title={`Rank ${recommendation.rank} ${recommendation.carrier} recommendation`}
+                  route={recommendation.route}
+                />
+              ))}
+            </div>
           </section>
         </section>
 
@@ -421,6 +433,12 @@ export default function PlanPage() {
                     <li key={segment}>{segment}</li>
                   ))}
                 </ul>
+                <OutcomeCapture
+                  subjectType="saved-itinerary"
+                  subjectId={String(itinerary.id)}
+                  title={itinerary.title}
+                  route={itinerary.route}
+                />
               </article>
             ))}
           </div>

@@ -33,6 +33,7 @@ export default function OutcomeHistorySection() {
           <p style={{ color: '#94a3b8', marginBottom: 0 }}>
             Stored locally from route recommendations and saved itinerary cards.
           </p>
+          <a href="/outcomes" style={{ display: 'inline-block', color: '#38bdf8', marginTop: 10 }}>Open outcome dashboard</a>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(120px, 1fr))', gap: 10 }}>
           <article style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#020617' }}>

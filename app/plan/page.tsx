@@ -189,12 +189,13 @@ export default function PlanPage() {
       const data = await response.json()
       const itineraries = Array.isArray(data?.itineraries) ? data.itineraries as LiveItineraryResult[] : []
       setLiveItineraries(itineraries)
-      setItineraryWarnings(Array.isArray(data?.warnings) ? data.warnings : [])
-      setItinerarySource(data?.enrichedWithFlightAware ? 'Supabase flights + FlightAware enrichment' : 'Supabase flights table')
-      setItineraryStatus(itineraries.length
+      const apiWarnings = Array.isArray(data?.warnings) ? data.warnings : []
+      setItineraryWarnings(data?.errorMessage ? [...apiWarnings, data.errorMessage] : apiWarnings)
+      setItinerarySource(data?.sourceLabel || (data?.enrichedWithFlightAware ? 'Supabase flights + FlightAware enrichment' : 'Supabase flights table'))
+      setItineraryStatus(data?.statusMessage || (itineraries.length
         ? `${itineraries.length} live itinerary result${itineraries.length === 1 ? '' : 's'} found for ${data?.request?.origin || 'any origin'} → ${data?.request?.destination || 'any destination'}.`
-        : 'No matching live flight data found yet. Showing placeholder itinerary fallback below.'
-      )
+        : 'No matching real data found in Supabase, Aviationstack, or FlightAware. Showing placeholder itinerary fallback below.'
+      ))
     } catch {
       setLiveItineraries([])
       setItineraryStatus('Live itinerary search failed. Showing placeholder itinerary fallback below.')

@@ -22,7 +22,7 @@ export type ItineraryLeg = {
   terminal?: string
   score: number
   risk: string
-  source: 'supabase' | 'supabase+flightaware'
+  source: string
 }
 
 export type ItineraryResult = {
@@ -39,7 +39,7 @@ export type ItineraryResult = {
   terminal?: string
   score: number
   risk: string
-  source: 'supabase' | 'supabase+flightaware'
+  source: string
 }
 
 const carrierAliases: Record<string, string[]> = {
@@ -89,6 +89,7 @@ function carrierFromText(value: string) {
 export function parseItineraryPrompt(prompt: string, now = new Date()): Partial<ParsedItineraryRequest> {
   const normalized = prompt.trim()
   const routeMatch = normalized.match(/\b([A-Za-z]{3})\b\s*(?:-|→|to)\s*\b([A-Za-z]{3})\b/i)
+
   return {
     prompt: normalized,
     origin: routeMatch?.[1]?.toUpperCase(),
@@ -186,6 +187,7 @@ export function normalizeFlightLeg(flight: Record<string, unknown>, enrichment?:
   const arrivalGate = valueFrom(flight, ['arrival_gate']) || valueFrom(enrichment || {}, ['gate_destination', 'arrival_gate'])
   const departureTerminal = valueFrom(flight, ['departure_terminal', 'terminal']) || valueFrom(enrichment || {}, ['terminal_origin', 'departure_terminal'])
   const arrivalTerminal = valueFrom(flight, ['arrival_terminal']) || valueFrom(enrichment || {}, ['terminal_destination', 'arrival_terminal'])
+  const sourceProvider = valueFrom(flight, ['source_provider']) || 'supabase'
 
   return {
     id: valueFrom(flight, ['id']) || undefined,
@@ -202,7 +204,7 @@ export function normalizeFlightLeg(flight: Record<string, unknown>, enrichment?:
     terminal: [departureTerminal, arrivalTerminal].filter(Boolean).join(' → ') || undefined,
     score,
     risk: riskFromScore(score, status),
-    source: enrichment ? 'supabase+flightaware' : 'supabase'
+    source: enrichment ? `${sourceProvider}+flightaware` : sourceProvider
   }
 }
 
@@ -254,7 +256,9 @@ function itineraryFromLegs(legs: ItineraryLeg[]): ItineraryResult {
     terminal: legs.map((leg) => leg.terminal).filter(Boolean).join(' · ') || undefined,
     score,
     risk: riskFromScore(score, legs.map((leg) => leg.status).join(' ')),
-    source: legs.some((leg) => leg.source === 'supabase+flightaware') ? 'supabase+flightaware' : 'supabase'
+    source: legs.some((leg) => leg.source.includes('flightaware'))
+      ? `${legs[0].source.replace('+flightaware', '')}+flightaware`
+      : legs[0].source
   }
 }
 

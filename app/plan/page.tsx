@@ -60,14 +60,61 @@ function confidenceColor(confidence: string) {
   return '#f87171'
 }
 
+type LiveItineraryLeg = {
+  id?: string | number
+  route: string
+  origin: string
+  destination: string
+  carrier: string
+  flightNumber: string
+  departureTime: string
+  arrivalTime: string
+  aircraft: string
+  status: string
+  gate?: string
+  terminal?: string
+  score: number
+  risk: string
+  source: string
+}
+
+type LiveItineraryResult = {
+  id: string
+  route: string
+  legs: LiveItineraryLeg[]
+  carrier: string
+  flightNumber: string
+  departureTime: string
+  arrivalTime: string
+  aircraft: string
+  status: string
+  gate?: string
+  terminal?: string
+  score: number
+  risk: string
+  source: string
+}
+
+function riskColor(risk: string) {
+  if (risk.includes('Low')) return '#22c55e'
+  if (risk.includes('Medium')) return '#facc15'
+  return '#f87171'
+}
+
 export default function PlanPage() {
   const [tripGoal, setTripGoal] = useState('')
   const [homeAirport, setHomeAirport] = useState('')
   const [travelWindow, setTravelWindow] = useState('')
   const [travelerCount, setTravelerCount] = useState('1')
+  const [maxLegs, setMaxLegs] = useState('2')
   const [carrier, setCarrier] = useState('all')
   const [voiceStatus, setVoiceStatus] = useState('Voice capture scaffold ready.')
   const [submitted, setSubmitted] = useState(false)
+  const [itineraryStatus, setItineraryStatus] = useState('Enter an itinerary request to search live flight data.')
+  const [itineraryLoading, setItineraryLoading] = useState(false)
+  const [liveItineraries, setLiveItineraries] = useState<LiveItineraryResult[]>([])
+  const [itineraryWarnings, setItineraryWarnings] = useState<string[]>([])
+  const [itinerarySource, setItinerarySource] = useState('Supabase flights table')
   const [query, setQuery] = useState('')
   const [flights, setFlights] = useState<any[]>([])
   const [lastUpdated, setLastUpdated] = useState('')
@@ -78,7 +125,10 @@ export default function PlanPage() {
   useEffect(() => {
     const initialQuery = new URLSearchParams(window.location.search).get('q') || ''
     setQuery(initialQuery)
-    if (initialQuery) setTripGoal(initialQuery)
+    if (initialQuery) {
+      setTripGoal(initialQuery)
+      runItinerarySearch(initialQuery)
+    }
   }, [])
 
   useEffect(() => {
@@ -115,13 +165,53 @@ export default function PlanPage() {
     return () => window.clearInterval(refresh)
   }, [])
 
-  function submitPlanRequest(event: FormEvent<HTMLFormElement>) {
+  async function runItinerarySearch(searchText: string) {
+    const trimmedSearch = searchText.trim()
+    if (!trimmedSearch && !homeAirport.trim()) {
+      setLiveItineraries([])
+      setItineraryStatus('Enter an itinerary request to search live flight data.')
+      return
+    }
+
+    setItineraryLoading(true)
+    setItineraryStatus('Searching Supabase flights first, then enriching matches when FlightAware is configured...')
+    setItineraryWarnings([])
+
+    const params = new URLSearchParams()
+    if (trimmedSearch) params.set('q', trimmedSearch)
+    if (homeAirport.trim()) params.set('origin', homeAirport.trim().toUpperCase())
+    if (travelWindow.trim()) params.set('date', travelWindow.trim())
+    params.set('carrier', carrier)
+    params.set('maxLegs', maxLegs)
+
+    try {
+      const response = await fetch(`/api/itinerary/search?${params.toString()}`)
+      const data = await response.json()
+      const itineraries = Array.isArray(data?.itineraries) ? data.itineraries as LiveItineraryResult[] : []
+      setLiveItineraries(itineraries)
+      setItineraryWarnings(Array.isArray(data?.warnings) ? data.warnings : [])
+      setItinerarySource(data?.enrichedWithFlightAware ? 'Supabase flights + FlightAware enrichment' : 'Supabase flights table')
+      setItineraryStatus(itineraries.length
+        ? `${itineraries.length} live itinerary result${itineraries.length === 1 ? '' : 's'} found for ${data?.request?.origin || 'any origin'} → ${data?.request?.destination || 'any destination'}.`
+        : 'No matching live flight data found yet. Showing placeholder itinerary fallback below.'
+      )
+    } catch {
+      setLiveItineraries([])
+      setItineraryStatus('Live itinerary search failed. Showing placeholder itinerary fallback below.')
+      setItineraryWarnings(['Itinerary API request failed'])
+    } finally {
+      setItineraryLoading(false)
+    }
+  }
+
+  async function submitPlanRequest(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setSubmitted(true)
     if (tripGoal.trim()) {
       setQuery(tripGoal.trim())
       window.history.replaceState(null, '', `/plan?q=${encodeURIComponent(tripGoal.trim())}`)
     }
+    await runItinerarySearch(tripGoal)
   }
 
   function startVoiceScaffold() {
@@ -402,6 +492,18 @@ export default function PlanPage() {
               </label>
             </div>
             <label style={{ display: 'block', color: '#cbd5e1', marginBottom: 12 }}>
+              Max legs
+              <select
+                value={maxLegs}
+                onChange={(event) => setMaxLegs(event.target.value)}
+                style={{ boxSizing: 'border-box', width: '100%', marginTop: 6, padding: 12, borderRadius: 12, border: '1px solid #475569', background: '#020617', color: 'white' }}
+              >
+                <option value="1">Nonstop only</option>
+                <option value="2">Up to 2 legs</option>
+                <option value="3">Up to 3 legs scaffold</option>
+              </select>
+            </label>
+            <label style={{ display: 'block', color: '#cbd5e1', marginBottom: 12 }}>
               Carrier scope scaffold
               <select
                 value={carrier}
@@ -414,7 +516,7 @@ export default function PlanPage() {
               </select>
             </label>
             <p style={{ color: '#94a3b8' }}>
-              Supported today: United, Delta, Alaska Group. Alaska Group includes Alaska and Hawaiian. Selector is UI-only for now.
+              Supported today: United, Delta, Alaska Group. Alaska Group includes Alaska and Hawaiian. Search now calls the itinerary pipeline using Supabase flights first.
             </p>
             <button
               type="submit"
@@ -494,9 +596,70 @@ export default function PlanPage() {
         </section>
 
         <section style={{ marginTop: 30 }}>
-          <h2 style={{ fontSize: 30 }}>Smart-ranked itinerary cards</h2>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 16 }}>
-            {rankedItineraries.map((itinerary) => (
+          <h2 style={{ fontSize: 30 }}>Live itinerary results</h2>
+          <p style={{ color: itineraryLoading ? '#facc15' : '#94a3b8' }}>
+            {itineraryStatus} · Source: {itinerarySource}
+          </p>
+          {itineraryWarnings.length > 0 && (
+            <div style={{ border: '1px solid #854d0e', borderRadius: 14, padding: 14, background: '#1c1917', color: '#fde68a', marginBottom: 14 }}>
+              <strong>Pipeline notes</strong>
+              <ul style={{ marginBottom: 0 }}>
+                {itineraryWarnings.map((warning) => <li key={warning}>{warning}</li>)}
+              </ul>
+            </div>
+          )}
+          {liveItineraries.length > 0 ? (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
+              {liveItineraries.map((itinerary) => (
+                <article key={itinerary.id} style={{ border: '1px solid #334155', borderRadius: 20, padding: 18, background: '#0f172a' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
+                    <h3 style={{ margin: 0 }}>{itinerary.flightNumber}</h3>
+                    <span style={{ color: riskColor(itinerary.risk), fontWeight: 'bold' }}>{itinerary.risk}</span>
+                  </div>
+                  <p style={{ color: '#38bdf8', fontSize: 18, fontWeight: 'bold' }}>{itinerary.route}</p>
+                  <p style={{ color: '#facc15', fontWeight: 'bold' }}>Live score: {itinerary.score}/100</p>
+                  <p style={{ color: '#cbd5e1' }}>
+                    Carrier: {itinerary.carrier} · Aircraft: {itinerary.aircraft} · Status: {itinerary.status}
+                  </p>
+                  <p style={{ color: '#94a3b8' }}>
+                    Depart: {itinerary.departureTime} · Arrive: {itinerary.arrivalTime}
+                  </p>
+                  <p style={{ color: '#94a3b8' }}>
+                    Gate: {itinerary.gate || 'Not available'} · Terminal: {itinerary.terminal || 'Not available'} · {itinerary.source}
+                  </p>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: 10, margin: '12px 0' }}>
+                    {airportCodesFromRoute(itinerary.route).map((code) => (
+                      <MapboxAirportMap key={`${itinerary.id}-${code}`} airportCode={code} title={`${code} airport preview`} compact />
+                    ))}
+                  </div>
+                  <div style={{ display: 'grid', gap: 10, marginTop: 12 }}>
+                    {itinerary.legs.map((leg, index) => (
+                      <div key={`${itinerary.id}-${leg.flightNumber}-${index}`} style={{ border: '1px solid #334155', borderRadius: 14, padding: 12, background: '#020617' }}>
+                        <strong style={{ color: '#f8fafc' }}>Leg {index + 1}: {leg.flightNumber}</strong>
+                        <p style={{ color: '#38bdf8', margin: '6px 0' }}>{leg.origin} → {leg.destination}</p>
+                        <p style={{ color: '#cbd5e1', margin: 0 }}>
+                          {leg.departureTime} → {leg.arrivalTime} · {leg.aircraft} · {leg.status} · Score {leg.score}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                  <OutcomeCapture
+                    subjectType="saved-itinerary"
+                    subjectId={`live-${itinerary.id}`}
+                    title={`Live itinerary ${itinerary.flightNumber}`}
+                    route={itinerary.route}
+                  />
+                </article>
+              ))}
+            </div>
+          ) : (
+            <>
+              <h3 style={{ color: '#facc15' }}>Placeholder fallback itinerary cards</h3>
+              <p style={{ color: '#94a3b8' }}>
+                These appear only when the live itinerary pipeline has no matching Supabase/FlightAware-backed results yet.
+              </p>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 16 }}>
+                {rankedItineraries.map((itinerary) => (
               <article key={itinerary.id} style={{ border: '1px solid #334155', borderRadius: 20, padding: 18, background: '#0f172a' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
                   <h3 style={{ margin: 0 }}>{itinerary.title}</h3>
@@ -524,8 +687,10 @@ export default function PlanPage() {
                   route={itinerary.route}
                 />
               </article>
-            ))}
-          </div>
+                ))}
+              </div>
+            </>
+          )}
         </section>
       </section>
     </main>

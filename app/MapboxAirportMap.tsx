@@ -10,7 +10,7 @@ type MapboxAirportMapProps = {
 
 export default function MapboxAirportMap({ airportCode, title, compact = false }: MapboxAirportMapProps) {
   const airport = airportScaffoldFor(airportCode)
-  const token = process.env.NEXT_PUBLIC_MAPBOX_TOKENN
+  const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN
   const imageUrl = airport ? mapboxStaticImageUrl(airport, token) : ''
 
   return (

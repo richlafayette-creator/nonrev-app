@@ -95,6 +95,18 @@ type LiveItineraryResult = {
   source: string
 }
 
+type ItineraryDebugMetadata = {
+  parsedOrigin?: string
+  parsedDestination?: string
+  parsedDate?: string
+  selectedCarrier: string
+  supabaseResultCount: number
+  aviationstackFallbackStatus: string
+  flightAwareEnrichmentStatus: string
+  finalItineraryCount: number
+  safeErrors: string[]
+}
+
 function riskColor(risk: string) {
   if (risk.includes('Low')) return '#22c55e'
   if (risk.includes('Medium')) return '#facc15'
@@ -115,6 +127,7 @@ export default function PlanPage() {
   const [liveItineraries, setLiveItineraries] = useState<LiveItineraryResult[]>([])
   const [itineraryWarnings, setItineraryWarnings] = useState<string[]>([])
   const [itinerarySource, setItinerarySource] = useState('Supabase flights table')
+  const [itineraryDebug, setItineraryDebug] = useState<ItineraryDebugMetadata | null>(null)
   const [query, setQuery] = useState('')
   const [flights, setFlights] = useState<any[]>([])
   const [lastUpdated, setLastUpdated] = useState('')
@@ -169,6 +182,7 @@ export default function PlanPage() {
     const trimmedSearch = searchText.trim()
     if (!trimmedSearch && !homeAirport.trim()) {
       setLiveItineraries([])
+      setItineraryDebug(null)
       setItineraryStatus('Enter an itinerary request to search live flight data.')
       return
     }
@@ -176,6 +190,7 @@ export default function PlanPage() {
     setItineraryLoading(true)
     setItineraryStatus('Searching Supabase flights first, then enriching matches when FlightAware is configured...')
     setItineraryWarnings([])
+    setItineraryDebug(null)
 
     const params = new URLSearchParams()
     if (trimmedSearch) params.set('q', trimmedSearch)
@@ -190,15 +205,17 @@ export default function PlanPage() {
       const itineraries = Array.isArray(data?.itineraries) ? data.itineraries as LiveItineraryResult[] : []
       setLiveItineraries(itineraries)
       const apiWarnings = Array.isArray(data?.warnings) ? data.warnings : []
-      setItineraryWarnings(data?.errorMessage ? [...apiWarnings, data.errorMessage] : apiWarnings)
+      setItineraryWarnings(data?.errorMessage ? [...new Set([...apiWarnings, data.errorMessage])] : apiWarnings)
       setItinerarySource(data?.sourceLabel || (data?.enrichedWithFlightAware ? 'Supabase flights + FlightAware enrichment' : 'Supabase flights table'))
+      setItineraryDebug(data?.debug || null)
       setItineraryStatus(data?.statusMessage || (itineraries.length
         ? `${itineraries.length} live itinerary result${itineraries.length === 1 ? '' : 's'} found for ${data?.request?.origin || 'any origin'} → ${data?.request?.destination || 'any destination'}.`
-        : 'No matching real data found in Supabase, Aviationstack, or FlightAware. Showing placeholder itinerary fallback below.'
+        : 'No live flights found for this search. Showing fallback planning guidance.'
       ))
     } catch {
       setLiveItineraries([])
-      setItineraryStatus('Live itinerary search failed. Showing placeholder itinerary fallback below.')
+      setItineraryDebug(null)
+      setItineraryStatus('Live itinerary search failed. Showing fallback planning guidance.')
       setItineraryWarnings(['Itinerary API request failed'])
     } finally {
       setItineraryLoading(false)
@@ -272,181 +289,6 @@ export default function PlanPage() {
           </ul>
         </div>
 
-        <section style={{ border: '1px solid #334155', borderRadius: 18, padding: 16, background: '#0f172a', color: '#cbd5e1', marginTop: 18 }}>
-          <strong style={{ color: '#38bdf8' }}>Scoring engine scaffold</strong>
-          <p style={{ color: '#94a3b8' }}>
-            Placeholder airline-aware scoring model for {scoringScaffold.familyLabel}. Alaska Group is treated as one supported carrier family covering Alaska Airlines and Hawaiian Airlines. No live load integration yet.
-          </p>
-          <p style={{ color: '#cbd5e1' }}>
-            Selected carrier profile: {scoringScaffold.selectedCarrier} · Active family: {scoringScaffold.familyLabel} · Members: {scoringScaffold.members.join(', ')}
-          </p>
-          <p style={{ color: '#cbd5e1' }}>
-            Placeholder weights: Hub Strength {scoringScaffold.weights['Hub Strength']} · Route Complexity {scoringScaffold.weights['Route Complexity']} · Seasonal Demand {scoringScaffold.weights['Seasonal Demand']} · Historical Performance {scoringScaffold.weights['Historical Performance']}
-          </p>
-          <section style={{ border: '1px solid #334155', borderRadius: 16, padding: 14, background: '#020617', marginBottom: 14 }}>
-            <strong style={{ color: '#facc15' }}>Historical route score explanation</strong>
-            <p style={{ color: '#94a3b8' }}>
-              {historicalStats.explanation}
-            </p>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>
-              {[
-                ['Historical score', historicalStats.averageScore],
-                ['Historical success', `${historicalStats.averageSuccessRate}%`],
-                ['Report count', historicalStats.reportCount],
-                ['Top sample', historicalStats.topRoute?.route || 'Pending']
-              ].map(([label, value]) => (
-                <article key={label} style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#0f172a' }}>
-                  <small style={{ color: '#94a3b8' }}>{label}</small>
-                  <h3 style={{ color: '#f8fafc', margin: '6px 0 0' }}>{value}</h3>
-                </article>
-              ))}
-            </div>
-            <a href="/historical-routes" style={{ display: 'inline-block', color: '#38bdf8', marginTop: 12 }}>
-              View historical route database scaffold
-            </a>
-          </section>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
-            {scoringScaffold.breakdown.map((item) => (
-              <article key={item.label} style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#020617' }}>
-                <small style={{ color: '#94a3b8' }}>{item.label}</small>
-                <h3 style={{ color: '#f8fafc', margin: '6px 0' }}>{item.value}</h3>
-                <p style={{ margin: 0, color: '#cbd5e1' }}>{item.note}</p>
-              </article>
-            ))}
-          </div>
-          <section style={{ border: '1px solid #334155', borderRadius: 16, padding: 14, background: '#020617', marginTop: 14 }}>
-            <strong style={{ color: '#38bdf8' }}>Success Probability</strong>
-            <p style={{ color: '#94a3b8' }}>
-              Prediction engine scaffold blended from traveler profile, carrier scoring, route intelligence, historical route stats, community load reports, and outcome history for {scoringScaffold.recommendationScope}.
-            </p>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
-              <article style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#0f172a' }}>
-                <small style={{ color: '#94a3b8' }}>Probability %</small>
-                <h3 style={{ color: '#f8fafc', margin: '6px 0 0' }}>{predictionEngine.successProbability}%</h3>
-              </article>
-              <article style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#0f172a' }}>
-                <small style={{ color: '#94a3b8' }}>Confidence level</small>
-                <h3 style={{ color: '#f8fafc', margin: '6px 0 0' }}>{predictionEngine.confidenceLevel}</h3>
-              </article>
-              <article style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#0f172a' }}>
-                <small style={{ color: '#94a3b8' }}>Risk category</small>
-                <h3 style={{ color: '#f8fafc', margin: '6px 0 0' }}>{predictionEngine.riskCategory}</h3>
-              </article>
-            </div>
-            <div style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#0f172a', marginTop: 14 }}>
-              <strong style={{ color: '#facc15' }}>Explanation bullets</strong>
-              <ul style={{ color: '#cbd5e1', marginBottom: 0, paddingLeft: 20 }}>
-                {predictionEngine.explanationBullets.map((bullet) => (
-                  <li key={bullet}>{bullet}</li>
-                ))}
-              </ul>
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginTop: 14 }}>
-              {[
-                ['Carrier base', `${predictionEngine.inputSummary.carrierDefaultProbability}%`],
-                ['Route risk', predictionEngine.inputSummary.routeRisk],
-                ['Load reports', predictionEngine.inputSummary.communityReportCount],
-                ['Outcome rate', `${predictionEngine.inputSummary.outcomeSuccessRate}%`]
-              ].map(([label, value]) => (
-                <article key={label} style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#0f172a' }}>
-                  <small style={{ color: '#94a3b8' }}>{label}</small>
-                  <h3 style={{ color: '#f8fafc', margin: '6px 0 0' }}>{value}</h3>
-                </article>
-              ))}
-            </div>
-            <div style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#0f172a', marginTop: 14 }}>
-              <strong style={{ color: '#34d399' }}>Profile assumptions</strong>
-              <ul style={{ color: '#cbd5e1', marginBottom: 0, paddingLeft: 20 }}>
-                {predictionEngine.inputSummary.travelerProfileSignals.map((assumption) => (
-                  <li key={assumption}>{assumption}</li>
-                ))}
-              </ul>
-              <a href="/profile" style={{ display: 'inline-block', color: '#38bdf8', marginTop: 12 }}>Edit profile scaffold</a>
-            </div>
-          </section>
-          <section style={{ border: '1px solid #334155', borderRadius: 16, padding: 14, background: '#020617', marginTop: 14 }}>
-            <strong style={{ color: '#34d399' }}>Traveler profile summary</strong>
-            <p style={{ color: '#94a3b8' }}>
-              Local profile values currently feeding route scoring assumptions.
-            </p>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>
-              {[
-                ['Employee airline', travelerProfile.employeeAirline],
-                ['Traveler type', travelerProfile.travelerType],
-                ['Pass priority', travelerProfile.passPriority],
-                ['Home airport', travelerProfile.homeAirport],
-                ['Preferred airports', travelerProfile.preferredAirports.join(', ')]
-              ].map(([label, value]) => (
-                <article key={label} style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#0f172a' }}>
-                  <small style={{ color: '#94a3b8' }}>{label}</small>
-                  <h3 style={{ color: '#f8fafc', margin: '6px 0 0' }}>{value}</h3>
-                </article>
-              ))}
-            </div>
-            <a href="/profile" style={{ display: 'inline-block', color: '#38bdf8', marginTop: 12 }}>Update local profile</a>
-          </section>
-          <section style={{ border: '1px solid #334155', borderRadius: 16, padding: 14, background: '#020617', marginTop: 14 }}>
-            <strong style={{ color: '#facc15' }}>Historical route intelligence scaffold</strong>
-            <p style={{ color: '#94a3b8' }}>
-              Placeholder route guidance tied to the selected carrier profile. No backend APIs yet.
-            </p>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
-              {Object.entries(scoringScaffold.routeIntelligence).map(([label, value]) => (
-                <article key={label} style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#0f172a' }}>
-                  <small style={{ color: '#94a3b8' }}>{label}</small>
-                  <h3 style={{ color: '#f8fafc', margin: '6px 0 0' }}>{value}</h3>
-                </article>
-              ))}
-            </div>
-          </section>
-          <section style={{ border: '1px solid #334155', borderRadius: 16, padding: 14, background: '#020617', marginTop: 14 }}>
-            <strong style={{ color: '#22c55e' }}>Top 3 route recommendations</strong>
-            <p style={{ color: '#94a3b8' }}>
-              Placeholder ranking tied to the score card and route intelligence for {scoringScaffold.recommendationScope}.
-            </p>
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', color: '#cbd5e1' }}>
-                <thead>
-                  <tr style={{ borderBottom: '1px solid #334155', color: '#94a3b8', textAlign: 'left' }}>
-                    <th style={{ padding: '10px 8px' }}>Rank</th>
-                    <th style={{ padding: '10px 8px' }}>Route</th>
-                    <th style={{ padding: '10px 8px' }}>Score</th>
-                    <th style={{ padding: '10px 8px' }}>Risk</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {scoringScaffold.routeRecommendations.map((recommendation) => (
-                    <tr key={`${recommendation.rank}-${recommendation.route}`} style={{ borderBottom: '1px solid #1e293b' }}>
-                      <td style={{ padding: '12px 8px', color: '#22c55e', fontWeight: 'bold' }}>{recommendation.rank}</td>
-                      <td style={{ padding: '12px 8px' }}>
-                        <strong style={{ color: '#f8fafc' }}>{recommendation.route}</strong>
-                        <br />
-                        <small style={{ color: '#94a3b8' }}>{recommendation.carrier}</small>
-                      </td>
-                      <td style={{ padding: '12px 8px' }}>{recommendation.score}</td>
-                      <td style={{ padding: '12px 8px' }}>{recommendation.risk}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <a href="/load-reports" style={{ display: 'inline-block', color: '#38bdf8', marginTop: 12 }}>
-              Verify a load for these recommendations
-            </a>
-            <div style={{ display: 'grid', gap: 12, marginTop: 14 }}>
-              {scoringScaffold.routeRecommendations.map((recommendation) => (
-                <OutcomeCapture
-                  key={`outcome-${recommendation.rank}-${recommendation.route}`}
-                  subjectType="route-recommendation"
-                  subjectId={`${recommendation.carrier}-${recommendation.rank}-${recommendation.route}`}
-                  title={`Rank ${recommendation.rank} ${recommendation.carrier} recommendation`}
-                  route={recommendation.route}
-                />
-              ))}
-            </div>
-          </section>
-        </section>
-
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 18, marginTop: 28 }}>
           <form
             onSubmit={submitPlanRequest}
@@ -517,7 +359,7 @@ export default function PlanPage() {
               </select>
             </label>
             <p style={{ color: '#94a3b8' }}>
-              Supported today: United, Delta, Alaska Group. Alaska Group includes Alaska and Hawaiian. Search now calls the itinerary pipeline using Supabase flights first.
+              Supported today: United, Delta, Alaska Group. Alaska Group includes Alaska and Hawaiian. Search uses Supabase first, then Aviationstack fallback and FlightAware enrichment when configured.
             </p>
             <button
               type="submit"
@@ -555,48 +397,6 @@ export default function PlanPage() {
         </div>
 
         <section style={{ marginTop: 30 }}>
-          <h2 style={{ fontSize: 30 }}>Flight results</h2>
-          <p style={{ color: '#94a3b8' }}>
-            {query || tripGoal ? `${matchingFlights.length} matching flights` : `${flights.length} searchable flights loaded`} · Last refresh {lastUpdated || 'pending'}
-          </p>
-          {(query || tripGoal ? matchingFlights : flights).map((flight) => {
-            const risk = delayRiskScore(flight)
-            return (
-              <article key={flight.id} className="flight-card" style={{ border: '1px solid #334155', borderRadius: 18, padding: 18, marginBottom: 14, background: '#0f172a' }}>
-                <h3 style={{ marginTop: 0 }}>{flight.flight_number}</h3>
-                <p style={{ color: '#38bdf8' }}>{flight.origin} → {flight.destination}</p>
-                <p>Aircraft: {flight.aircraft || 'Unknown'} · Status: {flight.status || 'Unknown'} · Score: {flight.score ?? 'Not scored'}</p>
-                <p>Delay risk: {risk.label} ({risk.score}/100)</p>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 12, marginTop: 12 }}>
-                  <MapboxAirportMap airportCode={flight.origin} title={`${flight.origin || 'Origin'} airport map`} compact />
-                  <MapboxAirportMap airportCode={flight.destination} title={`${flight.destination || 'Destination'} airport map`} compact />
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10, marginTop: 12 }}>
-                  {richFlightFieldLabels.map((field) => (
-                    <div key={field.key} style={{ border: '1px solid #334155', borderRadius: 12, padding: 10, background: '#020617' }}>
-                      <small style={{ color: '#94a3b8' }}>{field.label}</small>
-                      <p style={{ margin: '4px 0 0' }}>{fieldValue(flight, field.key)}</p>
-                    </div>
-                  ))}
-                </div>
-                <details style={{ marginTop: 12 }}>
-                  <summary style={{ color: '#38bdf8', cursor: 'pointer' }}>Show all DB fields</summary>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 8, marginTop: 10 }}>
-                    {allFlightFields(flight).map(([key, value]) => (
-                      <div key={key} style={{ border: '1px solid #334155', borderRadius: 10, padding: 8, background: '#020617' }}>
-                        <small style={{ color: '#94a3b8' }}>{key}</small>
-                        <p style={{ margin: '4px 0 0', overflowWrap: 'anywhere' }}>{value === null || value === undefined || value === '' ? 'Not available yet' : String(value)}</p>
-                      </div>
-                    ))}
-                  </div>
-                </details>
-                <a href={`/flights/${flight.id}`} style={{ color: '#38bdf8' }}>View flight detail</a>
-              </article>
-            )
-          })}
-        </section>
-
-        <section style={{ marginTop: 30 }}>
           <h2 style={{ fontSize: 30 }}>Live itinerary results</h2>
           <p style={{ color: itineraryLoading ? '#facc15' : '#94a3b8' }}>
             {itineraryStatus} · Source: {itinerarySource}
@@ -609,6 +409,34 @@ export default function PlanPage() {
               </ul>
             </div>
           )}
+          <div style={{ border: '1px solid #334155', borderRadius: 16, padding: 14, background: '#020617', marginBottom: 16 }}>
+            <strong style={{ color: '#38bdf8' }}>API/debug status</strong>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 10, marginTop: 12 }}>
+              {[
+                ['Parsed origin', itineraryDebug?.parsedOrigin || 'Not parsed'],
+                ['Parsed destination', itineraryDebug?.parsedDestination || 'Not parsed'],
+                ['Parsed date', itineraryDebug?.parsedDate || 'Flexible'],
+                ['Selected carrier', itineraryDebug?.selectedCarrier || carrier],
+                ['Supabase result count', itineraryDebug?.supabaseResultCount ?? 'Pending'],
+                ['Aviationstack fallback', itineraryDebug?.aviationstackFallbackStatus || 'Pending'],
+                ['FlightAware enrichment', itineraryDebug?.flightAwareEnrichmentStatus || 'Pending'],
+                ['Final itinerary count', itineraryDebug?.finalItineraryCount ?? liveItineraries.length]
+              ].map(([label, value]) => (
+                <article key={label} style={{ border: '1px solid #334155', borderRadius: 12, padding: 10, background: '#0f172a' }}>
+                  <small style={{ color: '#94a3b8' }}>{label}</small>
+                  <p style={{ margin: '4px 0 0', color: '#f8fafc' }}>{value}</p>
+                </article>
+              ))}
+            </div>
+            {itineraryDebug?.safeErrors?.length ? (
+              <div style={{ border: '1px solid #854d0e', borderRadius: 12, padding: 10, background: '#1c1917', color: '#fde68a', marginTop: 12 }}>
+                <strong>Safe API messages</strong>
+                <ul style={{ marginBottom: 0 }}>
+                  {itineraryDebug.safeErrors.map((message) => <li key={message}>{message}</li>)}
+                </ul>
+              </div>
+            ) : null}
+          </div>
           {liveItineraries.length > 0 ? (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
               {liveItineraries.map((itinerary) => (
@@ -657,7 +485,7 @@ export default function PlanPage() {
             <>
               <h3 style={{ color: '#facc15' }}>Placeholder fallback itinerary cards</h3>
               <p style={{ color: '#94a3b8' }}>
-                These appear only when the live itinerary pipeline has no matching Supabase/FlightAware-backed results yet.
+                No live flights found for this search. Showing fallback planning guidance.
               </p>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 16 }}>
                 {rankedItineraries.map((itinerary) => (
@@ -693,6 +521,225 @@ export default function PlanPage() {
             </>
           )}
         </section>
+
+        <section style={{ border: '1px solid #334155', borderRadius: 18, padding: 16, background: '#0f172a', color: '#cbd5e1', marginTop: 18 }}>
+          <strong style={{ color: '#38bdf8' }}>Scoring engine scaffold</strong>
+          <p style={{ color: '#94a3b8' }}>
+            Placeholder airline-aware scoring model for {scoringScaffold.familyLabel}. Alaska Group is treated as one supported carrier family covering Alaska Airlines and Hawaiian Airlines. No live load integration yet.
+          </p>
+          <p style={{ color: '#cbd5e1' }}>
+            Selected carrier profile: {scoringScaffold.selectedCarrier} · Active family: {scoringScaffold.familyLabel} · Members: {scoringScaffold.members.join(', ')}
+          </p>
+          <p style={{ color: '#cbd5e1' }}>
+            Placeholder weights: Hub Strength {scoringScaffold.weights['Hub Strength']} · Route Complexity {scoringScaffold.weights['Route Complexity']} · Seasonal Demand {scoringScaffold.weights['Seasonal Demand']} · Historical Performance {scoringScaffold.weights['Historical Performance']}
+          </p>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
+            {scoringScaffold.breakdown.map((item) => (
+              <article key={item.label} style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#020617' }}>
+                <small style={{ color: '#94a3b8' }}>{item.label}</small>
+                <h3 style={{ color: '#f8fafc', margin: '6px 0' }}>{item.value}</h3>
+                <p style={{ margin: 0, color: '#cbd5e1' }}>{item.note}</p>
+              </article>
+            ))}
+          </div>
+          <section style={{ border: '1px solid #334155', borderRadius: 16, padding: 14, background: '#020617', marginTop: 14 }}>
+            <strong style={{ color: '#38bdf8' }}>Success Probability</strong>
+            <p style={{ color: '#94a3b8' }}>
+              Prediction engine scaffold blended from traveler profile, carrier scoring, route intelligence, historical route stats, community load reports, and outcome history for {scoringScaffold.recommendationScope}.
+            </p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
+              <article style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#0f172a' }}>
+                <small style={{ color: '#94a3b8' }}>Probability %</small>
+                <h3 style={{ color: '#f8fafc', margin: '6px 0 0' }}>{predictionEngine.successProbability}%</h3>
+              </article>
+              <article style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#0f172a' }}>
+                <small style={{ color: '#94a3b8' }}>Confidence level</small>
+                <h3 style={{ color: '#f8fafc', margin: '6px 0 0' }}>{predictionEngine.confidenceLevel}</h3>
+              </article>
+              <article style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#0f172a' }}>
+                <small style={{ color: '#94a3b8' }}>Risk category</small>
+                <h3 style={{ color: '#f8fafc', margin: '6px 0 0' }}>{predictionEngine.riskCategory}</h3>
+              </article>
+            </div>
+            <div style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#0f172a', marginTop: 14 }}>
+              <strong style={{ color: '#facc15' }}>Explanation bullets</strong>
+              <ul style={{ color: '#cbd5e1', marginBottom: 0, paddingLeft: 20 }}>
+                {predictionEngine.explanationBullets.map((bullet) => (
+                  <li key={bullet}>{bullet}</li>
+                ))}
+              </ul>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginTop: 14 }}>
+              {[
+                ['Carrier base', `${predictionEngine.inputSummary.carrierDefaultProbability}%`],
+                ['Route risk', predictionEngine.inputSummary.routeRisk],
+                ['Load reports', predictionEngine.inputSummary.communityReportCount],
+                ['Outcome rate', `${predictionEngine.inputSummary.outcomeSuccessRate}%`]
+              ].map(([label, value]) => (
+                <article key={label} style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#0f172a' }}>
+                  <small style={{ color: '#94a3b8' }}>{label}</small>
+                  <h3 style={{ color: '#f8fafc', margin: '6px 0 0' }}>{value}</h3>
+                </article>
+              ))}
+            </div>
+          </section>
+          <section style={{ border: '1px solid #334155', borderRadius: 16, padding: 14, background: '#020617', marginTop: 14 }}>
+            <strong style={{ color: '#facc15' }}>Historical route intelligence scaffold</strong>
+            <p style={{ color: '#94a3b8' }}>
+              Placeholder route guidance tied to the selected carrier profile. No backend APIs yet.
+            </p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
+              {Object.entries(scoringScaffold.routeIntelligence).map(([label, value]) => (
+                <article key={label} style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#0f172a' }}>
+                  <small style={{ color: '#94a3b8' }}>{label}</small>
+                  <h3 style={{ color: '#f8fafc', margin: '6px 0 0' }}>{value}</h3>
+                </article>
+              ))}
+            </div>
+          </section>
+          <section style={{ border: '1px solid #334155', borderRadius: 16, padding: 14, background: '#020617', marginTop: 14 }}>
+            <strong style={{ color: '#facc15' }}>Historical route score explanation</strong>
+            <p style={{ color: '#94a3b8' }}>
+              {historicalStats.explanation}
+            </p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>
+              {[
+                ['Historical score', historicalStats.averageScore],
+                ['Historical success', `${historicalStats.averageSuccessRate}%`],
+                ['Report count', historicalStats.reportCount],
+                ['Top sample', historicalStats.topRoute?.route || 'Pending']
+              ].map(([label, value]) => (
+                <article key={label} style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#0f172a' }}>
+                  <small style={{ color: '#94a3b8' }}>{label}</small>
+                  <h3 style={{ color: '#f8fafc', margin: '6px 0 0' }}>{value}</h3>
+                </article>
+              ))}
+            </div>
+            <a href="/historical-routes" style={{ display: 'inline-block', color: '#38bdf8', marginTop: 12 }}>
+              View historical route database scaffold
+            </a>
+          </section>
+            <div style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#0f172a', marginTop: 14 }}>
+              <strong style={{ color: '#34d399' }}>Profile assumptions</strong>
+              <ul style={{ color: '#cbd5e1', marginBottom: 0, paddingLeft: 20 }}>
+                {predictionEngine.inputSummary.travelerProfileSignals.map((assumption) => (
+                  <li key={assumption}>{assumption}</li>
+                ))}
+              </ul>
+              <a href="/profile" style={{ display: 'inline-block', color: '#38bdf8', marginTop: 12 }}>Edit profile scaffold</a>
+            </div>
+          <section style={{ border: '1px solid #334155', borderRadius: 16, padding: 14, background: '#020617', marginTop: 14 }}>
+            <strong style={{ color: '#34d399' }}>Traveler profile summary</strong>
+            <p style={{ color: '#94a3b8' }}>
+              Local profile values currently feeding route scoring assumptions.
+            </p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>
+              {[
+                ['Employee airline', travelerProfile.employeeAirline],
+                ['Traveler type', travelerProfile.travelerType],
+                ['Pass priority', travelerProfile.passPriority],
+                ['Home airport', travelerProfile.homeAirport],
+                ['Preferred airports', travelerProfile.preferredAirports.join(', ')]
+              ].map(([label, value]) => (
+                <article key={label} style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#0f172a' }}>
+                  <small style={{ color: '#94a3b8' }}>{label}</small>
+                  <h3 style={{ color: '#f8fafc', margin: '6px 0 0' }}>{value}</h3>
+                </article>
+              ))}
+            </div>
+            <a href="/profile" style={{ display: 'inline-block', color: '#38bdf8', marginTop: 12 }}>Update local profile</a>
+          </section>
+          <section style={{ border: '1px solid #334155', borderRadius: 16, padding: 14, background: '#020617', marginTop: 14 }}>
+            <strong style={{ color: '#22c55e' }}>Top 3 route recommendations</strong>
+            <p style={{ color: '#94a3b8' }}>
+              Placeholder ranking tied to the score card and route intelligence for {scoringScaffold.recommendationScope}.
+            </p>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', color: '#cbd5e1' }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid #334155', color: '#94a3b8', textAlign: 'left' }}>
+                    <th style={{ padding: '10px 8px' }}>Rank</th>
+                    <th style={{ padding: '10px 8px' }}>Route</th>
+                    <th style={{ padding: '10px 8px' }}>Score</th>
+                    <th style={{ padding: '10px 8px' }}>Risk</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {scoringScaffold.routeRecommendations.map((recommendation) => (
+                    <tr key={`${recommendation.rank}-${recommendation.route}`} style={{ borderBottom: '1px solid #1e293b' }}>
+                      <td style={{ padding: '12px 8px', color: '#22c55e', fontWeight: 'bold' }}>{recommendation.rank}</td>
+                      <td style={{ padding: '12px 8px' }}>
+                        <strong style={{ color: '#f8fafc' }}>{recommendation.route}</strong>
+                        <br />
+                        <small style={{ color: '#94a3b8' }}>{recommendation.carrier}</small>
+                      </td>
+                      <td style={{ padding: '12px 8px' }}>{recommendation.score}</td>
+                      <td style={{ padding: '12px 8px' }}>{recommendation.risk}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <a href="/load-reports" style={{ display: 'inline-block', color: '#38bdf8', marginTop: 12 }}>
+              Verify a load for these recommendations
+            </a>
+            <div style={{ display: 'grid', gap: 12, marginTop: 14 }}>
+              {scoringScaffold.routeRecommendations.map((recommendation) => (
+                <OutcomeCapture
+                  key={`outcome-${recommendation.rank}-${recommendation.route}`}
+                  subjectType="route-recommendation"
+                  subjectId={`${recommendation.carrier}-${recommendation.rank}-${recommendation.route}`}
+                  title={`Rank ${recommendation.rank} ${recommendation.carrier} recommendation`}
+                  route={recommendation.route}
+                />
+              ))}
+            </div>
+          </section>
+        </section>
+
+        <section style={{ marginTop: 30 }}>
+          <h2 style={{ fontSize: 30 }}>Flight results</h2>
+          <p style={{ color: '#94a3b8' }}>
+            {query || tripGoal ? `${matchingFlights.length} matching flights` : `${flights.length} searchable flights loaded`} · Last refresh {lastUpdated || 'pending'}
+          </p>
+          {(query || tripGoal ? matchingFlights : flights).map((flight) => {
+            const risk = delayRiskScore(flight)
+            return (
+              <article key={flight.id} className="flight-card" style={{ border: '1px solid #334155', borderRadius: 18, padding: 18, marginBottom: 14, background: '#0f172a' }}>
+                <h3 style={{ marginTop: 0 }}>{flight.flight_number}</h3>
+                <p style={{ color: '#38bdf8' }}>{flight.origin} → {flight.destination}</p>
+                <p>Aircraft: {flight.aircraft || 'Unknown'} · Status: {flight.status || 'Unknown'} · Score: {flight.score ?? 'Not scored'}</p>
+                <p>Delay risk: {risk.label} ({risk.score}/100)</p>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 12, marginTop: 12 }}>
+                  <MapboxAirportMap airportCode={flight.origin} title={`${flight.origin || 'Origin'} airport map`} compact />
+                  <MapboxAirportMap airportCode={flight.destination} title={`${flight.destination || 'Destination'} airport map`} compact />
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10, marginTop: 12 }}>
+                  {richFlightFieldLabels.map((field) => (
+                    <div key={field.key} style={{ border: '1px solid #334155', borderRadius: 12, padding: 10, background: '#020617' }}>
+                      <small style={{ color: '#94a3b8' }}>{field.label}</small>
+                      <p style={{ margin: '4px 0 0' }}>{fieldValue(flight, field.key)}</p>
+                    </div>
+                  ))}
+                </div>
+                <details style={{ marginTop: 12 }}>
+                  <summary style={{ color: '#38bdf8', cursor: 'pointer' }}>Show all DB fields</summary>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 8, marginTop: 10 }}>
+                    {allFlightFields(flight).map(([key, value]) => (
+                      <div key={key} style={{ border: '1px solid #334155', borderRadius: 10, padding: 8, background: '#020617' }}>
+                        <small style={{ color: '#94a3b8' }}>{key}</small>
+                        <p style={{ margin: '4px 0 0', overflowWrap: 'anywhere' }}>{value === null || value === undefined || value === '' ? 'Not available yet' : String(value)}</p>
+                      </div>
+                    ))}
+                  </div>
+                </details>
+                <a href={`/flights/${flight.id}`} style={{ color: '#38bdf8' }}>View flight detail</a>
+              </article>
+            )
+          })}
+        </section>
+
+
       </section>
     </main>
   )

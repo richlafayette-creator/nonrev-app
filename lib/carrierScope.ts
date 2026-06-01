@@ -1,3 +1,5 @@
+import { defaultTravelerProfile, travelerProfileAssumptions, type TravelerProfileScaffold } from './travelerProfile'
+
 export type SupportedCarrierValue = 'all' | 'united' | 'delta' | 'alaska-group'
 
 export const alaskaGroupAirlines = ['Alaska Airlines', 'Hawaiian Airlines']
@@ -15,6 +17,7 @@ export type SuccessProbability = {
   confidenceLevel: string
   riskCategory: string
   signals: string[]
+  travelerAssumptions: string[]
 }
 
 export const supportedCarrierOptions: { value: SupportedCarrierValue; label: string }[] = [
@@ -158,7 +161,8 @@ function average(values: number[]) {
 function calculateSuccessProbability(
   carrier: SupportedCarrierValue,
   profile: (typeof carrierScoringProfiles)[Exclude<SupportedCarrierValue, 'all'>],
-  recommendations: RouteRecommendation[]
+  recommendations: RouteRecommendation[],
+  travelerProfile: TravelerProfileScaffold
 ): SuccessProbability {
   const defaultProbability =
     carrier === 'all'
@@ -166,7 +170,16 @@ function calculateSuccessProbability(
       : profile.successDefaults.probability
   const averageRecommendationScore = Math.round(average(recommendations.map((recommendation) => recommendation.score)))
   const riskPenalty = profile.successDefaults.riskCategory.includes('High') ? 4 : profile.successDefaults.riskCategory.includes('Low') ? -2 : 0
-  const probability = Math.max(1, Math.min(99, Math.round(defaultProbability * 0.65 + averageRecommendationScore * 0.35 - riskPenalty)))
+  const employeeAirlineBoost = carrier !== 'all' && profile.label === travelerProfile.employeeAirline ? 3 : 0
+  const preferredAirportBoost = recommendations.some((recommendation) =>
+    travelerProfile.preferredAirports.some((airport) => recommendation.route.includes(airport))
+  ) ? 2 : 0
+  const companionPenalty = travelerProfile.companionStatus.toLowerCase().includes('companion') ? 2 : 0
+  const probability = Math.max(1, Math.min(99, Math.round(defaultProbability * 0.65 + averageRecommendationScore * 0.35 - riskPenalty + employeeAirlineBoost + preferredAirportBoost - companionPenalty)))
+  const eligibilitySummary =
+    carrier === 'all'
+      ? 'Multi-carrier eligibility placeholders considered'
+      : travelerProfile.supportedCarrierEligibility[carrier]
 
   return {
     probability,
@@ -175,17 +188,19 @@ function calculateSuccessProbability(
     signals: [
       `Score card blend: ${defaultProbability}% default plus ${averageRecommendationScore} average recommendation score`,
       `Route intelligence risk: ${profile.routeIntelligence['Risk Level']}`,
-      `Recommendation ranking sample: ${recommendations[0]?.route || 'No ranked route yet'}`
-    ]
+      `Recommendation ranking sample: ${recommendations[0]?.route || 'No ranked route yet'}`,
+      `Traveler profile eligibility: ${eligibilitySummary}`
+    ],
+    travelerAssumptions: travelerProfileAssumptions(travelerProfile)
   }
 }
 
-export function getCarrierScoringScaffold(value: string) {
+export function getCarrierScoringScaffold(value: string, travelerProfile = defaultTravelerProfile) {
   const carrier = normalizeCarrierFamily(value)
   const family = getCarrierFamilySummary(carrier)
   const profile = carrier === 'all' ? carrierScoringProfiles.united : carrierScoringProfiles[carrier]
   const routeRecommendations = rankedRouteRecommendations(carrier)
-  const successProbability = calculateSuccessProbability(carrier, profile, routeRecommendations)
+  const successProbability = calculateSuccessProbability(carrier, profile, routeRecommendations, travelerProfile)
 
   return {
     carrier,

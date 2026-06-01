@@ -28,6 +28,7 @@ export default function AccountPage() {
       <nav className="top-nav" style={{ marginBottom: 24 }}>
         <a href="/" style={{ marginRight: 16, color: '#38bdf8' }}>Home</a>
         <a href="/plan" style={{ marginRight: 16, color: '#fb7185' }}>Plan</a>
+        <a href="/profile" style={{ marginRight: 16, color: '#22c55e' }}>Profile</a>
         <a href="/billing" style={{ marginRight: 16, color: '#fbbf24' }}>Billing</a>
         <a href="/membership" style={{ marginRight: 16, color: '#34d399' }}>Membership</a>
         <a href="/requests" style={{ color: '#c084fc' }}>Open Requests</a>
@@ -42,6 +43,7 @@ export default function AccountPage() {
           <h2 style={{ marginTop: 0 }}>Signed-in identity</h2>
           <p>Email/name: {userEmail || 'Not signed in'}</p>
           <p style={{ color: '#cbd5e1' }}>Future fields: home airport, employee/companion traveler settings, preferred airlines, and accessibility/travel preferences.</p>
+          <a href="/profile" style={{ color: '#38bdf8' }}>Open traveler profile scaffold</a>
         </div>
       </section>
     </main>

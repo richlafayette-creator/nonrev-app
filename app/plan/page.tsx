@@ -6,6 +6,7 @@ import { delayRiskScore, rankItinerary } from '../../lib/intelligence'
 import { allFlightFields, fieldValue, passengerFlightCoverageNotes, richFlightFieldLabels } from '../../lib/flightDataScaffold'
 import { airportCodesFromRoute } from '../../lib/airportMapScaffold'
 import { getCarrierScoringScaffold, supportedCarrierOptions } from '../../lib/carrierScope'
+import { defaultTravelerProfile } from '../../lib/travelerProfile'
 import MapboxAirportMap from '../MapboxAirportMap'
 
 const mockItineraries = [
@@ -105,7 +106,7 @@ export default function PlanPage() {
     () => flights.filter((flight) => flightMatchesSearch(flight, query || tripGoal)),
     [flights, query, tripGoal]
   )
-  const scoringScaffold = useMemo(() => getCarrierScoringScaffold(carrier), [carrier])
+  const scoringScaffold = useMemo(() => getCarrierScoringScaffold(carrier, defaultTravelerProfile), [carrier])
 
   return (
     <main className="app-shell" style={{ minHeight: '100vh', background: '#020617', color: 'white', padding: 32, fontFamily: 'Arial' }}>
@@ -115,6 +116,7 @@ export default function PlanPage() {
         <a href="/requests" style={{ marginRight: 16, color: '#c084fc' }}>Open Requests</a>
         <a href="/my-requests" style={{ marginRight: 16, color: '#facc15' }}>My Requests</a>
         <a href="/outcomes" style={{ marginRight: 16, color: '#22c55e' }}>Outcomes</a>
+        <a href="/profile" style={{ marginRight: 16, color: '#34d399' }}>Profile</a>
         <a href="/login" style={{ color: '#f472b6' }}>Login</a>
       </nav>
 
@@ -177,6 +179,15 @@ export default function PlanPage() {
             <p style={{ color: '#cbd5e1', marginBottom: 0 }}>
               Signals: {scoringScaffold.successProbability.signals.join(' · ')}
             </p>
+            <div style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#0f172a', marginTop: 14 }}>
+              <strong style={{ color: '#34d399' }}>Profile assumptions</strong>
+              <ul style={{ color: '#cbd5e1', marginBottom: 0, paddingLeft: 20 }}>
+                {scoringScaffold.successProbability.travelerAssumptions.map((assumption) => (
+                  <li key={assumption}>{assumption}</li>
+                ))}
+              </ul>
+              <a href="/profile" style={{ display: 'inline-block', color: '#38bdf8', marginTop: 12 }}>Edit profile scaffold</a>
+            </div>
           </section>
           <section style={{ border: '1px solid #334155', borderRadius: 16, padding: 14, background: '#020617', marginTop: 14 }}>
             <strong style={{ color: '#facc15' }}>Historical route intelligence scaffold</strong>

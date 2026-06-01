@@ -172,10 +172,11 @@ function calculateSuccessProbability(
   const riskPenalty = profile.successDefaults.riskCategory.includes('High') ? 4 : profile.successDefaults.riskCategory.includes('Low') ? -2 : 0
   const employeeAirlineBoost = carrier !== 'all' && profile.label === travelerProfile.employeeAirline ? 3 : 0
   const preferredAirportBoost = recommendations.some((recommendation) =>
-    travelerProfile.preferredAirports.some((airport) => recommendation.route.includes(airport))
+    [travelerProfile.homeAirport, ...travelerProfile.preferredAirports].some((airport) => recommendation.route.includes(airport))
   ) ? 2 : 0
-  const companionPenalty = travelerProfile.companionStatus.toLowerCase().includes('companion') ? 2 : 0
-  const probability = Math.max(1, Math.min(99, Math.round(defaultProbability * 0.65 + averageRecommendationScore * 0.35 - riskPenalty + employeeAirlineBoost + preferredAirportBoost - companionPenalty)))
+  const travelerTypePenalty = travelerProfile.travelerType === 'Buddy Pass' ? 4 : travelerProfile.travelerType === 'Companion' ? 2 : 0
+  const passPriorityBoost = travelerProfile.passPriority.toUpperCase().includes('SA1') ? 3 : travelerProfile.passPriority.toUpperCase().includes('SA2') ? 1 : 0
+  const probability = Math.max(1, Math.min(99, Math.round(defaultProbability * 0.65 + averageRecommendationScore * 0.35 - riskPenalty + employeeAirlineBoost + preferredAirportBoost + passPriorityBoost - travelerTypePenalty)))
   const eligibilitySummary =
     carrier === 'all'
       ? 'Multi-carrier eligibility placeholders considered'
@@ -189,7 +190,8 @@ function calculateSuccessProbability(
       `Score card blend: ${defaultProbability}% default plus ${averageRecommendationScore} average recommendation score`,
       `Route intelligence risk: ${profile.routeIntelligence['Risk Level']}`,
       `Recommendation ranking sample: ${recommendations[0]?.route || 'No ranked route yet'}`,
-      `Traveler profile eligibility: ${eligibilitySummary}`
+      `Traveler profile eligibility: ${eligibilitySummary}`,
+      `Profile adjustment: ${travelerProfile.travelerType} at ${travelerProfile.passPriority} from ${travelerProfile.homeAirport}`
     ],
     travelerAssumptions: travelerProfileAssumptions(travelerProfile)
   }

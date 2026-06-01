@@ -5,6 +5,7 @@ import { useState } from 'react'
 const navItems = [
   ['Home', '/'],
   ['Plan', '/plan'],
+  ['Profile', '/profile'],
   ['Best Routes', '/best-routes'],
   ['Watchlist', '/watchlist'],
   ['Credits', '/credits'],

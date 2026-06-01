@@ -6,7 +6,7 @@ import { delayRiskScore, rankItinerary } from '../../lib/intelligence'
 import { allFlightFields, fieldValue, passengerFlightCoverageNotes, richFlightFieldLabels } from '../../lib/flightDataScaffold'
 import { airportCodesFromRoute } from '../../lib/airportMapScaffold'
 import { getCarrierScoringScaffold, supportedCarrierOptions } from '../../lib/carrierScope'
-import { defaultTravelerProfile } from '../../lib/travelerProfile'
+import { defaultTravelerProfile, loadTravelerProfileFromStorage } from '../../lib/travelerProfile'
 import MapboxAirportMap from '../MapboxAirportMap'
 
 const mockItineraries = [
@@ -66,11 +66,13 @@ export default function PlanPage() {
   const [query, setQuery] = useState('')
   const [flights, setFlights] = useState<any[]>([])
   const [lastUpdated, setLastUpdated] = useState('')
+  const [travelerProfile, setTravelerProfile] = useState(defaultTravelerProfile)
 
   useEffect(() => {
     const initialQuery = new URLSearchParams(window.location.search).get('q') || ''
     setQuery(initialQuery)
     if (initialQuery) setTripGoal(initialQuery)
+    setTravelerProfile(loadTravelerProfileFromStorage())
   }, [])
 
   useEffect(() => {
@@ -106,7 +108,7 @@ export default function PlanPage() {
     () => flights.filter((flight) => flightMatchesSearch(flight, query || tripGoal)),
     [flights, query, tripGoal]
   )
-  const scoringScaffold = useMemo(() => getCarrierScoringScaffold(carrier, defaultTravelerProfile), [carrier])
+  const scoringScaffold = useMemo(() => getCarrierScoringScaffold(carrier, travelerProfile), [carrier, travelerProfile])
 
   return (
     <main className="app-shell" style={{ minHeight: '100vh', background: '#020617', color: 'white', padding: 32, fontFamily: 'Arial' }}>
@@ -188,6 +190,27 @@ export default function PlanPage() {
               </ul>
               <a href="/profile" style={{ display: 'inline-block', color: '#38bdf8', marginTop: 12 }}>Edit profile scaffold</a>
             </div>
+          </section>
+          <section style={{ border: '1px solid #334155', borderRadius: 16, padding: 14, background: '#020617', marginTop: 14 }}>
+            <strong style={{ color: '#34d399' }}>Traveler profile summary</strong>
+            <p style={{ color: '#94a3b8' }}>
+              Local profile values currently feeding route scoring assumptions.
+            </p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>
+              {[
+                ['Employee airline', travelerProfile.employeeAirline],
+                ['Traveler type', travelerProfile.travelerType],
+                ['Pass priority', travelerProfile.passPriority],
+                ['Home airport', travelerProfile.homeAirport],
+                ['Preferred airports', travelerProfile.preferredAirports.join(', ')]
+              ].map(([label, value]) => (
+                <article key={label} style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#0f172a' }}>
+                  <small style={{ color: '#94a3b8' }}>{label}</small>
+                  <h3 style={{ color: '#f8fafc', margin: '6px 0 0' }}>{value}</h3>
+                </article>
+              ))}
+            </div>
+            <a href="/profile" style={{ display: 'inline-block', color: '#38bdf8', marginTop: 12 }}>Update local profile</a>
           </section>
           <section style={{ border: '1px solid #334155', borderRadius: 16, padding: 14, background: '#020617', marginTop: 14 }}>
             <strong style={{ color: '#facc15' }}>Historical route intelligence scaffold</strong>

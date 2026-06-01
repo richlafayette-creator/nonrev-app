@@ -1,18 +1,62 @@
 'use client'
 
-import { useMemo, useState } from 'react'
-import { defaultTravelerProfile } from '../../lib/travelerProfile'
+import { type FormEvent, useEffect, useMemo, useState } from 'react'
+import {
+  defaultTravelerProfile,
+  loadTravelerProfileFromStorage,
+  normalizeTravelerProfile,
+  parseAirportList,
+  saveTravelerProfileToStorage,
+  travelerProfileStorageKey,
+  type TravelerType
+} from '../../lib/travelerProfile'
+
+const travelerTypes: TravelerType[] = ['Employee', 'Retiree', 'Companion', 'Buddy Pass']
 
 export default function ProfilePage() {
   const [employeeAirline, setEmployeeAirline] = useState(defaultTravelerProfile.employeeAirline)
-  const [travelerType, setTravelerType] = useState(defaultTravelerProfile.travelerType)
-  const [companionStatus, setCompanionStatus] = useState(defaultTravelerProfile.companionStatus)
+  const [travelerType, setTravelerType] = useState<TravelerType>(defaultTravelerProfile.travelerType)
+  const [passPriority, setPassPriority] = useState(defaultTravelerProfile.passPriority)
+  const [homeAirport, setHomeAirport] = useState(defaultTravelerProfile.homeAirport)
   const [preferredAirports, setPreferredAirports] = useState(defaultTravelerProfile.preferredAirports.join(', '))
+  const [saveStatus, setSaveStatus] = useState('Local profile ready.')
 
-  const preferredAirportList = useMemo(
-    () => preferredAirports.split(',').map((airport) => airport.trim().toUpperCase()).filter(Boolean),
-    [preferredAirports]
+  useEffect(() => {
+    const storedProfile = loadTravelerProfileFromStorage()
+    setEmployeeAirline(storedProfile.employeeAirline)
+    setTravelerType(storedProfile.travelerType)
+    setPassPriority(storedProfile.passPriority)
+    setHomeAirport(storedProfile.homeAirport)
+    setPreferredAirports(storedProfile.preferredAirports.join(', '))
+  }, [])
+
+  const preferredAirportList = useMemo(() => parseAirportList(preferredAirports), [preferredAirports])
+  const profilePreview = useMemo(
+    () => normalizeTravelerProfile({
+      employeeAirline,
+      travelerType,
+      passPriority,
+      homeAirport,
+      preferredAirports: preferredAirportList
+    }),
+    [employeeAirline, travelerType, passPriority, homeAirport, preferredAirportList]
   )
+
+  function saveProfile(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    saveTravelerProfileToStorage(profilePreview)
+    setSaveStatus(`Saved locally to ${travelerProfileStorageKey}.`)
+  }
+
+  function resetProfile() {
+    saveTravelerProfileToStorage(defaultTravelerProfile)
+    setEmployeeAirline(defaultTravelerProfile.employeeAirline)
+    setTravelerType(defaultTravelerProfile.travelerType)
+    setPassPriority(defaultTravelerProfile.passPriority)
+    setHomeAirport(defaultTravelerProfile.homeAirport)
+    setPreferredAirports(defaultTravelerProfile.preferredAirports.join(', '))
+    setSaveStatus('Reset local profile defaults.')
+  }
 
   return (
     <main className="app-shell" style={{ minHeight: '100vh', background: '#020617', color: 'white', padding: 32, fontFamily: 'Arial' }}>
@@ -26,17 +70,17 @@ export default function ProfilePage() {
 
       <section style={{ maxWidth: 1120, margin: '0 auto' }}>
         <p style={{ color: '#22c55e', fontWeight: 'bold', letterSpacing: 1, textTransform: 'uppercase' }}>
-          Traveler profile scaffold
+          Traveler profile engine
         </p>
         <h1 style={{ fontSize: 44, lineHeight: 1.05, margin: '8px 0 12px' }}>
           Profile assumptions
         </h1>
         <p style={{ color: '#94a3b8', maxWidth: 760, fontSize: 18 }}>
-          Local placeholder profile fields for routing assumptions. Saved profile persistence and account sync can plug in later.
+          Local profile settings that feed the planner success probability placeholder. Account sync can plug in later.
         </p>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 18, marginTop: 28 }}>
-          <form style={{ border: '1px solid #334155', borderRadius: 22, padding: 22, background: '#0f172a' }}>
+          <form onSubmit={saveProfile} style={{ border: '1px solid #334155', borderRadius: 22, padding: 22, background: '#0f172a' }}>
             <h2 style={{ marginTop: 0 }}>Traveler fields</h2>
             <label style={{ display: 'block', color: '#cbd5e1', marginBottom: 12 }}>
               Employee airline
@@ -54,27 +98,32 @@ export default function ProfilePage() {
               Traveler type
               <select
                 value={travelerType}
-                onChange={(event) => setTravelerType(event.target.value)}
+                onChange={(event) => setTravelerType(event.target.value as TravelerType)}
                 style={{ boxSizing: 'border-box', width: '100%', marginTop: 6, padding: 12, borderRadius: 12, border: '1px solid #475569', background: '#020617', color: 'white' }}
               >
-                <option>Employee standby</option>
-                <option>Retiree standby</option>
-                <option>Buddy pass</option>
-                <option>Family eligible</option>
+                {travelerTypes.map((type) => (
+                  <option key={type}>{type}</option>
+                ))}
               </select>
             </label>
             <label style={{ display: 'block', color: '#cbd5e1', marginBottom: 12 }}>
-              Companion status
-              <select
-                value={companionStatus}
-                onChange={(event) => setCompanionStatus(event.target.value)}
+              Pass priority
+              <input
+                value={passPriority}
+                onChange={(event) => setPassPriority(event.target.value.toUpperCase())}
+                placeholder="SA2"
                 style={{ boxSizing: 'border-box', width: '100%', marginTop: 6, padding: 12, borderRadius: 12, border: '1px solid #475569', background: '#020617', color: 'white' }}
-              >
-                <option>Solo traveler</option>
-                <option>One companion eligible</option>
-                <option>Multiple companions</option>
-                <option>Companion pass holder</option>
-              </select>
+              />
+            </label>
+            <label style={{ display: 'block', color: '#cbd5e1', marginBottom: 12 }}>
+              Home airport
+              <input
+                value={homeAirport}
+                onChange={(event) => setHomeAirport(event.target.value.toUpperCase())}
+                placeholder="LAX"
+                maxLength={3}
+                style={{ boxSizing: 'border-box', width: '100%', marginTop: 6, padding: 12, borderRadius: 12, border: '1px solid #475569', background: '#020617', color: 'white' }}
+              />
             </label>
             <label style={{ display: 'block', color: '#cbd5e1', marginBottom: 12 }}>
               Preferred airports
@@ -85,28 +134,48 @@ export default function ProfilePage() {
                 style={{ boxSizing: 'border-box', width: '100%', marginTop: 6, padding: 12, borderRadius: 12, border: '1px solid #475569', background: '#020617', color: 'white' }}
               />
             </label>
-            <p style={{ color: '#94a3b8', marginBottom: 0 }}>
-              Local UI only. The planner currently reads the default scaffold assumptions from shared local code.
-            </p>
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              <button
+                type="submit"
+                style={{ padding: 12, borderRadius: 10, border: 'none', background: '#38bdf8', color: '#020617', fontWeight: 'bold' }}
+              >
+                Save local profile
+              </button>
+              <button
+                type="button"
+                onClick={resetProfile}
+                style={{ padding: 12, borderRadius: 10, border: '1px solid #475569', background: '#020617', color: '#cbd5e1', fontWeight: 'bold' }}
+              >
+                Reset defaults
+              </button>
+            </div>
+            <p style={{ color: '#94a3b8', marginBottom: 0 }}>{saveStatus}</p>
           </form>
 
           <aside style={{ border: '1px solid #334155', borderRadius: 22, padding: 22, background: '#0f172a' }}>
-            <h2 style={{ marginTop: 0 }}>Supported carrier eligibility</h2>
+            <h2 style={{ marginTop: 0 }}>Profile summary</h2>
             <div style={{ display: 'grid', gap: 12 }}>
-              {Object.entries(defaultTravelerProfile.supportedCarrierEligibility).map(([carrier, eligibility]) => (
-                <article key={carrier} style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#020617' }}>
-                  <small style={{ color: '#94a3b8', textTransform: 'uppercase' }}>{carrier.replace('-', ' ')}</small>
-                  <h3 style={{ color: '#f8fafc', margin: '6px 0 0' }}>{eligibility}</h3>
+              {[
+                ['Employee airline', profilePreview.employeeAirline],
+                ['Traveler type', profilePreview.travelerType],
+                ['Pass priority', profilePreview.passPriority],
+                ['Home airport', profilePreview.homeAirport],
+                ['Preferred airports', profilePreview.preferredAirports.join(', ')]
+              ].map(([label, value]) => (
+                <article key={label} style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#020617' }}>
+                  <small style={{ color: '#94a3b8' }}>{label}</small>
+                  <h3 style={{ color: '#f8fafc', margin: '6px 0 0' }}>{value}</h3>
                 </article>
               ))}
             </div>
-            <div style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#020617', marginTop: 14 }}>
-              <strong style={{ color: '#38bdf8' }}>Current local preview</strong>
-              <p style={{ color: '#cbd5e1' }}>Employee airline: {employeeAirline}</p>
-              <p style={{ color: '#cbd5e1' }}>Traveler type: {travelerType}</p>
-              <p style={{ color: '#cbd5e1' }}>Companion status: {companionStatus}</p>
-              <p style={{ color: '#cbd5e1', marginBottom: 0 }}>Preferred airports: {preferredAirportList.join(', ') || 'None selected'}</p>
-            </div>
+            <section style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#020617', marginTop: 14 }}>
+              <strong style={{ color: '#38bdf8' }}>Supported carrier eligibility</strong>
+              {Object.entries(profilePreview.supportedCarrierEligibility).map(([carrier, eligibility]) => (
+                <p key={carrier} style={{ color: '#cbd5e1', margin: '8px 0 0' }}>
+                  {carrier.replace('-', ' ')}: {eligibility}
+                </p>
+              ))}
+            </section>
             <a href="/plan" style={{ display: 'inline-block', color: '#38bdf8', marginTop: 16 }}>
               View planner probability assumptions
             </a>

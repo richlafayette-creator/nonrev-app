@@ -2,6 +2,14 @@ export type SupportedCarrierValue = 'all' | 'united' | 'delta' | 'alaska-group'
 
 export const alaskaGroupAirlines = ['Alaska Airlines', 'Hawaiian Airlines']
 
+export type RouteRecommendation = {
+  rank: number
+  route: string
+  score: number
+  risk: string
+  carrier: string
+}
+
 export const supportedCarrierOptions: { value: SupportedCarrierValue; label: string }[] = [
   { value: 'all', label: 'All Supported Carriers' },
   { value: 'united', label: 'United' },
@@ -23,7 +31,7 @@ export const carrierFamilyMembers: Record<SupportedCarrierValue, string[]> = {
   'alaska-group': alaskaGroupAirlines
 }
 
-export const carrierScoringProfiles: Record<Exclude<SupportedCarrierValue, 'all'>, { label: string; weights: Record<string, string>; routeIntelligence: Record<string, string>; routeRecommendations: { rank: number; route: string; score: string; risk: string }[] }> = {
+export const carrierScoringProfiles: Record<Exclude<SupportedCarrierValue, 'all'>, { label: string; weights: Record<string, string>; routeIntelligence: Record<string, string>; routeRecommendations: Omit<RouteRecommendation, 'rank' | 'carrier'>[] }> = {
   united: {
     label: 'United',
     weights: {
@@ -39,9 +47,9 @@ export const carrierScoringProfiles: Record<Exclude<SupportedCarrierValue, 'all'
       'Connection Count': '1 connection preferred'
     },
     routeRecommendations: [
-      { rank: 1, route: 'LAX → DEN → HNL', score: '82', risk: 'Medium' },
-      { rank: 2, route: 'SFO → ORD → EWR', score: '78', risk: 'Medium-Low' },
-      { rank: 3, route: 'IAH → DEN → SEA', score: '74', risk: 'Medium' }
+      { route: 'LAX → DEN → HNL', score: 82, risk: 'Medium' },
+      { route: 'SFO → ORD → EWR', score: 78, risk: 'Medium-Low' },
+      { route: 'IAH → DEN → SEA', score: 74, risk: 'Medium' }
     ]
   },
   delta: {
@@ -59,9 +67,9 @@ export const carrierScoringProfiles: Record<Exclude<SupportedCarrierValue, 'all'
       'Connection Count': '1 connection preferred'
     },
     routeRecommendations: [
-      { rank: 1, route: 'LAX → ATL → FLL', score: '84', risk: 'Medium-Low' },
-      { rank: 2, route: 'SFO → MSP → JFK', score: '79', risk: 'Medium' },
-      { rank: 3, route: 'SEA → DTW → BOS', score: '76', risk: 'Medium' }
+      { route: 'LAX → ATL → FLL', score: 84, risk: 'Medium-Low' },
+      { route: 'SFO → MSP → JFK', score: 79, risk: 'Medium' },
+      { route: 'SEA → DTW → BOS', score: 76, risk: 'Medium' }
     ]
   },
   'alaska-group': {
@@ -79,9 +87,9 @@ export const carrierScoringProfiles: Record<Exclude<SupportedCarrierValue, 'all'
       'Connection Count': '0-1 connections preferred'
     },
     routeRecommendations: [
-      { rank: 1, route: 'SEA → HNL', score: '83', risk: 'Medium' },
-      { rank: 2, route: 'PDX → SEA → OGG', score: '80', risk: 'Medium' },
-      { rank: 3, route: 'SFO → HNL → KOA', score: '77', risk: 'Medium-High' }
+      { route: 'SEA → HNL', score: 83, risk: 'Medium' },
+      { route: 'PDX → SEA → OGG', score: 80, risk: 'Medium' },
+      { route: 'SFO → HNL → KOA', score: 77, risk: 'Medium-High' }
     ]
   }
 }
@@ -100,6 +108,27 @@ export function getCarrierFamilySummary(value: string) {
   }
 }
 
+function rankedRouteRecommendations(carrier: SupportedCarrierValue): RouteRecommendation[] {
+  const profiles =
+    carrier === 'all'
+      ? Object.values(carrierScoringProfiles)
+      : [carrierScoringProfiles[carrier]]
+
+  return profiles
+    .flatMap((profile) =>
+      profile.routeRecommendations.map((recommendation) => ({
+        ...recommendation,
+        carrier: profile.label
+      }))
+    )
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 3)
+    .map((recommendation, index) => ({
+      ...recommendation,
+      rank: index + 1
+    }))
+}
+
 export function getCarrierScoringScaffold(value: string) {
   const carrier = normalizeCarrierFamily(value)
   const family = getCarrierFamilySummary(carrier)
@@ -109,10 +138,11 @@ export function getCarrierScoringScaffold(value: string) {
     carrier,
     familyLabel: family.label,
     selectedCarrier: profile.label,
+    recommendationScope: carrier === 'all' ? 'United, Delta, and Alaska Group' : family.label,
     members: family.members,
     weights: profile.weights,
     routeIntelligence: profile.routeIntelligence,
-    routeRecommendations: profile.routeRecommendations,
+    routeRecommendations: rankedRouteRecommendations(carrier),
     breakdown: [
       { label: 'Overall Score', value: '82', note: `Placeholder composite score for ${family.label}` },
       { label: 'Hub Strength', value: '8/10', note: `Weight ${profile.weights['Hub Strength']} · Hub signal scaffold treats ${family.members.join(' + ')} as ${family.label}` },

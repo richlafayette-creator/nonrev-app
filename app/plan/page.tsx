@@ -10,6 +10,7 @@ import { carrierScoringProfiles, getCarrierScoringScaffold, normalizeCarrierFami
 import { historicalRouteStats, type HistoricalRoute } from '../../lib/historicalRoutes'
 import { loadLoadReports, type LoadReport } from '../../lib/loadReports'
 import { calculatePredictionEngine } from '../../lib/predictionEngine'
+import { buildDisruptionIntelligence, routeHealthColor, type DisruptionIntelligence } from '../../lib/disruptionIntelligence'
 import { defaultTravelerProfile, loadTravelerProfileFromStorage, travelerProfileAssumptions, type TravelerProfileScaffold } from '../../lib/travelerProfile'
 import { loadTripOutcomes, type TripOutcome } from '../../lib/tripOutcomes'
 import { saveTripWatch } from '../../lib/watchlist'
@@ -82,6 +83,10 @@ type LiveItineraryLeg = {
   status: string
   gate?: string
   terminal?: string
+  delayMinutes?: number
+  cancelled?: boolean
+  diverted?: boolean
+  disruptionSource?: string
   score: number
   risk: string
   source: string
@@ -133,6 +138,7 @@ type ItineraryComparison = {
   totalTravelTime: string
   flightNumber: string
   isLive: boolean
+  disruption: DisruptionIntelligence
   why: string[]
   explanation: ScoringExplanation
 }
@@ -144,6 +150,7 @@ type ScoringExplanation = {
   historicalRouteFactors: string[]
   travelerProfileFactors: string[]
   communityIntelligenceFactors: string[]
+  disruptionFactors: string[]
   placeholderWeights: string[]
 }
 
@@ -168,6 +175,7 @@ type ScoringExplanationInput = {
   routeIntelligence: Record<string, string>
   carrierWeights: Record<string, string>
   recommendationScope: string
+  disruption: DisruptionIntelligence
 }
 
 type FallbackItineraryResult = (typeof rankedItineraries)[number]
@@ -277,11 +285,17 @@ function buildScoringExplanation(input: ScoringExplanationInput): ScoringExplana
         : 'No saved outcomes for this exact route yet; community outcome calibration remains neutral.',
       'Community intelligence remains local/static in this scaffold and is ready for future realtime load/outcome signals.'
     ],
+    disruptionFactors: [
+      `Route health is ${input.disruption.routeHealth} with disruption impact score ${input.disruption.disruptionImpactScore}/99.`,
+      `Disruption adjustment: ${input.disruption.successProbabilityImpact} points to success probability and ${input.disruption.routeRankingImpact} points to route ranking.`,
+      ...input.disruption.explanation
+    ],
     placeholderWeights: [
       'Live/source route score: about 24–52% depending on data source.',
       'Probability engine baseline: about 34–36% of success probability.',
       'Historical success and score: about 34% combined before adjustments.',
       'Community load reports: capped between -8 and +8 points.',
+      'Flight disruption intelligence: delays, cancellations, diversions, and airport alerts can reduce probability and ranking after the base score.',
       'Connections: -4 points per connection in the recommendation comparison.'
     ]
   }
@@ -332,6 +346,12 @@ function buildLiveItineraryComparison(
   const historicalSuccess = historicalRoute?.successRate || predictionEngine.inputSummary.historicalSuccessRate || predictionEngine.successProbability
   const outcomeSignal = outcomeRate === null ? 0 : (outcomeRate - historicalSuccess) * 0.16
   const connectionPenalty = connections * 4
+  const disruption = buildDisruptionIntelligence({
+    route: itinerary.route,
+    legs: itinerary.legs,
+    fallbackStatus: itinerary.status,
+    sourceLabel: itinerary.source
+  })
   const successProbability = clampScore(
     predictionEngine.successProbability * 0.34 +
     itinerary.score * 0.26 +
@@ -339,9 +359,10 @@ function buildLiveItineraryComparison(
     historicalScore * 0.12 +
     loadAdjustment +
     outcomeSignal -
-    connectionPenalty
+    connectionPenalty +
+    disruption.successProbabilityImpact
   )
-  const score = clampScore(itinerary.score * 0.52 + successProbability * 0.32 + historicalScore * 0.16 - connectionPenalty)
+  const score = clampScore(itinerary.score * 0.52 + successProbability * 0.32 + historicalScore * 0.16 - connectionPenalty + disruption.routeRankingImpact)
   const riskLevel = riskFromProbability(successProbability, itinerary.risk)
   const explanation = buildScoringExplanation({
     route: itinerary.route,
@@ -363,7 +384,8 @@ function buildLiveItineraryComparison(
     travelerProfile,
     routeIntelligence,
     carrierWeights,
-    recommendationScope
+    recommendationScope,
+    disruption
   })
 
   return {
@@ -377,8 +399,10 @@ function buildLiveItineraryComparison(
     totalTravelTime: totalTravelTimeFromItinerary(itinerary),
     flightNumber: itinerary.flightNumber,
     isLive: true,
+    disruption,
     why: [
       `Blends live itinerary score ${itinerary.score}/100 with probability engine baseline ${predictionEngine.successProbability}%.`,
+      `Disruption intelligence adjusts this option by ${disruption.successProbabilityImpact} probability points and ${disruption.routeRankingImpact} ranking points; route health is ${disruption.routeHealth}.`,
       historicalRoute
         ? `Historical route match ${historicalRoute.route} contributes ${historicalRoute.successRate}% success and ${historicalRoute.reportCount} reports.`
         : `Carrier historical scaffold contributes ${predictionEngine.inputSummary.historicalSuccessRate}% average success.` ,
@@ -416,6 +440,10 @@ function buildFallbackItineraryComparison(
   const historicalSuccess = historicalRoute?.successRate || predictionEngine.inputSummary.historicalSuccessRate || predictionEngine.successProbability
   const outcomeSignal = outcomeRate === null ? 0 : (outcomeRate - historicalSuccess) * 0.16
   const connectionPenalty = connections * 4
+  const disruption = buildDisruptionIntelligence({
+    route: itinerary.route,
+    fallbackStatus: itinerary.confidence
+  })
   const successProbability = clampScore(
     predictionEngine.successProbability * 0.36 +
     itinerary.ranking.score * 0.24 +
@@ -423,9 +451,10 @@ function buildFallbackItineraryComparison(
     historicalScore * 0.12 +
     loadAdjustment +
     outcomeSignal -
-    connectionPenalty
+    connectionPenalty +
+    disruption.successProbabilityImpact
   )
-  const score = clampScore(itinerary.ranking.score * 0.5 + successProbability * 0.34 + historicalScore * 0.16 - connectionPenalty)
+  const score = clampScore(itinerary.ranking.score * 0.5 + successProbability * 0.34 + historicalScore * 0.16 - connectionPenalty + disruption.routeRankingImpact)
   const riskLevel = riskFromProbability(successProbability, itinerary.confidence === 'Strong' ? 'Medium-Low' : 'Medium')
   const explanation = buildScoringExplanation({
     route: itinerary.route,
@@ -447,7 +476,8 @@ function buildFallbackItineraryComparison(
     travelerProfile,
     routeIntelligence,
     carrierWeights,
-    recommendationScope: carrierLabel
+    recommendationScope: carrierLabel,
+    disruption
   })
 
   return {
@@ -461,8 +491,10 @@ function buildFallbackItineraryComparison(
     totalTravelTime: fallbackTravelTimeEstimate(itinerary),
     flightNumber: itinerary.title,
     isLive: false,
+    disruption,
     why: [
       `Combines fallback ranking ${itinerary.ranking.score}/100 with probability engine baseline ${predictionEngine.successProbability}%.`,
+      `Disruption intelligence adjusts this option by ${disruption.successProbabilityImpact} probability points and ${disruption.routeRankingImpact} ranking points; route health is ${disruption.routeHealth}.`,
       historicalRoute
         ? `Historical route match ${historicalRoute.route} contributes ${historicalRoute.successRate}% success and ${historicalRoute.reportCount} reports.`
         : `Historical carrier scaffold contributes ${predictionEngine.inputSummary.historicalSuccessRate}% average success.`,
@@ -523,6 +555,7 @@ function ScoringExplanationDetails({ comparison, backup }: { comparison: Itinera
     ['Historical route factors', comparison.explanation.historicalRouteFactors],
     ['Traveler profile factors', comparison.explanation.travelerProfileFactors],
     ['Community intelligence factors', comparison.explanation.communityIntelligenceFactors],
+    ['Disruption intelligence factors', comparison.explanation.disruptionFactors],
     ['Backup route reasoning', backupRouteReasoning(comparison, backup)],
     ['Placeholder weighting', comparison.explanation.placeholderWeights]
   ] as const
@@ -541,6 +574,85 @@ function ScoringExplanationDetails({ comparison, backup }: { comparison: Itinera
         ))}
       </div>
     </details>
+  )
+}
+
+function DisruptionIntelligenceSection({ comparisons }: { comparisons: ItineraryComparison[] }) {
+  if (!comparisons.length) return null
+
+  const mostImpacted = [...comparisons].sort((a, b) => b.disruption.disruptionImpactScore - a.disruption.disruptionImpactScore)[0]
+  const healthiest = [...comparisons].sort((a, b) => a.disruption.disruptionImpactScore - b.disruption.disruptionImpactScore)[0]
+  const totalDelaySignals = comparisons.reduce((total, comparison) => total + comparison.disruption.delays.count, 0)
+  const totalCancellationSignals = comparisons.reduce((total, comparison) => total + comparison.disruption.cancellations.count, 0)
+  const totalDiversionSignals = comparisons.reduce((total, comparison) => total + comparison.disruption.diversions.count, 0)
+  const totalAirportAlerts = comparisons.reduce((total, comparison) => total + comparison.disruption.airportOperationalAlerts.count, 0)
+  const averageImpact = Math.round(comparisons.reduce((total, comparison) => total + comparison.disruption.disruptionImpactScore, 0) / comparisons.length)
+
+  return (
+    <section style={{ border: '1px solid #fb7185', borderRadius: 22, padding: 18, background: 'linear-gradient(135deg, rgba(127, 29, 29, 0.28), rgba(15, 23, 42, 0.96))', marginTop: 16 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+        <div>
+          <strong style={{ color: '#fb7185', textTransform: 'uppercase', letterSpacing: 1 }}>Disruption Intelligence</strong>
+          <h3 style={{ fontSize: 26, margin: '8px 0' }}>Flight disruption impact engine</h3>
+          <p style={{ color: '#cbd5e1', margin: 0 }}>
+            Uses FlightAware enrichment when present, then falls back to itinerary status and local airport operational alert scaffolds.
+          </p>
+        </div>
+        <span style={{ border: `1px solid ${routeHealthColor(mostImpacted.disruption.routeHealth)}`, borderRadius: 999, color: routeHealthColor(mostImpacted.disruption.routeHealth), padding: '8px 12px', fontWeight: 'bold' }}>
+          Highest impact: {mostImpacted.disruption.disruptionImpactScore}/99 · {mostImpacted.disruption.routeHealth}
+        </span>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginTop: 14 }}>
+        {[
+          ['Avg Impact Score', `${averageImpact}/99`, averageImpact >= 50 ? '#f87171' : averageImpact >= 22 ? '#facc15' : '#22c55e'],
+          ['Delays', totalDelaySignals, totalDelaySignals ? '#facc15' : '#22c55e'],
+          ['Cancellations', totalCancellationSignals, totalCancellationSignals ? '#f87171' : '#22c55e'],
+          ['Diversions', totalDiversionSignals, totalDiversionSignals ? '#f87171' : '#22c55e'],
+          ['Airport Alerts', totalAirportAlerts, totalAirportAlerts ? '#facc15' : '#22c55e']
+        ].map(([label, value, color]) => (
+          <article key={label} style={{ border: '1px solid #334155', borderRadius: 14, padding: 12, background: '#020617' }}>
+            <small style={{ color: '#94a3b8' }}>{label}</small>
+            <h4 style={{ color: String(color), margin: '6px 0 0', fontSize: 22 }}>{value}</h4>
+          </article>
+        ))}
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 12, marginTop: 14 }}>
+        <article style={{ border: '1px solid #334155', borderRadius: 16, padding: 14, background: '#0f172a' }}>
+          <strong style={{ color: '#38bdf8' }}>Impact on Success Probability</strong>
+          <p style={{ color: '#cbd5e1' }}>{mostImpacted.route}: {mostImpacted.disruption.successProbabilityImpact} points from disruption signals.</p>
+          <p style={{ color: '#94a3b8', marginBottom: 0 }}>Probability is reduced after the community-weighted probability engine so disruption reflects current operational risk.</p>
+        </article>
+        <article style={{ border: '1px solid #334155', borderRadius: 16, padding: 14, background: '#0f172a' }}>
+          <strong style={{ color: '#c084fc' }}>Impact on Route Ranking</strong>
+          <p style={{ color: '#cbd5e1' }}>{mostImpacted.route}: {mostImpacted.disruption.routeRankingImpact} ranking points.</p>
+          <p style={{ color: '#94a3b8', marginBottom: 0 }}>Routes with Red or Yellow health can move below cleaner backup options even when their baseline score is strong.</p>
+        </article>
+        <article style={{ border: '1px solid #334155', borderRadius: 16, padding: 14, background: '#0f172a' }}>
+          <strong style={{ color: '#22c55e' }}>Backup Route Recommendations</strong>
+          <p style={{ color: '#cbd5e1' }}>Healthiest current option: {healthiest.route} · {healthiest.disruption.routeHealth}</p>
+          <ul style={{ color: '#94a3b8', marginBottom: 0, paddingLeft: 20 }}>
+            {mostImpacted.disruption.backupRouteRecommendations.map((recommendation) => <li key={recommendation}>{recommendation}</li>)}
+          </ul>
+        </article>
+      </div>
+
+      <details open style={{ border: '1px solid #334155', borderRadius: 16, padding: 14, background: '#020617', marginTop: 14 }}>
+        <summary style={{ color: '#facc15', cursor: 'pointer', fontWeight: 'bold' }}>Disruption explanation</summary>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 12, marginTop: 12 }}>
+          {comparisons.map((comparison) => (
+            <article key={`disruption-${comparison.id}`} style={{ border: '1px solid #1e293b', borderRadius: 14, padding: 12, background: '#0f172a' }}>
+              <strong style={{ color: routeHealthColor(comparison.disruption.routeHealth) }}>{comparison.route} · {comparison.disruption.routeHealth}</strong>
+              <ul style={{ color: '#cbd5e1', paddingLeft: 20, margin: '8px 0' }}>
+                {comparison.disruption.explanation.map((item) => <li key={item}>{item}</li>)}
+              </ul>
+              <small style={{ color: '#94a3b8' }}>{comparison.disruption.dataSources.join(' · ')}</small>
+            </article>
+          ))}
+        </div>
+      </details>
+    </section>
   )
 }
 
@@ -631,6 +743,8 @@ function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: It
       {watchStatus && <p style={{ color: '#22c55e', fontWeight: 'bold' }}>{watchStatus} <a href="/watchlist" style={{ color: '#38bdf8' }}>Open watchlist</a></p>}
       {compareStatus && <p style={{ color: '#c084fc', fontWeight: 'bold' }}>{compareStatus}</p>}
 
+      <DisruptionIntelligenceSection comparisons={comparisons} />
+
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14, marginTop: 16 }}>
         {comparisons.map((comparison, index) => {
           const isBest = index === 0
@@ -664,6 +778,8 @@ function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: It
                   ['Score', comparison.score, comparisonMetricColor(comparison.score)],
                   ['Success Probability', `${comparison.successProbability}%`, comparisonMetricColor(comparison.successProbability)],
                   ['Risk Level', comparison.riskLevel, riskColor(comparison.riskLevel)],
+                  ['Route Health', comparison.disruption.routeHealth, routeHealthColor(comparison.disruption.routeHealth)],
+                  ['Disruption Impact', `${comparison.disruption.disruptionImpactScore}/99`, routeHealthColor(comparison.disruption.routeHealth)],
                   ['Connections', comparison.connections, comparison.connections === 0 ? '#22c55e' : '#facc15'],
                   ['Total Travel Time', comparison.totalTravelTime, '#38bdf8']
                 ].map(([label, value, color]) => (

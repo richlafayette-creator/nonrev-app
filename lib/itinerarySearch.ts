@@ -20,6 +20,10 @@ export type ItineraryLeg = {
   status: string
   gate?: string
   terminal?: string
+  delayMinutes?: number
+  cancelled?: boolean
+  diverted?: boolean
+  disruptionSource?: string
   score: number
   risk: string
   source: string
@@ -132,6 +136,13 @@ function numberFrom(flight: Record<string, unknown>, keys: string[], fallback: n
   return fallback
 }
 
+function minutesBetween(later?: string, earlier?: string) {
+  const laterTime = later ? Date.parse(later) : NaN
+  const earlierTime = earlier ? Date.parse(earlier) : NaN
+  if (!Number.isFinite(laterTime) || !Number.isFinite(earlierTime) || laterTime <= earlierTime) return 0
+  return Math.round((laterTime - earlierTime) / 60000)
+}
+
 function carrierFromFlight(flight: Record<string, unknown>) {
   const explicitCarrier = valueFrom(flight, ['carrier', 'airline', 'operator', 'carrier_name'])
   if (explicitCarrier) return explicitCarrier
@@ -188,6 +199,19 @@ export function normalizeFlightLeg(flight: Record<string, unknown>, enrichment?:
   const departureTerminal = valueFrom(flight, ['departure_terminal', 'terminal']) || valueFrom(enrichment || {}, ['terminal_origin', 'departure_terminal'])
   const arrivalTerminal = valueFrom(flight, ['arrival_terminal']) || valueFrom(enrichment || {}, ['terminal_destination', 'arrival_terminal'])
   const sourceProvider = valueFrom(flight, ['source_provider']) || 'supabase'
+  const delayMinutes = Math.max(
+    numberFrom(enrichment || {}, ['departure_delay', 'arrival_delay', 'delay_minutes'], 0),
+    numberFrom(flight, ['departure_delay', 'arrival_delay', 'delay_minutes'], 0),
+    minutesBetween(
+      valueFrom(enrichment || {}, ['estimated_out', 'estimated_off', 'estimated_in', 'estimated_on']),
+      valueFrom(enrichment || {}, ['scheduled_out', 'scheduled_off', 'scheduled_in', 'scheduled_on'])
+    ),
+    minutesBetween(
+      valueFrom(flight, ['estimated_departure', 'estimated_arrival']),
+      valueFrom(flight, ['scheduled_departure', 'scheduled_arrival'])
+    )
+  )
+  const loweredStatus = status.toLowerCase()
 
   return {
     id: valueFrom(flight, ['id']) || undefined,
@@ -202,6 +226,10 @@ export function normalizeFlightLeg(flight: Record<string, unknown>, enrichment?:
     status,
     gate: [departureGate, arrivalGate].filter(Boolean).join(' → ') || undefined,
     terminal: [departureTerminal, arrivalTerminal].filter(Boolean).join(' → ') || undefined,
+    delayMinutes,
+    cancelled: loweredStatus.includes('cancel'),
+    diverted: loweredStatus.includes('divert'),
+    disruptionSource: enrichment ? 'FlightAware enrichment' : sourceProvider,
     score,
     risk: riskFromScore(score, status),
     source: enrichment ? `${sourceProvider}+flightaware` : sourceProvider

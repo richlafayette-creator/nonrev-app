@@ -49,6 +49,7 @@ export default function OutcomesPage() {
         <a href="/reputation" style={{ marginRight: 16, color: '#34d399' }}>Trust</a>
         <a href="/load-reports" style={{ marginRight: 16, color: '#facc15' }}>Load Reports</a>
         <a href="/requests" style={{ marginRight: 16, color: '#c084fc' }}>Open Requests</a>
+        <a href="/reminders" style={{ marginRight: 16, color: '#f472b6' }}>Reminders</a>
         <a href="/outcomes" style={{ color: '#22c55e' }}>Outcomes</a>
       </nav>
 
@@ -93,7 +94,7 @@ export default function OutcomesPage() {
         <section>
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', alignItems: 'center' }}>
             <h2 style={{ fontSize: 30, margin: 0 }}>Recent Outcomes</h2>
-            <a href="/plan" style={{ color: '#38bdf8' }}>Record from planner</a>
+            <a href="/reminders" style={{ color: '#38bdf8' }}>Open reminders</a>
           </div>
           <div style={{ display: 'grid', gap: 12, marginTop: 16 }}>
             {recentOutcomes.length === 0 && (

@@ -592,6 +592,7 @@ function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: It
       riskLevel: comparison.riskLevel,
       connections: comparison.connections,
       totalTravelTime: comparison.totalTravelTime,
+      travelDate: travelDate.trim() || undefined,
       why: comparison.why,
       sourceLabel: comparison.isLive ? 'Live itinerary option' : 'Planning scaffold option'
     })

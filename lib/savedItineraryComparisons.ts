@@ -9,6 +9,7 @@ export type SavedItineraryComparison = {
   riskLevel: string
   connections: number
   totalTravelTime: string
+  travelDate?: string
   why: string[]
   sourceLabel: string
   savedAt: string

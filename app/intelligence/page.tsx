@@ -250,10 +250,12 @@ export default function IntelligencePage() {
     refreshSignals()
     window.addEventListener('nonrevy-load-reports-updated', refreshSignals)
     window.addEventListener('nonrevy-trip-outcomes-updated', refreshSignals)
+    window.addEventListener('nonrevy-intelligence-updated', refreshSignals)
     window.addEventListener('storage', refreshSignals)
     return () => {
       window.removeEventListener('nonrevy-load-reports-updated', refreshSignals)
       window.removeEventListener('nonrevy-trip-outcomes-updated', refreshSignals)
+      window.removeEventListener('nonrevy-intelligence-updated', refreshSignals)
       window.removeEventListener('storage', refreshSignals)
     }
   }, [])

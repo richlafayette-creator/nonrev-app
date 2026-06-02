@@ -159,6 +159,7 @@ export default function WatchlistPage() {
         <a href="/plan" style={{ marginRight: 16, color: '#fb7185' }}>Plan</a>
         <a href="/watchlist" style={{ marginRight: 16, color: '#facc15' }}>Watchlist</a>
         <a href="/intelligence" style={{ marginRight: 16, color: '#c084fc' }}>Intelligence</a>
+        <a href="/reminders" style={{ marginRight: 16, color: '#f472b6' }}>Reminders</a>
         <a href="/agent" style={{ color: '#a78bfa' }}>Agent</a>
       </nav>
 

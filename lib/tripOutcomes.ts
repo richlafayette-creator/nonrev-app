@@ -4,7 +4,7 @@ export type TripOutcomeStatus = 'Yes, got on' | 'No, did not get on' | 'Cancelle
 
 export type TripOutcome = {
   id: string
-  subjectType: 'route-recommendation' | 'saved-itinerary'
+  subjectType: 'route-recommendation' | 'saved-itinerary' | 'outcome-reminder'
   subjectId: string
   title: string
   route: string

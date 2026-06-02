@@ -1,12 +1,15 @@
 'use client'
 
-import { type FormEvent, useEffect, useState } from 'react'
+import { type FormEvent, useEffect, useMemo, useState } from 'react'
 import { supportedCarrierOptions } from '../lib/carrierScope'
+import { parseTripPlannerPrompt } from '../lib/aiTripPlanner'
+import { defaultTravelerProfile } from '../lib/travelerProfile'
 
 export default function Home() {
   const [search, setSearch] = useState('')
   const [carrier, setCarrier] = useState('all')
   const [message, setMessage] = useState('')
+  const [aiTripPrompt, setAiTripPrompt] = useState('best Hawaii trip from LAX tomorrow')
 
   useEffect(() => {
     setMessage('')
@@ -25,6 +28,22 @@ export default function Home() {
 
   function startVoiceScaffold() {
     setMessage('Voice input scaffold ready — speech capture will fill the search box here.')
+  }
+
+  const aiTripPreview = useMemo(
+    () => parseTripPlannerPrompt(aiTripPrompt, defaultTravelerProfile),
+    [aiTripPrompt]
+  )
+
+  function submitAiTripPlanner(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const prompt = aiTripPrompt.trim()
+    if (!prompt) {
+      setMessage('Tell the AI planner where you want to go, like “get me to Maui this weekend”.')
+      return
+    }
+
+    window.location.href = `/plan?aiTrip=${encodeURIComponent(prompt)}`
   }
 
   return (
@@ -91,6 +110,39 @@ export default function Home() {
               Supported today: United, Delta, Alaska Group.
             </p>
           </form>
+
+          <section style={{ border: '1px solid #334155', borderRadius: 24, padding: 22, background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.96), rgba(30, 41, 59, 0.9))', marginTop: 34, textAlign: 'left' }}>
+            <p style={{ color: '#c084fc', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1, marginTop: 0 }}>AI Trip Planner scaffold</p>
+            <h2 style={{ fontSize: 28, margin: '8px 0' }}>Describe the trip in plain English.</h2>
+            <p style={{ color: '#94a3b8' }}>
+              Try “get me to Maui this weekend”, “best Hawaii trip from LAX tomorrow”, or “cheapest nonrev path to Tokyo”.
+            </p>
+            <form onSubmit={submitAiTripPlanner}>
+              <textarea
+                value={aiTripPrompt}
+                onChange={(event) => setAiTripPrompt(event.target.value)}
+                rows={3}
+                placeholder="get me to Maui this weekend"
+                style={{ boxSizing: 'border-box', width: '100%', padding: 14, borderRadius: 16, border: '1px solid #334155', background: '#020617', color: 'white' }}
+              />
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10, margin: '12px 0' }}>
+                {[
+                  ['Origin', aiTripPreview.origin],
+                  ['Destination', `${aiTripPreview.destinationLabel} (${aiTripPreview.destination})`],
+                  ['Date range', aiTripPreview.dateRange],
+                  ['Preferences', aiTripPreview.preferences.join(', ')]
+                ].map(([label, value]) => (
+                  <div key={label} style={{ border: '1px solid #334155', borderRadius: 12, padding: 10, background: '#0f172a' }}>
+                    <small style={{ color: '#94a3b8' }}>{label}</small>
+                    <p style={{ margin: '4px 0 0', color: '#f8fafc', fontWeight: 'bold' }}>{value}</p>
+                  </div>
+                ))}
+              </div>
+              <button type="submit" style={{ padding: '14px 20px', borderRadius: 999, border: 'none', background: '#c084fc', color: '#020617', fontWeight: 'bold' }}>
+                Plan with AI scaffold
+              </button>
+            </form>
+          </section>
 
           {message && <p style={{ color: '#38bdf8', marginTop: 18 }}>{message}</p>}
         </div>

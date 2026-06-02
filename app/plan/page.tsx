@@ -5,6 +5,7 @@ import { flightMatchesSearch } from '../../lib/flightSearch'
 import { delayRiskScore, rankItinerary } from '../../lib/intelligence'
 import { allFlightFields, fieldValue, passengerFlightCoverageNotes, richFlightFieldLabels } from '../../lib/flightDataScaffold'
 import { airportCodesFromRoute } from '../../lib/airportMapScaffold'
+import { generateAiTripPlan, parseTripPlannerPrompt } from '../../lib/aiTripPlanner'
 import { carrierScoringProfiles, getCarrierScoringScaffold, normalizeCarrierFamily, supportedCarrierOptions } from '../../lib/carrierScope'
 import { historicalRouteStats, type HistoricalRoute } from '../../lib/historicalRoutes'
 import { loadLoadReports, type LoadReport } from '../../lib/loadReports'
@@ -453,11 +454,20 @@ export default function PlanPage() {
   const [travelerProfile, setTravelerProfile] = useState(defaultTravelerProfile)
   const [loadReports, setLoadReports] = useState<LoadReport[]>([])
   const [outcomes, setOutcomes] = useState<TripOutcome[]>([])
+  const [aiTripPrompt, setAiTripPrompt] = useState('get me to Maui this weekend')
+  const [aiPlannerStatus, setAiPlannerStatus] = useState('AI planner scaffold ready for natural language trip requests.')
 
   useEffect(() => {
-    const initialQuery = new URLSearchParams(window.location.search).get('q') || ''
-    setQuery(initialQuery)
-    if (initialQuery) {
+    const params = new URLSearchParams(window.location.search)
+    const initialQuery = params.get('q') || ''
+    const initialAiTrip = params.get('aiTrip') || ''
+    setQuery(initialQuery || initialAiTrip)
+    if (initialAiTrip) {
+      setAiTripPrompt(initialAiTrip)
+      setTripGoal(initialAiTrip)
+      setAiPlannerStatus('AI trip planner scaffold parsed your homepage request.')
+      runItinerarySearch(initialAiTrip)
+    } else if (initialQuery) {
       setTripGoal(initialQuery)
       runItinerarySearch(initialQuery)
     }
@@ -555,6 +565,22 @@ export default function PlanPage() {
     setVoiceStatus('Listening scaffold active — speech-to-itinerary capture will plug in here.')
   }
 
+  async function submitAiTripPlanner(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const prompt = aiTripPrompt.trim()
+    if (!prompt) {
+      setAiPlannerStatus('Add a natural language trip request to generate an AI planning scaffold.')
+      return
+    }
+
+    setTripGoal(prompt)
+    setQuery(prompt)
+    setSubmitted(true)
+    setAiPlannerStatus('AI planner scaffold generated route guidance and refreshed itinerary results.')
+    window.history.replaceState(null, '', `/plan?aiTrip=${encodeURIComponent(prompt)}`)
+    await runItinerarySearch(prompt)
+  }
+
   const matchingFlights = useMemo(
     () => flights.filter((flight) => flightMatchesSearch(flight, query || tripGoal)),
     [flights, query, tripGoal]
@@ -600,6 +626,19 @@ export default function PlanPage() {
       .slice(0, 3)
   }, [liveItineraries, predictionEngine, historicalStats.routes, loadReports, outcomes, scoringScaffold.recommendationScope])
 
+  const aiTripPreview = useMemo(
+    () => parseTripPlannerPrompt(aiTripPrompt, travelerProfile),
+    [aiTripPrompt, travelerProfile]
+  )
+  const aiTripPlan = useMemo(() => generateAiTripPlan({
+    prompt: aiTripPrompt,
+    travelerProfile,
+    routeIntelligence: scoringScaffold.routeIntelligence,
+    routeRecommendations: scoringScaffold.routeRecommendations,
+    historicalRoutes: historicalStats.routes,
+    predictionEngine
+  }), [aiTripPrompt, travelerProfile, scoringScaffold.routeIntelligence, scoringScaffold.routeRecommendations, historicalStats.routes, predictionEngine])
+
   return (
     <main className="app-shell" style={{ minHeight: '100vh', background: '#020617', color: 'white', padding: 32, fontFamily: 'Arial' }}>
       <nav className="top-nav" style={{ marginBottom: 24 }}>
@@ -630,6 +669,64 @@ export default function PlanPage() {
             {passengerFlightCoverageNotes.map((note) => <li key={note}>{note}</li>)}
           </ul>
         </div>
+
+        <section style={{ border: '1px solid #c084fc', borderRadius: 24, padding: 22, background: 'linear-gradient(135deg, rgba(49, 46, 129, 0.66), rgba(15, 23, 42, 0.96))', marginTop: 24 }}>
+          <p style={{ color: '#c084fc', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1, marginTop: 0 }}>AI Trip Planner scaffold</p>
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.1fr) minmax(280px, 0.9fr)', gap: 18, alignItems: 'start' }}>
+            <form onSubmit={submitAiTripPlanner}>
+              <h2 style={{ fontSize: 30, margin: '0 0 10px' }}>Ask in natural language.</h2>
+              <p style={{ color: '#cbd5e1' }}>
+                Examples: “get me to Maui this weekend”, “best Hawaii trip from LAX tomorrow”, “cheapest nonrev path to Tokyo”.
+              </p>
+              <textarea
+                value={aiTripPrompt}
+                onChange={(event) => setAiTripPrompt(event.target.value)}
+                rows={4}
+                placeholder="cheapest nonrev path to Tokyo"
+                style={{ boxSizing: 'border-box', width: '100%', padding: 14, borderRadius: 16, border: '1px solid #475569', background: '#020617', color: 'white' }}
+              />
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10, marginTop: 12 }}>
+                {[
+                  ['Origin', aiTripPreview.origin],
+                  ['Destination', `${aiTripPreview.destinationLabel} (${aiTripPreview.destination})`],
+                  ['Date range', aiTripPreview.dateRange],
+                  ['Preferences', aiTripPreview.preferences.join(', ')]
+                ].map(([label, value]) => (
+                  <article key={label} style={{ border: '1px solid #334155', borderRadius: 12, padding: 10, background: '#020617' }}>
+                    <small style={{ color: '#94a3b8' }}>{label}</small>
+                    <p style={{ margin: '4px 0 0', color: '#f8fafc', fontWeight: 'bold' }}>{value}</p>
+                  </article>
+                ))}
+              </div>
+              <button type="submit" style={{ marginTop: 14, padding: '14px 18px', borderRadius: 12, border: 'none', background: '#c084fc', color: '#020617', fontWeight: 'bold' }}>
+                Generate AI trip plan
+              </button>
+              <p style={{ color: '#d8b4fe', marginBottom: 0 }}>{aiPlannerStatus}</p>
+            </form>
+
+            <aside style={{ border: '1px solid #334155', borderRadius: 18, padding: 18, background: '#020617' }}>
+              <strong style={{ color: '#22c55e' }}>Recommended plan</strong>
+              <h3 style={{ color: '#f8fafc', margin: '8px 0' }}>{aiTripPlan.bestRoute}</h3>
+              <p style={{ color: '#38bdf8', fontWeight: 'bold' }}>Backup: {aiTripPlan.backupRoute}</p>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <div style={{ border: '1px solid #334155', borderRadius: 12, padding: 10, background: '#0f172a' }}>
+                  <small style={{ color: '#94a3b8' }}>Estimated success</small>
+                  <p style={{ margin: '4px 0 0', color: '#22c55e', fontWeight: 'bold' }}>{aiTripPlan.estimatedSuccessProbability}%</p>
+                </div>
+                <div style={{ border: '1px solid #334155', borderRadius: 12, padding: 10, background: '#0f172a' }}>
+                  <small style={{ color: '#94a3b8' }}>Risk level</small>
+                  <p style={{ margin: '4px 0 0', color: riskColor(aiTripPlan.riskLevel), fontWeight: 'bold' }}>{aiTripPlan.riskLevel}</p>
+                </div>
+              </div>
+              <details open style={{ marginTop: 12 }}>
+                <summary style={{ color: '#facc15', cursor: 'pointer', fontWeight: 'bold' }}>Why this route?</summary>
+                <ul style={{ color: '#cbd5e1', paddingLeft: 20, marginBottom: 0 }}>
+                  {aiTripPlan.whyThisRoute.map((reason) => <li key={reason}>{reason}</li>)}
+                </ul>
+              </details>
+            </aside>
+          </div>
+        </section>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 18, marginTop: 28 }}>
           <form

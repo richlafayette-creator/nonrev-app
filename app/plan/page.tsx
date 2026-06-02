@@ -109,6 +109,14 @@ type LiveItineraryResult = {
   score: number
   risk: string
   source: string
+  providerBadges?: string[]
+}
+
+type ProviderStatus = {
+  provider: 'supabase' | 'aviationstack' | 'flightaware' | 'planning'
+  label: string
+  state: 'pending' | 'success' | 'skipped' | 'warning' | 'error'
+  detail: string
 }
 
 type ItineraryDebugMetadata = {
@@ -120,6 +128,8 @@ type ItineraryDebugMetadata = {
   aviationstackFallbackStatus: string
   flightAwareEnrichmentStatus: string
   finalItineraryCount: number
+  providerExplanation?: string[]
+  providerStatuses?: ProviderStatus[]
   safeErrors: string[]
 }
 
@@ -127,6 +137,22 @@ function riskColor(risk: string) {
   if (risk.includes('Low')) return '#22c55e'
   if (risk.includes('Medium')) return '#facc15'
   return '#f87171'
+}
+
+function providerBadgeStyle(label: string) {
+  if (label.includes('Supabase')) return { border: '#22c55e', text: '#bbf7d0', background: 'rgba(34, 197, 94, 0.12)' }
+  if (label.includes('Aviationstack')) return { border: '#38bdf8', text: '#bae6fd', background: 'rgba(56, 189, 248, 0.12)' }
+  if (label.includes('FlightAware')) return { border: '#c084fc', text: '#e9d5ff', background: 'rgba(192, 132, 252, 0.12)' }
+  return { border: '#facc15', text: '#fef3c7', background: 'rgba(250, 204, 21, 0.12)' }
+}
+
+function ProviderBadge({ label }: { label: string }) {
+  const style = providerBadgeStyle(label)
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', border: `1px solid ${style.border}`, borderRadius: 999, padding: '4px 9px', color: style.text, background: style.background, fontSize: 12, fontWeight: 'bold', letterSpacing: 0.3 }}>
+      {label}
+    </span>
+  )
 }
 
 type ItineraryComparison = {
@@ -140,6 +166,7 @@ type ItineraryComparison = {
   totalTravelTime: string
   flightNumber: string
   isLive: boolean
+  providerBadges: string[]
   disruption: DisruptionIntelligence
   routeConfidence: RouteConfidence
   airportIntelligence: RouteAirportIntelligence
@@ -434,6 +461,7 @@ function buildLiveItineraryComparison(
     totalTravelTime: totalTravelTimeFromItinerary(itinerary),
     flightNumber: itinerary.flightNumber,
     isLive: true,
+    providerBadges: itinerary.providerBadges?.length ? itinerary.providerBadges : [itinerary.source.includes('aviationstack') ? 'Aviationstack' : 'Live Supabase', ...(itinerary.source.includes('flightaware') ? ['FlightAware enriched'] : [])],
     disruption,
     routeConfidence,
     airportIntelligence,
@@ -544,6 +572,7 @@ function buildFallbackItineraryComparison(
     totalTravelTime: fallbackTravelTimeEstimate(itinerary),
     flightNumber: itinerary.title,
     isLive: false,
+    providerBadges: ['Planning fallback'],
     disruption,
     routeConfidence,
     airportIntelligence,
@@ -987,6 +1016,11 @@ function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: It
                 #{index + 1} · {comparison.isLive ? 'Live option' : 'Planning scaffold'}
               </small>
               <h4 style={{ color: '#f8fafc', fontSize: 22, margin: '8px 0' }}>{comparison.route}</h4>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+                {comparison.providerBadges.map((badge) => (
+                  <ProviderBadge key={`${comparison.id}-${badge}`} label={badge} />
+                ))}
+              </div>
               <p style={{ color: '#cbd5e1', margin: '0 0 12px' }}>
                 Carrier: {comparison.carrier} · {comparison.flightNumber}
               </p>
@@ -1532,7 +1566,7 @@ export default function PlanPage() {
             </div>
           )}
           <div style={{ border: '1px solid #334155', borderRadius: 16, padding: 14, background: '#020617', marginBottom: 16 }}>
-            <strong style={{ color: '#38bdf8' }}>API/debug status</strong>
+            <strong style={{ color: '#38bdf8' }}>Developer Diagnostics</strong>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 10, marginTop: 12 }}>
               {[
                 ['Parsed origin', itineraryDebug?.parsedOrigin || 'Not parsed'],
@@ -1550,6 +1584,30 @@ export default function PlanPage() {
                 </article>
               ))}
             </div>
+            {itineraryDebug?.providerStatuses?.length ? (
+              <div style={{ marginTop: 12 }}>
+                <strong style={{ color: '#c084fc' }}>Provider fallback strategy</strong>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: 10, marginTop: 10 }}>
+                  {itineraryDebug.providerStatuses.map((status) => (
+                    <article key={status.provider} style={{ border: `1px solid ${status.state === 'success' ? '#22c55e' : status.state === 'warning' ? '#facc15' : '#334155'}`, borderRadius: 12, padding: 10, background: '#0f172a' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center' }}>
+                        <ProviderBadge label={status.label} />
+                        <small style={{ color: status.state === 'success' ? '#86efac' : status.state === 'warning' ? '#fde68a' : '#94a3b8', textTransform: 'uppercase', fontWeight: 'bold' }}>{status.state}</small>
+                      </div>
+                      <p style={{ margin: '8px 0 0', color: '#cbd5e1' }}>{status.detail}</p>
+                    </article>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+            {itineraryDebug?.providerExplanation?.length ? (
+              <details style={{ marginTop: 12 }}>
+                <summary style={{ color: '#facc15', cursor: 'pointer', fontWeight: 'bold' }}>Provider explanation</summary>
+                <ol style={{ color: '#cbd5e1', marginBottom: 0, paddingLeft: 20 }}>
+                  {itineraryDebug.providerExplanation.map((message) => <li key={message}>{message.replace(/^\d+\.\s*/, '')}</li>)}
+                </ol>
+              </details>
+            ) : null}
             {itineraryDebug?.safeErrors?.length ? (
               <div style={{ border: '1px solid #854d0e', borderRadius: 12, padding: 10, background: '#1c1917', color: '#fde68a', marginTop: 12 }}>
                 <strong>Safe API messages</strong>
@@ -1567,6 +1625,11 @@ export default function PlanPage() {
                   <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
                     <h3 style={{ margin: 0 }}>{itinerary.flightNumber}</h3>
                     <span style={{ color: riskColor(itinerary.risk), fontWeight: 'bold' }}>{itinerary.risk}</span>
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
+                    {(itinerary.providerBadges?.length ? itinerary.providerBadges : [itinerary.source.includes('aviationstack') ? 'Aviationstack' : 'Live Supabase', ...(itinerary.source.includes('flightaware') ? ['FlightAware enriched'] : [])]).map((badge) => (
+                      <ProviderBadge key={`${itinerary.id}-${badge}`} label={badge} />
+                    ))}
                   </div>
                   <p style={{ color: '#38bdf8', fontSize: 18, fontWeight: 'bold' }}>{itinerary.route}</p>
                   <p style={{ color: '#facc15', fontWeight: 'bold' }}>Live score: {itinerary.score}/100</p>
@@ -1617,6 +1680,9 @@ export default function PlanPage() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
                   <h3 style={{ margin: 0 }}>{itinerary.title}</h3>
                   <span style={{ color: confidenceColor(itinerary.confidence), fontWeight: 'bold' }}>{itinerary.confidence}</span>
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
+                  <ProviderBadge label="Planning fallback" />
                 </div>
                 <p style={{ color: '#facc15', fontWeight: 'bold' }}>{itinerary.ranking.label}: {itinerary.ranking.score}/100</p>
                 <p style={{ color: '#38bdf8', fontSize: 18, fontWeight: 'bold' }}>{itinerary.route}</p>

@@ -44,6 +44,7 @@ export type ItineraryResult = {
   score: number
   risk: string
   source: string
+  providerBadges?: string[]
 }
 
 const carrierAliases: Record<string, string[]> = {

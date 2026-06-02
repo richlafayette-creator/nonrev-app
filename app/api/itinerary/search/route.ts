@@ -1,9 +1,18 @@
 import { NextResponse } from 'next/server'
-import { buildItinerariesFromFlights, normalizeItineraryRequest } from '../../../../lib/itinerarySearch'
+import { buildItinerariesFromFlights, flightMatchesRequest, normalizeItineraryRequest, type ItineraryResult } from '../../../../lib/itinerarySearch'
 
 export const dynamic = 'force-dynamic'
 
 type FlightRecord = Record<string, unknown>
+type ProviderKey = 'supabase' | 'aviationstack' | 'flightaware' | 'planning'
+type ProviderState = 'pending' | 'success' | 'skipped' | 'warning' | 'error'
+
+type ProviderStatus = {
+  provider: ProviderKey
+  label: string
+  state: ProviderState
+  detail: string
+}
 
 type ItineraryDebugMetadata = {
   parsedOrigin?: string
@@ -14,6 +23,8 @@ type ItineraryDebugMetadata = {
   aviationstackFallbackStatus: string
   flightAwareEnrichmentStatus: string
   finalItineraryCount: number
+  providerExplanation: string[]
+  providerStatuses: ProviderStatus[]
   safeErrors: string[]
 }
 
@@ -66,6 +77,40 @@ const carrierIataCodes: Record<string, string[]> = {
   'alaska-group': ['AS', 'HA']
 }
 
+const providerLabels: Record<ProviderKey, string> = {
+  supabase: 'Live Supabase',
+  aviationstack: 'Aviationstack',
+  flightaware: 'FlightAware enriched',
+  planning: 'Planning fallback'
+}
+
+const fallbackProviderStatuses: ProviderStatus[] = [
+  {
+    provider: 'supabase',
+    label: providerLabels.supabase,
+    state: 'pending',
+    detail: 'Supabase flights table is checked first for matching stored live flight records.'
+  },
+  {
+    provider: 'aviationstack',
+    label: providerLabels.aviationstack,
+    state: 'pending',
+    detail: 'Aviationstack is queried only when Supabase has no usable matching itineraries.'
+  },
+  {
+    provider: 'flightaware',
+    label: providerLabels.flightaware,
+    state: 'pending',
+    detail: 'FlightAware enrichment runs after a provider returns known flight numbers.'
+  },
+  {
+    provider: 'planning',
+    label: providerLabels.planning,
+    state: 'pending',
+    detail: 'Planning fallback cards are used only when no live provider returns itinerary data.'
+  }
+]
+
 function flightIdent(flight: FlightRecord) {
   const ident = flight.flight_number || flight.ident || flight.fa_flight_id
   return ident ? String(ident).replace(/\s+/g, '') : ''
@@ -76,42 +121,107 @@ function aviationstackCarrierCodes(carrier?: string) {
   return carrierIataCodes[carrier] || [carrier.toUpperCase()]
 }
 
+function uniqueMessages(messages: Array<string | undefined>) {
+  return [...new Set(messages.filter((message): message is string => Boolean(message?.trim())))]
+}
+
+function providerStatus(provider: ProviderKey, state: ProviderState, detail: string): ProviderStatus {
+  return {
+    provider,
+    label: providerLabels[provider],
+    state,
+    detail
+  }
+}
+
+function mergeProviderStatuses(overrides: ProviderStatus[]) {
+  return fallbackProviderStatuses.map((status) => overrides.find((override) => override.provider === status.provider) || status)
+}
+
+function providerBadgesForSource(source: string, enriched: boolean) {
+  const badges: string[] = []
+  if (source.includes('aviationstack')) badges.push(providerLabels.aviationstack)
+  else badges.push(providerLabels.supabase)
+  if (enriched || source.includes('flightaware')) badges.push(providerLabels.flightaware)
+  return badges
+}
+
+function addProviderBadges(itineraries: ItineraryResult[], source: 'supabase' | 'aviationstack', enriched: boolean) {
+  return itineraries.map((itinerary) => ({
+    ...itinerary,
+    providerBadges: providerBadgesForSource(source, enriched || itinerary.source.includes('flightaware'))
+  }))
+}
+
+function safeProviderMessage(provider: string, status: number, fallback: string) {
+  if (status === 401 || status === 403) return `${provider} credentials rejected or endpoint not available for this key`
+  if (status === 404 || status === 405 || status === 410 || status === 501) return `${provider} endpoint unsupported or unavailable for this request`
+  if (status === 429) return `${provider} rate limit reached; skipped this provider safely`
+  if (status >= 500) return `${provider} service unavailable (${status}); skipped safely`
+  return fallback
+}
+
+async function readJsonSafely(response: Response) {
+  const text = await response.text()
+  if (!text) return null
+  try {
+    return JSON.parse(text)
+  } catch {
+    return null
+  }
+}
+
 async function fetchSupabaseFlights() {
   const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
   if (!supabaseUrl || !supabaseKey) {
-    return { flights: [] as FlightRecord[], warning: 'Supabase environment variables missing' }
+    return { flights: [] as FlightRecord[], warning: 'Supabase environment variables missing; skipped Supabase safely' }
   }
 
-  const response = await fetch(
-    `${supabaseUrl}/rest/v1/flights?select=*&order=created_at.desc&limit=300`,
-    {
-      headers: {
-        apikey: supabaseKey,
-        Authorization: `Bearer ${supabaseKey}`
-      },
-      cache: 'no-store'
-    }
-  )
-  const data = await response.json()
+  try {
+    const response = await fetch(
+      `${supabaseUrl}/rest/v1/flights?select=*&order=created_at.desc&limit=300`,
+      {
+        headers: {
+          apikey: supabaseKey,
+          Authorization: `Bearer ${supabaseKey}`
+        },
+        cache: 'no-store'
+      }
+    )
+    const data = await readJsonSafely(response)
 
-  if (!response.ok) {
+    if (!response.ok) {
+      return {
+        flights: [] as FlightRecord[],
+        warning: safeProviderMessage('Supabase', response.status, data?.message || data?.error || `Supabase flights request failed with ${response.status}`)
+      }
+    }
+
+    const flights = Array.isArray(data) ? data as FlightRecord[] : []
     return {
-      flights: [] as FlightRecord[],
-      warning: data?.message || data?.error || `Supabase flights request failed with ${response.status}`
+      flights,
+      warning: flights.length ? undefined : 'Supabase flights table returned no rows'
     }
+  } catch {
+    return { flights: [] as FlightRecord[], warning: 'Supabase flights request failed; skipped Supabase safely' }
   }
-
-  return { flights: Array.isArray(data) ? data as FlightRecord[] : [], warning: undefined }
 }
 
 async function enrichWithFlightAware(flights: FlightRecord[]) {
   const apiKey = process.env.FLIGHTAWARE_API_KEY
-  if (!apiKey) return { enrichments: {} as Record<string, FlightRecord>, warning: 'FlightAware API key missing; using current flight data only', status: 'not configured' }
+  if (!apiKey) {
+    return {
+      enrichments: {} as Record<string, FlightRecord>,
+      warning: 'FlightAware API key missing; enrichment skipped safely',
+      status: 'not configured'
+    }
+  }
 
   const enrichments: Record<string, FlightRecord> = {}
   const idents = [...new Set(flights.map(flightIdent).filter(Boolean))].slice(0, 8)
+  const warnings: string[] = []
 
   if (idents.length === 0) {
     return { enrichments, warning: undefined, status: 'no known flight numbers to enrich' }
@@ -123,16 +233,24 @@ async function enrichWithFlightAware(flights: FlightRecord[]) {
         headers: { 'x-apikey': apiKey },
         cache: 'no-store'
       })
-      const data = await response.json()
+      const data = await readJsonSafely(response)
       if (response.ok && Array.isArray(data?.flights) && data.flights[0]) {
         enrichments[ident] = data.flights[0]
+        return
+      }
+      if (!response.ok) {
+        warnings.push(safeProviderMessage('FlightAware', response.status, data?.error || data?.message || `FlightAware request failed with ${response.status}`))
       }
     } catch {
-      // Keep current source results if FlightAware enrichment fails for an individual flight.
+      warnings.push('FlightAware enrichment request failed; kept base provider results')
     }
   }))
 
-  return { enrichments, warning: undefined, status: `${Object.keys(enrichments).length} of ${idents.length} known flight numbers enriched` }
+  return {
+    enrichments,
+    warning: warnings.length ? uniqueMessages(warnings).join(' · ') : undefined,
+    status: `${Object.keys(enrichments).length} of ${idents.length} known flight numbers enriched`
+  }
 }
 
 async function fetchAviationstackFlights(request: ReturnType<typeof normalizeItineraryRequest>) {
@@ -140,7 +258,7 @@ async function fetchAviationstackFlights(request: ReturnType<typeof normalizeIti
   if (!apiKey) {
     return {
       flights: [] as FlightRecord[],
-      warning: 'Aviationstack API key missing; fallback search skipped'
+      warning: 'Aviationstack API key missing; fallback search skipped safely'
     }
   }
 
@@ -162,25 +280,28 @@ async function fetchAviationstackFlights(request: ReturnType<typeof normalizeIti
       const response = await fetch(`https://api.aviationstack.com/v1/flights?${params.toString()}`, {
         cache: 'no-store'
       })
-      const data = await response.json()
+      const data = await readJsonSafely(response)
 
       if (!response.ok || data?.error) {
-        const errorMessage = data?.error?.message || data?.error?.code || `Aviationstack request failed with ${response.status}`
-        warnings.push(errorMessage)
+        const status = response.status || 400
+        const rawMessage = data?.error?.message || data?.error?.code || `Aviationstack request failed with ${status}`
+        warnings.push(safeProviderMessage('Aviationstack', status, rawMessage))
         return
       }
 
       if (Array.isArray(data?.data)) {
         flights.push(...data.data.map(normalizeAviationstackFlight))
+      } else {
+        warnings.push('Aviationstack returned an unexpected payload; no fallback flights were used')
       }
     } catch {
-      warnings.push('Aviationstack request failed')
+      warnings.push('Aviationstack request failed; fallback provider skipped safely')
     }
   }))
 
   return {
     flights,
-    warning: warnings.length ? [...new Set(warnings)].join(' · ') : undefined
+    warning: warnings.length ? uniqueMessages(warnings).join(' · ') : undefined
   }
 }
 
@@ -211,25 +332,10 @@ function normalizeAviationstackFlight(flight: AviationstackFlight): FlightRecord
   }
 }
 
-function matchingFlightsForEnrichment(flights: FlightRecord[], request: ReturnType<typeof normalizeItineraryRequest>) {
-  return flights.filter((flight) => {
-    const origin = String(flight.origin || flight.origin_airport || flight.departure_airport || '').toUpperCase()
-    const destination = String(flight.destination || flight.destination_airport || flight.arrival_airport || '').toUpperCase()
-    const carrierText = `${flight.carrier || flight.airline || flight.operator || ''} ${flight.flight_number || flight.ident || ''}`.toLowerCase()
-    const originMatches = request.origin ? origin.includes(request.origin) : true
-    const destinationMatches = request.destination ? destination.includes(request.destination) : true
-    const carrierMatches = !request.carrier || request.carrier === 'all'
-      ? true
-      : carrierText.includes(request.carrier.toLowerCase()) || carrierText.includes(request.carrier.split('-')[0])
-    return originMatches && destinationMatches && carrierMatches
-  })
-}
-
-function sourceLabel(source: string, enriched: boolean) {
-  if (source === 'aviationstack-fallback') {
-    return enriched ? 'Aviationstack fallback + FlightAware enrichment' : 'Aviationstack fallback'
-  }
-  return enriched ? 'Supabase flights + FlightAware enrichment' : 'Supabase flights table'
+function sourceLabel(source: 'supabase' | 'aviationstack' | 'planning', enriched: boolean) {
+  if (source === 'planning') return providerLabels.planning
+  if (source === 'aviationstack') return enriched ? 'Aviationstack + FlightAware enriched' : providerLabels.aviationstack
+  return enriched ? 'Live Supabase + FlightAware enriched' : providerLabels.supabase
 }
 
 function buildDebugMetadata({
@@ -238,6 +344,7 @@ function buildDebugMetadata({
   aviationstackFallbackStatus,
   flightAwareEnrichmentStatus,
   finalItineraryCount,
+  providerStatuses,
   safeErrors
 }: {
   parsedRequest: ReturnType<typeof normalizeItineraryRequest>
@@ -245,8 +352,10 @@ function buildDebugMetadata({
   aviationstackFallbackStatus: string
   flightAwareEnrichmentStatus: string
   finalItineraryCount: number
+  providerStatuses: ProviderStatus[]
   safeErrors: string[]
 }): ItineraryDebugMetadata {
+  const mergedProviderStatuses = mergeProviderStatuses(providerStatuses)
   return {
     parsedOrigin: parsedRequest.origin,
     parsedDestination: parsedRequest.destination,
@@ -256,6 +365,8 @@ function buildDebugMetadata({
     aviationstackFallbackStatus,
     flightAwareEnrichmentStatus,
     finalItineraryCount,
+    providerExplanation: mergedProviderStatuses.map((status, index) => `${index + 1}. ${status.label}: ${status.detail}`),
+    providerStatuses: mergedProviderStatuses,
     safeErrors
   }
 }
@@ -264,35 +375,44 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const parsedRequest = normalizeItineraryRequest(searchParams)
   const warnings: string[] = []
-  const { flights, warning: supabaseWarning } = await fetchSupabaseFlights()
+
+  const { flights: supabaseFlights, warning: supabaseWarning } = await fetchSupabaseFlights()
   if (supabaseWarning) warnings.push(supabaseWarning)
 
-  const supabaseSeedFlights = matchingFlightsForEnrichment(flights, parsedRequest)
-  const { enrichments: supabaseEnrichments, warning: supabaseFlightAwareWarning, status: supabaseFlightAwareStatus } = await enrichWithFlightAware(supabaseSeedFlights.length ? supabaseSeedFlights : flights.slice(0, 8))
-  if (supabaseFlightAwareWarning) warnings.push(supabaseFlightAwareWarning)
-
-  const supabaseItineraries = buildItinerariesFromFlights(flights, parsedRequest, supabaseEnrichments)
+  const supabaseItineraries = buildItinerariesFromFlights(supabaseFlights, parsedRequest)
   if (supabaseItineraries.length > 0) {
-    const enriched = Object.keys(supabaseEnrichments).length > 0
+    const supabaseFlightsToEnrich = supabaseFlights.filter((flight) => flightMatchesRequest(flight, parsedRequest)).slice(0, 8)
+    const { enrichments, warning: flightAwareWarning, status: flightAwareStatus } = await enrichWithFlightAware(supabaseFlightsToEnrich)
+    if (flightAwareWarning) warnings.push(flightAwareWarning)
+    const enrichedItineraries = buildItinerariesFromFlights(supabaseFlights, parsedRequest, enrichments)
+    const enriched = Object.keys(enrichments).length > 0
+    const itineraries = addProviderBadges(enrichedItineraries.length ? enrichedItineraries : supabaseItineraries, 'supabase', enriched)
     const debug = buildDebugMetadata({
       parsedRequest,
       supabaseResultCount: supabaseItineraries.length,
       aviationstackFallbackStatus: 'not needed; Supabase returned matching flights',
-      flightAwareEnrichmentStatus: supabaseFlightAwareStatus,
-      finalItineraryCount: supabaseItineraries.length,
-      safeErrors: warnings
+      flightAwareEnrichmentStatus: flightAwareStatus,
+      finalItineraryCount: itineraries.length,
+      providerStatuses: [
+        providerStatus('supabase', 'success', `${supabaseItineraries.length} matching itinerary result${supabaseItineraries.length === 1 ? '' : 's'} found in the flights table.`),
+        providerStatus('aviationstack', 'skipped', 'Skipped because Supabase produced itinerary results.'),
+        providerStatus('flightaware', enriched ? 'success' : 'warning', flightAwareStatus),
+        providerStatus('planning', 'skipped', 'Skipped because live provider results are available.')
+      ],
+      safeErrors: uniqueMessages(warnings)
     })
     return NextResponse.json({
       ok: true,
       request: parsedRequest,
       source: 'supabase-flights-first',
-      sourceLabel: sourceLabel('supabase-flights-first', enriched),
-      statusMessage: `${supabaseItineraries.length} itinerary result${supabaseItineraries.length === 1 ? '' : 's'} found in Supabase flights.`,
+      sourceLabel: sourceLabel('supabase', enriched),
+      statusMessage: `${itineraries.length} itinerary result${itineraries.length === 1 ? '' : 's'} found in Supabase flights.`,
       enrichedWithFlightAware: enriched,
-      warnings,
+      providerBadges: enriched ? [providerLabels.supabase, providerLabels.flightaware] : [providerLabels.supabase],
+      warnings: uniqueMessages(warnings),
       debug,
-      count: supabaseItineraries.length,
-      itineraries: supabaseItineraries
+      count: itineraries.length,
+      itineraries
     })
   }
 
@@ -300,38 +420,76 @@ export async function GET(request: Request) {
   const { flights: aviationstackFlights, warning: aviationstackWarning } = await fetchAviationstackFlights(parsedRequest)
   if (aviationstackWarning) warnings.push(aviationstackWarning)
 
-  const { enrichments: aviationstackEnrichments, warning: aviationstackFlightAwareWarning, status: aviationstackFlightAwareStatus } = await enrichWithFlightAware(aviationstackFlights)
-  if (aviationstackFlightAwareWarning && !warnings.includes(aviationstackFlightAwareWarning)) warnings.push(aviationstackFlightAwareWarning)
+  const aviationstackItineraries = buildItinerariesFromFlights(aviationstackFlights, parsedRequest)
+  if (aviationstackItineraries.length > 0) {
+    const { enrichments, warning: flightAwareWarning, status: flightAwareStatus } = await enrichWithFlightAware(aviationstackFlights)
+    if (flightAwareWarning) warnings.push(flightAwareWarning)
+    const enrichedItineraries = buildItinerariesFromFlights(aviationstackFlights, parsedRequest, enrichments)
+    const enriched = Object.keys(enrichments).length > 0
+    const itineraries = addProviderBadges(enrichedItineraries.length ? enrichedItineraries : aviationstackItineraries, 'aviationstack', enriched)
+    const aviationstackFallbackStatus = `queried; ${aviationstackFlights.length} flight record${aviationstackFlights.length === 1 ? '' : 's'} returned`
+    const debug = buildDebugMetadata({
+      parsedRequest,
+      supabaseResultCount: 0,
+      aviationstackFallbackStatus,
+      flightAwareEnrichmentStatus: flightAwareStatus,
+      finalItineraryCount: itineraries.length,
+      providerStatuses: [
+        providerStatus('supabase', supabaseWarning ? 'warning' : 'skipped', supabaseWarning || 'No Supabase itineraries matched this request.'),
+        providerStatus('aviationstack', 'success', `${aviationstackItineraries.length} matching itinerary result${aviationstackItineraries.length === 1 ? '' : 's'} found through fallback.`),
+        providerStatus('flightaware', enriched ? 'success' : 'warning', flightAwareStatus),
+        providerStatus('planning', 'skipped', 'Skipped because Aviationstack produced itinerary results.')
+      ],
+      safeErrors: uniqueMessages(warnings)
+    })
 
-  const aviationstackItineraries = buildItinerariesFromFlights(aviationstackFlights, parsedRequest, aviationstackEnrichments)
-  const enriched = Object.keys(aviationstackEnrichments).length > 0
+    return NextResponse.json({
+      ok: true,
+      request: parsedRequest,
+      source: 'aviationstack-fallback',
+      sourceLabel: sourceLabel('aviationstack', enriched),
+      statusMessage: `${itineraries.length} itinerary result${itineraries.length === 1 ? '' : 's'} found through Aviationstack fallback.`,
+      enrichedWithFlightAware: enriched,
+      providerBadges: enriched ? [providerLabels.aviationstack, providerLabels.flightaware] : [providerLabels.aviationstack],
+      warnings: uniqueMessages(warnings),
+      debug,
+      count: itineraries.length,
+      itineraries
+    })
+  }
+
   const noResultsMessage = 'No live flights found for this search. Showing fallback planning guidance.'
   const aviationstackFallbackStatus = aviationstackFlights.length
-    ? `queried; ${aviationstackFlights.length} flight record${aviationstackFlights.length === 1 ? '' : 's'} returned`
+    ? `queried; ${aviationstackFlights.length} flight record${aviationstackFlights.length === 1 ? '' : 's'} returned but no itineraries matched`
     : aviationstackWarning ? 'queried; no usable flight records returned' : 'queried; no matching flights returned'
-  const finalWarnings = aviationstackItineraries.length ? warnings : [...warnings, noResultsMessage]
+  const finalWarnings = uniqueMessages([...warnings, noResultsMessage])
   const debug = buildDebugMetadata({
     parsedRequest,
     supabaseResultCount: 0,
     aviationstackFallbackStatus,
-    flightAwareEnrichmentStatus: aviationstackFlightAwareStatus,
-    finalItineraryCount: aviationstackItineraries.length,
+    flightAwareEnrichmentStatus: 'skipped; no known live flight numbers available to enrich',
+    finalItineraryCount: 0,
+    providerStatuses: [
+      providerStatus('supabase', supabaseWarning ? 'warning' : 'skipped', supabaseWarning || 'No Supabase itineraries matched this request.'),
+      providerStatus('aviationstack', aviationstackWarning ? 'warning' : 'skipped', aviationstackFallbackStatus),
+      providerStatus('flightaware', 'skipped', 'Skipped because neither Supabase nor Aviationstack returned known flight numbers.'),
+      providerStatus('planning', 'success', 'Placeholder planning fallback is active in the UI.')
+    ],
     safeErrors: finalWarnings
   })
 
   return NextResponse.json({
     ok: true,
     request: parsedRequest,
-    source: 'aviationstack-fallback',
-    sourceLabel: sourceLabel('aviationstack-fallback', enriched),
-    statusMessage: aviationstackItineraries.length
-      ? `${aviationstackItineraries.length} itinerary result${aviationstackItineraries.length === 1 ? '' : 's'} found through Aviationstack fallback.`
-      : noResultsMessage,
-    errorMessage: aviationstackItineraries.length ? undefined : noResultsMessage,
-    enrichedWithFlightAware: enriched,
+    source: 'planning-fallback',
+    sourceLabel: sourceLabel('planning', false),
+    statusMessage: noResultsMessage,
+    errorMessage: noResultsMessage,
+    enrichedWithFlightAware: false,
+    providerBadges: [providerLabels.planning],
     warnings: finalWarnings,
     debug,
-    count: aviationstackItineraries.length,
-    itineraries: aviationstackItineraries
+    count: 0,
+    itineraries: []
   })
 }

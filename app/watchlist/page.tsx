@@ -2,6 +2,18 @@
 
 import { type FormEvent, useEffect, useMemo, useState } from 'react'
 import { removeTripWatch, loadSavedTripWatchlist, saveTripWatch, type SavedTripWatch } from '../../lib/watchlist'
+import { loadSavedItineraryComparisons, type SavedItineraryComparison } from '../../lib/savedItineraryComparisons'
+import {
+  enabledTripAlertLabels,
+  getTripAlertPreference,
+  loadTripAlertPreferences,
+  removeTripAlertPreference,
+  saveTripAlertPreference,
+  tripAlertPreferenceOptions,
+  type TripAlertPreference,
+  type TripAlertPreferenceKey,
+  type TripAlertTargetType
+} from '../../lib/tripAlertPreferences'
 
 function metricColor(value: number) {
   if (value >= 80) return '#22c55e'
@@ -22,8 +34,37 @@ function routeEndpoints(route: string) {
   }
 }
 
+function AlertPreferenceChecklist({ preference, onToggle }: { preference: TripAlertPreference; onToggle: (key: TripAlertPreferenceKey, enabled: boolean) => void }) {
+  return (
+    <div style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#020617', marginTop: 14 }}>
+      <strong style={{ color: '#f472b6' }}>Alert preferences</strong>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 10, marginTop: 10 }}>
+        {tripAlertPreferenceOptions.map((option) => (
+          <label key={option.key} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', border: '1px solid #1e293b', borderRadius: 12, padding: 10, color: '#cbd5e1' }}>
+            <input
+              type="checkbox"
+              checked={preference.flags[option.key]}
+              onChange={(event) => onToggle(option.key, event.target.checked)}
+              style={{ marginTop: 3 }}
+            />
+            <span>
+              <span style={{ display: 'block', color: '#f8fafc', fontWeight: 'bold' }}>{option.label}</span>
+              <small style={{ color: '#94a3b8' }}>{option.description}</small>
+            </span>
+          </label>
+        ))}
+      </div>
+      <p style={{ color: '#94a3b8', marginBottom: 0 }}>
+        Enabled: {enabledTripAlertLabels(preference).join(', ') || 'No alerts enabled'} · Saved locally
+      </p>
+    </div>
+  )
+}
+
 export default function WatchlistPage() {
   const [watchlist, setWatchlist] = useState<SavedTripWatch[]>([])
+  const [savedItineraries, setSavedItineraries] = useState<SavedItineraryComparison[]>([])
+  const [alertPreferences, setAlertPreferences] = useState<TripAlertPreference[]>([])
   const [routeText, setRouteText] = useState('')
   const [travelDate, setTravelDate] = useState('')
   const [carrier, setCarrier] = useState('United')
@@ -32,13 +73,19 @@ export default function WatchlistPage() {
   useEffect(() => {
     function refreshWatchlist() {
       setWatchlist(loadSavedTripWatchlist())
+      setSavedItineraries(loadSavedItineraryComparisons())
+      setAlertPreferences(loadTripAlertPreferences())
     }
 
     refreshWatchlist()
     window.addEventListener('nonrevy-watchlist-updated', refreshWatchlist)
+    window.addEventListener('nonrevy-itinerary-comparisons-updated', refreshWatchlist)
+    window.addEventListener('nonrevy-trip-alert-preferences-updated', refreshWatchlist)
     window.addEventListener('storage', refreshWatchlist)
     return () => {
       window.removeEventListener('nonrevy-watchlist-updated', refreshWatchlist)
+      window.removeEventListener('nonrevy-itinerary-comparisons-updated', refreshWatchlist)
+      window.removeEventListener('nonrevy-trip-alert-preferences-updated', refreshWatchlist)
       window.removeEventListener('storage', refreshWatchlist)
     }
   }, [])
@@ -46,8 +93,9 @@ export default function WatchlistPage() {
   const summary = useMemo(() => {
     const averageScore = watchlist.length ? Math.round(watchlist.reduce((total, route) => total + route.score, 0) / watchlist.length) : 0
     const averageProbability = watchlist.length ? Math.round(watchlist.reduce((total, route) => total + route.successProbability, 0) / watchlist.length) : 0
-    return { averageScore, averageProbability }
-  }, [watchlist])
+    const enabledAlertCount = alertPreferences.reduce((total, preference) => total + Object.values(preference.flags).filter(Boolean).length, 0)
+    return { averageScore, averageProbability, enabledAlertCount }
+  }, [watchlist, alertPreferences])
 
   function addRoute(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -78,7 +126,29 @@ export default function WatchlistPage() {
 
   function removeWatch(id: string) {
     setWatchlist(removeTripWatch(id))
+    setAlertPreferences(removeTripAlertPreference(id, 'watched-route'))
     setSaveStatus('Removed watched route.')
+  }
+
+  function preferenceFor(targetId: string, targetType: TripAlertTargetType, targetLabel: string) {
+    return alertPreferences.find((preference) => preference.targetId === targetId && preference.targetType === targetType) || getTripAlertPreference(targetId, targetType, targetLabel)
+  }
+
+  function updatePreference(targetId: string, targetType: TripAlertTargetType, targetLabel: string, key: TripAlertPreferenceKey, enabled: boolean) {
+    const current = preferenceFor(targetId, targetType, targetLabel)
+    const savedPreference = saveTripAlertPreference({
+      ...current,
+      targetLabel,
+      flags: {
+        ...current.flags,
+        [key]: enabled
+      }
+    })
+
+    if (savedPreference) {
+      setAlertPreferences(loadTripAlertPreferences())
+      setSaveStatus(`Updated alert preferences for ${targetLabel}.`)
+    }
   }
 
   return (
@@ -103,7 +173,8 @@ export default function WatchlistPage() {
           {[
             ['Saved Routes', watchlist.length, '#38bdf8'],
             ['Avg Current Score', summary.averageScore, '#facc15'],
-            ['Avg Success Probability', `${summary.averageProbability}%`, '#22c55e']
+            ['Avg Success Probability', `${summary.averageProbability}%`, '#22c55e'],
+            ['Enabled Alerts', summary.enabledAlertCount, '#f472b6']
           ].map(([label, value, color]) => (
             <article key={label} className="mini-card" style={{ border: '1px solid #334155', borderRadius: 18, padding: 18, background: '#0f172a' }}>
               <strong style={{ color: String(color), fontSize: 32 }}>{value}</strong>
@@ -185,9 +256,45 @@ export default function WatchlistPage() {
                   </div>
                 ))}
               </div>
+              <AlertPreferenceChecklist
+                preference={preferenceFor(route.id, 'watched-route', `${route.origin} → ${route.destination}`)}
+                onToggle={(key, enabled) => updatePreference(route.id, 'watched-route', `${route.origin} → ${route.destination}`, key, enabled)}
+              />
             </article>
           ))}
         </div>
+
+        <section style={{ border: '1px solid #334155', borderRadius: 22, padding: 20, background: '#0f172a', marginTop: 28 }}>
+          <p style={{ color: '#f472b6', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1, marginTop: 0 }}>Saved itinerary alert preferences</p>
+          <h2 style={{ margin: '8px 0' }}>Alerts for saved itinerary comparisons</h2>
+          <p style={{ color: '#94a3b8' }}>
+            These preferences apply to itinerary options saved from /plan. They stay local until the realtime alert engine is connected.
+          </p>
+          {savedItineraries.length === 0 ? (
+            <article style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#020617' }}>
+              <p style={{ color: '#cbd5e1', margin: 0 }}>No saved itinerary comparisons yet. Save options from /plan to configure itinerary-specific alerts.</p>
+            </article>
+          ) : (
+            <div style={{ display: 'grid', gap: 14 }}>
+              {savedItineraries.map((itinerary) => (
+                <article key={itinerary.id} className="flight-card" style={{ background: '#020617', border: '1px solid #334155', borderRadius: 18, padding: 18 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                    <div>
+                      <strong style={{ color: '#c084fc', textTransform: 'uppercase', letterSpacing: 1 }}>{itinerary.sourceLabel}</strong>
+                      <h3 style={{ color: '#f8fafc', margin: '8px 0' }}>{itinerary.route}</h3>
+                      <p style={{ color: '#94a3b8', margin: 0 }}>{itinerary.carrier} · Score {itinerary.score} · Success {itinerary.successProbability}%</p>
+                    </div>
+                    <a href="/plan" style={{ color: '#38bdf8', fontWeight: 'bold' }}>Open planner</a>
+                  </div>
+                  <AlertPreferenceChecklist
+                    preference={preferenceFor(itinerary.id, 'saved-itinerary', itinerary.route)}
+                    onToggle={(key, enabled) => updatePreference(itinerary.id, 'saved-itinerary', itinerary.route, key, enabled)}
+                  />
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
       </section>
     </main>
   )

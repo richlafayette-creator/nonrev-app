@@ -11,6 +11,7 @@ import { historicalRouteStats, type HistoricalRoute } from '../../lib/historical
 import { loadLoadReports, type LoadReport } from '../../lib/loadReports'
 import { calculatePredictionEngine } from '../../lib/predictionEngine'
 import { buildDisruptionIntelligence, routeHealthColor, type DisruptionIntelligence } from '../../lib/disruptionIntelligence'
+import { calculateRouteConfidence, confidenceBadgeColor, confidenceTrendColor, type RouteConfidence } from '../../lib/routeConfidence'
 import { defaultTravelerProfile, loadTravelerProfileFromStorage, travelerProfileAssumptions, type TravelerProfileScaffold } from '../../lib/travelerProfile'
 import { loadTripOutcomes, type TripOutcome } from '../../lib/tripOutcomes'
 import { saveTripWatch } from '../../lib/watchlist'
@@ -139,6 +140,7 @@ type ItineraryComparison = {
   flightNumber: string
   isLive: boolean
   disruption: DisruptionIntelligence
+  routeConfidence: RouteConfidence
   why: string[]
   explanation: ScoringExplanation
 }
@@ -151,6 +153,7 @@ type ScoringExplanation = {
   travelerProfileFactors: string[]
   communityIntelligenceFactors: string[]
   disruptionFactors: string[]
+  confidenceFactors: string[]
   placeholderWeights: string[]
 }
 
@@ -176,6 +179,7 @@ type ScoringExplanationInput = {
   carrierWeights: Record<string, string>
   recommendationScope: string
   disruption: DisruptionIntelligence
+  routeConfidence: RouteConfidence
 }
 
 type FallbackItineraryResult = (typeof rankedItineraries)[number]
@@ -290,12 +294,18 @@ function buildScoringExplanation(input: ScoringExplanationInput): ScoringExplana
       `Disruption adjustment: ${input.disruption.successProbabilityImpact} points to success probability and ${input.disruption.routeRankingImpact} points to route ranking.`,
       ...input.disruption.explanation
     ],
+    confidenceFactors: [
+      `Route Confidence Score is ${input.routeConfidence.score}/100 with ${input.routeConfidence.badge} confidence and a ${input.routeConfidence.trend} trend.`,
+      `Confidence blend: success ${input.routeConfidence.components.successProbability}, historical ${input.routeConfidence.components.historicalRouteData}, community ${input.routeConfidence.components.communityLoadReports}, traveler profile ${input.routeConfidence.components.travelerProfile}, disruption ${input.routeConfidence.components.disruptionIntelligence}, weather ${input.routeConfidence.components.weatherImpact}.`,
+      ...input.routeConfidence.explanation
+    ],
     placeholderWeights: [
       'Live/source route score: about 24–52% depending on data source.',
       'Probability engine baseline: about 34–36% of success probability.',
       'Historical success and score: about 34% combined before adjustments.',
       'Community load reports: capped between -8 and +8 points.',
       'Flight disruption intelligence: delays, cancellations, diversions, and airport alerts can reduce probability and ranking after the base score.',
+      'Route confidence engine: success probability, historical route data, community reports, traveler profile, disruption, and weather are blended into a 0–100 confidence score.',
       'Connections: -4 points per connection in the recommendation comparison.'
     ]
   }
@@ -364,6 +374,17 @@ function buildLiveItineraryComparison(
   )
   const score = clampScore(itinerary.score * 0.52 + successProbability * 0.32 + historicalScore * 0.16 - connectionPenalty + disruption.routeRankingImpact)
   const riskLevel = riskFromProbability(successProbability, itinerary.risk)
+  const routeConfidence = calculateRouteConfidence({
+    route: itinerary.route,
+    successProbability,
+    historicalScore,
+    historicalSuccessRate: historicalSuccess,
+    historicalReportCount: historicalRoute?.reportCount || predictionEngine.sampleSize.historicalRouteReports,
+    communityReportCount: routeReports.length,
+    communityLoadAdjustment: loadAdjustment,
+    travelerProfile,
+    disruption
+  })
   const explanation = buildScoringExplanation({
     route: itinerary.route,
     carrier: itinerary.carrier,
@@ -385,7 +406,8 @@ function buildLiveItineraryComparison(
     routeIntelligence,
     carrierWeights,
     recommendationScope,
-    disruption
+    disruption,
+    routeConfidence
   })
 
   return {
@@ -400,8 +422,10 @@ function buildLiveItineraryComparison(
     flightNumber: itinerary.flightNumber,
     isLive: true,
     disruption,
+    routeConfidence,
     why: [
       `Blends live itinerary score ${itinerary.score}/100 with probability engine baseline ${predictionEngine.successProbability}%.`,
+      `Route confidence engine scores this option ${routeConfidence.score}/100 (${routeConfidence.badge}) with a ${routeConfidence.trend} trend.`,
       `Disruption intelligence adjusts this option by ${disruption.successProbabilityImpact} probability points and ${disruption.routeRankingImpact} ranking points; route health is ${disruption.routeHealth}.`,
       historicalRoute
         ? `Historical route match ${historicalRoute.route} contributes ${historicalRoute.successRate}% success and ${historicalRoute.reportCount} reports.`
@@ -456,6 +480,17 @@ function buildFallbackItineraryComparison(
   )
   const score = clampScore(itinerary.ranking.score * 0.5 + successProbability * 0.34 + historicalScore * 0.16 - connectionPenalty + disruption.routeRankingImpact)
   const riskLevel = riskFromProbability(successProbability, itinerary.confidence === 'Strong' ? 'Medium-Low' : 'Medium')
+  const routeConfidence = calculateRouteConfidence({
+    route: itinerary.route,
+    successProbability,
+    historicalScore,
+    historicalSuccessRate: historicalSuccess,
+    historicalReportCount: historicalRoute?.reportCount || predictionEngine.sampleSize.historicalRouteReports,
+    communityReportCount: routeReports.length,
+    communityLoadAdjustment: loadAdjustment,
+    travelerProfile,
+    disruption
+  })
   const explanation = buildScoringExplanation({
     route: itinerary.route,
     carrier: carrierLabel,
@@ -477,7 +512,8 @@ function buildFallbackItineraryComparison(
     routeIntelligence,
     carrierWeights,
     recommendationScope: carrierLabel,
-    disruption
+    disruption,
+    routeConfidence
   })
 
   return {
@@ -492,8 +528,10 @@ function buildFallbackItineraryComparison(
     flightNumber: itinerary.title,
     isLive: false,
     disruption,
+    routeConfidence,
     why: [
       `Combines fallback ranking ${itinerary.ranking.score}/100 with probability engine baseline ${predictionEngine.successProbability}%.`,
+      `Route confidence engine scores this option ${routeConfidence.score}/100 (${routeConfidence.badge}) with a ${routeConfidence.trend} trend.`,
       `Disruption intelligence adjusts this option by ${disruption.successProbabilityImpact} probability points and ${disruption.routeRankingImpact} ranking points; route health is ${disruption.routeHealth}.`,
       historicalRoute
         ? `Historical route match ${historicalRoute.route} contributes ${historicalRoute.successRate}% success and ${historicalRoute.reportCount} reports.`
@@ -523,6 +561,7 @@ function explanationSectionColor(label: string) {
   if (label.includes('Historical')) return '#facc15'
   if (label.includes('Traveler')) return '#34d399'
   if (label.includes('Community')) return '#22c55e'
+  if (label.includes('Confidence')) return '#38bdf8'
   if (label.includes('Backup')) return '#fb7185'
   return '#f8fafc'
 }
@@ -556,6 +595,7 @@ function ScoringExplanationDetails({ comparison, backup }: { comparison: Itinera
     ['Traveler profile factors', comparison.explanation.travelerProfileFactors],
     ['Community intelligence factors', comparison.explanation.communityIntelligenceFactors],
     ['Disruption intelligence factors', comparison.explanation.disruptionFactors],
+    ['Confidence explanation', comparison.explanation.confidenceFactors],
     ['Backup route reasoning', backupRouteReasoning(comparison, backup)],
     ['Placeholder weighting', comparison.explanation.placeholderWeights]
   ] as const
@@ -656,6 +696,66 @@ function DisruptionIntelligenceSection({ comparisons }: { comparisons: Itinerary
   )
 }
 
+function RouteConfidenceSection({ comparisons }: { comparisons: ItineraryComparison[] }) {
+  if (!comparisons.length) return null
+
+  const bestConfidence = [...comparisons].sort((a, b) => b.routeConfidence.score - a.routeConfidence.score)[0]
+  const averageConfidence = Math.round(comparisons.reduce((total, comparison) => total + comparison.routeConfidence.score, 0) / comparisons.length)
+  const trendSummary = comparisons.reduce<Record<string, number>>((totals, comparison) => {
+    totals[comparison.routeConfidence.trend] = (totals[comparison.routeConfidence.trend] || 0) + 1
+    return totals
+  }, {})
+
+  return (
+    <section style={{ border: '1px solid #38bdf8', borderRadius: 22, padding: 18, background: 'linear-gradient(135deg, rgba(14, 116, 144, 0.22), rgba(15, 23, 42, 0.96))', marginTop: 16 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+        <div>
+          <strong style={{ color: '#38bdf8', textTransform: 'uppercase', letterSpacing: 1 }}>Route Confidence Engine</strong>
+          <h3 style={{ fontSize: 26, margin: '8px 0' }}>Real-time confidence score</h3>
+          <p style={{ color: '#cbd5e1', margin: 0 }}>
+            Combines success probability, historical route data, community reports, traveler profile, disruption intelligence, and weather impact.
+          </p>
+        </div>
+        <span style={{ border: `1px solid ${confidenceBadgeColor(bestConfidence.routeConfidence.badge)}`, borderRadius: 999, color: confidenceBadgeColor(bestConfidence.routeConfidence.badge), padding: '8px 12px', fontWeight: 'bold' }}>
+          Best confidence: {bestConfidence.routeConfidence.score}/100 · {bestConfidence.routeConfidence.badge}
+        </span>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginTop: 14 }}>
+        {[
+          ['Avg Route Confidence', `${averageConfidence}/100`, averageConfidence >= 85 ? '#22c55e' : averageConfidence >= 72 ? '#38bdf8' : averageConfidence >= 58 ? '#facc15' : '#f87171'],
+          ['Top Badge', bestConfidence.routeConfidence.badge, confidenceBadgeColor(bestConfidence.routeConfidence.badge)],
+          ['Top Trend', bestConfidence.routeConfidence.trend, confidenceTrendColor(bestConfidence.routeConfidence.trend)],
+          ['Weather Impact', bestConfidence.routeConfidence.weatherImpact.label, bestConfidence.routeConfidence.weatherImpact.scoreImpact >= 15 ? '#facc15' : '#22c55e']
+        ].map(([label, value, color]) => (
+          <article key={label} style={{ border: '1px solid #334155', borderRadius: 14, padding: 12, background: '#020617' }}>
+            <small style={{ color: '#94a3b8' }}>{label}</small>
+            <h4 style={{ color: String(color), margin: '6px 0 0', fontSize: 22 }}>{value}</h4>
+          </article>
+        ))}
+      </div>
+
+      <details open style={{ border: '1px solid #334155', borderRadius: 16, padding: 14, background: '#020617', marginTop: 14 }}>
+        <summary style={{ color: '#38bdf8', cursor: 'pointer', fontWeight: 'bold' }}>Confidence explanation</summary>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 12, marginTop: 12 }}>
+          {comparisons.map((comparison) => (
+            <article key={`confidence-${comparison.id}`} style={{ border: '1px solid #1e293b', borderRadius: 14, padding: 12, background: '#0f172a' }}>
+              <strong style={{ color: confidenceBadgeColor(comparison.routeConfidence.badge) }}>{comparison.route} · {comparison.routeConfidence.score}/100 · {comparison.routeConfidence.badge}</strong>
+              <p style={{ color: confidenceTrendColor(comparison.routeConfidence.trend), margin: '8px 0' }}>
+                Trend: {comparison.routeConfidence.trend}{comparison.routeConfidence.trendDelta ? ` (${comparison.routeConfidence.trendDelta > 0 ? '+' : ''}${comparison.routeConfidence.trendDelta})` : ''}
+              </p>
+              <ul style={{ color: '#cbd5e1', paddingLeft: 20, margin: '8px 0' }}>
+                {comparison.routeConfidence.explanation.map((item) => <li key={item}>{item}</li>)}
+              </ul>
+            </article>
+          ))}
+        </div>
+        <p style={{ color: '#94a3b8', marginBottom: 0 }}>Trend mix: {Object.entries(trendSummary).map(([label, count]) => `${label} ${count}`).join(' · ')}</p>
+      </details>
+    </section>
+  )
+}
+
 function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: ItineraryComparison[]; travelDate: string }) {
   const [watchStatus, setWatchStatus] = useState('')
   const [compareStatus, setCompareStatus] = useState('')
@@ -684,6 +784,9 @@ function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: It
       selectedItinerary: comparison.route,
       score: comparison.score,
       successProbability: comparison.successProbability,
+      routeConfidenceScore: comparison.routeConfidence.score,
+      confidenceBadge: comparison.routeConfidence.badge,
+      confidenceTrend: comparison.routeConfidence.trend,
       riskLevel: comparison.riskLevel,
       connections: comparison.connections,
       totalTravelTime: comparison.totalTravelTime
@@ -701,6 +804,9 @@ function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: It
       carrier: comparison.carrier,
       score: comparison.score,
       successProbability: comparison.successProbability,
+      routeConfidenceScore: comparison.routeConfidence.score,
+      confidenceBadge: comparison.routeConfidence.badge,
+      confidenceTrend: comparison.routeConfidence.trend,
       riskLevel: comparison.riskLevel,
       connections: comparison.connections,
       totalTravelTime: comparison.totalTravelTime,
@@ -732,7 +838,7 @@ function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: It
           <strong style={{ color: '#38bdf8', textTransform: 'uppercase', letterSpacing: 1 }}>Itinerary comparison engine</strong>
           <h3 style={{ fontSize: 28, margin: '8px 0' }}>Top 3 recommended itineraries</h3>
           <p style={{ color: '#94a3b8', marginTop: 0 }}>
-            Ranked with traveler profile, route intelligence, historical routes, community load reports, saved outcomes, and the probability engine.
+            Ranked with traveler profile, route intelligence, historical routes, community load reports, saved outcomes, disruption intelligence, weather impact, and the route confidence engine.
           </p>
         </div>
         <span style={{ border: '1px solid #22c55e', borderRadius: 999, color: '#22c55e', padding: '8px 12px', fontWeight: 'bold' }}>
@@ -743,6 +849,7 @@ function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: It
       {watchStatus && <p style={{ color: '#22c55e', fontWeight: 'bold' }}>{watchStatus} <a href="/watchlist" style={{ color: '#38bdf8' }}>Open watchlist</a></p>}
       {compareStatus && <p style={{ color: '#c084fc', fontWeight: 'bold' }}>{compareStatus}</p>}
 
+      <RouteConfidenceSection comparisons={comparisons} />
       <DisruptionIntelligenceSection comparisons={comparisons} />
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14, marginTop: 16 }}>
@@ -777,6 +884,8 @@ function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: It
                 {[
                   ['Score', comparison.score, comparisonMetricColor(comparison.score)],
                   ['Success Probability', `${comparison.successProbability}%`, comparisonMetricColor(comparison.successProbability)],
+                  ['Route Confidence', `${comparison.routeConfidence.score}/100 · ${comparison.routeConfidence.badge}`, confidenceBadgeColor(comparison.routeConfidence.badge)],
+                  ['Confidence Trend', comparison.routeConfidence.trend, confidenceTrendColor(comparison.routeConfidence.trend)],
                   ['Risk Level', comparison.riskLevel, riskColor(comparison.riskLevel)],
                   ['Route Health', comparison.disruption.routeHealth, routeHealthColor(comparison.disruption.routeHealth)],
                   ['Disruption Impact', `${comparison.disruption.disruptionImpactScore}/99`, routeHealthColor(comparison.disruption.routeHealth)],
@@ -849,6 +958,8 @@ function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: It
                   {[
                     ['Score', item.score, comparisonMetricColor(item.score)],
                     ['Success Probability', `${item.successProbability}%`, comparisonMetricColor(item.successProbability)],
+                    ['Route Confidence', item.routeConfidenceScore ? `${item.routeConfidenceScore}/100 · ${item.confidenceBadge || 'Fair'}` : 'Pending confidence', item.routeConfidenceScore ? comparisonMetricColor(item.routeConfidenceScore) : '#94a3b8'],
+                    ['Confidence Trend', item.confidenceTrend || 'Pending', item.confidenceTrend ? confidenceTrendColor(item.confidenceTrend as any) : '#94a3b8'],
                     ['Risk', item.riskLevel, riskColor(item.riskLevel)],
                     ['Connections', item.connections, item.connections === 0 ? '#22c55e' : '#facc15'],
                     ['Total Travel Time', item.totalTravelTime, '#38bdf8']
@@ -1070,7 +1181,7 @@ export default function PlanPage() {
       ))
 
     return comparisons
-      .sort((a, b) => b.score - a.score || b.successProbability - a.successProbability)
+      .sort((a, b) => b.routeConfidence.score - a.routeConfidence.score || b.score - a.score || b.successProbability - a.successProbability)
       .slice(0, 3)
   }, [liveItineraries, predictionEngine, historicalStats.routes, loadReports, outcomes, travelerProfile, scoringScaffold.routeIntelligence, scoringScaffold.weights, scoringScaffold.recommendationScope])
 

@@ -6,6 +6,9 @@ export type SavedItineraryComparison = {
   carrier: string
   score: number
   successProbability: number
+  routeConfidenceScore?: number
+  confidenceBadge?: string
+  confidenceTrend?: string
   riskLevel: string
   connections: number
   totalTravelTime: string

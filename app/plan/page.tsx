@@ -248,7 +248,7 @@ function buildScoringExplanation(input: ScoringExplanationInput): ScoringExplana
       `Risk label ${input.riskLevel} is carried into ranking as a tie-breaker and display signal.`
     ],
     probabilityFactors: [
-      `Probability engine baseline starts at ${input.predictionEngine.successProbability}% with ${input.predictionEngine.confidenceLevel} confidence.`,
+      `Probability engine baseline starts at ${input.predictionEngine.successProbability}% with ${input.predictionEngine.confidencePercent}% confidence.`,
       `Current formula blends baseline probability, source route score, historical success ${input.historicalSuccess}%, historical score ${input.historicalScore}, community load adjustment ${input.loadAdjustment >= 0 ? '+' : ''}${input.loadAdjustment.toFixed(1)}, outcome calibration, and connection penalty.`,
       `Prediction summary: carrier base ${input.predictionEngine.inputSummary.carrierDefaultProbability}%, route risk ${input.predictionEngine.inputSummary.routeRisk}, community report count ${input.predictionEngine.inputSummary.communityReportCount}, outcome success ${input.predictionEngine.inputSummary.outcomeSuccessRate}%.`
     ],
@@ -1315,9 +1315,9 @@ export default function PlanPage() {
             ))}
           </div>
           <section style={{ border: '1px solid #334155', borderRadius: 16, padding: 14, background: '#020617', marginTop: 14 }}>
-            <strong style={{ color: '#38bdf8' }}>Success Probability</strong>
+            <strong style={{ color: '#38bdf8' }}>Community-weighted Success Probability</strong>
             <p style={{ color: '#94a3b8' }}>
-              Prediction engine scaffold blended from traveler profile, carrier scoring, route intelligence, historical route stats, community load reports, and outcome history for {scoringScaffold.recommendationScope}.
+              Prediction engine scaffold blended from Outcome History, Community Load Reports, Historical Route Database, Reputation/Trust Scores, and Traveler Profile for {scoringScaffold.recommendationScope}.
             </p>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
               <article style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#0f172a' }}>
@@ -1325,16 +1325,76 @@ export default function PlanPage() {
                 <h3 style={{ color: '#f8fafc', margin: '6px 0 0' }}>{predictionEngine.successProbability}%</h3>
               </article>
               <article style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#0f172a' }}>
-                <small style={{ color: '#94a3b8' }}>Confidence level</small>
-                <h3 style={{ color: '#f8fafc', margin: '6px 0 0' }}>{predictionEngine.confidenceLevel}</h3>
+                <small style={{ color: '#94a3b8' }}>Confidence %</small>
+                <h3 style={{ color: '#f8fafc', margin: '6px 0 0' }}>{predictionEngine.confidencePercent}%</h3>
+                <p style={{ color: '#94a3b8', margin: '4px 0 0' }}>{predictionEngine.confidenceLevel}</p>
               </article>
               <article style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#0f172a' }}>
                 <small style={{ color: '#94a3b8' }}>Risk category</small>
                 <h3 style={{ color: '#f8fafc', margin: '6px 0 0' }}>{predictionEngine.riskCategory}</h3>
               </article>
+              <article style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#0f172a' }}>
+                <small style={{ color: '#94a3b8' }}>Sample Size</small>
+                <h3 style={{ color: '#f8fafc', margin: '6px 0 0' }}>{predictionEngine.sampleSize.total}</h3>
+                <p style={{ color: '#94a3b8', margin: '4px 0 0' }}>{predictionEngine.sampleSize.weightedCommunitySample} weighted community units</p>
+              </article>
             </div>
             <div style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#0f172a', marginTop: 14 }}>
-              <strong style={{ color: '#facc15' }}>Explanation bullets</strong>
+              <strong style={{ color: '#f472b6' }}>Why we believe this</strong>
+              <ul style={{ color: '#cbd5e1', marginBottom: 0, paddingLeft: 20 }}>
+                {predictionEngine.whyWeBelieveThis.map((reason) => (
+                  <li key={reason}>{reason}</li>
+                ))}
+              </ul>
+            </div>
+            <div style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#0f172a', marginTop: 14 }}>
+              <strong style={{ color: '#c084fc' }}>Data Sources Used</strong>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12, marginTop: 12 }}>
+                {predictionEngine.dataSourcesUsed.map((source) => (
+                  <article key={source.label} style={{ border: `1px solid ${source.used ? '#22c55e' : '#334155'}`, borderRadius: 14, padding: 14, background: '#020617' }}>
+                    <small style={{ color: source.used ? '#86efac' : '#94a3b8' }}>{source.used ? 'Used' : 'Pending'}</small>
+                    <h3 style={{ color: '#f8fafc', margin: '6px 0' }}>{source.label}</h3>
+                    <p style={{ color: '#94a3b8', margin: '0 0 6px' }}>Sample size: {source.sampleSize}</p>
+                    <p style={{ color: '#cbd5e1', margin: 0 }}>{source.impact}</p>
+                  </article>
+                ))}
+              </div>
+            </div>
+            <div style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#0f172a', marginTop: 14 }}>
+              <strong style={{ color: '#facc15' }}>Placeholder weighting formula</strong>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10, marginTop: 12 }}>
+                {predictionEngine.placeholderWeights.map((weight) => (
+                  <article key={weight.label} style={{ border: '1px solid #334155', borderRadius: 12, padding: 12, background: '#020617' }}>
+                    <small style={{ color: '#94a3b8' }}>{weight.label}</small>
+                    <h3 style={{ color: '#f8fafc', margin: '6px 0 0' }}>{weight.value}</h3>
+                  </article>
+                ))}
+              </div>
+            </div>
+            <div style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#0f172a', marginTop: 14 }}>
+              <strong style={{ color: '#34d399' }}>Community contribution impact</strong>
+              <p style={{ color: '#cbd5e1' }}>{predictionEngine.communityContributionImpact.summary}</p>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10 }}>
+                {[
+                  ['New contributors', predictionEngine.communityContributionImpact.newContributorReports],
+                  ['Trusted contributors', predictionEngine.communityContributionImpact.trustedContributorReports],
+                  ['Elite contributors', predictionEngine.communityContributionImpact.eliteContributorReports],
+                  ['Avg contributor trust', predictionEngine.communityContributionImpact.averageContributorTrustScore],
+                  ['Weighted report signal', predictionEngine.communityContributionImpact.weightedReportSignal],
+                  ['Your trust score', `${predictionEngine.communityContributionImpact.currentUserTrustScore}/100`]
+                ].map(([label, value]) => (
+                  <article key={label} style={{ border: '1px solid #334155', borderRadius: 12, padding: 12, background: '#020617' }}>
+                    <small style={{ color: '#94a3b8' }}>{label}</small>
+                    <h3 style={{ color: '#f8fafc', margin: '6px 0 0' }}>{value}</h3>
+                  </article>
+                ))}
+              </div>
+              <p style={{ color: '#94a3b8', marginBottom: 0 }}>
+                Current contributor level: {predictionEngine.communityContributionImpact.currentUserContributionLevel}. Trusted reports intentionally move the probability more than new-contributor reports in this scaffold.
+              </p>
+            </div>
+            <div style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#0f172a', marginTop: 14 }}>
+              <strong style={{ color: '#facc15' }}>Calculation explanation</strong>
               <ul style={{ color: '#cbd5e1', marginBottom: 0, paddingLeft: 20 }}>
                 {predictionEngine.explanationBullets.map((bullet) => (
                   <li key={bullet}>{bullet}</li>
@@ -1346,7 +1406,8 @@ export default function PlanPage() {
                 ['Carrier base', `${predictionEngine.inputSummary.carrierDefaultProbability}%`],
                 ['Route risk', predictionEngine.inputSummary.routeRisk],
                 ['Load reports', predictionEngine.inputSummary.communityReportCount],
-                ['Outcome rate', `${predictionEngine.inputSummary.outcomeSuccessRate}%`]
+                ['Outcome rate', `${predictionEngine.inputSummary.outcomeSuccessRate}%`],
+                ['Trust score', `${predictionEngine.inputSummary.trustScore}/100`]
               ].map(([label, value]) => (
                 <article key={label} style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#0f172a' }}>
                   <small style={{ color: '#94a3b8' }}>{label}</small>

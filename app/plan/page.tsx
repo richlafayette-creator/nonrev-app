@@ -10,7 +10,7 @@ import { carrierScoringProfiles, getCarrierScoringScaffold, normalizeCarrierFami
 import { historicalRouteStats, type HistoricalRoute } from '../../lib/historicalRoutes'
 import { loadLoadReports, type LoadReport } from '../../lib/loadReports'
 import { calculatePredictionEngine } from '../../lib/predictionEngine'
-import { defaultTravelerProfile, loadTravelerProfileFromStorage } from '../../lib/travelerProfile'
+import { defaultTravelerProfile, loadTravelerProfileFromStorage, travelerProfileAssumptions, type TravelerProfileScaffold } from '../../lib/travelerProfile'
 import { loadTripOutcomes, type TripOutcome } from '../../lib/tripOutcomes'
 import { saveTripWatch } from '../../lib/watchlist'
 import {
@@ -134,6 +134,40 @@ type ItineraryComparison = {
   flightNumber: string
   isLive: boolean
   why: string[]
+  explanation: ScoringExplanation
+}
+
+type ScoringExplanation = {
+  whyRankedHere: string[]
+  probabilityFactors: string[]
+  carrierFactors: string[]
+  historicalRouteFactors: string[]
+  travelerProfileFactors: string[]
+  communityIntelligenceFactors: string[]
+  placeholderWeights: string[]
+}
+
+type ScoringExplanationInput = {
+  route: string
+  carrier: string
+  score: number
+  successProbability: number
+  riskLevel: string
+  connections: number
+  isLive: boolean
+  sourceScore: number
+  predictionEngine: ReturnType<typeof calculatePredictionEngine>
+  historicalRoute?: HistoricalRoute
+  historicalScore: number
+  historicalSuccess: number
+  routeReports: LoadReport[]
+  routeOutcomes: TripOutcome[]
+  outcomeRate: number | null
+  loadAdjustment: number
+  travelerProfile: TravelerProfileScaffold
+  routeIntelligence: Record<string, string>
+  carrierWeights: Record<string, string>
+  recommendationScope: string
 }
 
 type FallbackItineraryResult = (typeof rankedItineraries)[number]
@@ -194,6 +228,65 @@ function riskFromProbability(probability: number, fallbackRisk: string) {
   return 'High'
 }
 
+function buildScoringExplanation(input: ScoringExplanationInput): ScoringExplanation {
+  const carrierWeightSummary = Object.entries(input.carrierWeights).map(([label, weight]) => `${label} ${weight}`).join(' · ')
+  const routeIntelligenceSummary = Object.entries(input.routeIntelligence)
+    .map(([label, value]) => `${label}: ${value}`)
+    .join(' · ')
+  const travelerFactors = travelerProfileAssumptions(input.travelerProfile)
+  const loadDirection = input.loadAdjustment > 0 ? 'positive' : input.loadAdjustment < 0 ? 'negative' : 'neutral'
+
+  return {
+    whyRankedHere: [
+      `Rank is driven by composite score ${input.score}/100 and success probability ${input.successProbability}%, then sorted against the other itinerary recommendations.`,
+      input.isLive
+        ? `Live itinerary score ${input.sourceScore}/100 receives extra weight because it reflects current flight data for ${input.route}.`
+        : `Planning scaffold rank ${input.sourceScore}/100 is used when no live matching itinerary is available.`,
+      input.connections === 0
+        ? 'Nonstop routing avoids connection failure points, so no connection penalty is applied.'
+        : `${input.connections} connection${input.connections === 1 ? '' : 's'} adds a placeholder connection-risk penalty before ranking.`,
+      `Risk label ${input.riskLevel} is carried into ranking as a tie-breaker and display signal.`
+    ],
+    probabilityFactors: [
+      `Probability engine baseline starts at ${input.predictionEngine.successProbability}% with ${input.predictionEngine.confidenceLevel} confidence.`,
+      `Current formula blends baseline probability, source route score, historical success ${input.historicalSuccess}%, historical score ${input.historicalScore}, community load adjustment ${input.loadAdjustment >= 0 ? '+' : ''}${input.loadAdjustment.toFixed(1)}, outcome calibration, and connection penalty.`,
+      `Prediction summary: carrier base ${input.predictionEngine.inputSummary.carrierDefaultProbability}%, route risk ${input.predictionEngine.inputSummary.routeRisk}, community report count ${input.predictionEngine.inputSummary.communityReportCount}, outcome success ${input.predictionEngine.inputSummary.outcomeSuccessRate}%.`
+    ],
+    carrierFactors: [
+      `Carrier scope is ${input.recommendationScope}; this card is labeled ${input.carrier}.`,
+      `Placeholder weighting: ${carrierWeightSummary}.`,
+      `Route intelligence applied: ${routeIntelligenceSummary}.`
+    ],
+    historicalRouteFactors: [
+      input.historicalRoute
+        ? `Matched historical route ${input.historicalRoute.route} with ${input.historicalRoute.successRate}% success, score ${input.historicalRoute.score}, and ${input.historicalRoute.reportCount} reports.`
+        : `No exact historical route match for ${input.route}; using carrier historical averages instead.`,
+      `Historical averages feeding the engine: score ${input.predictionEngine.inputSummary.historicalAverageScore}, success ${input.predictionEngine.inputSummary.historicalSuccessRate}%.`
+    ],
+    travelerProfileFactors: [
+      `Traveler profile: ${input.travelerProfile.travelerType} at ${input.travelerProfile.passPriority} from ${input.travelerProfile.homeAirport}.`,
+      `Employee airline ${input.travelerProfile.employeeAirline}; preferred airports ${input.travelerProfile.preferredAirports.join(', ') || 'not set'}.`,
+      ...travelerFactors
+    ],
+    communityIntelligenceFactors: [
+      input.routeReports.length
+        ? `${input.routeReports.length} matching community load report${input.routeReports.length === 1 ? '' : 's'} create a ${loadDirection} ${input.loadAdjustment >= 0 ? '+' : ''}${input.loadAdjustment.toFixed(1)} point load signal.`
+        : 'No matching community load reports yet; route keeps the neutral community-load assumption.',
+      input.routeOutcomes.length
+        ? `${input.routeOutcomes.length} saved outcome${input.routeOutcomes.length === 1 ? '' : 's'} calibrate this route at ${input.outcomeRate}% success.`
+        : 'No saved outcomes for this exact route yet; community outcome calibration remains neutral.',
+      'Community intelligence remains local/static in this scaffold and is ready for future realtime load/outcome signals.'
+    ],
+    placeholderWeights: [
+      'Live/source route score: about 24–52% depending on data source.',
+      'Probability engine baseline: about 34–36% of success probability.',
+      'Historical success and score: about 34% combined before adjustments.',
+      'Community load reports: capped between -8 and +8 points.',
+      'Connections: -4 points per connection in the recommendation comparison.'
+    ]
+  }
+}
+
 function parseScheduleTime(value: string) {
   const time = Date.parse(value)
   return Number.isFinite(time) ? time : null
@@ -223,7 +316,11 @@ function buildLiveItineraryComparison(
   predictionEngine: ReturnType<typeof calculatePredictionEngine>,
   historicalRoutes: HistoricalRoute[],
   loadReports: LoadReport[],
-  outcomes: TripOutcome[]
+  outcomes: TripOutcome[],
+  travelerProfile: TravelerProfileScaffold,
+  routeIntelligence: Record<string, string>,
+  carrierWeights: Record<string, string>,
+  recommendationScope: string
 ): ItineraryComparison {
   const historicalRoute = matchingHistoricalRoute(itinerary.route, historicalRoutes)
   const routeReports = matchingRouteLoadReports(itinerary.route, loadReports)
@@ -245,6 +342,29 @@ function buildLiveItineraryComparison(
     connectionPenalty
   )
   const score = clampScore(itinerary.score * 0.52 + successProbability * 0.32 + historicalScore * 0.16 - connectionPenalty)
+  const riskLevel = riskFromProbability(successProbability, itinerary.risk)
+  const explanation = buildScoringExplanation({
+    route: itinerary.route,
+    carrier: itinerary.carrier,
+    score,
+    successProbability,
+    riskLevel,
+    connections,
+    isLive: true,
+    sourceScore: itinerary.score,
+    predictionEngine,
+    historicalRoute,
+    historicalScore,
+    historicalSuccess,
+    routeReports,
+    routeOutcomes,
+    outcomeRate,
+    loadAdjustment,
+    travelerProfile,
+    routeIntelligence,
+    carrierWeights,
+    recommendationScope
+  })
 
   return {
     id: `live-${itinerary.id}`,
@@ -252,7 +372,7 @@ function buildLiveItineraryComparison(
     carrier: itinerary.carrier,
     score,
     successProbability,
-    riskLevel: riskFromProbability(successProbability, itinerary.risk),
+    riskLevel,
     connections,
     totalTravelTime: totalTravelTimeFromItinerary(itinerary),
     flightNumber: itinerary.flightNumber,
@@ -269,7 +389,8 @@ function buildLiveItineraryComparison(
         ? `${routeOutcomes.length} saved outcome${routeOutcomes.length === 1 ? '' : 's'} calibrate this route at ${outcomeRate}% success.`
         : 'No saved outcomes for this exact route yet; traveler profile and historical signals carry more weight.',
       connections === 0 ? 'Nonstop option avoids connection risk.' : `${connections} connection${connections === 1 ? '' : 's'} adds a controlled recovery-risk penalty.`
-    ]
+    ],
+    explanation
   }
 }
 
@@ -279,7 +400,10 @@ function buildFallbackItineraryComparison(
   historicalRoutes: HistoricalRoute[],
   loadReports: LoadReport[],
   outcomes: TripOutcome[],
-  carrierLabel: string
+  carrierLabel: string,
+  travelerProfile: TravelerProfileScaffold,
+  routeIntelligence: Record<string, string>,
+  carrierWeights: Record<string, string>
 ): ItineraryComparison {
   const historicalRoute = matchingHistoricalRoute(itinerary.route, historicalRoutes)
   const routeReports = matchingRouteLoadReports(itinerary.route, loadReports)
@@ -302,6 +426,29 @@ function buildFallbackItineraryComparison(
     connectionPenalty
   )
   const score = clampScore(itinerary.ranking.score * 0.5 + successProbability * 0.34 + historicalScore * 0.16 - connectionPenalty)
+  const riskLevel = riskFromProbability(successProbability, itinerary.confidence === 'Strong' ? 'Medium-Low' : 'Medium')
+  const explanation = buildScoringExplanation({
+    route: itinerary.route,
+    carrier: carrierLabel,
+    score,
+    successProbability,
+    riskLevel,
+    connections,
+    isLive: false,
+    sourceScore: itinerary.ranking.score,
+    predictionEngine,
+    historicalRoute,
+    historicalScore,
+    historicalSuccess,
+    routeReports,
+    routeOutcomes,
+    outcomeRate,
+    loadAdjustment,
+    travelerProfile,
+    routeIntelligence,
+    carrierWeights,
+    recommendationScope: carrierLabel
+  })
 
   return {
     id: `fallback-${itinerary.id}`,
@@ -309,7 +456,7 @@ function buildFallbackItineraryComparison(
     carrier: carrierLabel,
     score,
     successProbability,
-    riskLevel: riskFromProbability(successProbability, itinerary.confidence === 'Strong' ? 'Medium-Low' : 'Medium'),
+    riskLevel,
     connections,
     totalTravelTime: fallbackTravelTimeEstimate(itinerary),
     flightNumber: itinerary.title,
@@ -326,7 +473,8 @@ function buildFallbackItineraryComparison(
         ? `${routeOutcomes.length} saved outcome${routeOutcomes.length === 1 ? '' : 's'} calibrate this route at ${outcomeRate}% success.`
         : 'No saved route outcomes yet; traveler profile and route intelligence remain the main signals.',
       connections === 0 ? 'Nonstop shape keeps connection risk low.' : `${connections} connection${connections === 1 ? '' : 's'} creates backup flexibility but adds transfer risk.`
-    ]
+    ],
+    explanation
   }
 }
 
@@ -335,6 +483,65 @@ function comparisonMetricColor(value: number) {
   if (value >= 70) return '#38bdf8'
   if (value >= 60) return '#facc15'
   return '#f87171'
+}
+
+function explanationSectionColor(label: string) {
+  if (label.includes('Probability')) return '#38bdf8'
+  if (label.includes('Carrier')) return '#c084fc'
+  if (label.includes('Historical')) return '#facc15'
+  if (label.includes('Traveler')) return '#34d399'
+  if (label.includes('Community')) return '#22c55e'
+  if (label.includes('Backup')) return '#fb7185'
+  return '#f8fafc'
+}
+
+function backupRouteReasoning(comparison: ItineraryComparison, backup?: ItineraryComparison) {
+  if (!backup) {
+    return [
+      'No lower-ranked backup is available in the current recommendation set; add broader carrier scope or more legs to create fallback choices.',
+      'Use the watched-route and saved-comparison tools to preserve this option while you search alternates.'
+    ]
+  }
+
+  const scoreGap = comparison.score - backup.score
+  return [
+    `${backup.route} is the current backup because it ranks next after ${comparison.route} with score ${backup.score}/100 and ${backup.successProbability}% success probability.`,
+    scoreGap >= 0
+      ? `Primary route leads by ${scoreGap} point${scoreGap === 1 ? '' : 's'}, so the backup should be monitored if loads tighten or delays appear.`
+      : `Backup currently scores higher on one signal, but this card remains ordered by the blended recommendation sort.`,
+    backup.connections > comparison.connections
+      ? `Backup adds connection complexity (${backup.connections} vs ${comparison.connections}), trading probability recovery for transfer risk.`
+      : `Backup has equal or lower connection complexity, making it a practical same-day recovery candidate.`
+  ]
+}
+
+function ScoringExplanationDetails({ comparison, backup }: { comparison: ItineraryComparison; backup?: ItineraryComparison }) {
+  const sections = [
+    ['Why this route ranked here', comparison.explanation.whyRankedHere],
+    ['Probability factors', comparison.explanation.probabilityFactors],
+    ['Carrier factors', comparison.explanation.carrierFactors],
+    ['Historical route factors', comparison.explanation.historicalRouteFactors],
+    ['Traveler profile factors', comparison.explanation.travelerProfileFactors],
+    ['Community intelligence factors', comparison.explanation.communityIntelligenceFactors],
+    ['Backup route reasoning', backupRouteReasoning(comparison, backup)],
+    ['Placeholder weighting', comparison.explanation.placeholderWeights]
+  ] as const
+
+  return (
+    <details open style={{ marginTop: 14, border: '1px solid #334155', borderRadius: 14, padding: 12, background: '#020617' }}>
+      <summary style={{ color: '#facc15', cursor: 'pointer', fontWeight: 'bold' }}>Why this route?</summary>
+      <div style={{ display: 'grid', gap: 10, marginTop: 12 }}>
+        {sections.map(([label, reasons]) => (
+          <section key={label} style={{ border: '1px solid #1e293b', borderRadius: 12, padding: 12, background: '#0f172a' }}>
+            <strong style={{ color: explanationSectionColor(label) }}>{label}</strong>
+            <ul style={{ color: '#cbd5e1', paddingLeft: 20, margin: '8px 0 0' }}>
+              {reasons.map((reason) => <li key={reason}>{reason}</li>)}
+            </ul>
+          </section>
+        ))}
+      </div>
+    </details>
+  )
 }
 
 function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: ItineraryComparison[]; travelDate: string }) {
@@ -466,12 +673,7 @@ function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: It
                 ))}
               </div>
 
-              <details open={isBest} style={{ marginTop: 14 }}>
-                <summary style={{ color: '#facc15', cursor: 'pointer', fontWeight: 'bold' }}>Why this route?</summary>
-                <ul style={{ color: '#cbd5e1', paddingLeft: 20, marginBottom: 0 }}>
-                  {comparison.why.map((reason) => <li key={reason}>{reason}</li>)}
-                </ul>
-              </details>
+              <ScoringExplanationDetails comparison={comparison} backup={comparisons[index + 1] || comparisons.find((item) => item.id !== comparison.id)} />
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10, marginTop: 14 }}>
                 <button
                   type="button"
@@ -732,7 +934,11 @@ export default function PlanPage() {
         predictionEngine,
         historicalStats.routes,
         loadReports,
-        outcomes
+        outcomes,
+        travelerProfile,
+        scoringScaffold.routeIntelligence,
+        scoringScaffold.weights,
+        scoringScaffold.recommendationScope
       ))
       : rankedItineraries.map((itinerary) => buildFallbackItineraryComparison(
         itinerary,
@@ -740,13 +946,16 @@ export default function PlanPage() {
         historicalStats.routes,
         loadReports,
         outcomes,
-        scoringScaffold.recommendationScope
+        scoringScaffold.recommendationScope,
+        travelerProfile,
+        scoringScaffold.routeIntelligence,
+        scoringScaffold.weights
       ))
 
     return comparisons
       .sort((a, b) => b.score - a.score || b.successProbability - a.successProbability)
       .slice(0, 3)
-  }, [liveItineraries, predictionEngine, historicalStats.routes, loadReports, outcomes, scoringScaffold.recommendationScope])
+  }, [liveItineraries, predictionEngine, historicalStats.routes, loadReports, outcomes, travelerProfile, scoringScaffold.routeIntelligence, scoringScaffold.weights, scoringScaffold.recommendationScope])
 
   const aiTripPreview = useMemo(
     () => parseTripPlannerPrompt(aiTripPrompt, travelerProfile),

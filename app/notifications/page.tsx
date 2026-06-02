@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { loadSavedItineraryComparisons, type SavedItineraryComparison } from '../../lib/savedItineraryComparisons'
 import { loadSavedTripWatchlist, type SavedTripWatch } from '../../lib/watchlist'
+import { alertSeverityColor, realTimeAlertTypeColor, refreshRealTimeAlerts, type RealTimeAlert } from '../../lib/alerts'
 import {
   enabledTripAlertLabels,
   getTripAlertPreference,
@@ -19,8 +20,17 @@ const initialNotifications = [
   { id: 3, title: 'Agent refresh healthy', body: 'Polling/realtime status summaries can live here.', read: true }
 ]
 
+function timeLabel(value: string) {
+  try {
+    return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value))
+  } catch {
+    return value
+  }
+}
+
 export default function NotificationsPage() {
   const [notifications, setNotifications] = useState(initialNotifications)
+  const [alerts, setAlerts] = useState<RealTimeAlert[]>([])
   const [watchlist, setWatchlist] = useState<SavedTripWatch[]>([])
   const [savedItineraries, setSavedItineraries] = useState<SavedItineraryComparison[]>([])
   const [alertPreferences, setAlertPreferences] = useState<TripAlertPreference[]>([])
@@ -30,17 +40,20 @@ export default function NotificationsPage() {
       setWatchlist(loadSavedTripWatchlist())
       setSavedItineraries(loadSavedItineraryComparisons())
       setAlertPreferences(loadTripAlertPreferences())
+      setAlerts(refreshRealTimeAlerts())
     }
 
     refreshAlertPreferences()
     window.addEventListener('nonrevy-watchlist-updated', refreshAlertPreferences)
     window.addEventListener('nonrevy-itinerary-comparisons-updated', refreshAlertPreferences)
     window.addEventListener('nonrevy-trip-alert-preferences-updated', refreshAlertPreferences)
+    window.addEventListener('nonrevy-alerts-updated', refreshAlertPreferences)
     window.addEventListener('storage', refreshAlertPreferences)
     return () => {
       window.removeEventListener('nonrevy-watchlist-updated', refreshAlertPreferences)
       window.removeEventListener('nonrevy-itinerary-comparisons-updated', refreshAlertPreferences)
       window.removeEventListener('nonrevy-trip-alert-preferences-updated', refreshAlertPreferences)
+      window.removeEventListener('nonrevy-alerts-updated', refreshAlertPreferences)
       window.removeEventListener('storage', refreshAlertPreferences)
     }
   }, [])
@@ -86,6 +99,8 @@ export default function NotificationsPage() {
   }
 
   const unread = notifications.filter((item) => !item.read).length
+  const unreadAlerts = alerts.filter((alert) => !alert.read).length
+  const latestAlerts = alerts.slice(0, 6)
   const preferenceTargets = [
     ...watchlist.map((route) => ({
       id: route.id,
@@ -115,6 +130,7 @@ export default function NotificationsPage() {
         <a href="/credits" style={{ marginRight: 16, color: '#fbbf24' }}>Credits</a>
         <a href="/reputation" style={{ marginRight: 16, color: '#34d399' }}>Trust</a>
         <a href="/notifications" style={{ marginRight: 16, color: '#f472b6' }}>Notifications</a>
+        <a href="/alerts" style={{ marginRight: 16, color: '#22c55e' }}>Alerts</a>
         <a href="/agent" style={{ color: '#a78bfa' }}>Agent</a>
       </nav>
 
@@ -122,11 +138,47 @@ export default function NotificationsPage() {
         <div>
           <p style={{ color: '#f472b6', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1 }}>Notification center scaffold</p>
           <h1 style={{ fontSize: 44, margin: '8px 0' }}>Notifications</h1>
-          <p style={{ color: '#94a3b8' }}>{unread} unread · {enabledAlertCount} enabled trip alerts · staged for route alerts, request answers, credit events, and agent health notices.</p>
+          <p style={{ color: '#94a3b8' }}>{unread} unread notifications · {unreadAlerts} unread route alerts · {enabledAlertCount} enabled trip alerts · staged for route alerts, request answers, credit events, and agent health notices.</p>
         </div>
         <button onClick={markAllRead} style={{ alignSelf: 'start', padding: 12, borderRadius: 10, border: 'none', background: '#f472b6', color: '#020617', fontWeight: 'bold' }}>
           Mark all read
         </button>
+      </section>
+
+      <section style={{ border: '1px solid #334155', borderRadius: 22, padding: 20, background: '#0f172a', marginTop: 24 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+          <div>
+            <p style={{ color: '#22c55e', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1, marginTop: 0 }}>Alert badges</p>
+            <h2 style={{ margin: '8px 0' }}>Latest route alerts</h2>
+            <p style={{ color: '#94a3b8', margin: 0 }}>
+              Real-time local alert badges for confidence changes, better routes, backups, disruption, and weather risk.
+            </p>
+          </div>
+          <a href="/alerts" style={{ border: '1px solid #22c55e', borderRadius: 999, padding: '10px 14px', color: '#bbf7d0', fontWeight: 'bold' }}>
+            Open Alert Feed
+          </a>
+        </div>
+
+        {latestAlerts.length === 0 ? (
+          <article style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#020617', marginTop: 16 }}>
+            <p style={{ color: '#cbd5e1', margin: 0 }}>No local route alerts yet. Add watchlist routes or save itinerary comparisons to generate alert history.</p>
+          </article>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14, marginTop: 16 }}>
+            {latestAlerts.map((alert) => (
+              <article key={alert.id} style={{ border: `1px solid ${alert.read ? '#334155' : realTimeAlertTypeColor(alert.type)}`, borderRadius: 16, padding: 14, background: alert.read ? '#020617' : '#111827' }}>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                  <span style={{ border: `1px solid ${realTimeAlertTypeColor(alert.type)}`, borderRadius: 999, color: realTimeAlertTypeColor(alert.type), padding: '4px 8px', fontWeight: 'bold', fontSize: 12 }}>{alert.type}</span>
+                  <span style={{ border: `1px solid ${alertSeverityColor(alert.severity)}`, borderRadius: 999, color: alertSeverityColor(alert.severity), padding: '4px 8px', fontWeight: 'bold', fontSize: 12 }}>{alert.severity}</span>
+                  {!alert.read && <span style={{ color: '#f472b6', fontWeight: 'bold' }}>New</span>}
+                </div>
+                <h3 style={{ margin: '10px 0 6px' }}>{alert.title}</h3>
+                <p style={{ color: '#cbd5e1' }}>{alert.body}</p>
+                <small style={{ color: '#64748b' }}>{timeLabel(alert.generatedAt)}</small>
+              </article>
+            ))}
+          </div>
+        )}
       </section>
 
       <section style={{ border: '1px solid #334155', borderRadius: 22, padding: 20, background: '#0f172a', marginTop: 24 }}>

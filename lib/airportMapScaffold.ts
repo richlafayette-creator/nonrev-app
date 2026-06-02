@@ -89,6 +89,66 @@ export const airportMapScaffolds: Record<string, AirportMapScaffold> = {
     gatePlaceholder: 'Gate-level data pending provider connection',
     loungePlaceholder: 'Lounges near concourse pending lounge API',
     navigationPlaceholder: 'Train/walking route placeholder'
+  },
+  SEA: {
+    code: 'SEA',
+    name: 'Seattle-Tacoma International Airport',
+    latitude: 47.4502,
+    longitude: -122.3088,
+    terminalPlaceholder: 'Concourses/satellites data pending provider connection',
+    gatePlaceholder: 'Gate-level data pending provider connection',
+    loungePlaceholder: 'Lounges near concourse pending lounge API',
+    navigationPlaceholder: 'Satellite train/walking route placeholder'
+  },
+  ORD: {
+    code: 'ORD',
+    name: "Chicago O'Hare International Airport",
+    latitude: 41.9742,
+    longitude: -87.9073,
+    terminalPlaceholder: 'Terminal data pending provider connection',
+    gatePlaceholder: 'Gate-level data pending provider connection',
+    loungePlaceholder: 'Lounges near terminal pending lounge API',
+    navigationPlaceholder: 'Terminal transfer placeholder'
+  },
+  IAH: {
+    code: 'IAH',
+    name: 'George Bush Intercontinental Airport',
+    latitude: 29.9902,
+    longitude: -95.3368,
+    terminalPlaceholder: 'Terminal data pending provider connection',
+    gatePlaceholder: 'Gate-level data pending provider connection',
+    loungePlaceholder: 'Lounges near terminal pending lounge API',
+    navigationPlaceholder: 'Skyway/subway transfer placeholder'
+  },
+  ATL: {
+    code: 'ATL',
+    name: 'Hartsfield-Jackson Atlanta International Airport',
+    latitude: 33.6407,
+    longitude: -84.4277,
+    terminalPlaceholder: 'Concourse data pending provider connection',
+    gatePlaceholder: 'Gate-level data pending provider connection',
+    loungePlaceholder: 'Lounges near concourse pending lounge API',
+    navigationPlaceholder: 'Plane Train/walking route placeholder'
+  },
+  DTW: {
+    code: 'DTW',
+    name: 'Detroit Metropolitan Wayne County Airport',
+    latitude: 42.2162,
+    longitude: -83.3554,
+    terminalPlaceholder: 'Terminal data pending provider connection',
+    gatePlaceholder: 'Gate-level data pending provider connection',
+    loungePlaceholder: 'Lounges near terminal pending lounge API',
+    navigationPlaceholder: 'Terminal walking/tram placeholder'
+  },
+  MSP: {
+    code: 'MSP',
+    name: 'Minneapolis-Saint Paul International Airport',
+    latitude: 44.8848,
+    longitude: -93.2223,
+    terminalPlaceholder: 'Terminal data pending provider connection',
+    gatePlaceholder: 'Gate-level data pending provider connection',
+    loungePlaceholder: 'Lounges near terminal pending lounge API',
+    navigationPlaceholder: 'Terminal transfer placeholder'
   }
 }
 

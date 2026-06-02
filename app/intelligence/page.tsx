@@ -10,6 +10,7 @@ import {
 import { historicalRoutes, routesForCarrier, type HistoricalRoute } from '../../lib/historicalRoutes'
 import { loadLoadReports, type LoadReport } from '../../lib/loadReports'
 import { buildDisruptionIntelligence } from '../../lib/disruptionIntelligence'
+import { buildRouteAirportIntelligence, connectionRiskColor, type RouteAirportIntelligence } from '../../lib/airportIntelligence'
 import { calculateRouteConfidence, confidenceBadgeColor, confidenceTrendColor, type ConfidenceBadge, type ConfidenceTrend, type RouteConfidence } from '../../lib/routeConfidence'
 import { loadTravelerProfileFromStorage, defaultTravelerProfile, travelerProfileAssumptions } from '../../lib/travelerProfile'
 import { loadTripOutcomes, type TripOutcome } from '../../lib/tripOutcomes'
@@ -29,6 +30,7 @@ type IntelligenceRoute = {
   confidenceScore: number
   confidenceLabel: ConfidenceBadge
   routeConfidence: RouteConfidence
+  airportIntelligence: RouteAirportIntelligence
   weekScore: number
   trendingScore: number
   trendLabel: ConfidenceTrend
@@ -172,6 +174,7 @@ function aggregateIntelligence(
       (route.successRate >= 74 ? 8 : 0)
     )))
     const disruption = buildDisruptionIntelligence({ route: route.route })
+    const airportIntelligence = buildRouteAirportIntelligence(route.route)
     const routeConfidence = calculateRouteConfidence({
       route: route.route,
       successProbability,
@@ -200,6 +203,7 @@ function aggregateIntelligence(
       confidenceScore: routeConfidence.score,
       confidenceLabel: routeConfidence.badge,
       routeConfidence,
+      airportIntelligence,
       weekScore,
       trendingScore,
       trendLabel: routeConfidence.trend || trendLabel(trendingScore),
@@ -210,6 +214,7 @@ function aggregateIntelligence(
         `${matchingReports.length} community load reports`,
         `${trustedLoadSignal >= 0 ? '+' : ''}${trustedLoadSignal} weighted load signal`,
         `${routeConfidence.score}/100 route confidence`,
+        `${airportIntelligence.connectionRiskScore}/100 connection risk`,
         `${routeConfidence.weatherImpact.label} weather impact`
       ]
     }
@@ -287,6 +292,9 @@ export default function IntelligencePage() {
   const totalReports = routeIntelligence.reduce((total, route) => total + route.historicalReportCount + route.localReportCount, 0)
   const totalOutcomes = routeIntelligence.reduce((total, route) => total + route.outcomeCount, 0)
   const highConfidenceCount = routeIntelligence.filter((route) => route.confidenceLabel === 'Excellent' || route.confidenceLabel === 'Good').length
+  const averageConnectionRisk = routeIntelligence.length
+    ? Math.round(routeIntelligence.reduce((total, route) => total + route.airportIntelligence.connectionRiskScore, 0) / routeIntelligence.length)
+    : 0
 
   return (
     <main className="app-shell" style={{ minHeight: '100vh', background: '#020617', color: 'white', padding: 40, fontFamily: 'Arial' }}>
@@ -305,7 +313,7 @@ export default function IntelligencePage() {
         </p>
         <h1 style={{ fontSize: 44, lineHeight: 1.05, margin: '8px 0 12px' }}>Intelligence</h1>
         <p style={{ color: '#94a3b8', maxWidth: 820, fontSize: 18 }}>
-          Local-only MVP dashboard blending historical route data, saved trip outcomes, community load reports, traveler profile, disruption intelligence, weather impact, and route confidence. No live airline inventory or production data is queried here.
+          Local-only MVP dashboard blending historical route data, saved trip outcomes, community load reports, traveler profile, disruption intelligence, weather impact, airport intelligence, and route confidence. No live airline inventory or production data is queried here.
         </p>
 
         <section className="filter-panel" style={{ border: '1px solid #334155', borderRadius: 22, padding: 20, background: '#0f172a', margin: '24px 0' }}>
@@ -329,7 +337,8 @@ export default function IntelligencePage() {
             ['Avg Success Probability', `${averageProbability}%`, '#22c55e'],
             ['Reports Blended', totalReports, '#facc15'],
             ['Tracked Outcomes', totalOutcomes, '#fb7185'],
-            ['Good+ Confidence Routes', highConfidenceCount, '#c084fc']
+            ['Good+ Confidence Routes', highConfidenceCount, '#c084fc'],
+            ['Avg Connection Risk', `${averageConnectionRisk}/100`, connectionRiskColor(averageConnectionRisk)]
           ].map(([label, value, color]) => (
             <article key={label} className="mini-card" style={{ border: '1px solid #334155', borderRadius: 18, padding: 18, background: '#0f172a' }}>
               <strong style={{ color: String(color), fontSize: 32 }}>{value}</strong>
@@ -392,6 +401,8 @@ export default function IntelligencePage() {
                     ['Outcomes', `${route.successfulOutcomes}/${route.outcomeCount}`, '#22c55e'],
                     ['Route Confidence', `${route.confidenceScore}/100 · ${route.confidenceLabel}`, confidenceBadgeColor(route.confidenceLabel)],
                     ['Confidence Trend', route.trendLabel, confidenceTrendColor(route.trendLabel)],
+                    ['Connection Risk', `${route.airportIntelligence.connectionRiskScore}/100`, connectionRiskColor(route.airportIntelligence.connectionRiskScore)],
+                    ['Airport Backup', route.airportIntelligence.backupFlightAvailability, '#38bdf8'],
                     ['Weather Impact', route.routeConfidence.weatherImpact.label, route.routeConfidence.weatherImpact.scoreImpact >= 15 ? '#facc15' : '#22c55e'],
                     ['Best This Week', route.weekScore, '#38bdf8'],
                     ['Momentum', `${route.trendingScore}/100`, '#fb7185']
@@ -409,6 +420,18 @@ export default function IntelligencePage() {
                   <ul style={{ color: '#cbd5e1', paddingLeft: 20, marginBottom: 0 }}>
                     {route.routeConfidence.explanation.map((reason) => <li key={reason}>{reason}</li>)}
                   </ul>
+                </details>
+                <details style={{ marginTop: 12 }}>
+                  <summary style={{ color: '#facc15', cursor: 'pointer', fontWeight: 'bold' }}>Airport intelligence</summary>
+                  <div style={{ display: 'grid', gap: 8, marginTop: 10 }}>
+                    {route.airportIntelligence.airports.map((airport) => (
+                      <article key={`${route.id}-${airport.code}`} style={{ border: '1px solid #334155', borderRadius: 12, padding: 10, background: '#020617' }}>
+                        <strong style={{ color: connectionRiskColor(airport.connectionRiskScore) }}>{airport.code} · Risk {airport.connectionRiskScore}/100</strong>
+                        <p style={{ color: '#94a3b8', margin: '6px 0' }}>{airport.terminalInformation}</p>
+                        <small style={{ color: '#cbd5e1' }}>Connections: {airport.typicalConnectionTerminals} · Walking {airport.walkingDistanceCategory} · Hub {airport.hubStrength} · Backup {airport.backupFlightAvailability}</small>
+                      </article>
+                    ))}
+                  </div>
                 </details>
               </article>
             ))}

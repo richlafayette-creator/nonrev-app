@@ -5,6 +5,7 @@ import { flightMatchesSearch } from '../../lib/flightSearch'
 import { delayRiskScore, rankItinerary } from '../../lib/intelligence'
 import { allFlightFields, fieldValue, passengerFlightCoverageNotes, richFlightFieldLabels } from '../../lib/flightDataScaffold'
 import { airportCodesFromRoute } from '../../lib/airportMapScaffold'
+import { buildRouteAirportIntelligence, connectionRiskColor, type RouteAirportIntelligence } from '../../lib/airportIntelligence'
 import { generateAiTripPlan, parseTripPlannerPrompt } from '../../lib/aiTripPlanner'
 import { carrierScoringProfiles, getCarrierScoringScaffold, normalizeCarrierFamily, supportedCarrierOptions } from '../../lib/carrierScope'
 import { historicalRouteStats, type HistoricalRoute } from '../../lib/historicalRoutes'
@@ -141,6 +142,7 @@ type ItineraryComparison = {
   isLive: boolean
   disruption: DisruptionIntelligence
   routeConfidence: RouteConfidence
+  airportIntelligence: RouteAirportIntelligence
   why: string[]
   explanation: ScoringExplanation
 }
@@ -154,6 +156,7 @@ type ScoringExplanation = {
   communityIntelligenceFactors: string[]
   disruptionFactors: string[]
   confidenceFactors: string[]
+  airportFactors: string[]
   placeholderWeights: string[]
 }
 
@@ -180,6 +183,7 @@ type ScoringExplanationInput = {
   recommendationScope: string
   disruption: DisruptionIntelligence
   routeConfidence: RouteConfidence
+  airportIntelligence: RouteAirportIntelligence
 }
 
 type FallbackItineraryResult = (typeof rankedItineraries)[number]
@@ -299,6 +303,12 @@ function buildScoringExplanation(input: ScoringExplanationInput): ScoringExplana
       `Confidence blend: success ${input.routeConfidence.components.successProbability}, historical ${input.routeConfidence.components.historicalRouteData}, community ${input.routeConfidence.components.communityLoadReports}, traveler profile ${input.routeConfidence.components.travelerProfile}, disruption ${input.routeConfidence.components.disruptionIntelligence}, weather ${input.routeConfidence.components.weatherImpact}.`,
       ...input.routeConfidence.explanation
     ],
+    airportFactors: [
+      `Connection Risk Score is ${input.airportIntelligence.connectionRiskScore}/100 with ${input.airportIntelligence.overallConnectionDifficulty} connection difficulty.`,
+      `Walking distance category is ${input.airportIntelligence.walkingDistanceCategory}; backup availability is ${input.airportIntelligence.backupFlightAvailability}.`,
+      `Hub strength summary: ${input.airportIntelligence.hubStrengthSummary}.`,
+      ...input.airportIntelligence.explanation
+    ],
     placeholderWeights: [
       'Live/source route score: about 24–52% depending on data source.',
       'Probability engine baseline: about 34–36% of success probability.',
@@ -306,6 +316,7 @@ function buildScoringExplanation(input: ScoringExplanationInput): ScoringExplana
       'Community load reports: capped between -8 and +8 points.',
       'Flight disruption intelligence: delays, cancellations, diversions, and airport alerts can reduce probability and ranking after the base score.',
       'Route confidence engine: success probability, historical route data, community reports, traveler profile, disruption, and weather are blended into a 0–100 confidence score.',
+      'Airport intelligence layer: static terminal, connection, walking, hub-strength, and backup availability data produce a connection risk score.',
       'Connections: -4 points per connection in the recommendation comparison.'
     ]
   }
@@ -362,6 +373,7 @@ function buildLiveItineraryComparison(
     fallbackStatus: itinerary.status,
     sourceLabel: itinerary.source
   })
+  const airportIntelligence = buildRouteAirportIntelligence(itinerary.route)
   const successProbability = clampScore(
     predictionEngine.successProbability * 0.34 +
     itinerary.score * 0.26 +
@@ -407,7 +419,8 @@ function buildLiveItineraryComparison(
     carrierWeights,
     recommendationScope,
     disruption,
-    routeConfidence
+    routeConfidence,
+    airportIntelligence
   })
 
   return {
@@ -423,9 +436,11 @@ function buildLiveItineraryComparison(
     isLive: true,
     disruption,
     routeConfidence,
+    airportIntelligence,
     why: [
       `Blends live itinerary score ${itinerary.score}/100 with probability engine baseline ${predictionEngine.successProbability}%.`,
       `Route confidence engine scores this option ${routeConfidence.score}/100 (${routeConfidence.badge}) with a ${routeConfidence.trend} trend.`,
+      `Airport intelligence gives this route a ${airportIntelligence.connectionRiskScore}/100 connection risk score and ${airportIntelligence.backupFlightAvailability} backup flight availability.`,
       `Disruption intelligence adjusts this option by ${disruption.successProbabilityImpact} probability points and ${disruption.routeRankingImpact} ranking points; route health is ${disruption.routeHealth}.`,
       historicalRoute
         ? `Historical route match ${historicalRoute.route} contributes ${historicalRoute.successRate}% success and ${historicalRoute.reportCount} reports.`
@@ -468,6 +483,7 @@ function buildFallbackItineraryComparison(
     route: itinerary.route,
     fallbackStatus: itinerary.confidence
   })
+  const airportIntelligence = buildRouteAirportIntelligence(itinerary.route)
   const successProbability = clampScore(
     predictionEngine.successProbability * 0.36 +
     itinerary.ranking.score * 0.24 +
@@ -513,7 +529,8 @@ function buildFallbackItineraryComparison(
     carrierWeights,
     recommendationScope: carrierLabel,
     disruption,
-    routeConfidence
+    routeConfidence,
+    airportIntelligence
   })
 
   return {
@@ -529,9 +546,11 @@ function buildFallbackItineraryComparison(
     isLive: false,
     disruption,
     routeConfidence,
+    airportIntelligence,
     why: [
       `Combines fallback ranking ${itinerary.ranking.score}/100 with probability engine baseline ${predictionEngine.successProbability}%.`,
       `Route confidence engine scores this option ${routeConfidence.score}/100 (${routeConfidence.badge}) with a ${routeConfidence.trend} trend.`,
+      `Airport intelligence gives this route a ${airportIntelligence.connectionRiskScore}/100 connection risk score and ${airportIntelligence.backupFlightAvailability} backup flight availability.`,
       `Disruption intelligence adjusts this option by ${disruption.successProbabilityImpact} probability points and ${disruption.routeRankingImpact} ranking points; route health is ${disruption.routeHealth}.`,
       historicalRoute
         ? `Historical route match ${historicalRoute.route} contributes ${historicalRoute.successRate}% success and ${historicalRoute.reportCount} reports.`
@@ -562,6 +581,7 @@ function explanationSectionColor(label: string) {
   if (label.includes('Traveler')) return '#34d399'
   if (label.includes('Community')) return '#22c55e'
   if (label.includes('Confidence')) return '#38bdf8'
+  if (label.includes('Airport')) return '#facc15'
   if (label.includes('Backup')) return '#fb7185'
   return '#f8fafc'
 }
@@ -596,6 +616,7 @@ function ScoringExplanationDetails({ comparison, backup }: { comparison: Itinera
     ['Community intelligence factors', comparison.explanation.communityIntelligenceFactors],
     ['Disruption intelligence factors', comparison.explanation.disruptionFactors],
     ['Confidence explanation', comparison.explanation.confidenceFactors],
+    ['Airport intelligence factors', comparison.explanation.airportFactors],
     ['Backup route reasoning', backupRouteReasoning(comparison, backup)],
     ['Placeholder weighting', comparison.explanation.placeholderWeights]
   ] as const
@@ -756,6 +777,95 @@ function RouteConfidenceSection({ comparisons }: { comparisons: ItineraryCompari
   )
 }
 
+function AirportIntelligenceSection({ comparisons }: { comparisons: ItineraryComparison[] }) {
+  if (!comparisons.length) return null
+
+  const highestRisk = [...comparisons].sort((a, b) => b.airportIntelligence.connectionRiskScore - a.airportIntelligence.connectionRiskScore)[0]
+  const easiest = [...comparisons].sort((a, b) => a.airportIntelligence.connectionRiskScore - b.airportIntelligence.connectionRiskScore)[0]
+  const averageRisk = Math.round(comparisons.reduce((total, comparison) => total + comparison.airportIntelligence.connectionRiskScore, 0) / comparisons.length)
+  const supportedAirports = Array.from(new Set(comparisons.flatMap((comparison) => comparison.airportIntelligence.airports.map((airport) => airport.code))))
+
+  return (
+    <section style={{ border: '1px solid #facc15', borderRadius: 22, padding: 18, background: 'linear-gradient(135deg, rgba(113, 63, 18, 0.28), rgba(15, 23, 42, 0.96))', marginTop: 16 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+        <div>
+          <strong style={{ color: '#facc15', textTransform: 'uppercase', letterSpacing: 1 }}>Airport Intelligence</strong>
+          <h3 style={{ fontSize: 26, margin: '8px 0' }}>Connection and terminal risk layer</h3>
+          <p style={{ color: '#cbd5e1', margin: 0 }}>
+            Static major-hub data for terminal notes, typical connection terminals, walking distance, hub strength, backup availability, and connection risk.
+          </p>
+        </div>
+        <span style={{ border: `1px solid ${connectionRiskColor(highestRisk.airportIntelligence.connectionRiskScore)}`, borderRadius: 999, color: connectionRiskColor(highestRisk.airportIntelligence.connectionRiskScore), padding: '8px 12px', fontWeight: 'bold' }}>
+          Highest connection risk: {highestRisk.airportIntelligence.connectionRiskScore}/100
+        </span>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 12, marginTop: 14 }}>
+        {[
+          ['Avg Connection Risk', `${averageRisk}/100`, connectionRiskColor(averageRisk)],
+          ['Easiest Route', easiest.route, '#22c55e'],
+          ['Backup Availability', highestRisk.airportIntelligence.backupFlightAvailability, '#38bdf8'],
+          ['Airport Profiles', supportedAirports.join(' · ') || 'Pending', '#facc15']
+        ].map(([label, value, color]) => (
+          <article key={label} style={{ border: '1px solid #334155', borderRadius: 14, padding: 12, background: '#020617' }}>
+            <small style={{ color: '#94a3b8' }}>{label}</small>
+            <h4 style={{ color: String(color), margin: '6px 0 0', fontSize: 20 }}>{value}</h4>
+          </article>
+        ))}
+      </div>
+
+      <details open style={{ border: '1px solid #334155', borderRadius: 16, padding: 14, background: '#020617', marginTop: 14 }}>
+        <summary style={{ color: '#facc15', cursor: 'pointer', fontWeight: 'bold' }}>Airport intelligence details</summary>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(270px, 1fr))', gap: 12, marginTop: 12 }}>
+          {comparisons.map((comparison) => (
+            <article key={`airport-${comparison.id}`} style={{ border: '1px solid #1e293b', borderRadius: 14, padding: 12, background: '#0f172a' }}>
+              <strong style={{ color: connectionRiskColor(comparison.airportIntelligence.connectionRiskScore) }}>{comparison.route} · Risk {comparison.airportIntelligence.connectionRiskScore}/100</strong>
+              <p style={{ color: '#cbd5e1', margin: '8px 0' }}>
+                Difficulty: {comparison.airportIntelligence.overallConnectionDifficulty} · Walking: {comparison.airportIntelligence.walkingDistanceCategory} · Backup: {comparison.airportIntelligence.backupFlightAvailability}
+              </p>
+              <div style={{ display: 'grid', gap: 8 }}>
+                {comparison.airportIntelligence.airports.map((airport) => (
+                  <div key={`${comparison.id}-${airport.code}`} style={{ border: '1px solid #334155', borderRadius: 12, padding: 10, background: '#020617' }}>
+                    <strong style={{ color: '#f8fafc' }}>{airport.code} · {airport.name}</strong>
+                    <p style={{ color: '#94a3b8', margin: '6px 0' }}>{airport.terminalInformation}</p>
+                    <small style={{ color: '#cbd5e1' }}>Typical connections: {airport.typicalConnectionTerminals}</small>
+                  </div>
+                ))}
+              </div>
+            </article>
+          ))}
+        </div>
+      </details>
+    </section>
+  )
+}
+
+function RouteAirportDetails({ route }: { route: string }) {
+  const airportIntelligence = buildRouteAirportIntelligence(route)
+
+  return (
+    <details style={{ marginTop: 12, border: '1px solid #334155', borderRadius: 14, padding: 12, background: '#020617' }}>
+      <summary style={{ color: '#facc15', cursor: 'pointer', fontWeight: 'bold' }}>
+        Airport intelligence · Connection risk {airportIntelligence.connectionRiskScore}/100
+      </summary>
+      <p style={{ color: '#cbd5e1' }}>
+        Difficulty: {airportIntelligence.overallConnectionDifficulty} · Walking: {airportIntelligence.walkingDistanceCategory} · Backup availability: {airportIntelligence.backupFlightAvailability}
+      </p>
+      <div style={{ display: 'grid', gap: 8 }}>
+        {airportIntelligence.airports.map((airport) => (
+          <article key={`${route}-${airport.code}`} style={{ border: '1px solid #1e293b', borderRadius: 12, padding: 10, background: '#0f172a' }}>
+            <strong style={{ color: connectionRiskColor(airport.connectionRiskScore) }}>{airport.code} · {airport.name}</strong>
+            <p style={{ color: '#94a3b8', margin: '6px 0' }}>{airport.terminalInformation}</p>
+            <small style={{ color: '#cbd5e1' }}>
+              Typical terminals: {airport.typicalConnectionTerminals} · Walking {airport.walkingDistanceCategory} · Hub {airport.hubStrength} · Backup {airport.backupFlightAvailability}
+            </small>
+          </article>
+        ))}
+      </div>
+    </details>
+  )
+}
+
 function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: ItineraryComparison[]; travelDate: string }) {
   const [watchStatus, setWatchStatus] = useState('')
   const [compareStatus, setCompareStatus] = useState('')
@@ -850,6 +960,7 @@ function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: It
       {compareStatus && <p style={{ color: '#c084fc', fontWeight: 'bold' }}>{compareStatus}</p>}
 
       <RouteConfidenceSection comparisons={comparisons} />
+      <AirportIntelligenceSection comparisons={comparisons} />
       <DisruptionIntelligenceSection comparisons={comparisons} />
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14, marginTop: 16 }}>
@@ -886,6 +997,8 @@ function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: It
                   ['Success Probability', `${comparison.successProbability}%`, comparisonMetricColor(comparison.successProbability)],
                   ['Route Confidence', `${comparison.routeConfidence.score}/100 · ${comparison.routeConfidence.badge}`, confidenceBadgeColor(comparison.routeConfidence.badge)],
                   ['Confidence Trend', comparison.routeConfidence.trend, confidenceTrendColor(comparison.routeConfidence.trend)],
+                  ['Connection Risk', `${comparison.airportIntelligence.connectionRiskScore}/100`, connectionRiskColor(comparison.airportIntelligence.connectionRiskScore)],
+                  ['Airport Backup', comparison.airportIntelligence.backupFlightAvailability, '#38bdf8'],
                   ['Risk Level', comparison.riskLevel, riskColor(comparison.riskLevel)],
                   ['Route Health', comparison.disruption.routeHealth, routeHealthColor(comparison.disruption.routeHealth)],
                   ['Disruption Impact', `${comparison.disruption.disruptionImpactScore}/99`, routeHealthColor(comparison.disruption.routeHealth)],
@@ -899,6 +1012,7 @@ function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: It
                 ))}
               </div>
 
+              <RouteAirportDetails route={comparison.route} />
               <ScoringExplanationDetails comparison={comparison} backup={comparisons[index + 1] || comparisons.find((item) => item.id !== comparison.id)} />
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10, marginTop: 14 }}>
                 <button
@@ -1460,6 +1574,7 @@ export default function PlanPage() {
                       <MapboxAirportMap key={`${itinerary.id}-${code}`} airportCode={code} title={`${code} airport preview`} compact />
                     ))}
                   </div>
+                  <RouteAirportDetails route={itinerary.route} />
                   <div style={{ display: 'grid', gap: 10, marginTop: 12 }}>
                     {itinerary.legs.map((leg, index) => (
                       <div key={`${itinerary.id}-${leg.flightNumber}-${index}`} style={{ border: '1px solid #334155', borderRadius: 14, padding: 12, background: '#020617' }}>
@@ -1502,6 +1617,7 @@ export default function PlanPage() {
                     <MapboxAirportMap key={`${itinerary.id}-${code}`} airportCode={code} title={`${code} airport preview`} compact />
                   ))}
                 </div>
+                <RouteAirportDetails route={itinerary.route} />
                 <p style={{ color: '#cbd5e1' }}>Ranking notes: {itinerary.ranking.notes.join(' · ')}</p>
                 <ul style={{ color: '#cbd5e1', paddingLeft: 20 }}>
                   {itinerary.segments.map((segment) => (

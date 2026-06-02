@@ -5,12 +5,11 @@ import {
   carrierFamilyLabels,
   carrierScoringProfiles,
   getCarrierScoringScaffold,
-  supportedCarrierOptions,
   type SupportedCarrierValue
 } from '../../lib/carrierScope'
 import { historicalRoutes, routesForCarrier, type HistoricalRoute } from '../../lib/historicalRoutes'
 import { loadLoadReports, type LoadReport } from '../../lib/loadReports'
-import { loadTravelerProfileFromStorage, defaultTravelerProfile } from '../../lib/travelerProfile'
+import { loadTravelerProfileFromStorage, defaultTravelerProfile, travelerProfileAssumptions } from '../../lib/travelerProfile'
 import { loadTripOutcomes, type TripOutcome } from '../../lib/tripOutcomes'
 
 type IntelligenceRoute = {
@@ -27,9 +26,19 @@ type IntelligenceRoute = {
   successProbability: number
   confidenceScore: number
   confidenceLabel: 'Low' | 'Medium' | 'Medium-High' | 'High'
+  weekScore: number
+  trendingScore: number
+  trendLabel: 'Quiet' | 'Building' | 'Trending' | 'Hot'
   notes: string
   signalSummary: string[]
 }
+
+const intelligenceCarrierOptions: { value: SupportedCarrierValue; label: string }[] = [
+  { value: 'all', label: 'All supported carriers' },
+  { value: 'united', label: 'United' },
+  { value: 'delta', label: 'Delta' },
+  { value: 'alaska-group', label: 'Alaska/Hawaiian' }
+]
 
 function normalizeRoute(route: string) {
   return route
@@ -57,6 +66,29 @@ function confidenceLabel(score: number): IntelligenceRoute['confidenceLabel'] {
   if (score >= 70) return 'Medium-High'
   if (score >= 52) return 'Medium'
   return 'Low'
+}
+
+function trendLabel(score: number): IntelligenceRoute['trendLabel'] {
+  if (score >= 82) return 'Hot'
+  if (score >= 66) return 'Trending'
+  if (score >= 46) return 'Building'
+  return 'Quiet'
+}
+
+function daysSince(value: string) {
+  const timestamp = Date.parse(value)
+  if (!Number.isFinite(timestamp)) return 999
+  return Math.max(0, Math.floor((Date.now() - timestamp) / (1000 * 60 * 60 * 24)))
+}
+
+function recentSignalScore(values: string[]) {
+  return values.reduce((total, value) => {
+    const age = daysSince(value)
+    if (age <= 2) return total + 12
+    if (age <= 7) return total + 8
+    if (age <= 14) return total + 4
+    return total
+  }, 0)
 }
 
 function loadReportSignal(report: LoadReport) {
@@ -104,6 +136,8 @@ function aggregateIntelligence(
     const successfulOutcomes = outcomeSuccessCount(matchingOutcomes)
     const outcomeRate = matchingOutcomes.length ? Math.round((successfulOutcomes / matchingOutcomes.length) * 100) : route.successRate
     const trustedLoadSignal = Number(matchingReports.reduce((total, report) => total + loadReportSignal(report), 0).toFixed(1))
+    const recentCommunityScore = recentSignalScore(matchingReports.map((report) => report.createdAt || report.date))
+    const recentOutcomeScore = recentSignalScore(matchingOutcomes.map((outcome) => outcome.createdAt))
     const reportVolumeBonus = Math.min(5, Math.round((route.reportCount + matchingReports.length) / 8))
     const outcomeSignal = matchingOutcomes.length ? (outcomeRate - route.successRate) * 0.18 : 0
     const scoreSignal = (route.score - 78) * 0.22
@@ -124,6 +158,22 @@ function aggregateIntelligence(
       (route.successRate >= 74 ? 10 : 0) +
       (route.score >= 82 ? 8 : 0)
     )))
+    const weekScore = Math.max(1, Math.min(99, Math.round(
+      successProbability * 0.42 +
+      route.score * 0.28 +
+      confidenceScore * 0.18 +
+      Math.min(12, recentCommunityScore + recentOutcomeScore) +
+      Math.max(-6, Math.min(6, trustedLoadSignal))
+    )))
+    const trendingScore = Math.max(1, Math.min(99, Math.round(
+      recentCommunityScore +
+      recentOutcomeScore +
+      matchingReports.length * 6 +
+      matchingOutcomes.length * 5 +
+      route.reportCount * 1.6 +
+      Math.max(0, trustedLoadSignal) +
+      (route.successRate >= 74 ? 8 : 0)
+    )))
 
     return {
       id: `${route.carrier}-${route.route}`,
@@ -139,12 +189,16 @@ function aggregateIntelligence(
       successProbability,
       confidenceScore,
       confidenceLabel: confidenceLabel(confidenceScore),
+      weekScore,
+      trendingScore,
+      trendLabel: trendLabel(trendingScore),
       notes: route.notes,
       signalSummary: [
         `${route.reportCount} historical route reports`,
         `${matchingOutcomes.length} local outcomes (${outcomeRate}% success signal)`,
         `${matchingReports.length} community load reports`,
-        `${trustedLoadSignal >= 0 ? '+' : ''}${trustedLoadSignal} weighted load signal`
+        `${trustedLoadSignal >= 0 ? '+' : ''}${trustedLoadSignal} weighted load signal`,
+        `${confidenceScore}/100 confidence`
       ]
     }
   })
@@ -167,6 +221,14 @@ function DashboardCard({ title, routes, metric }: { title: string; routes: Intel
               <strong style={{ color: probabilityColor(route.successProbability), fontSize: 24 }}>{metric(route)}</strong>
             </div>
             <p style={{ color: '#94a3b8', margin: '6px 0 0' }}>{route.signalSummary.join(' · ')}</p>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
+              <span style={{ border: '1px solid #334155', borderRadius: 999, padding: '4px 8px', color: '#c084fc', background: '#0f172a' }}>
+                Confidence {route.confidenceScore}/100 · {route.confidenceLabel}
+              </span>
+              <span style={{ border: '1px solid #334155', borderRadius: 999, padding: '4px 8px', color: '#22c55e', background: '#0f172a' }}>
+                Trend {route.trendLabel}
+              </span>
+            </div>
           </article>
         ))}
       </div>
@@ -199,10 +261,12 @@ export default function IntelligencePage() {
   const routeIntelligence = useMemo(() => aggregateIntelligence(carrier, loadReports, outcomes), [carrier, loadReports, outcomes])
   const travelerProfile = useMemo(() => loadTravelerProfileFromStorage() || defaultTravelerProfile, [])
   const scoringScaffold = useMemo(() => getCarrierScoringScaffold(carrier, travelerProfile), [carrier, travelerProfile])
-  const bestPerformingRoutes = useMemo(() => [...routeIntelligence].sort((a, b) => b.historicalScore - a.historicalScore).slice(0, 4), [routeIntelligence])
+  const bestRoutesThisWeek = useMemo(() => [...routeIntelligence].sort((a, b) => b.weekScore - a.weekScore).slice(0, 4), [routeIntelligence])
   const highestProbabilityRoutes = useMemo(() => [...routeIntelligence].sort((a, b) => b.successProbability - a.successProbability).slice(0, 4), [routeIntelligence])
   const mostReportedRoutes = useMemo(() => [...routeIntelligence].sort((a, b) => (b.historicalReportCount + b.localReportCount) - (a.historicalReportCount + a.localReportCount)).slice(0, 4), [routeIntelligence])
   const highestConfidenceRoutes = useMemo(() => [...routeIntelligence].sort((a, b) => b.confidenceScore - a.confidenceScore).slice(0, 4), [routeIntelligence])
+  const trendingRoutes = useMemo(() => [...routeIntelligence].sort((a, b) => b.trendingScore - a.trendingScore).slice(0, 4), [routeIntelligence])
+  const profileAssumptions = useMemo(() => travelerProfileAssumptions(travelerProfile), [travelerProfile])
   const averageProbability = routeIntelligence.length
     ? Math.round(routeIntelligence.reduce((total, route) => total + route.successProbability, 0) / routeIntelligence.length)
     : 0
@@ -238,7 +302,7 @@ export default function IntelligencePage() {
               onChange={(event) => setCarrier(event.target.value as SupportedCarrierValue)}
               style={{ boxSizing: 'border-box', width: '100%', marginTop: 6, padding: 12, borderRadius: 12, border: '1px solid #475569', background: '#020617', color: 'white' }}
             >
-              {supportedCarrierOptions.map((option) => (
+              {intelligenceCarrierOptions.map((option) => (
                 <option key={option.value} value={option.value}>{option.label}</option>
               ))}
             </select>
@@ -275,11 +339,26 @@ export default function IntelligencePage() {
           </div>
         </section>
 
+        <section style={{ border: '1px solid #334155', borderRadius: 22, padding: 20, background: '#0f172a', marginBottom: 24 }}>
+          <strong style={{ color: '#facc15' }}>Traveler profile assumptions</strong>
+          <p style={{ color: '#94a3b8' }}>
+            These local assumptions are included in the confidence and probability narrative until account-backed profile intelligence is connected.
+          </p>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10 }}>
+            {profileAssumptions.map((assumption) => (
+              <article key={assumption} style={{ border: '1px solid #334155', borderRadius: 14, padding: 12, background: '#020617', color: '#cbd5e1' }}>
+                {assumption}
+              </article>
+            ))}
+          </div>
+        </section>
+
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 18 }}>
-          <DashboardCard title="Best performing routes" routes={bestPerformingRoutes} metric={(route) => route.historicalScore} />
+          <DashboardCard title="Best routes this week" routes={bestRoutesThisWeek} metric={(route) => route.weekScore} />
           <DashboardCard title="Highest success probability routes" routes={highestProbabilityRoutes} metric={(route) => `${route.successProbability}%`} />
           <DashboardCard title="Most reported routes" routes={mostReportedRoutes} metric={(route) => route.historicalReportCount + route.localReportCount} />
-          <DashboardCard title="Highest confidence routes" routes={highestConfidenceRoutes} metric={(route) => route.confidenceLabel} />
+          <DashboardCard title="Highest confidence routes" routes={highestConfidenceRoutes} metric={(route) => `${route.confidenceScore}/100`} />
+          <DashboardCard title="Trending routes" routes={trendingRoutes} metric={(route) => route.trendLabel} />
         </div>
 
         <section style={{ marginTop: 30 }}>
@@ -297,7 +376,9 @@ export default function IntelligencePage() {
                     ['Success Probability', `${route.successProbability}%`, probabilityColor(route.successProbability)],
                     ['Historical Score', route.historicalScore, '#facc15'],
                     ['Outcomes', `${route.successfulOutcomes}/${route.outcomeCount}`, '#22c55e'],
-                    ['Confidence', route.confidenceLabel, '#c084fc']
+                    ['Confidence', `${route.confidenceScore}/100 · ${route.confidenceLabel}`, '#c084fc'],
+                    ['Best This Week', route.weekScore, '#38bdf8'],
+                    ['Trend', `${route.trendingScore}/100 · ${route.trendLabel}`, '#fb7185']
                   ].map(([label, value, color]) => (
                     <div key={`${route.id}-${label}`} style={{ border: '1px solid #334155', borderRadius: 12, padding: 10, background: '#020617' }}>
                       <small style={{ color: '#94a3b8' }}>{label}</small>

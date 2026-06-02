@@ -15,7 +15,7 @@ import { buildDisruptionIntelligence, routeHealthColor, type DisruptionIntellige
 import { calculateRouteConfidence, confidenceBadgeColor, confidenceTrendColor, type RouteConfidence } from '../../lib/routeConfidence'
 import { defaultTravelerProfile, loadTravelerProfileFromStorage, travelerProfileAssumptions, type TravelerProfileScaffold } from '../../lib/travelerProfile'
 import { loadTripOutcomes, type TripOutcome } from '../../lib/tripOutcomes'
-import { saveTripWatch } from '../../lib/watchlist'
+import { loadSavedTripWatchlist, saveTripWatch } from '../../lib/watchlist'
 import {
   clearSavedItineraryComparisons,
   loadSavedItineraryComparisons,
@@ -1120,6 +1120,7 @@ export default function PlanPage() {
   const [travelerProfile, setTravelerProfile] = useState(defaultTravelerProfile)
   const [loadReports, setLoadReports] = useState<LoadReport[]>([])
   const [outcomes, setOutcomes] = useState<TripOutcome[]>([])
+  const [routeConfidenceScores, setRouteConfidenceScores] = useState<number[]>([])
   const [aiTripPrompt, setAiTripPrompt] = useState('get me to Maui this weekend')
   const [aiPlannerStatus, setAiPlannerStatus] = useState('AI planner scaffold ready for natural language trip requests.')
 
@@ -1144,15 +1145,23 @@ export default function PlanPage() {
       setTravelerProfile(loadTravelerProfileFromStorage())
       setLoadReports(loadLoadReports())
       setOutcomes(loadTripOutcomes())
+      setRouteConfidenceScores([
+        ...loadSavedItineraryComparisons().map((comparison) => comparison.routeConfidenceScore),
+        ...loadSavedTripWatchlist().map((watch) => watch.routeConfidenceScore)
+      ].filter((score): score is number => Number.isFinite(score)))
     }
 
     refreshLocalScaffolds()
     window.addEventListener('nonrevy-load-reports-updated', refreshLocalScaffolds)
     window.addEventListener('nonrevy-trip-outcomes-updated', refreshLocalScaffolds)
+    window.addEventListener('nonrevy-itinerary-comparisons-updated', refreshLocalScaffolds)
+    window.addEventListener('nonrevy-watchlist-updated', refreshLocalScaffolds)
     window.addEventListener('storage', refreshLocalScaffolds)
     return () => {
       window.removeEventListener('nonrevy-load-reports-updated', refreshLocalScaffolds)
       window.removeEventListener('nonrevy-trip-outcomes-updated', refreshLocalScaffolds)
+      window.removeEventListener('nonrevy-itinerary-comparisons-updated', refreshLocalScaffolds)
+      window.removeEventListener('nonrevy-watchlist-updated', refreshLocalScaffolds)
       window.removeEventListener('storage', refreshLocalScaffolds)
     }
   }, [])
@@ -1266,8 +1275,9 @@ export default function PlanPage() {
     routeRecommendations: scoringScaffold.routeRecommendations,
     historicalStats,
     loadReports,
-    outcomes
-  }), [carrier, travelerProfile, carrierProfile, scoringScaffold, historicalStats, loadReports, outcomes])
+    outcomes,
+    routeConfidenceScores
+  }), [carrier, travelerProfile, carrierProfile, scoringScaffold, historicalStats, loadReports, outcomes, routeConfidenceScores])
 
   const itineraryComparisons = useMemo(() => {
     const comparisons = liveItineraries.length > 0
@@ -1660,7 +1670,7 @@ export default function PlanPage() {
           <section style={{ border: '1px solid #334155', borderRadius: 16, padding: 14, background: '#020617', marginTop: 14 }}>
             <strong style={{ color: '#38bdf8' }}>Community-weighted Success Probability</strong>
             <p style={{ color: '#94a3b8' }}>
-              Prediction engine scaffold blended from Outcome History, Community Load Reports, Historical Route Database, Reputation/Trust Scores, and Traveler Profile for {scoringScaffold.recommendationScope}.
+              Prediction engine scaffold blended from Outcome History, Community Load Reports, Historical Route Database, Route Confidence Scores, Reputation/Trust Scores, and Traveler Profile for {scoringScaffold.recommendationScope}.
             </p>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
               <article style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#0f172a' }}>
@@ -1680,6 +1690,11 @@ export default function PlanPage() {
                 <small style={{ color: '#94a3b8' }}>Sample Size</small>
                 <h3 style={{ color: '#f8fafc', margin: '6px 0 0' }}>{predictionEngine.sampleSize.total}</h3>
                 <p style={{ color: '#94a3b8', margin: '4px 0 0' }}>{predictionEngine.sampleSize.weightedCommunitySample} weighted community units</p>
+              </article>
+              <article style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#0f172a' }}>
+                <small style={{ color: '#94a3b8' }}>Route Confidence Input</small>
+                <h3 style={{ color: '#f8fafc', margin: '6px 0 0' }}>{predictionEngine.inputSummary.routeConfidenceAverage}/100</h3>
+                <p style={{ color: '#94a3b8', margin: '4px 0 0' }}>{predictionEngine.sampleSize.routeConfidenceSnapshots} saved snapshot(s)</p>
               </article>
             </div>
             <div style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#0f172a', marginTop: 14 }}>
@@ -1750,7 +1765,8 @@ export default function PlanPage() {
                 ['Route risk', predictionEngine.inputSummary.routeRisk],
                 ['Load reports', predictionEngine.inputSummary.communityReportCount],
                 ['Outcome rate', `${predictionEngine.inputSummary.outcomeSuccessRate}%`],
-                ['Trust score', `${predictionEngine.inputSummary.trustScore}/100`]
+                ['Trust score', `${predictionEngine.inputSummary.trustScore}/100`],
+                ['Route confidence', `${predictionEngine.inputSummary.routeConfidenceAverage}/100`]
               ].map(([label, value]) => (
                 <article key={label} style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#0f172a' }}>
                   <small style={{ color: '#94a3b8' }}>{label}</small>

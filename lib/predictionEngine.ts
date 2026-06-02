@@ -18,6 +18,7 @@ export type PredictionEngineInput = {
   historicalStats: HistoricalStats
   loadReports: LoadReport[]
   outcomes: TripOutcome[]
+  routeConfidenceScores?: number[]
 }
 
 export type PredictionEngineResult = {
@@ -35,6 +36,7 @@ export type PredictionEngineResult = {
     historicalRouteReports: number
     historicalRouteSamples: number
     weightedCommunitySample: number
+    routeConfidenceSnapshots: number
   }
   communityContributionImpact: {
     newContributorReports: number
@@ -58,6 +60,7 @@ export type PredictionEngineResult = {
     outcomeCount: number
     outcomeSuccessRate: number
     trustScore: number
+    routeConfidenceAverage: number
   }
 }
 
@@ -138,7 +141,9 @@ export function calculatePredictionEngine(input: PredictionEngineInput): Predict
   const routeRisk = input.routeIntelligence['Risk Level'] || input.carrierProfile.successDefaults.riskCategory
   const historicalSampleSize = input.historicalStats.reportCount + input.historicalStats.routes.length
   const weightedCommunitySample = Number(input.loadReports.reduce((total, report) => total + (report.verified ? report.trustedWeight : 0), 0).toFixed(2))
-  const totalSampleSize = outcomeStats.outcomeCount + input.loadReports.length + historicalSampleSize
+  const routeConfidenceScores = (input.routeConfidenceScores || []).filter((score) => Number.isFinite(score))
+  const routeConfidenceAverage = Math.round(average(routeConfidenceScores)) || defaultProbability
+  const totalSampleSize = outcomeStats.outcomeCount + input.loadReports.length + historicalSampleSize + routeConfidenceScores.length
   const communityProbability = Math.round(weightedAverage(
     input.loadReports.map((report) => ({ value: loadStatusProbability(report), weight: report.verified ? report.trustedWeight : 0.5 })),
     defaultProbability
@@ -154,6 +159,7 @@ export function calculatePredictionEngine(input: PredictionEngineInput): Predict
     99
   )
   const reputationSignal = clamp(58 + trustScore.trustScore * 0.34, 1, 99)
+  const routeConfidenceSignal = clamp(routeConfidenceAverage, 1, 99)
   const historicalScoreSignal = input.historicalStats.averageScore ? (input.historicalStats.averageScore - 75) * 0.25 : 0
   const historicalSuccessSignal = input.historicalStats.averageSuccessRate ? (input.historicalStats.averageSuccessRate - 70) * 0.35 : 0
   const communityLoadSignal = clamp(input.loadReports.reduce((total, report) => total + loadStatusSignal(report), 0), -8, 8)
@@ -167,13 +173,14 @@ export function calculatePredictionEngine(input: PredictionEngineInput): Predict
   const travelerTypePenalty = input.travelerProfile.travelerType === 'Buddy Pass' ? 5 : input.travelerProfile.travelerType === 'Companion' ? 3 : 0
   const priorityBoost = input.travelerProfile.passPriority.toUpperCase().includes('SA1') ? 3 : input.travelerProfile.passPriority.toUpperCase().includes('SA2') ? 1 : 0
   const rawProbability =
-    defaultProbability * 0.22 +
-    historicalProbability * 0.22 +
-    outcomeProbability * 0.2 +
-    communityProbability * 0.18 +
-    travelerProfileSignal * 0.1 +
-    reputationSignal * 0.08 +
-    averageRecommendationScore * 0.08 +
+    defaultProbability * 0.2 +
+    historicalProbability * 0.2 +
+    outcomeProbability * 0.18 +
+    communityProbability * 0.16 +
+    routeConfidenceSignal * 0.1 +
+    travelerProfileSignal * 0.09 +
+    reputationSignal * 0.07 +
+    averageRecommendationScore * 0.06 +
     historicalScoreSignal +
     historicalSuccessSignal +
     communityLoadSignal +
@@ -195,6 +202,7 @@ export function calculatePredictionEngine(input: PredictionEngineInput): Predict
     input.historicalStats.routes.length > 0 ? 'historical-routes' : '',
     loadStats.totalReports > 0 ? 'community-load-reports' : '',
     outcomeStats.outcomeCount > 0 ? 'outcome-history' : '',
+    routeConfidenceScores.length > 0 ? 'route-confidence' : '',
     input.routeRecommendations.length > 0 ? 'route-recommendations' : ''
   ].filter(Boolean).length
   const confidencePercent = confidencePercentFromSample(totalSampleSize, dataSignals, weightedCommunitySample)
@@ -224,6 +232,12 @@ export function calculatePredictionEngine(input: PredictionEngineInput): Predict
       impact: `${trustScore.trustScore}/100 current trust score nudges confidence and community signal quality.`
     },
     {
+      label: 'Route Confidence Scores',
+      used: routeConfidenceScores.length > 0,
+      sampleSize: routeConfidenceScores.length,
+      impact: `${routeConfidenceAverage}/100 average stored route confidence from saved itineraries and watchlist snapshots.`
+    },
+    {
       label: 'Traveler Profile',
       used: true,
       sampleSize: 1,
@@ -237,7 +251,8 @@ export function calculatePredictionEngine(input: PredictionEngineInput): Predict
     confidenceLevel: confidenceLevel(dataSignals, outcomeStats.outcomeCount),
     riskCategory: riskCategoryFromProbability(successProbability),
     explanationBullets: [
-      `Base carrier profile starts at ${defaultProbability}% for ${input.recommendationScope}, then blends weighted community, outcome, historical, trust, and traveler-profile signals.`,
+      `Base carrier profile starts at ${defaultProbability}% for ${input.recommendationScope}, then blends weighted community, outcome, historical, route-confidence, trust, and traveler-profile signals.`,
+      `Route confidence contributes a ${routeConfidenceAverage}/100 average signal from saved itinerary and watchlist snapshots when available.`,
       `Route intelligence risk is ${routeRisk}, applying a ${riskPenalty >= 0 ? '-' : '+'}${Math.abs(riskPenalty)} point placeholder risk adjustment.`,
       `Historical route stats add ${input.historicalStats.averageScore} average score, ${input.historicalStats.averageSuccessRate}% success rate, and ${input.historicalStats.reportCount} reports.`,
       `Community load reports contribute ${loadStats.verifiedReportsCount} verified reports with ${loadStats.trustedSignal} weighted trusted signal and a ${communityLoadSignal >= 0 ? '+' : ''}${communityLoadSignal.toFixed(1)} point load adjustment.`,
@@ -246,9 +261,10 @@ export function calculatePredictionEngine(input: PredictionEngineInput): Predict
       `Traveler profile applies ${input.travelerProfile.travelerType} / ${input.travelerProfile.passPriority} assumptions from ${input.travelerProfile.homeAirport}.`
     ],
     whyWeBelieveThis: [
-      `The displayed ${successProbability}% probability is a placeholder weighted blend: carrier baseline 22%, historical route database 22%, outcome history 20%, community load reports 18%, traveler profile 10%, and reputation/trust 8%, with small route-risk and recommendation adjustments layered on top.`,
+      `The displayed ${successProbability}% probability is a placeholder weighted blend: carrier baseline 20%, historical route database 20%, outcome history 18%, community load reports 16%, route confidence 10%, traveler profile 9%, and reputation/trust 7%, with small route-risk and recommendation adjustments layered on top.`,
       `Confidence is ${confidencePercent}% because the engine found ${totalSampleSize} total local/static samples across ${dataSignals} source categories, including ${weightedCommunitySample} weighted community-report units.`,
       `Trusted and elite contributor reports are weighted higher than new contributor reports, so a tight/full report from a high-trust member moves probability more than the same report from a new contributor.`,
+      `Route confidence gives the engine a second-order signal: saved route scores already include success probability, historical data, community load reports, traveler profile, disruption intelligence, and weather impact.`,
       `Traveler profile still matters: pass priority, traveler type, home airport, preferred airports, and employee-airline alignment adjust the same route differently for different nonrev travelers.`
     ],
     dataSourcesUsed,
@@ -258,7 +274,8 @@ export function calculatePredictionEngine(input: PredictionEngineInput): Predict
       communityLoadReports: input.loadReports.length,
       historicalRouteReports: input.historicalStats.reportCount,
       historicalRouteSamples: input.historicalStats.routes.length,
-      weightedCommunitySample
+      weightedCommunitySample,
+      routeConfidenceSnapshots: routeConfidenceScores.length
     },
     communityContributionImpact: {
       newContributorReports,
@@ -271,12 +288,13 @@ export function calculatePredictionEngine(input: PredictionEngineInput): Predict
       summary: `${newContributorReports} new, ${trustedContributorReports} trusted, and ${eliteContributorReports} elite report(s) produced ${loadStats.trustedSignal} weighted community units.`
     },
     placeholderWeights: [
-      { label: 'Carrier baseline', value: '22%' },
-      { label: 'Historical route database', value: '22%' },
-      { label: 'Outcome history', value: '20%' },
-      { label: 'Community load reports', value: '18%' },
-      { label: 'Traveler profile', value: '10%' },
-      { label: 'Reputation/trust scores', value: '8%' }
+      { label: 'Carrier baseline', value: '20%' },
+      { label: 'Historical route database', value: '20%' },
+      { label: 'Outcome history', value: '18%' },
+      { label: 'Community load reports', value: '16%' },
+      { label: 'Route confidence', value: '10%' },
+      { label: 'Traveler profile', value: '9%' },
+      { label: 'Reputation/trust scores', value: '7%' }
     ],
     inputSummary: {
       travelerProfileSignals: travelerProfileAssumptions(input.travelerProfile),
@@ -288,7 +306,8 @@ export function calculatePredictionEngine(input: PredictionEngineInput): Predict
       weightedLoadSignal: loadStats.trustedSignal,
       outcomeCount: outcomeStats.outcomeCount,
       outcomeSuccessRate: outcomeStats.successRate,
-      trustScore: trustScore.trustScore
+      trustScore: trustScore.trustScore,
+      routeConfidenceAverage
     }
   }
 }

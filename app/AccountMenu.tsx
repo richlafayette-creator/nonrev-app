@@ -42,6 +42,7 @@ export default function AccountMenu() {
           <a href="/account">My Account</a>
           <a href="/billing">Billing</a>
           <a href="/membership">Upgrade Membership</a>
+          <a href="/data-health">Data Health</a>
           <a href="/membership#cancel">Cancel Membership</a>
           {userEmail && <button onClick={logout}>Logout</button>}
         </div>

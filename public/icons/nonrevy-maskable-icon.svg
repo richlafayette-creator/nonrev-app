@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="nonrevy maskable app icon">
+  <defs>
+    <radialGradient id="glow" cx="50%" cy="44%" r="62%">
+      <stop stop-color="#38bdf8"/>
+      <stop offset="0.55" stop-color="#312e81"/>
+      <stop offset="1" stop-color="#020617"/>
+    </radialGradient>
+  </defs>
+  <rect width="512" height="512" fill="#020617"/>
+  <circle cx="256" cy="256" r="210" fill="url(#glow)"/>
+  <circle cx="256" cy="256" r="158" fill="#020617" opacity="0.45"/>
+  <path d="M116 266h296c28 0 51 22 53 50H47c2-28 25-50 69-50Z" fill="#38bdf8" opacity="0.24"/>
+  <path d="M125 245 340 138c22-11 45 12 33 34l-47 83 82 50c22 13 12 47-14 47H279l-62 105c-13 22-47 13-47-13v-92H105c-29 0-39-38-14-53l34-20Z" fill="#f8fafc"/>
+  <path d="M190 273h110l-47 78h-63v-78Z" fill="#020617" opacity="0.72"/>
+  <text x="256" y="423" text-anchor="middle" font-family="Arial Black, Impact, sans-serif" font-size="58" letter-spacing="2" fill="#f8fafc">nonrevy</text>
+</svg>

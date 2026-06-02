@@ -19,10 +19,27 @@
   }
 }
 
+html {
+  min-height: 100%;
+  background: #020617;
+  overscroll-behavior-y: none;
+  -webkit-text-size-adjust: 100%;
+}
+
 body {
+  min-height: 100%;
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+  overscroll-behavior-y: none;
+  -webkit-tap-highlight-color: rgba(56, 189, 248, 0.24);
+}
+
+@media (display-mode: standalone) {
+  body {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
 }
 
 .nonrevy-logo {

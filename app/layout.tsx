@@ -1,7 +1,8 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Bungee, Geist, Geist_Mono } from "next/font/google";
 import AccountMenu from "./AccountMenu";
 import AppNavigation from "./AppNavigation";
+import PWAInstallScaffold from "./PWAInstallScaffold";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -21,8 +22,34 @@ const bungee = Bungee({
 });
 
 export const metadata: Metadata = {
+  applicationName: "nonrevy",
   title: "nonrevy",
   description: "Nonrev flight search and itinerary planning",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    title: "nonrevy",
+    statusBarStyle: "black-translucent",
+  },
+  formatDetection: {
+    telephone: false,
+  },
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/icons/nonrevy-icon.svg", type: "image/svg+xml" },
+    ],
+    apple: [
+      { url: "/icons/apple-touch-icon.png", sizes: "500x500", type: "image/png" },
+    ],
+  },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#020617",
 };
 
 export default function RootLayout({
@@ -39,6 +66,7 @@ export default function RootLayout({
         <AppNavigation />
         <AccountMenu />
         {children}
+        <PWAInstallScaffold />
       </body>
     </html>
   );

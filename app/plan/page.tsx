@@ -13,6 +13,13 @@ import { calculatePredictionEngine } from '../../lib/predictionEngine'
 import { defaultTravelerProfile, loadTravelerProfileFromStorage } from '../../lib/travelerProfile'
 import { loadTripOutcomes, type TripOutcome } from '../../lib/tripOutcomes'
 import { saveTripWatch } from '../../lib/watchlist'
+import {
+  clearSavedItineraryComparisons,
+  loadSavedItineraryComparisons,
+  removeSavedItineraryComparison,
+  saveItineraryComparison,
+  type SavedItineraryComparison
+} from '../../lib/savedItineraryComparisons'
 import MapboxAirportMap from '../MapboxAirportMap'
 import OutcomeCapture from '../OutcomeCapture'
 
@@ -332,8 +339,24 @@ function comparisonMetricColor(value: number) {
 
 function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: ItineraryComparison[]; travelDate: string }) {
   const [watchStatus, setWatchStatus] = useState('')
+  const [compareStatus, setCompareStatus] = useState('')
+  const [savedComparisons, setSavedComparisons] = useState<SavedItineraryComparison[]>([])
 
-  if (comparisons.length < 2) return null
+  useEffect(() => {
+    function refreshSavedComparisons() {
+      setSavedComparisons(loadSavedItineraryComparisons())
+    }
+
+    refreshSavedComparisons()
+    window.addEventListener('nonrevy-itinerary-comparisons-updated', refreshSavedComparisons)
+    window.addEventListener('storage', refreshSavedComparisons)
+    return () => {
+      window.removeEventListener('nonrevy-itinerary-comparisons-updated', refreshSavedComparisons)
+      window.removeEventListener('storage', refreshSavedComparisons)
+    }
+  }, [])
+
+  if (comparisons.length < 2 && savedComparisons.length === 0) return null
 
   function watchRoute(comparison: ItineraryComparison) {
     const saved = saveTripWatch({
@@ -352,6 +375,36 @@ function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: It
     }
   }
 
+
+  function saveForComparison(comparison: ItineraryComparison) {
+    const saved = saveItineraryComparison({
+      route: comparison.route,
+      carrier: comparison.carrier,
+      score: comparison.score,
+      successProbability: comparison.successProbability,
+      riskLevel: comparison.riskLevel,
+      connections: comparison.connections,
+      totalTravelTime: comparison.totalTravelTime,
+      why: comparison.why,
+      sourceLabel: comparison.isLive ? 'Live itinerary option' : 'Planning scaffold option'
+    })
+
+    if (saved) {
+      setSavedComparisons(loadSavedItineraryComparisons())
+      setCompareStatus(`Saved ${saved.route} for side-by-side comparison.`)
+    }
+  }
+
+  function removeComparison(id: string) {
+    setSavedComparisons(removeSavedItineraryComparison(id))
+    setCompareStatus('Removed saved itinerary option.')
+  }
+
+  function clearComparisons() {
+    setSavedComparisons(clearSavedItineraryComparisons())
+    setCompareStatus('Cleared saved itinerary comparisons.')
+  }
+
   return (
     <section style={{ border: '1px solid #38bdf8', borderRadius: 24, padding: 20, background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.96), rgba(30, 41, 59, 0.9))', marginBottom: 18 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', alignItems: 'flex-start' }}>
@@ -368,6 +421,7 @@ function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: It
       </div>
 
       {watchStatus && <p style={{ color: '#22c55e', fontWeight: 'bold' }}>{watchStatus} <a href="/watchlist" style={{ color: '#38bdf8' }}>Open watchlist</a></p>}
+      {compareStatus && <p style={{ color: '#c084fc', fontWeight: 'bold' }}>{compareStatus}</p>}
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14, marginTop: 16 }}>
         {comparisons.map((comparison, index) => {
@@ -418,17 +472,85 @@ function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: It
                   {comparison.why.map((reason) => <li key={reason}>{reason}</li>)}
                 </ul>
               </details>
-              <button
-                type="button"
-                onClick={() => watchRoute(comparison)}
-                style={{ width: '100%', marginTop: 14, padding: 12, borderRadius: 12, border: 'none', background: isBest ? '#22c55e' : '#facc15', color: '#020617', fontWeight: 'bold' }}
-              >
-                Watch Route
-              </button>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10, marginTop: 14 }}>
+                <button
+                  type="button"
+                  onClick={() => watchRoute(comparison)}
+                  style={{ padding: 12, borderRadius: 12, border: 'none', background: isBest ? '#22c55e' : '#facc15', color: '#020617', fontWeight: 'bold' }}
+                >
+                  Watch Route
+                </button>
+                <button
+                  type="button"
+                  onClick={() => saveForComparison(comparison)}
+                  style={{ padding: 12, borderRadius: 12, border: '1px solid #c084fc', background: '#1e1b4b', color: '#f5d0fe', fontWeight: 'bold' }}
+                >
+                  Save to Compare
+                </button>
+              </div>
             </article>
           )
         })}
       </div>
+
+      <section style={{ border: '1px solid #334155', borderRadius: 20, padding: 18, background: '#020617', marginTop: 18 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+          <div>
+            <strong style={{ color: '#c084fc', textTransform: 'uppercase', letterSpacing: 1 }}>Saved itinerary comparison</strong>
+            <p style={{ color: '#94a3b8', margin: '6px 0 0' }}>
+              Save multiple options from /plan and compare them side by side. Stored locally in this browser for now.
+            </p>
+          </div>
+          {savedComparisons.length > 0 && (
+            <button type="button" onClick={clearComparisons} style={{ padding: '10px 12px', borderRadius: 10, border: '1px solid #475569', background: '#0f172a', color: '#f8fafc', fontWeight: 'bold' }}>
+              Clear saved comparisons
+            </button>
+          )}
+        </div>
+
+        {savedComparisons.length === 0 ? (
+          <article style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#0f172a', marginTop: 14 }}>
+            <p style={{ color: '#cbd5e1', margin: 0 }}>No saved itinerary options yet. Use “Save to Compare” on any recommendation above.</p>
+          </article>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 14, marginTop: 14 }}>
+            {savedComparisons.map((item) => (
+              <article key={item.id} className="flight-card" style={{ border: '1px solid #334155', borderRadius: 18, padding: 16, background: '#0f172a' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'flex-start' }}>
+                  <div>
+                    <small style={{ color: '#c084fc', fontWeight: 800, textTransform: 'uppercase', letterSpacing: 1 }}>{item.sourceLabel}</small>
+                    <h4 style={{ color: '#f8fafc', margin: '6px 0', fontSize: 22 }}>{item.route}</h4>
+                    <p style={{ color: '#94a3b8', margin: 0 }}>{item.carrier} · Saved {new Date(item.savedAt).toLocaleString()}</p>
+                  </div>
+                  <button type="button" onClick={() => removeComparison(item.id)} style={{ padding: '8px 10px', borderRadius: 10, border: '1px solid #f87171', background: '#1f2937', color: '#fecaca', fontWeight: 'bold' }}>
+                    Remove
+                  </button>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 10, marginTop: 12 }}>
+                  {[
+                    ['Score', item.score, comparisonMetricColor(item.score)],
+                    ['Success Probability', `${item.successProbability}%`, comparisonMetricColor(item.successProbability)],
+                    ['Risk', item.riskLevel, riskColor(item.riskLevel)],
+                    ['Connections', item.connections, item.connections === 0 ? '#22c55e' : '#facc15'],
+                    ['Total Travel Time', item.totalTravelTime, '#38bdf8']
+                  ].map(([label, value, color]) => (
+                    <div key={`${item.id}-${label}`} style={{ border: '1px solid #334155', borderRadius: 12, padding: 10, background: '#020617' }}>
+                      <small style={{ color: '#94a3b8' }}>{label}</small>
+                      <p style={{ margin: '4px 0 0', color: String(color), fontWeight: 'bold' }}>{value}</p>
+                    </div>
+                  ))}
+                </div>
+                <details style={{ marginTop: 12 }}>
+                  <summary style={{ color: '#facc15', cursor: 'pointer', fontWeight: 'bold' }}>Why this route?</summary>
+                  <ul style={{ color: '#cbd5e1', paddingLeft: 20, marginBottom: 0 }}>
+                    {item.why.map((reason) => <li key={reason}>{reason}</li>)}
+                  </ul>
+                </details>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
     </section>
   )
 }

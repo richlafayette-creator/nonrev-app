@@ -1,19 +1,22 @@
 'use client'
 
-import { type FormEvent, useEffect, useMemo, useState } from 'react'
+import { type FormEvent, useMemo, useState } from 'react'
 import { supportedCarrierOptions } from '../lib/carrierScope'
 import { parseTripPlannerPrompt } from '../lib/aiTripPlanner'
 import { defaultTravelerProfile } from '../lib/travelerProfile'
+import { useVoiceInput } from '../lib/useVoiceInput'
 
 export default function Home() {
   const [search, setSearch] = useState('')
   const [carrier, setCarrier] = useState('all')
   const [message, setMessage] = useState('')
   const [aiTripPrompt, setAiTripPrompt] = useState('best Hawaii trip from LAX tomorrow')
+  const voiceInput = useVoiceInput({
+    onTranscript: setSearch,
+    onStatus: setMessage,
+    idleStatus: 'Voice capture ready. Review the search box, then plan when ready.'
+  })
 
-  useEffect(() => {
-    setMessage('')
-  }, [])
 
   function submitSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -27,7 +30,7 @@ export default function Home() {
   }
 
   function startVoiceScaffold() {
-    setMessage('Voice input scaffold ready — speech capture will fill the search box here.')
+    voiceInput.start()
   }
 
   const aiTripPreview = useMemo(
@@ -83,11 +86,12 @@ export default function Home() {
               />
               <button
                 type="button"
-                aria-label="Voice input scaffold"
+                aria-label={voiceInput.isListening ? 'Stop listening' : 'Start voice input'}
                 onClick={startVoiceScaffold}
-                style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', width: 40, height: 40, borderRadius: 999, border: '1px solid #475569', background: '#020617', color: '#f472b6', fontSize: 18 }}
+                title={voiceInput.isSupported ? 'Speak a route, flight number, or trip idea' : 'Voice capture is not supported in this browser'}
+                style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', width: 40, height: 40, borderRadius: 999, border: `1px solid ${voiceInput.isListening ? '#fb7185' : '#475569'}`, background: voiceInput.isListening ? '#fb7185' : '#020617', color: voiceInput.isListening ? 'white' : '#f472b6', fontSize: 18 }}
               >
-                🎙️
+                {voiceInput.isListening ? '●' : '🎙️'}
               </button>
             </div>
             <button type="submit" style={{ marginTop: 18, padding: '14px 24px', borderRadius: 999, border: 'none', background: '#38bdf8', color: '#020617', fontWeight: 'bold' }}>

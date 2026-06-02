@@ -14,6 +14,7 @@ import { calculatePredictionEngine } from '../../lib/predictionEngine'
 import { buildDisruptionIntelligence, routeHealthColor, type DisruptionIntelligence } from '../../lib/disruptionIntelligence'
 import { calculateRouteConfidence, confidenceBadgeColor, confidenceTrendColor, type RouteConfidence } from '../../lib/routeConfidence'
 import { defaultTravelerProfile, loadTravelerProfileFromStorage, travelerProfileAssumptions, type TravelerProfileScaffold } from '../../lib/travelerProfile'
+import { useVoiceInput } from '../../lib/useVoiceInput'
 import { loadTripOutcomes, type TripOutcome } from '../../lib/tripOutcomes'
 import { loadSavedTripWatchlist, saveTripWatch } from '../../lib/watchlist'
 import {
@@ -1157,6 +1158,14 @@ export default function PlanPage() {
   const [routeConfidenceScores, setRouteConfidenceScores] = useState<number[]>([])
   const [aiTripPrompt, setAiTripPrompt] = useState('get me to Maui this weekend')
   const [aiPlannerStatus, setAiPlannerStatus] = useState('AI planner scaffold ready for natural language trip requests.')
+  const voiceInput = useVoiceInput({
+    onTranscript: (transcript) => {
+      setTripGoal(transcript)
+      setQuery(transcript)
+    },
+    onStatus: setVoiceStatus,
+    idleStatus: 'Voice capture ready. Review the captured trip request, then update planner results.'
+  })
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
@@ -1271,7 +1280,7 @@ export default function PlanPage() {
   }
 
   function startVoiceScaffold() {
-    setVoiceStatus('Listening scaffold active — speech-to-itinerary capture will plug in here.')
+    voiceInput.start()
   }
 
   async function submitAiTripPlanner(event: FormEvent<HTMLFormElement>) {
@@ -1531,16 +1540,17 @@ export default function PlanPage() {
           </form>
 
           <aside style={{ border: '1px solid #334155', borderRadius: 22, padding: 22, background: 'linear-gradient(135deg, #111827, #312e81)' }}>
-            <h2 style={{ marginTop: 0 }}>Voice input scaffold</h2>
+            <h2 style={{ marginTop: 0 }}>Voice input</h2>
             <p style={{ color: '#cbd5e1' }}>
-              Capture spoken trip ideas here, then convert them into structured itinerary requests in a later integration.
+              Capture spoken trip ideas here and fill the itinerary request automatically when your browser supports speech recognition.
             </p>
             <button
               type="button"
               onClick={startVoiceScaffold}
-              style={{ padding: 14, borderRadius: 999, border: '1px solid #fda4af', background: '#fb7185', color: 'white', fontWeight: 'bold' }}
+              title={voiceInput.isSupported ? 'Speak a route, flight number, or trip idea' : 'Voice capture is not supported in this browser'}
+              style={{ padding: 14, borderRadius: 999, border: '1px solid #fda4af', background: voiceInput.isListening ? '#be123c' : '#fb7185', color: 'white', fontWeight: 'bold' }}
             >
-              🎙 Start voice note
+              {voiceInput.isListening ? '● Listening' : '🎙 Start voice note'}
             </button>
             <p style={{ color: '#fecdd3' }}>{voiceStatus}</p>
             <div style={{ marginTop: 20, padding: 14, borderRadius: 16, background: 'rgba(15, 23, 42, 0.7)' }}>

@@ -12,7 +12,7 @@ import { historicalRouteStats, type HistoricalRoute } from '../../lib/historical
 import { loadLoadReports, type LoadReport } from '../../lib/loadReports'
 import { calculatePredictionEngine } from '../../lib/predictionEngine'
 import { buildDisruptionIntelligence, routeHealthColor, type DisruptionIntelligence } from '../../lib/disruptionIntelligence'
-import { calculateRouteConfidence, confidenceBadgeColor, confidenceTrendColor, type RouteConfidence } from '../../lib/routeConfidence'
+import { calculateRouteConfidence, confidenceBadgeColor, confidenceTrendColor, confidenceUpdateTriggerLabel, type ConfidenceTrend, type ConfidenceUpdateTrigger, type RouteConfidence } from '../../lib/routeConfidence'
 import { getRouteWeatherRisk, weatherRiskColor, type WeatherRisk } from '../../lib/weatherIntelligence'
 import { defaultTravelerProfile, loadTravelerProfileFromStorage, travelerProfileAssumptions, type TravelerProfileScaffold } from '../../lib/travelerProfile'
 import { useVoiceInput } from '../../lib/useVoiceInput'
@@ -422,7 +422,8 @@ function buildLiveItineraryComparison(
   travelerProfile: TravelerProfileScaffold,
   routeIntelligence: Record<string, string>,
   carrierWeights: Record<string, string>,
-  recommendationScope: string
+  recommendationScope: string,
+  updateTrigger: ConfidenceUpdateTrigger
 ): ItineraryComparison {
   const historicalRoute = matchingHistoricalRoute(itinerary.route, historicalRoutes)
   const routeReports = matchingRouteLoadReports(itinerary.route, loadReports)
@@ -465,7 +466,8 @@ function buildLiveItineraryComparison(
     communityLoadAdjustment: loadAdjustment,
     travelerProfile,
     disruption,
-    weatherRisk
+    weatherRisk,
+    updateTrigger
   })
   const explanation = buildScoringExplanation({
     route: itinerary.route,
@@ -540,7 +542,8 @@ function buildFallbackItineraryComparison(
   carrierLabel: string,
   travelerProfile: TravelerProfileScaffold,
   routeIntelligence: Record<string, string>,
-  carrierWeights: Record<string, string>
+  carrierWeights: Record<string, string>,
+  updateTrigger: ConfidenceUpdateTrigger
 ): ItineraryComparison {
   const historicalRoute = matchingHistoricalRoute(itinerary.route, historicalRoutes)
   const routeReports = matchingRouteLoadReports(itinerary.route, loadReports)
@@ -582,7 +585,8 @@ function buildFallbackItineraryComparison(
     communityLoadAdjustment: loadAdjustment,
     travelerProfile,
     disruption,
-    weatherRisk
+    weatherRisk,
+    updateTrigger
   })
   const explanation = buildScoringExplanation({
     route: itinerary.route,
@@ -653,6 +657,16 @@ function comparisonMetricColor(value: number) {
   if (value >= 70) return '#38bdf8'
   if (value >= 60) return '#facc15'
   return '#f87171'
+}
+
+function savedConfidenceTrend(value?: string): ConfidenceTrend | null {
+  if (value === 'Improving' || value === 'Stable' || value === 'Declining') return value
+  return null
+}
+
+function savedConfidenceTrendColor(value?: string) {
+  const trend = savedConfidenceTrend(value)
+  return trend ? confidenceTrendColor(trend) : '#94a3b8'
 }
 
 function explanationSectionColor(label: string) {
@@ -877,6 +891,9 @@ function RouteConfidenceSection({ comparisons }: { comparisons: ItineraryCompari
           <p style={{ color: '#cbd5e1', margin: 0 }}>
             Combines success probability, historical route data, community reports, traveler profile, disruption intelligence, and weather impact.
           </p>
+          <p style={{ color: '#94a3b8', margin: '8px 0 0' }}>
+            Last confidence update: {new Date(bestConfidence.routeConfidence.lastUpdated).toLocaleString()} · Trigger: {confidenceUpdateTriggerLabel(bestConfidence.routeConfidence.updateTrigger)}
+          </p>
         </div>
         <span style={{ border: `1px solid ${confidenceBadgeColor(bestConfidence.routeConfidence.badge)}`, borderRadius: 999, color: confidenceBadgeColor(bestConfidence.routeConfidence.badge), padding: '8px 12px', fontWeight: 'bold' }}>
           Best confidence: {bestConfidence.routeConfidence.score}/100 · {bestConfidence.routeConfidence.badge}
@@ -906,6 +923,10 @@ function RouteConfidenceSection({ comparisons }: { comparisons: ItineraryCompari
               <p style={{ color: confidenceTrendColor(comparison.routeConfidence.trend), margin: '8px 0' }}>
                 Trend: {comparison.routeConfidence.trend}{comparison.routeConfidence.trendDelta ? ` (${comparison.routeConfidence.trendDelta > 0 ? '+' : ''}${comparison.routeConfidence.trendDelta})` : ''}
               </p>
+              <p style={{ color: '#94a3b8', margin: '8px 0' }}>
+                Last confidence update: {new Date(comparison.routeConfidence.lastUpdated).toLocaleString()} · {confidenceUpdateTriggerLabel(comparison.routeConfidence.updateTrigger)}
+              </p>
+              <p style={{ color: '#cbd5e1', margin: '8px 0' }}>{comparison.routeConfidence.updateExplanation}</p>
               <ul style={{ color: '#cbd5e1', paddingLeft: 20, margin: '8px 0' }}>
                 {comparison.routeConfidence.explanation.map((item) => <li key={item}>{item}</li>)}
               </ul>
@@ -1046,6 +1067,8 @@ function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: It
       routeConfidenceScore: comparison.routeConfidence.score,
       confidenceBadge: comparison.routeConfidence.badge,
       confidenceTrend: comparison.routeConfidence.trend,
+      lastConfidenceUpdate: comparison.routeConfidence.lastUpdated,
+      confidenceUpdateExplanation: comparison.routeConfidence.updateExplanation,
       riskLevel: comparison.riskLevel,
       connections: comparison.connections,
       totalTravelTime: comparison.totalTravelTime
@@ -1066,6 +1089,8 @@ function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: It
       routeConfidenceScore: comparison.routeConfidence.score,
       confidenceBadge: comparison.routeConfidence.badge,
       confidenceTrend: comparison.routeConfidence.trend,
+      lastConfidenceUpdate: comparison.routeConfidence.lastUpdated,
+      confidenceUpdateExplanation: comparison.routeConfidence.updateExplanation,
       riskLevel: comparison.riskLevel,
       connections: comparison.connections,
       totalTravelTime: comparison.totalTravelTime,
@@ -1153,6 +1178,7 @@ function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: It
                   ['Success Probability', `${comparison.successProbability}%`, comparisonMetricColor(comparison.successProbability)],
                   ['Route Confidence', `${comparison.routeConfidence.score}/100 · ${comparison.routeConfidence.badge}`, confidenceBadgeColor(comparison.routeConfidence.badge)],
                   ['Confidence Trend', comparison.routeConfidence.trend, confidenceTrendColor(comparison.routeConfidence.trend)],
+                  ['Last Confidence Update', new Date(comparison.routeConfidence.lastUpdated).toLocaleString(), '#94a3b8'],
                   ['Weather Risk', `${comparison.weatherRisk.category} · ${comparison.weatherRisk.scoreImpact}/40`, weatherRiskColor(comparison.weatherRisk.category)],
                   ['Connection Risk', `${comparison.airportIntelligence.connectionRiskScore}/100`, connectionRiskColor(comparison.airportIntelligence.connectionRiskScore)],
                   ['Airport Backup', comparison.airportIntelligence.backupFlightAvailability, '#38bdf8'],
@@ -1168,6 +1194,7 @@ function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: It
                   </div>
                 ))}
               </div>
+              <p style={{ color: '#cbd5e1', margin: '12px 0 0' }}>{comparison.routeConfidence.updateExplanation}</p>
 
               <RouteAirportDetails route={comparison.route} />
               <ScoringExplanationDetails comparison={comparison} backup={comparisons[index + 1] || comparisons.find((item) => item.id !== comparison.id)} />
@@ -1230,7 +1257,8 @@ function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: It
                     ['Score', item.score, comparisonMetricColor(item.score)],
                     ['Success Probability', `${item.successProbability}%`, comparisonMetricColor(item.successProbability)],
                     ['Route Confidence', item.routeConfidenceScore ? `${item.routeConfidenceScore}/100 · ${item.confidenceBadge || 'Fair'}` : 'Pending confidence', item.routeConfidenceScore ? comparisonMetricColor(item.routeConfidenceScore) : '#94a3b8'],
-                    ['Confidence Trend', item.confidenceTrend || 'Pending', item.confidenceTrend ? confidenceTrendColor(item.confidenceTrend as any) : '#94a3b8'],
+                    ['Confidence Trend', savedConfidenceTrend(item.confidenceTrend) || 'Pending', savedConfidenceTrendColor(item.confidenceTrend)],
+                    ['Last Confidence Update', item.lastConfidenceUpdate ? new Date(item.lastConfidenceUpdate).toLocaleString() : 'Pending', '#94a3b8'],
                     ['Risk', item.riskLevel, riskColor(item.riskLevel)],
                     ['Connections', item.connections, item.connections === 0 ? '#22c55e' : '#facc15'],
                     ['Total Travel Time', item.totalTravelTime, '#38bdf8']
@@ -1239,8 +1267,9 @@ function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: It
                       <small style={{ color: '#94a3b8' }}>{label}</small>
                       <p style={{ margin: '4px 0 0', color: String(color), fontWeight: 'bold' }}>{value}</p>
                     </div>
-                  ))}
+                ))}
                 </div>
+                {item.confidenceUpdateExplanation && <p style={{ color: '#cbd5e1', margin: '12px 0 0' }}>{item.confidenceUpdateExplanation}</p>}
                 <details style={{ marginTop: 12 }}>
                   <summary style={{ color: '#facc15', cursor: 'pointer', fontWeight: 'bold' }}>Why this route?</summary>
                   <ul style={{ color: '#cbd5e1', paddingLeft: 20, marginBottom: 0 }}>
@@ -1279,6 +1308,7 @@ export default function PlanPage() {
   const [loadReports, setLoadReports] = useState<LoadReport[]>([])
   const [outcomes, setOutcomes] = useState<TripOutcome[]>([])
   const [routeConfidenceScores, setRouteConfidenceScores] = useState<number[]>([])
+  const [confidenceUpdateTrigger, setConfidenceUpdateTrigger] = useState<ConfidenceUpdateTrigger>('local-signal-refresh')
   const [aiTripPrompt, setAiTripPrompt] = useState('get me to Maui this weekend')
   const [aiPlannerStatus, setAiPlannerStatus] = useState('AI planner scaffold ready for natural language trip requests.')
   const voiceInput = useVoiceInput({
@@ -1307,7 +1337,8 @@ export default function PlanPage() {
   }, [])
 
   useEffect(() => {
-    function refreshLocalScaffolds() {
+    function refreshLocalScaffolds(trigger: ConfidenceUpdateTrigger = 'local-signal-refresh') {
+      setConfidenceUpdateTrigger(trigger)
       setTravelerProfile(loadTravelerProfileFromStorage())
       setLoadReports(loadLoadReports())
       setOutcomes(loadTripOutcomes())
@@ -1318,17 +1349,27 @@ export default function PlanPage() {
     }
 
     refreshLocalScaffolds()
-    window.addEventListener('nonrevy-load-reports-updated', refreshLocalScaffolds)
-    window.addEventListener('nonrevy-trip-outcomes-updated', refreshLocalScaffolds)
-    window.addEventListener('nonrevy-itinerary-comparisons-updated', refreshLocalScaffolds)
-    window.addEventListener('nonrevy-watchlist-updated', refreshLocalScaffolds)
-    window.addEventListener('storage', refreshLocalScaffolds)
+    const refreshForLoadReports = () => refreshLocalScaffolds('community-load-report-updated')
+    const refreshForOutcomes = () => refreshLocalScaffolds('outcome-history-changed')
+    const refreshForWeather = () => refreshLocalScaffolds('weather-risk-changed')
+    const refreshForDisruption = () => refreshLocalScaffolds('disruption-status-changed')
+    const refreshForLocal = () => refreshLocalScaffolds('local-signal-refresh')
+
+    window.addEventListener('nonrevy-load-reports-updated', refreshForLoadReports)
+    window.addEventListener('nonrevy-trip-outcomes-updated', refreshForOutcomes)
+    window.addEventListener('nonrevy-weather-risk-updated', refreshForWeather)
+    window.addEventListener('nonrevy-disruption-status-updated', refreshForDisruption)
+    window.addEventListener('nonrevy-itinerary-comparisons-updated', refreshForLocal)
+    window.addEventListener('nonrevy-watchlist-updated', refreshForLocal)
+    window.addEventListener('storage', refreshForLocal)
     return () => {
-      window.removeEventListener('nonrevy-load-reports-updated', refreshLocalScaffolds)
-      window.removeEventListener('nonrevy-trip-outcomes-updated', refreshLocalScaffolds)
-      window.removeEventListener('nonrevy-itinerary-comparisons-updated', refreshLocalScaffolds)
-      window.removeEventListener('nonrevy-watchlist-updated', refreshLocalScaffolds)
-      window.removeEventListener('storage', refreshLocalScaffolds)
+      window.removeEventListener('nonrevy-load-reports-updated', refreshForLoadReports)
+      window.removeEventListener('nonrevy-trip-outcomes-updated', refreshForOutcomes)
+      window.removeEventListener('nonrevy-weather-risk-updated', refreshForWeather)
+      window.removeEventListener('nonrevy-disruption-status-updated', refreshForDisruption)
+      window.removeEventListener('nonrevy-itinerary-comparisons-updated', refreshForLocal)
+      window.removeEventListener('nonrevy-watchlist-updated', refreshForLocal)
+      window.removeEventListener('storage', refreshForLocal)
     }
   }, [])
 
@@ -1359,6 +1400,7 @@ export default function PlanPage() {
     }
 
     setItineraryLoading(true)
+    setConfidenceUpdateTrigger('itinerary-search-run')
     setItineraryStatus('Searching Supabase flights first, then enriching matches when FlightAware is configured...')
     setItineraryDataMode('Searching live providers')
     setItineraryWarnings([])
@@ -1460,7 +1502,8 @@ export default function PlanPage() {
         travelerProfile,
         scoringScaffold.routeIntelligence,
         scoringScaffold.weights,
-        scoringScaffold.recommendationScope
+        scoringScaffold.recommendationScope,
+        confidenceUpdateTrigger
       ))
       : rankedItineraries.map((itinerary) => buildFallbackItineraryComparison(
         itinerary,
@@ -1471,13 +1514,14 @@ export default function PlanPage() {
         scoringScaffold.recommendationScope,
         travelerProfile,
         scoringScaffold.routeIntelligence,
-        scoringScaffold.weights
+        scoringScaffold.weights,
+        confidenceUpdateTrigger
       ))
 
     return comparisons
       .sort((a, b) => b.routeConfidence.score - a.routeConfidence.score || b.score - a.score || b.successProbability - a.successProbability)
       .slice(0, 3)
-  }, [liveItineraries, predictionEngine, historicalStats.routes, loadReports, outcomes, travelerProfile, scoringScaffold.routeIntelligence, scoringScaffold.weights, scoringScaffold.recommendationScope])
+  }, [liveItineraries, predictionEngine, historicalStats.routes, loadReports, outcomes, travelerProfile, scoringScaffold.routeIntelligence, scoringScaffold.weights, scoringScaffold.recommendationScope, confidenceUpdateTrigger])
 
   const aiTripPreview = useMemo(
     () => parseTripPlannerPrompt(aiTripPrompt, travelerProfile),

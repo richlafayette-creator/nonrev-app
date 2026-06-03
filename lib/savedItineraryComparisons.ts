@@ -9,6 +9,8 @@ export type SavedItineraryComparison = {
   routeConfidenceScore?: number
   confidenceBadge?: string
   confidenceTrend?: string
+  lastConfidenceUpdate?: string
+  confidenceUpdateExplanation?: string
   riskLevel: string
   connections: number
   totalTravelTime: string

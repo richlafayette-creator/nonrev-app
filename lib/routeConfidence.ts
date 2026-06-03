@@ -4,7 +4,15 @@ import type { TravelerProfileScaffold } from './travelerProfile'
 import { getRouteWeatherRisk, type WeatherRisk, type WeatherRiskCategory } from './weatherIntelligence'
 
 export type ConfidenceBadge = 'Excellent' | 'Good' | 'Fair' | 'Poor'
-export type ConfidenceTrend = 'Improving' | 'Stable' | 'Softening' | 'Volatile'
+export type ConfidenceTrend = 'Improving' | 'Stable' | 'Declining'
+export type ConfidenceUpdateTrigger =
+  | 'watchlist-viewed'
+  | 'itinerary-search-run'
+  | 'weather-risk-changed'
+  | 'disruption-status-changed'
+  | 'community-load-report-updated'
+  | 'outcome-history-changed'
+  | 'local-signal-refresh'
 
 export type WeatherImpact = {
   scoreImpact: number
@@ -22,6 +30,9 @@ export type RouteConfidence = {
   badge: ConfidenceBadge
   trend: ConfidenceTrend
   trendDelta: number
+  lastUpdated: string
+  updateTrigger: ConfidenceUpdateTrigger
+  updateExplanation: string
   weatherImpact: WeatherImpact
   explanation: string[]
   components: {
@@ -47,6 +58,7 @@ type RouteConfidenceInput = {
   previousConfidenceScore?: number
   trustedLoadSignal?: number
   weatherRisk?: WeatherRisk
+  updateTrigger?: ConfidenceUpdateTrigger
 }
 
 function clamp(value: number, min = 0, max = 100) {
@@ -83,8 +95,29 @@ export function confidenceBadgeColor(badge: ConfidenceBadge) {
 export function confidenceTrendColor(trend: ConfidenceTrend) {
   if (trend === 'Improving') return '#22c55e'
   if (trend === 'Stable') return '#38bdf8'
-  if (trend === 'Softening') return '#facc15'
   return '#f87171'
+}
+
+export function confidenceUpdateTriggerLabel(trigger: ConfidenceUpdateTrigger) {
+  if (trigger === 'watchlist-viewed') return 'watchlist route viewed'
+  if (trigger === 'itinerary-search-run') return 'itinerary search run'
+  if (trigger === 'weather-risk-changed') return 'weather risk changed'
+  if (trigger === 'disruption-status-changed') return 'disruption status changed'
+  if (trigger === 'community-load-report-updated') return 'community load reports updated'
+  if (trigger === 'outcome-history-changed') return 'outcome history changed'
+  return 'local signal refresh'
+}
+
+function confidenceUpdateExplanation(input: RouteConfidenceInput, score: number, trend: ConfidenceTrend, weatherImpact: WeatherImpact) {
+  const trigger = input.updateTrigger || 'local-signal-refresh'
+  const signals = [
+    `${Math.round(input.successProbability)}% success probability`,
+    `${input.communityReportCount || 0} community load report${(input.communityReportCount || 0) === 1 ? '' : 's'}`,
+    `${input.disruption.routeHealth} disruption status`,
+    `${weatherImpact.label} weather risk`,
+    `${input.previousConfidenceScore ? `previous score ${Math.round(input.previousConfidenceScore)}` : 'no prior score baseline'}`
+  ]
+  return `Recalculated after ${confidenceUpdateTriggerLabel(trigger)} using placeholder real-time inputs: ${signals.join(', ')}. Result: ${score}/100 and ${trend.toLowerCase()} trend.`
 }
 
 function travelerProfileScore(route: string, profile: TravelerProfileScaffold) {
@@ -113,7 +146,7 @@ function communityComponent(input: RouteConfidenceInput) {
 function trendFor(score: number, input: RouteConfidenceInput) {
   const previous = input.previousConfidenceScore
   const delta = Number.isFinite(previous) ? score - Math.round(previous || score) : Math.round((input.communityLoadAdjustment || 0) - input.disruption.disruptionImpactScore * 0.08 - calculateWeatherImpact(input.route, input.weatherRisk).scoreImpact * 0.05)
-  const trend: ConfidenceTrend = delta >= 5 ? 'Improving' : delta <= -8 ? 'Volatile' : delta <= -3 ? 'Softening' : 'Stable'
+  const trend: ConfidenceTrend = delta >= 3 ? 'Improving' : delta <= -3 ? 'Declining' : 'Stable'
   return { trend, trendDelta: delta }
 }
 
@@ -137,12 +170,18 @@ export function calculateRouteConfidence(input: RouteConfidenceInput): RouteConf
   )
   const { trend, trendDelta } = trendFor(score, input)
   const badge = confidenceBadge(score)
+  const lastUpdated = new Date().toISOString()
+  const updateTrigger = input.updateTrigger || 'local-signal-refresh'
+  const updateExplanation = confidenceUpdateExplanation(input, score, trend, weatherImpact)
 
   return {
     score,
     badge,
     trend,
     trendDelta,
+    lastUpdated,
+    updateTrigger,
+    updateExplanation,
     weatherImpact,
     components,
     explanation: [
@@ -150,6 +189,8 @@ export function calculateRouteConfidence(input: RouteConfidenceInput): RouteConf
       `Weights: success probability 30%, historical route data 20%, community load reports 14%, traveler profile 13%, disruption intelligence 13%, weather impact 10%.`,
       `Weather risk is ${weatherImpact.label.toLowerCase()} (${weatherImpact.scoreImpact} point risk, ${weatherImpact.successProbabilityImpact} probability points) from ${weatherImpact.source} (${weatherImpact.status}).`,
       `Disruption component is ${components.disruptionIntelligence}/100 after ${input.disruption.disruptionImpactScore}/99 disruption impact.`,
+      `Last confidence update: ${lastUpdated}; trigger: ${confidenceUpdateTriggerLabel(updateTrigger)}.`,
+      updateExplanation,
       `Confidence trend is ${trend}${trendDelta === 0 ? '' : ` (${trendDelta > 0 ? '+' : ''}${trendDelta})`} based on previous score when available, otherwise current load/disruption/weather movement.`
     ]
   }

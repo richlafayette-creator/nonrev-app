@@ -3,9 +3,11 @@
 import { type FormEvent, useEffect, useMemo, useState } from 'react'
 import { removeTripWatch, loadSavedTripWatchlist, saveTripWatch, type SavedTripWatch } from '../../lib/watchlist'
 import { loadSavedItineraryComparisons, type SavedItineraryComparison } from '../../lib/savedItineraryComparisons'
+import { loadLoadReports, type LoadReport } from '../../lib/loadReports'
 import { buildDisruptionIntelligence } from '../../lib/disruptionIntelligence'
-import { calculateRouteConfidence, confidenceBadgeColor, confidenceTrendColor, type RouteConfidence } from '../../lib/routeConfidence'
+import { calculateRouteConfidence, confidenceBadgeColor, confidenceTrendColor, confidenceUpdateTriggerLabel, type ConfidenceUpdateTrigger, type RouteConfidence } from '../../lib/routeConfidence'
 import { defaultTravelerProfile, loadTravelerProfileFromStorage, type TravelerProfileScaffold } from '../../lib/travelerProfile'
+import { loadTripOutcomes, type TripOutcome } from '../../lib/tripOutcomes'
 import {
   enabledTripAlertLabels,
   getTripAlertPreference,
@@ -37,20 +39,45 @@ function routeEndpoints(route: string) {
   }
 }
 
-function confidenceForRoute(route: SavedTripWatch | SavedItineraryComparison, travelerProfile: TravelerProfileScaffold): RouteConfidence {
+function routeMatchesRoute(reportOrOutcomeRoute: string, selectedRoute: string) {
+  const normalizedSource = normalizeRoute(reportOrOutcomeRoute)
+  const normalizedSelected = normalizeRoute(selectedRoute)
+  return normalizedSource === normalizedSelected || normalizedSelected.includes(normalizedSource) || normalizedSource.includes(normalizedSelected)
+}
+
+function loadReportSignal(report: LoadReport) {
+  const weight = report.trustedWeight || 1
+  if (report.loadStatus === 'Seats open') return 5 * weight
+  if (report.loadStatus === 'Looks workable') return 3 * weight
+  if (report.loadStatus === 'Tight') return -3 * weight
+  if (report.loadStatus === 'Full') return -7 * weight
+  return 0
+}
+
+function outcomeSuccessRate(outcomes: TripOutcome[], fallback: number) {
+  if (!outcomes.length) return fallback
+  const successful = outcomes.filter((outcome) => outcome.status === 'Yes, got on').length
+  return Math.round((successful / outcomes.length) * 100)
+}
+
+function confidenceForRoute(route: SavedTripWatch | SavedItineraryComparison, travelerProfile: TravelerProfileScaffold, loadReports: LoadReport[] = [], outcomes: TripOutcome[] = [], updateTrigger: ConfidenceUpdateTrigger = 'watchlist-viewed'): RouteConfidence {
   const selectedRoute = 'selectedItinerary' in route ? route.selectedItinerary : route.route
   const disruption = buildDisruptionIntelligence({ route: selectedRoute })
+  const matchingReports = loadReports.filter((report) => routeMatchesRoute(report.route, selectedRoute))
+  const matchingOutcomes = outcomes.filter((outcome) => routeMatchesRoute(outcome.route, selectedRoute))
+  const loadAdjustment = Math.max(-8, Math.min(8, matchingReports.reduce((total, report) => total + loadReportSignal(report), 0)))
   return calculateRouteConfidence({
     route: selectedRoute,
-    successProbability: route.successProbability,
+    successProbability: outcomeSuccessRate(matchingOutcomes, route.successProbability),
     historicalScore: route.score,
     historicalSuccessRate: route.successProbability,
     historicalReportCount: 0,
-    communityReportCount: 0,
-    communityLoadAdjustment: 0,
+    communityReportCount: matchingReports.length,
+    communityLoadAdjustment: loadAdjustment,
     travelerProfile,
     disruption,
-    previousConfidenceScore: 'routeConfidenceScore' in route ? route.routeConfidenceScore : undefined
+    previousConfidenceScore: 'routeConfidenceScore' in route ? route.routeConfidenceScore : undefined,
+    updateTrigger
   })
 }
 
@@ -86,39 +113,59 @@ export default function WatchlistPage() {
   const [savedItineraries, setSavedItineraries] = useState<SavedItineraryComparison[]>([])
   const [alertPreferences, setAlertPreferences] = useState<TripAlertPreference[]>([])
   const [travelerProfile, setTravelerProfile] = useState(defaultTravelerProfile)
+  const [loadReports, setLoadReports] = useState<LoadReport[]>([])
+  const [outcomes, setOutcomes] = useState<TripOutcome[]>([])
+  const [confidenceUpdateTrigger, setConfidenceUpdateTrigger] = useState<ConfidenceUpdateTrigger>('watchlist-viewed')
   const [routeText, setRouteText] = useState('')
   const [travelDate, setTravelDate] = useState('')
   const [carrier, setCarrier] = useState('United')
   const [saveStatus, setSaveStatus] = useState('Saved trip watchlist is stored locally in this browser.')
 
   useEffect(() => {
-    function refreshWatchlist() {
+    function refreshWatchlist(trigger: ConfidenceUpdateTrigger = 'watchlist-viewed') {
+      setConfidenceUpdateTrigger(trigger)
       setWatchlist(loadSavedTripWatchlist())
       setSavedItineraries(loadSavedItineraryComparisons())
       setAlertPreferences(loadTripAlertPreferences())
       setTravelerProfile(loadTravelerProfileFromStorage())
+      setLoadReports(loadLoadReports())
+      setOutcomes(loadTripOutcomes())
     }
 
     refreshWatchlist()
-    window.addEventListener('nonrevy-watchlist-updated', refreshWatchlist)
-    window.addEventListener('nonrevy-itinerary-comparisons-updated', refreshWatchlist)
-    window.addEventListener('nonrevy-trip-alert-preferences-updated', refreshWatchlist)
-    window.addEventListener('storage', refreshWatchlist)
+    const refreshForViewed = () => refreshWatchlist('watchlist-viewed')
+    const refreshForWeather = () => refreshWatchlist('weather-risk-changed')
+    const refreshForDisruption = () => refreshWatchlist('disruption-status-changed')
+    const refreshForLoadReports = () => refreshWatchlist('community-load-report-updated')
+    const refreshForOutcomes = () => refreshWatchlist('outcome-history-changed')
+
+    window.addEventListener('nonrevy-watchlist-updated', refreshForViewed)
+    window.addEventListener('nonrevy-itinerary-comparisons-updated', refreshForViewed)
+    window.addEventListener('nonrevy-trip-alert-preferences-updated', refreshForViewed)
+    window.addEventListener('nonrevy-weather-risk-updated', refreshForWeather)
+    window.addEventListener('nonrevy-disruption-status-updated', refreshForDisruption)
+    window.addEventListener('nonrevy-load-reports-updated', refreshForLoadReports)
+    window.addEventListener('nonrevy-trip-outcomes-updated', refreshForOutcomes)
+    window.addEventListener('storage', refreshForViewed)
     return () => {
-      window.removeEventListener('nonrevy-watchlist-updated', refreshWatchlist)
-      window.removeEventListener('nonrevy-itinerary-comparisons-updated', refreshWatchlist)
-      window.removeEventListener('nonrevy-trip-alert-preferences-updated', refreshWatchlist)
-      window.removeEventListener('storage', refreshWatchlist)
+      window.removeEventListener('nonrevy-watchlist-updated', refreshForViewed)
+      window.removeEventListener('nonrevy-itinerary-comparisons-updated', refreshForViewed)
+      window.removeEventListener('nonrevy-trip-alert-preferences-updated', refreshForViewed)
+      window.removeEventListener('nonrevy-weather-risk-updated', refreshForWeather)
+      window.removeEventListener('nonrevy-disruption-status-updated', refreshForDisruption)
+      window.removeEventListener('nonrevy-load-reports-updated', refreshForLoadReports)
+      window.removeEventListener('nonrevy-trip-outcomes-updated', refreshForOutcomes)
+      window.removeEventListener('storage', refreshForViewed)
     }
   }, [])
 
   const summary = useMemo(() => {
     const averageScore = watchlist.length ? Math.round(watchlist.reduce((total, route) => total + route.score, 0) / watchlist.length) : 0
     const averageProbability = watchlist.length ? Math.round(watchlist.reduce((total, route) => total + route.successProbability, 0) / watchlist.length) : 0
-    const averageConfidence = watchlist.length ? Math.round(watchlist.reduce((total, route) => total + confidenceForRoute(route, travelerProfile).score, 0) / watchlist.length) : 0
+    const averageConfidence = watchlist.length ? Math.round(watchlist.reduce((total, route) => total + confidenceForRoute(route, travelerProfile, loadReports, outcomes, confidenceUpdateTrigger).score, 0) / watchlist.length) : 0
     const enabledAlertCount = alertPreferences.reduce((total, preference) => total + Object.values(preference.flags).filter(Boolean).length, 0)
     return { averageScore, averageProbability, averageConfidence, enabledAlertCount }
-  }, [watchlist, alertPreferences, travelerProfile])
+  }, [watchlist, alertPreferences, travelerProfile, loadReports, outcomes, confidenceUpdateTrigger])
 
   function addRoute(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -139,7 +186,7 @@ export default function WatchlistPage() {
       connections: Math.max(0, (selectedItinerary.match(/→/g) || []).length - 1),
       totalTravelTime: 'Pending schedule data',
       lastUpdated: new Date().toISOString()
-    }, travelerProfile)
+    }, travelerProfile, loadReports, outcomes, 'watchlist-viewed')
     const saved = saveTripWatch({
       origin: endpoints.origin,
       destination: endpoints.destination,
@@ -151,6 +198,8 @@ export default function WatchlistPage() {
       routeConfidenceScore: routeConfidence.score,
       confidenceBadge: routeConfidence.badge,
       confidenceTrend: routeConfidence.trend,
+      lastConfidenceUpdate: routeConfidence.lastUpdated,
+      confidenceUpdateExplanation: routeConfidence.updateExplanation,
       riskLevel: 'Medium',
       connections: Math.max(0, (selectedItinerary.match(/→/g) || []).length - 1),
       totalTravelTime: 'Pending schedule data'
@@ -272,7 +321,7 @@ export default function WatchlistPage() {
             </article>
           )}
           {watchlist.map((route) => {
-            const routeConfidence = confidenceForRoute(route, travelerProfile)
+            const routeConfidence = confidenceForRoute(route, travelerProfile, loadReports, outcomes, confidenceUpdateTrigger)
             return (
             <article key={route.id} className="flight-card" style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: 18, padding: 18 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap', alignItems: 'flex-start' }}>
@@ -292,6 +341,7 @@ export default function WatchlistPage() {
                   ['Success probability', `${route.successProbability}%`, metricColor(route.successProbability)],
                   ['Route confidence', `${routeConfidence.score}/100 · ${routeConfidence.badge}`, confidenceBadgeColor(routeConfidence.badge)],
                   ['Confidence trend', routeConfidence.trend, confidenceTrendColor(routeConfidence.trend)],
+                  ['Last confidence update', new Date(routeConfidence.lastUpdated).toLocaleString(), '#94a3b8'],
                   ['Risk level', route.riskLevel, route.riskLevel.includes('Low') ? '#22c55e' : route.riskLevel.includes('Medium') ? '#facc15' : '#f87171'],
                   ['Connections', route.connections, route.connections === 0 ? '#22c55e' : '#facc15'],
                   ['Travel time', route.totalTravelTime, '#38bdf8']
@@ -302,6 +352,8 @@ export default function WatchlistPage() {
                   </div>
                 ))}
               </div>
+              <p style={{ color: '#cbd5e1', margin: '12px 0 0' }}>{routeConfidence.updateExplanation}</p>
+              <p style={{ color: '#94a3b8', margin: '6px 0 0' }}>Update trigger: {confidenceUpdateTriggerLabel(routeConfidence.updateTrigger)}</p>
               <AlertPreferenceChecklist
                 preference={preferenceFor(route.id, 'watched-route', `${route.origin} → ${route.destination}`)}
                 onToggle={(key, enabled) => updatePreference(route.id, 'watched-route', `${route.origin} → ${route.destination}`, key, enabled)}
@@ -324,7 +376,7 @@ export default function WatchlistPage() {
           ) : (
             <div style={{ display: 'grid', gap: 14 }}>
               {savedItineraries.map((itinerary) => {
-                const routeConfidence = confidenceForRoute(itinerary, travelerProfile)
+                const routeConfidence = confidenceForRoute(itinerary, travelerProfile, loadReports, outcomes, confidenceUpdateTrigger)
                 return (
                 <article key={itinerary.id} className="flight-card" style={{ background: '#020617', border: '1px solid #334155', borderRadius: 18, padding: 18 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
@@ -332,6 +384,8 @@ export default function WatchlistPage() {
                       <strong style={{ color: '#c084fc', textTransform: 'uppercase', letterSpacing: 1 }}>{itinerary.sourceLabel}</strong>
                       <h3 style={{ color: '#f8fafc', margin: '8px 0' }}>{itinerary.route}</h3>
                       <p style={{ color: '#94a3b8', margin: 0 }}>{itinerary.carrier} · Score {itinerary.score} · Success {itinerary.successProbability}% · Confidence {routeConfidence.score}/100</p>
+                      <p style={{ color: '#94a3b8', margin: '6px 0 0' }}>Last confidence update: {new Date(routeConfidence.lastUpdated).toLocaleString()}</p>
+                      <p style={{ color: '#cbd5e1', margin: '6px 0 0' }}>{routeConfidence.updateExplanation}</p>
                     </div>
                     <div style={{ textAlign: 'right' }}>
                       <span style={{ display: 'inline-block', border: `1px solid ${confidenceBadgeColor(routeConfidence.badge)}`, borderRadius: 999, padding: '5px 9px', color: confidenceBadgeColor(routeConfidence.badge), fontWeight: 'bold', marginBottom: 8 }}>

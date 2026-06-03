@@ -11,7 +11,7 @@ import { historicalRoutes, routesForCarrier, type HistoricalRoute } from '../../
 import { loadLoadReports, type LoadReport } from '../../lib/loadReports'
 import { buildDisruptionIntelligence } from '../../lib/disruptionIntelligence'
 import { buildRouteAirportIntelligence, connectionRiskColor, type RouteAirportIntelligence } from '../../lib/airportIntelligence'
-import { calculateRouteConfidence, confidenceBadgeColor, confidenceTrendColor, type ConfidenceBadge, type ConfidenceTrend, type RouteConfidence } from '../../lib/routeConfidence'
+import { calculateRouteConfidence, confidenceBadgeColor, confidenceTrendColor, confidenceUpdateTriggerLabel, type ConfidenceBadge, type ConfidenceTrend, type RouteConfidence } from '../../lib/routeConfidence'
 import { loadTravelerProfileFromStorage, defaultTravelerProfile, travelerProfileAssumptions } from '../../lib/travelerProfile'
 import { loadTripOutcomes, type TripOutcome } from '../../lib/tripOutcomes'
 
@@ -69,8 +69,7 @@ function probabilityColor(probability: number) {
 function trendLabel(score: number): IntelligenceRoute['trendLabel'] {
   if (score >= 82) return 'Improving'
   if (score >= 66) return 'Stable'
-  if (score >= 46) return 'Softening'
-  return 'Volatile'
+  return 'Declining'
 }
 
 function daysSince(value: string) {
@@ -185,7 +184,8 @@ function aggregateIntelligence(
       communityLoadAdjustment: trustedLoadSignal,
       travelerProfile,
       disruption,
-      previousConfidenceScore: dataConfidenceScore
+      previousConfidenceScore: dataConfidenceScore,
+      updateTrigger: matchingReports.length ? 'community-load-report-updated' : matchingOutcomes.length ? 'outcome-history-changed' : 'local-signal-refresh'
     })
 
     return {
@@ -238,6 +238,9 @@ function DashboardCard({ title, routes, metric }: { title: string; routes: Intel
               <strong style={{ color: probabilityColor(route.successProbability), fontSize: 24 }}>{metric(route)}</strong>
             </div>
             <p style={{ color: '#94a3b8', margin: '6px 0 0' }}>{route.signalSummary.join(' · ')}</p>
+            <p style={{ color: '#94a3b8', margin: '6px 0 0' }}>
+              Last confidence update: {new Date(route.routeConfidence.lastUpdated).toLocaleString()} · {confidenceUpdateTriggerLabel(route.routeConfidence.updateTrigger)}
+            </p>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
               <span style={{ border: '1px solid #334155', borderRadius: 999, padding: '4px 8px', color: confidenceBadgeColor(route.confidenceLabel), background: '#0f172a' }}>
                 Route Confidence {route.confidenceScore}/100 · {route.confidenceLabel}
@@ -268,11 +271,15 @@ export default function IntelligencePage() {
     window.addEventListener('nonrevy-load-reports-updated', refreshSignals)
     window.addEventListener('nonrevy-trip-outcomes-updated', refreshSignals)
     window.addEventListener('nonrevy-intelligence-updated', refreshSignals)
+    window.addEventListener('nonrevy-weather-risk-updated', refreshSignals)
+    window.addEventListener('nonrevy-disruption-status-updated', refreshSignals)
     window.addEventListener('storage', refreshSignals)
     return () => {
       window.removeEventListener('nonrevy-load-reports-updated', refreshSignals)
       window.removeEventListener('nonrevy-trip-outcomes-updated', refreshSignals)
       window.removeEventListener('nonrevy-intelligence-updated', refreshSignals)
+      window.removeEventListener('nonrevy-weather-risk-updated', refreshSignals)
+      window.removeEventListener('nonrevy-disruption-status-updated', refreshSignals)
       window.removeEventListener('storage', refreshSignals)
     }
   }, [])
@@ -401,6 +408,7 @@ export default function IntelligencePage() {
                     ['Outcomes', `${route.successfulOutcomes}/${route.outcomeCount}`, '#22c55e'],
                     ['Route Confidence', `${route.confidenceScore}/100 · ${route.confidenceLabel}`, confidenceBadgeColor(route.confidenceLabel)],
                     ['Confidence Trend', route.trendLabel, confidenceTrendColor(route.trendLabel)],
+                    ['Last Confidence Update', new Date(route.routeConfidence.lastUpdated).toLocaleString(), '#94a3b8'],
                     ['Connection Risk', `${route.airportIntelligence.connectionRiskScore}/100`, connectionRiskColor(route.airportIntelligence.connectionRiskScore)],
                     ['Airport Backup', route.airportIntelligence.backupFlightAvailability, '#38bdf8'],
                     ['Weather Impact', route.routeConfidence.weatherImpact.label, route.routeConfidence.weatherImpact.scoreImpact >= 15 ? '#facc15' : '#22c55e'],
@@ -414,6 +422,7 @@ export default function IntelligencePage() {
                   ))}
                 </div>
                 <p style={{ color: '#cbd5e1' }}>{route.notes}</p>
+                <p style={{ color: '#cbd5e1', marginBottom: 0 }}>{route.routeConfidence.updateExplanation}</p>
                 <p style={{ color: '#94a3b8', marginBottom: 0 }}>{route.signalSummary.join(' · ')}</p>
                 <details style={{ marginTop: 12 }}>
                   <summary style={{ color: '#38bdf8', cursor: 'pointer', fontWeight: 'bold' }}>Confidence explanation</summary>

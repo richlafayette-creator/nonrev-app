@@ -615,6 +615,7 @@ export async function GET(request: Request) {
       rateLimits,
       invalidAirportCodes,
       invalidDates,
+      providerFallbackOrder,
       providerStatuses: [
         providerStatus('supabase', 'success', `${supabaseItineraries.length} matching itinerary result${supabaseItineraries.length === 1 ? '' : 's'} found from ${supabaseMatchedFlights.length} matched Supabase flight record${supabaseMatchedFlights.length === 1 ? '' : 's'} via ${supabaseQueryPath.usedPath}.`),
         providerStatus('aviationstack', 'skipped', 'Skipped because Supabase produced itinerary results.'),

@@ -120,6 +120,18 @@ type ProviderStatus = {
   detail: string
 }
 
+type ApiResponseCounts = {
+  supabaseFetched: number
+  supabaseMatchedFlights: number
+  supabaseItineraries: number
+  aviationstackRequests: number
+  aviationstackFetched: number
+  aviationstackItineraries: number
+  flightAwareRequested: number
+  flightAwareEnriched: number
+  finalItineraries: number
+}
+
 type ItineraryDebugMetadata = {
   parsedOrigin?: string
   parsedDestination?: string
@@ -129,6 +141,11 @@ type ItineraryDebugMetadata = {
   aviationstackFallbackStatus: string
   flightAwareEnrichmentStatus: string
   finalItineraryCount: number
+  apiResponseCounts?: ApiResponseCounts
+  emptyResults?: string[]
+  rateLimits?: string[]
+  invalidAirportCodes?: string[]
+  invalidDates?: string[]
   providerExplanation?: string[]
   providerStatuses?: ProviderStatus[]
   safeErrors: string[]
@@ -1594,6 +1611,40 @@ export default function PlanPage() {
                 </article>
               ))}
             </div>
+            {itineraryDebug?.apiResponseCounts ? (
+              <div style={{ marginTop: 12 }}>
+                <strong style={{ color: '#38bdf8' }}>API response counts</strong>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10, marginTop: 10 }}>
+                  {[
+                    ['Supabase fetched', itineraryDebug.apiResponseCounts.supabaseFetched],
+                    ['Supabase matched', itineraryDebug.apiResponseCounts.supabaseMatchedFlights],
+                    ['Supabase itineraries', itineraryDebug.apiResponseCounts.supabaseItineraries],
+                    ['Aviationstack calls', itineraryDebug.apiResponseCounts.aviationstackRequests],
+                    ['Aviationstack fetched', itineraryDebug.apiResponseCounts.aviationstackFetched],
+                    ['Aviationstack itineraries', itineraryDebug.apiResponseCounts.aviationstackItineraries],
+                    ['FlightAware requested', itineraryDebug.apiResponseCounts.flightAwareRequested],
+                    ['FlightAware enriched', itineraryDebug.apiResponseCounts.flightAwareEnriched],
+                    ['Final itineraries', itineraryDebug.apiResponseCounts.finalItineraries]
+                  ].map(([label, value]) => (
+                    <article key={label} style={{ border: '1px solid #334155', borderRadius: 12, padding: 10, background: '#0f172a' }}>
+                      <small style={{ color: '#94a3b8' }}>{label}</small>
+                      <p style={{ margin: '4px 0 0', color: '#f8fafc', fontWeight: 'bold' }}>{value}</p>
+                    </article>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+            {[...(itineraryDebug?.emptyResults || []), ...(itineraryDebug?.rateLimits || []), ...(itineraryDebug?.invalidAirportCodes || []), ...(itineraryDebug?.invalidDates || [])].length ? (
+              <div style={{ border: '1px solid #854d0e', borderRadius: 12, padding: 10, background: '#1c1917', color: '#fde68a', marginTop: 12 }}>
+                <strong>Reliability diagnostics</strong>
+                <ul style={{ marginBottom: 0 }}>
+                  {(itineraryDebug?.emptyResults || []).map((message) => <li key={`empty-${message}`}>Empty result: {message}</li>)}
+                  {(itineraryDebug?.rateLimits || []).map((message) => <li key={`rate-${message}`}>Rate limit: {message}</li>)}
+                  {(itineraryDebug?.invalidAirportCodes || []).map((message) => <li key={`airport-${message}`}>Invalid airport code: {message}</li>)}
+                  {(itineraryDebug?.invalidDates || []).map((message) => <li key={`date-${message}`}>Invalid date: {message}</li>)}
+                </ul>
+              </div>
+            ) : null}
             {itineraryDebug?.providerStatuses?.length ? (
               <div style={{ marginTop: 12 }}>
                 <strong style={{ color: '#c084fc' }}>Provider fallback strategy</strong>

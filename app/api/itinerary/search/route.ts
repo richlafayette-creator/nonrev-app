@@ -723,6 +723,7 @@ export async function GET(request: Request) {
       providerStatus('flightaware', 'skipped', 'Skipped because neither Supabase nor Aviationstack returned known flight numbers.'),
       providerStatus('planning', 'success', 'Placeholder planning fallback is active in the UI.')
     ],
+    providerFallbackOrder,
     safeErrors: finalWarnings
   })
 

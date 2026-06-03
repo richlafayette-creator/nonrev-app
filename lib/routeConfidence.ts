@@ -1,14 +1,20 @@
 import { airportCodesFromRoute } from './airportMapScaffold'
 import type { DisruptionIntelligence } from './disruptionIntelligence'
 import type { TravelerProfileScaffold } from './travelerProfile'
+import { getRouteWeatherRisk, type WeatherRisk, type WeatherRiskCategory } from './weatherIntelligence'
 
 export type ConfidenceBadge = 'Excellent' | 'Good' | 'Fair' | 'Poor'
 export type ConfidenceTrend = 'Improving' | 'Stable' | 'Softening' | 'Volatile'
 
 export type WeatherImpact = {
   scoreImpact: number
-  label: 'Low' | 'Moderate' | 'Elevated' | 'High'
+  label: WeatherRiskCategory
   details: string[]
+  source: string
+  status: WeatherRisk['status']
+  successProbabilityImpact: number
+  routeRankingImpact: number
+  diagnostics: string[]
 }
 
 export type RouteConfidence = {
@@ -40,39 +46,23 @@ type RouteConfidenceInput = {
   disruption: DisruptionIntelligence
   previousConfidenceScore?: number
   trustedLoadSignal?: number
+  weatherRisk?: WeatherRisk
 }
 
 function clamp(value: number, min = 0, max = 100) {
   return Math.max(min, Math.min(max, Math.round(value)))
 }
 
-function airportWeatherImpact(code: string) {
-  const impacts: Record<string, { impact: number; detail: string }> = {
-    SFO: { impact: 12, detail: 'SFO weather sensitivity: marine layer/low ceilings can reduce arrival rates.' },
-    JFK: { impact: 10, detail: 'JFK weather sensitivity: Northeast convective and winter ops can cascade into banks.' },
-    LGA: { impact: 10, detail: 'LGA weather sensitivity: short-haul flow programs can tighten recovery options.' },
-    EWR: { impact: 11, detail: 'EWR weather sensitivity: congestion and flow control can compound delay risk.' },
-    ORD: { impact: 12, detail: 'ORD weather sensitivity: storms, winter ops, and banked connections raise variance.' },
-    DEN: { impact: 9, detail: 'DEN weather sensitivity: thunderstorms, wind, or deicing windows can affect turns.' },
-    DFW: { impact: 9, detail: 'DFW weather sensitivity: storm cells can create rolling delay programs.' },
-    ATL: { impact: 7, detail: 'ATL weather sensitivity: high-volume banks can amplify late inbound aircraft.' },
-    SEA: { impact: 7, detail: 'SEA weather sensitivity: low ceilings and rain can slow turns.' },
-    HNL: { impact: 4, detail: 'HNL weather sensitivity: island operations are usually stable but backup frequencies matter.' },
-    OGG: { impact: 5, detail: 'OGG weather sensitivity: fewer long-haul frequencies increase recovery exposure.' }
-  }
-  return impacts[code]
-}
-
-export function calculateWeatherImpact(route: string): WeatherImpact {
-  const impacts = airportCodesFromRoute(route)
-    .map((code) => airportWeatherImpact(code))
-    .filter(Boolean) as Array<{ impact: number; detail: string }>
-  const scoreImpact = clamp(impacts.reduce((total, item) => total + item.impact, 0), 0, 35)
-  const label = scoreImpact >= 24 ? 'High' : scoreImpact >= 15 ? 'Elevated' : scoreImpact >= 7 ? 'Moderate' : 'Low'
+export function calculateWeatherImpact(route: string, weatherRisk = getRouteWeatherRisk(route)): WeatherImpact {
   return {
-    scoreImpact,
-    label,
-    details: impacts.length ? impacts.map((item) => item.detail) : ['No route-specific weather sensitivity matched in the local scaffold.']
+    scoreImpact: weatherRisk.scoreImpact,
+    label: weatherRisk.category,
+    details: weatherRisk.details,
+    source: weatherRisk.source,
+    status: weatherRisk.status,
+    successProbabilityImpact: weatherRisk.successProbabilityImpact,
+    routeRankingImpact: weatherRisk.routeRankingImpact,
+    diagnostics: weatherRisk.diagnostics
   }
 }
 
@@ -122,13 +112,13 @@ function communityComponent(input: RouteConfidenceInput) {
 
 function trendFor(score: number, input: RouteConfidenceInput) {
   const previous = input.previousConfidenceScore
-  const delta = Number.isFinite(previous) ? score - Math.round(previous || score) : Math.round((input.communityLoadAdjustment || 0) - input.disruption.disruptionImpactScore * 0.08 - calculateWeatherImpact(input.route).scoreImpact * 0.05)
+  const delta = Number.isFinite(previous) ? score - Math.round(previous || score) : Math.round((input.communityLoadAdjustment || 0) - input.disruption.disruptionImpactScore * 0.08 - calculateWeatherImpact(input.route, input.weatherRisk).scoreImpact * 0.05)
   const trend: ConfidenceTrend = delta >= 5 ? 'Improving' : delta <= -8 ? 'Volatile' : delta <= -3 ? 'Softening' : 'Stable'
   return { trend, trendDelta: delta }
 }
 
 export function calculateRouteConfidence(input: RouteConfidenceInput): RouteConfidence {
-  const weatherImpact = calculateWeatherImpact(input.route)
+  const weatherImpact = calculateWeatherImpact(input.route, input.weatherRisk)
   const components = {
     successProbability: clamp(input.successProbability),
     historicalRouteData: historicalComponent(input),
@@ -158,7 +148,7 @@ export function calculateRouteConfidence(input: RouteConfidenceInput): RouteConf
     explanation: [
       `Route Confidence Score is ${score}/100 (${badge}) from success probability, historical route data, community load reports, traveler profile, disruption intelligence, and weather impact.`,
       `Weights: success probability 30%, historical route data 20%, community load reports 14%, traveler profile 13%, disruption intelligence 13%, weather impact 10%.`,
-      `Weather impact is ${weatherImpact.label.toLowerCase()} (${weatherImpact.scoreImpact} point risk) from local airport weather-sensitivity scaffolds.`,
+      `Weather risk is ${weatherImpact.label.toLowerCase()} (${weatherImpact.scoreImpact} point risk, ${weatherImpact.successProbabilityImpact} probability points) from ${weatherImpact.source} (${weatherImpact.status}).`,
       `Disruption component is ${components.disruptionIntelligence}/100 after ${input.disruption.disruptionImpactScore}/99 disruption impact.`,
       `Confidence trend is ${trend}${trendDelta === 0 ? '' : ` (${trendDelta > 0 ? '+' : ''}${trendDelta})`} based on previous score when available, otherwise current load/disruption/weather movement.`
     ]

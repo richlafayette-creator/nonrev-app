@@ -317,13 +317,13 @@ function generateAlertsForTarget(target: AlertTarget, previous: AlertSnapshot | 
     ))
   }
 
-  if (confidence.weatherImpact.label === 'Elevated' || confidence.weatherImpact.label === 'High' || weatherDelta >= 6) {
+  if (confidence.weatherImpact.label === 'Moderate' || confidence.weatherImpact.label === 'High' || confidence.weatherImpact.label === 'Severe' || weatherDelta >= 6) {
     alerts.push(buildAlert(
       target,
       'Weather risk increased',
-      confidence.weatherImpact.label === 'High' ? 'critical' : 'warning',
+      confidence.weatherImpact.label === 'Severe' || confidence.weatherImpact.label === 'High' ? 'critical' : 'warning',
       `Weather risk increased for ${target.route}`,
-      `Weather impact is ${confidence.weatherImpact.label} with ${confidence.weatherImpact.scoreImpact} points of route risk in the local scaffold.`,
+      `Weather impact is ${confidence.weatherImpact.label} with ${confidence.weatherImpact.scoreImpact} points of route risk from ${confidence.weatherImpact.source}.`,
       'Weather impact',
       confidence.weatherImpact.label,
       confidence.weatherImpact.details,

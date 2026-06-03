@@ -13,6 +13,7 @@ import { loadLoadReports, type LoadReport } from '../../lib/loadReports'
 import { calculatePredictionEngine } from '../../lib/predictionEngine'
 import { buildDisruptionIntelligence, routeHealthColor, type DisruptionIntelligence } from '../../lib/disruptionIntelligence'
 import { calculateRouteConfidence, confidenceBadgeColor, confidenceTrendColor, type RouteConfidence } from '../../lib/routeConfidence'
+import { getRouteWeatherRisk, weatherRiskColor, type WeatherRisk } from '../../lib/weatherIntelligence'
 import { defaultTravelerProfile, loadTravelerProfileFromStorage, travelerProfileAssumptions, type TravelerProfileScaffold } from '../../lib/travelerProfile'
 import { useVoiceInput } from '../../lib/useVoiceInput'
 import { loadTripOutcomes, type TripOutcome } from '../../lib/tripOutcomes'
@@ -174,6 +175,15 @@ function ProviderBadge({ label }: { label: string }) {
   )
 }
 
+function WeatherRiskBadge({ weatherRisk }: { weatherRisk: WeatherRisk }) {
+  const color = weatherRiskColor(weatherRisk.category)
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', border: `1px solid ${color}`, borderRadius: 999, padding: '4px 9px', color, background: '#020617', fontSize: 12, fontWeight: 'bold', letterSpacing: 0.3 }}>
+      Weather {weatherRisk.category}
+    </span>
+  )
+}
+
 type ItineraryComparison = {
   id: string
   route: string
@@ -188,6 +198,7 @@ type ItineraryComparison = {
   providerBadges: string[]
   disruption: DisruptionIntelligence
   routeConfidence: RouteConfidence
+  weatherRisk: WeatherRisk
   airportIntelligence: RouteAirportIntelligence
   why: string[]
   explanation: ScoringExplanation
@@ -203,6 +214,7 @@ type ScoringExplanation = {
   disruptionFactors: string[]
   confidenceFactors: string[]
   airportFactors: string[]
+  weatherFactors: string[]
   placeholderWeights: string[]
 }
 
@@ -229,6 +241,7 @@ type ScoringExplanationInput = {
   recommendationScope: string
   disruption: DisruptionIntelligence
   routeConfidence: RouteConfidence
+  weatherRisk: WeatherRisk
   airportIntelligence: RouteAirportIntelligence
 }
 
@@ -349,6 +362,13 @@ function buildScoringExplanation(input: ScoringExplanationInput): ScoringExplana
       `Confidence blend: success ${input.routeConfidence.components.successProbability}, historical ${input.routeConfidence.components.historicalRouteData}, community ${input.routeConfidence.components.communityLoadReports}, traveler profile ${input.routeConfidence.components.travelerProfile}, disruption ${input.routeConfidence.components.disruptionIntelligence}, weather ${input.routeConfidence.components.weatherImpact}.`,
       ...input.routeConfidence.explanation
     ],
+    weatherFactors: [
+      `Weather risk is ${input.weatherRisk.category} with ${input.weatherRisk.scoreImpact}/40 placeholder impact.`,
+      `Weather adjustment: ${input.weatherRisk.successProbabilityImpact} points to success probability and ${input.weatherRisk.routeRankingImpact} points to route ranking.`,
+      `Weather source: ${input.weatherRisk.source}; status: ${input.weatherRisk.status}.`,
+      ...input.weatherRisk.details,
+      ...input.weatherRisk.diagnostics
+    ],
     airportFactors: [
       `Connection Risk Score is ${input.airportIntelligence.connectionRiskScore}/100 with ${input.airportIntelligence.overallConnectionDifficulty} connection difficulty.`,
       `Walking distance category is ${input.airportIntelligence.walkingDistanceCategory}; backup availability is ${input.airportIntelligence.backupFlightAvailability}.`,
@@ -361,6 +381,7 @@ function buildScoringExplanation(input: ScoringExplanationInput): ScoringExplana
       'Historical success and score: about 34% combined before adjustments.',
       'Community load reports: capped between -8 and +8 points.',
       'Flight disruption intelligence: delays, cancellations, diversions, and airport alerts can reduce probability and ranking after the base score.',
+      'Weather intelligence layer: weather risk can reduce success probability and route ranking through live or placeholder provider signals.',
       'Route confidence engine: success probability, historical route data, community reports, traveler profile, disruption, and weather are blended into a 0–100 confidence score.',
       'Airport intelligence layer: static terminal, connection, walking, hub-strength, and backup availability data produce a connection risk score.',
       'Connections: -4 points per connection in the recommendation comparison.'
@@ -419,6 +440,7 @@ function buildLiveItineraryComparison(
     fallbackStatus: itinerary.status,
     sourceLabel: itinerary.source
   })
+  const weatherRisk = getRouteWeatherRisk(itinerary.route)
   const airportIntelligence = buildRouteAirportIntelligence(itinerary.route)
   const successProbability = clampScore(
     predictionEngine.successProbability * 0.34 +
@@ -428,9 +450,10 @@ function buildLiveItineraryComparison(
     loadAdjustment +
     outcomeSignal -
     connectionPenalty +
-    disruption.successProbabilityImpact
+    disruption.successProbabilityImpact +
+    weatherRisk.successProbabilityImpact
   )
-  const score = clampScore(itinerary.score * 0.52 + successProbability * 0.32 + historicalScore * 0.16 - connectionPenalty + disruption.routeRankingImpact)
+  const score = clampScore(itinerary.score * 0.52 + successProbability * 0.32 + historicalScore * 0.16 - connectionPenalty + disruption.routeRankingImpact + weatherRisk.routeRankingImpact)
   const riskLevel = riskFromProbability(successProbability, itinerary.risk)
   const routeConfidence = calculateRouteConfidence({
     route: itinerary.route,
@@ -441,7 +464,8 @@ function buildLiveItineraryComparison(
     communityReportCount: routeReports.length,
     communityLoadAdjustment: loadAdjustment,
     travelerProfile,
-    disruption
+    disruption,
+    weatherRisk
   })
   const explanation = buildScoringExplanation({
     route: itinerary.route,
@@ -466,6 +490,7 @@ function buildLiveItineraryComparison(
     recommendationScope,
     disruption,
     routeConfidence,
+    weatherRisk,
     airportIntelligence
   })
 
@@ -483,10 +508,12 @@ function buildLiveItineraryComparison(
     providerBadges: itinerary.providerBadges?.length ? itinerary.providerBadges : [itinerary.source.includes('aviationstack') ? 'Aviationstack' : 'Live Supabase', ...(itinerary.source.includes('flightaware') ? ['FlightAware enriched'] : [])],
     disruption,
     routeConfidence,
+    weatherRisk,
     airportIntelligence,
     why: [
       `Blends live itinerary score ${itinerary.score}/100 with probability engine baseline ${predictionEngine.successProbability}%.`,
       `Route confidence engine scores this option ${routeConfidence.score}/100 (${routeConfidence.badge}) with a ${routeConfidence.trend} trend.`,
+      `Weather intelligence labels this route ${weatherRisk.category} and adjusts success probability by ${weatherRisk.successProbabilityImpact} point${weatherRisk.successProbabilityImpact === 1 || weatherRisk.successProbabilityImpact === -1 ? '' : 's'}.`,
       `Airport intelligence gives this route a ${airportIntelligence.connectionRiskScore}/100 connection risk score and ${airportIntelligence.backupFlightAvailability} backup flight availability.`,
       `Disruption intelligence adjusts this option by ${disruption.successProbabilityImpact} probability points and ${disruption.routeRankingImpact} ranking points; route health is ${disruption.routeHealth}.`,
       historicalRoute
@@ -530,6 +557,7 @@ function buildFallbackItineraryComparison(
     route: itinerary.route,
     fallbackStatus: itinerary.confidence
   })
+  const weatherRisk = getRouteWeatherRisk(itinerary.route)
   const airportIntelligence = buildRouteAirportIntelligence(itinerary.route)
   const successProbability = clampScore(
     predictionEngine.successProbability * 0.36 +
@@ -539,9 +567,10 @@ function buildFallbackItineraryComparison(
     loadAdjustment +
     outcomeSignal -
     connectionPenalty +
-    disruption.successProbabilityImpact
+    disruption.successProbabilityImpact +
+    weatherRisk.successProbabilityImpact
   )
-  const score = clampScore(itinerary.ranking.score * 0.5 + successProbability * 0.34 + historicalScore * 0.16 - connectionPenalty + disruption.routeRankingImpact)
+  const score = clampScore(itinerary.ranking.score * 0.5 + successProbability * 0.34 + historicalScore * 0.16 - connectionPenalty + disruption.routeRankingImpact + weatherRisk.routeRankingImpact)
   const riskLevel = riskFromProbability(successProbability, itinerary.confidence === 'Strong' ? 'Medium-Low' : 'Medium')
   const routeConfidence = calculateRouteConfidence({
     route: itinerary.route,
@@ -552,7 +581,8 @@ function buildFallbackItineraryComparison(
     communityReportCount: routeReports.length,
     communityLoadAdjustment: loadAdjustment,
     travelerProfile,
-    disruption
+    disruption,
+    weatherRisk
   })
   const explanation = buildScoringExplanation({
     route: itinerary.route,
@@ -577,6 +607,7 @@ function buildFallbackItineraryComparison(
     recommendationScope: carrierLabel,
     disruption,
     routeConfidence,
+    weatherRisk,
     airportIntelligence
   })
 
@@ -594,10 +625,12 @@ function buildFallbackItineraryComparison(
     providerBadges: ['Planning fallback'],
     disruption,
     routeConfidence,
+    weatherRisk,
     airportIntelligence,
     why: [
       `Combines fallback ranking ${itinerary.ranking.score}/100 with probability engine baseline ${predictionEngine.successProbability}%.`,
       `Route confidence engine scores this option ${routeConfidence.score}/100 (${routeConfidence.badge}) with a ${routeConfidence.trend} trend.`,
+      `Weather intelligence labels this route ${weatherRisk.category} and adjusts success probability by ${weatherRisk.successProbabilityImpact} point${weatherRisk.successProbabilityImpact === 1 || weatherRisk.successProbabilityImpact === -1 ? '' : 's'}.`,
       `Airport intelligence gives this route a ${airportIntelligence.connectionRiskScore}/100 connection risk score and ${airportIntelligence.backupFlightAvailability} backup flight availability.`,
       `Disruption intelligence adjusts this option by ${disruption.successProbabilityImpact} probability points and ${disruption.routeRankingImpact} ranking points; route health is ${disruption.routeHealth}.`,
       historicalRoute
@@ -628,6 +661,7 @@ function explanationSectionColor(label: string) {
   if (label.includes('Historical')) return '#facc15'
   if (label.includes('Traveler')) return '#34d399'
   if (label.includes('Community')) return '#22c55e'
+  if (label.includes('Weather')) return '#22c55e'
   if (label.includes('Confidence')) return '#38bdf8'
   if (label.includes('Airport')) return '#facc15'
   if (label.includes('Backup')) return '#fb7185'
@@ -663,6 +697,7 @@ function ScoringExplanationDetails({ comparison, backup }: { comparison: Itinera
     ['Traveler profile factors', comparison.explanation.travelerProfileFactors],
     ['Community intelligence factors', comparison.explanation.communityIntelligenceFactors],
     ['Disruption intelligence factors', comparison.explanation.disruptionFactors],
+    ['Weather intelligence factors', comparison.explanation.weatherFactors],
     ['Confidence explanation', comparison.explanation.confidenceFactors],
     ['Airport intelligence factors', comparison.explanation.airportFactors],
     ['Backup route reasoning', backupRouteReasoning(comparison, backup)],
@@ -765,6 +800,64 @@ function DisruptionIntelligenceSection({ comparisons }: { comparisons: Itinerary
   )
 }
 
+function WeatherIntelligenceSection({ comparisons }: { comparisons: ItineraryComparison[] }) {
+  if (!comparisons.length) return null
+
+  const highestRisk = [...comparisons].sort((a, b) => b.weatherRisk.scoreImpact - a.weatherRisk.scoreImpact)[0]
+  const lowestRisk = [...comparisons].sort((a, b) => a.weatherRisk.scoreImpact - b.weatherRisk.scoreImpact)[0]
+  const averageImpact = Math.round(comparisons.reduce((total, comparison) => total + comparison.weatherRisk.scoreImpact, 0) / comparisons.length)
+  const sources = Array.from(new Set(comparisons.map((comparison) => `${comparison.weatherRisk.source} (${comparison.weatherRisk.status})`)))
+
+  return (
+    <section style={{ border: '1px solid #22c55e', borderRadius: 22, padding: 18, background: 'linear-gradient(135deg, rgba(20, 83, 45, 0.28), rgba(15, 23, 42, 0.96))', marginTop: 16 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+        <div>
+          <strong style={{ color: '#22c55e', textTransform: 'uppercase', letterSpacing: 1 }}>Weather Intelligence</strong>
+          <h3 style={{ fontSize: 26, margin: '8px 0' }}>Route weather risk layer</h3>
+          <p style={{ color: '#cbd5e1', margin: 0 }}>
+            Uses a provider abstraction for live weather, currently backed by placeholder airport weather sensitivity when live data is unavailable.
+          </p>
+        </div>
+        <span style={{ border: `1px solid ${weatherRiskColor(highestRisk.weatherRisk.category)}`, borderRadius: 999, color: weatherRiskColor(highestRisk.weatherRisk.category), padding: '8px 12px', fontWeight: 'bold' }}>
+          Highest weather risk: {highestRisk.weatherRisk.category}
+        </span>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 12, marginTop: 14 }}>
+        {[
+          ['Avg Weather Impact', `${averageImpact}/40`, averageImpact >= 30 ? '#f87171' : averageImpact >= 18 ? '#fb7185' : averageImpact >= 7 ? '#facc15' : '#22c55e'],
+          ['Lowest Risk Route', lowestRisk.route, weatherRiskColor(lowestRisk.weatherRisk.category)],
+          ['Provider Source', sources.join(' · '), '#38bdf8'],
+          ['Status', highestRisk.weatherRisk.status, '#facc15']
+        ].map(([label, value, color]) => (
+          <article key={label} style={{ border: '1px solid #334155', borderRadius: 14, padding: 12, background: '#020617' }}>
+            <small style={{ color: '#94a3b8' }}>{label}</small>
+            <h4 style={{ color: String(color), margin: '6px 0 0', fontSize: 20 }}>{value}</h4>
+          </article>
+        ))}
+      </div>
+
+      <details open style={{ border: '1px solid #334155', borderRadius: 16, padding: 14, background: '#020617', marginTop: 14 }}>
+        <summary style={{ color: '#22c55e', cursor: 'pointer', fontWeight: 'bold' }}>Weather diagnostics</summary>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 12, marginTop: 12 }}>
+          {comparisons.map((comparison) => (
+            <article key={`weather-${comparison.id}`} style={{ border: '1px solid #1e293b', borderRadius: 14, padding: 12, background: '#0f172a' }}>
+              <strong style={{ color: weatherRiskColor(comparison.weatherRisk.category) }}>{comparison.route} · {comparison.weatherRisk.category}</strong>
+              <p style={{ color: '#cbd5e1', margin: '8px 0' }}>
+                Impact {comparison.weatherRisk.scoreImpact}/40 · Probability {comparison.weatherRisk.successProbabilityImpact} · Ranking {comparison.weatherRisk.routeRankingImpact}
+              </p>
+              <small style={{ color: '#94a3b8' }}>Source: {comparison.weatherRisk.source} · Status: {comparison.weatherRisk.status}</small>
+              <ul style={{ color: '#cbd5e1', paddingLeft: 20, margin: '8px 0 0' }}>
+                {[...comparison.weatherRisk.details, ...comparison.weatherRisk.diagnostics].map((item) => <li key={item}>{item}</li>)}
+              </ul>
+            </article>
+          ))}
+        </div>
+      </details>
+    </section>
+  )
+}
+
 function RouteConfidenceSection({ comparisons }: { comparisons: ItineraryComparison[] }) {
   if (!comparisons.length) return null
 
@@ -795,7 +888,7 @@ function RouteConfidenceSection({ comparisons }: { comparisons: ItineraryCompari
           ['Avg Route Confidence', `${averageConfidence}/100`, averageConfidence >= 85 ? '#22c55e' : averageConfidence >= 72 ? '#38bdf8' : averageConfidence >= 58 ? '#facc15' : '#f87171'],
           ['Top Badge', bestConfidence.routeConfidence.badge, confidenceBadgeColor(bestConfidence.routeConfidence.badge)],
           ['Top Trend', bestConfidence.routeConfidence.trend, confidenceTrendColor(bestConfidence.routeConfidence.trend)],
-          ['Weather Impact', bestConfidence.routeConfidence.weatherImpact.label, bestConfidence.routeConfidence.weatherImpact.scoreImpact >= 15 ? '#facc15' : '#22c55e']
+          ['Weather Impact', bestConfidence.routeConfidence.weatherImpact.label, weatherRiskColor(bestConfidence.routeConfidence.weatherImpact.label)]
         ].map(([label, value, color]) => (
           <article key={label} style={{ border: '1px solid #334155', borderRadius: 14, padding: 12, background: '#020617' }}>
             <small style={{ color: '#94a3b8' }}>{label}</small>
@@ -890,15 +983,23 @@ function AirportIntelligenceSection({ comparisons }: { comparisons: ItineraryCom
 
 function RouteAirportDetails({ route }: { route: string }) {
   const airportIntelligence = buildRouteAirportIntelligence(route)
+  const weatherRisk = getRouteWeatherRisk(route)
 
   return (
     <details style={{ marginTop: 12, border: '1px solid #334155', borderRadius: 14, padding: 12, background: '#020617' }}>
       <summary style={{ color: '#facc15', cursor: 'pointer', fontWeight: 'bold' }}>
-        Airport intelligence · Connection risk {airportIntelligence.connectionRiskScore}/100
+        Route details · Connection risk {airportIntelligence.connectionRiskScore}/100 · Weather {weatherRisk.category}
       </summary>
       <p style={{ color: '#cbd5e1' }}>
         Difficulty: {airportIntelligence.overallConnectionDifficulty} · Walking: {airportIntelligence.walkingDistanceCategory} · Backup availability: {airportIntelligence.backupFlightAvailability}
       </p>
+      <div style={{ border: `1px solid ${weatherRiskColor(weatherRisk.category)}`, borderRadius: 12, padding: 10, background: '#0f172a', marginBottom: 10 }}>
+        <strong style={{ color: weatherRiskColor(weatherRisk.category) }}>Weather risk: {weatherRisk.category}</strong>
+        <p style={{ color: '#cbd5e1', margin: '6px 0' }}>
+          Impact {weatherRisk.scoreImpact}/40 · Probability {weatherRisk.successProbabilityImpact} · Ranking {weatherRisk.routeRankingImpact}
+        </p>
+        <small style={{ color: '#94a3b8' }}>Source: {weatherRisk.source} · Status: {weatherRisk.status}</small>
+      </div>
       <div style={{ display: 'grid', gap: 8 }}>
         {airportIntelligence.airports.map((airport) => (
           <article key={`${route}-${airport.code}`} style={{ border: '1px solid #1e293b', borderRadius: 12, padding: 10, background: '#0f172a' }}>
@@ -1007,6 +1108,7 @@ function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: It
       {watchStatus && <p style={{ color: '#22c55e', fontWeight: 'bold' }}>{watchStatus} <a href="/watchlist" style={{ color: '#38bdf8' }}>Open watchlist</a></p>}
       {compareStatus && <p style={{ color: '#c084fc', fontWeight: 'bold' }}>{compareStatus}</p>}
 
+      <WeatherIntelligenceSection comparisons={comparisons} />
       <RouteConfidenceSection comparisons={comparisons} />
       <AirportIntelligenceSection comparisons={comparisons} />
       <DisruptionIntelligenceSection comparisons={comparisons} />
@@ -1039,6 +1141,7 @@ function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: It
                 {comparison.providerBadges.map((badge) => (
                   <ProviderBadge key={`${comparison.id}-${badge}`} label={badge} />
                 ))}
+                <WeatherRiskBadge weatherRisk={comparison.weatherRisk} />
               </div>
               <p style={{ color: '#cbd5e1', margin: '0 0 12px' }}>
                 Carrier: {comparison.carrier} · {comparison.flightNumber}
@@ -1050,6 +1153,7 @@ function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: It
                   ['Success Probability', `${comparison.successProbability}%`, comparisonMetricColor(comparison.successProbability)],
                   ['Route Confidence', `${comparison.routeConfidence.score}/100 · ${comparison.routeConfidence.badge}`, confidenceBadgeColor(comparison.routeConfidence.badge)],
                   ['Confidence Trend', comparison.routeConfidence.trend, confidenceTrendColor(comparison.routeConfidence.trend)],
+                  ['Weather Risk', `${comparison.weatherRisk.category} · ${comparison.weatherRisk.scoreImpact}/40`, weatherRiskColor(comparison.weatherRisk.category)],
                   ['Connection Risk', `${comparison.airportIntelligence.connectionRiskScore}/100`, connectionRiskColor(comparison.airportIntelligence.connectionRiskScore)],
                   ['Airport Backup', comparison.airportIntelligence.backupFlightAvailability, '#38bdf8'],
                   ['Risk Level', comparison.riskLevel, riskColor(comparison.riskLevel)],
@@ -1701,6 +1805,7 @@ export default function PlanPage() {
                     {(itinerary.providerBadges?.length ? itinerary.providerBadges : [itinerary.source.includes('aviationstack') ? 'Aviationstack' : 'Live Supabase', ...(itinerary.source.includes('flightaware') ? ['FlightAware enriched'] : [])]).map((badge) => (
                       <ProviderBadge key={`${itinerary.id}-${badge}`} label={badge} />
                     ))}
+                    <WeatherRiskBadge weatherRisk={getRouteWeatherRisk(itinerary.route)} />
                   </div>
                   <p style={{ color: '#38bdf8', fontSize: 18, fontWeight: 'bold' }}>{itinerary.route}</p>
                   <p style={{ color: '#facc15', fontWeight: 'bold' }}>Live score: {itinerary.score}/100</p>
@@ -1754,6 +1859,7 @@ export default function PlanPage() {
                 </div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
                   <ProviderBadge label="Planning fallback" />
+                  <WeatherRiskBadge weatherRisk={getRouteWeatherRisk(itinerary.route)} />
                 </div>
                 <p style={{ color: '#facc15', fontWeight: 'bold' }}>{itinerary.ranking.label}: {itinerary.ranking.score}/100</p>
                 <p style={{ color: '#38bdf8', fontSize: 18, fontWeight: 'bold' }}>{itinerary.route}</p>

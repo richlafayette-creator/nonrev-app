@@ -666,6 +666,7 @@ export async function GET(request: Request) {
     const debug = buildDebugMetadata({
       parsedRequest: effectiveRequest,
       supabaseResultCount: 0,
+      providerFallbackOrder,
       aviationstackFallbackStatus,
       flightAwareEnrichmentStatus: flightAwareStatus,
       finalItineraryCount: itineraries.length,

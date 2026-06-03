@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { loadReportsStorageKey } from '../../lib/loadReports'
+import { notificationDiagnostics, notificationPreferencesStorageKey, notificationDeliveriesStorageKey } from '../../lib/notificationDelivery'
 import { travelerProfileStorageKey } from '../../lib/travelerProfile'
 import { tripOutcomeStorageKey } from '../../lib/tripOutcomes'
 
@@ -125,11 +126,40 @@ function travelerProfileStatus(): HealthItem {
   }
 }
 
+function notificationFrameworkStatus(): HealthItem {
+  const lastChecked = new Date().toISOString()
+  try {
+    const diagnostics = notificationDiagnostics()
+    const hasPreferences = Boolean(window.localStorage.getItem(notificationPreferencesStorageKey))
+    const hasDeliveries = Boolean(window.localStorage.getItem(notificationDeliveriesStorageKey))
+    return {
+      key: 'notification-delivery-framework',
+      label: 'Notification delivery framework',
+      status: diagnostics.status,
+      lastChecked,
+      safeErrorMessage: diagnostics.status === 'Connected' ? '' : 'Notification framework is available, but no alert type or delivery channel is enabled.',
+      recommendedFix: diagnostics.status === 'Connected' ? 'No action needed.' : 'Open Notification Preferences and enable at least one alert type and channel.',
+      detail: `${diagnostics.detail} Preferences ${hasPreferences ? 'saved' : 'using defaults'}; delivery diagnostics ${hasDeliveries ? 'present' : 'empty'}.`
+    }
+  } catch {
+    return {
+      key: 'notification-delivery-framework',
+      label: 'Notification delivery framework',
+      status: 'Error',
+      lastChecked,
+      safeErrorMessage: 'Notification preferences or delivery diagnostics could not be read safely.',
+      recommendedFix: 'Open Notification Preferences and resave settings, or clear local notification data.',
+      detail: 'Local notification framework parse failed.'
+    }
+  }
+}
+
 function buildLocalChecks() {
   return [
     travelerProfileStatus(),
     localArrayStatus(loadReportsStorageKey, 'Community reports', 'Add or verify a load report from the Load Reports page.'),
-    localArrayStatus(tripOutcomeStorageKey, 'Outcome history', 'Capture trip outcomes from the Outcomes page or reminder prompts.')
+    localArrayStatus(tripOutcomeStorageKey, 'Outcome history', 'Capture trip outcomes from the Outcomes page or reminder prompts.'),
+    notificationFrameworkStatus()
   ]
 }
 

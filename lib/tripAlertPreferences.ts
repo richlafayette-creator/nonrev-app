@@ -4,6 +4,8 @@ export const tripAlertPreferenceOptions = [
   { key: 'scoreChanges', label: 'Score changes', description: 'Notify when the itinerary score moves materially.' },
   { key: 'successProbabilityChanges', label: 'Success probability changes', description: 'Notify when the probability engine estimate changes.' },
   { key: 'delayCancellationUpdates', label: 'Delay/cancellation updates', description: 'Notify when schedule disruption signals appear.' },
+  { key: 'disruptionAlerts', label: 'Disruption alerts', description: 'Notify when route-health disruption intelligence turns risky.' },
+  { key: 'weatherAlerts', label: 'Weather alerts', description: 'Notify when weather risk increases.' },
   { key: 'betterRouteFound', label: 'New better route found', description: 'Notify when NONREVY finds a stronger route option.' },
   { key: 'didYouGetOnReminder', label: 'Did-you-get-on reminder', description: 'Prompt after travel to capture the outcome.' }
 ] as const
@@ -27,6 +29,8 @@ export const defaultTripAlertPreferenceFlags: TripAlertPreferenceFlags = {
   scoreChanges: true,
   successProbabilityChanges: true,
   delayCancellationUpdates: true,
+  disruptionAlerts: true,
+  weatherAlerts: true,
   betterRouteFound: false,
   didYouGetOnReminder: true
 }

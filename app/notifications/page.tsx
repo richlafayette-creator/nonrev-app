@@ -130,6 +130,7 @@ export default function NotificationsPage() {
         <a href="/credits" style={{ marginRight: 16, color: '#fbbf24' }}>Credits</a>
         <a href="/reputation" style={{ marginRight: 16, color: '#34d399' }}>Trust</a>
         <a href="/notifications" style={{ marginRight: 16, color: '#f472b6' }}>Notifications</a>
+        <a href="/notification-preferences" style={{ marginRight: 16, color: '#fb7185' }}>Notification Preferences</a>
         <a href="/alerts" style={{ marginRight: 16, color: '#22c55e' }}>Alerts</a>
         <a href="/agent" style={{ color: '#a78bfa' }}>Agent</a>
       </nav>
@@ -190,9 +191,14 @@ export default function NotificationsPage() {
               Local preference scaffold for score changes, probability changes, delay/cancellation updates, better-route finds, and did-you-get-on reminders.
             </p>
           </div>
-          <a href="/watchlist" style={{ border: '1px solid #f472b6', borderRadius: 999, padding: '10px 14px', color: '#fbcfe8', fontWeight: 'bold' }}>
-            Manage on Watchlist
-          </a>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            <a href="/notification-preferences" style={{ border: '1px solid #fb7185', borderRadius: 999, padding: '10px 14px', color: '#fecdd3', fontWeight: 'bold' }}>
+              Push Preferences
+            </a>
+            <a href="/watchlist" style={{ border: '1px solid #f472b6', borderRadius: 999, padding: '10px 14px', color: '#fbcfe8', fontWeight: 'bold' }}>
+              Manage on Watchlist
+            </a>
+          </div>
         </div>
 
         {preferenceTargets.length === 0 ? (

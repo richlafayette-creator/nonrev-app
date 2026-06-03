@@ -1,4 +1,6 @@
+import { deliverNotification, eventTypeEnabled } from './notificationDelivery'
 import { loadSavedItineraryComparisons } from './savedItineraryComparisons'
+import { getTripAlertPreference } from './tripAlertPreferences'
 import { loadTripOutcomes, saveTripOutcome, type TripOutcomeStatus } from './tripOutcomes'
 import { loadSavedTripWatchlist } from './watchlist'
 
@@ -83,6 +85,32 @@ function saveOutcomeReminders(reminders: OutcomeReminder[]) {
   return reminders
 }
 
+function deliverOutcomeReminderNotifications(reminders: OutcomeReminder[]) {
+  if (!isBrowser() || !eventTypeEnabled('did-you-get-on-reminders')) return
+
+  reminders.forEach((reminder) => {
+    const targetType = reminder.sourceType === 'saved-trip' ? 'watched-route' : 'saved-itinerary'
+    const preference = getTripAlertPreference(reminder.sourceId, targetType, reminder.title)
+    if (!preference.flags.didYouGetOnReminder) return
+
+    deliverNotification({
+      eventType: 'did-you-get-on-reminders',
+      title: reminder.title,
+      body: `${reminder.prompt} ${reminder.route} on ${reminder.travelDate}.`,
+      targetId: reminder.sourceId,
+      targetLabel: reminder.title,
+      source: 'outcome-reminder',
+      eventKey: `outcome-reminder:${reminder.sourceType}:${reminder.sourceId}:${reminder.travelDate}`,
+      details: [
+        `Route: ${reminder.route}`,
+        `Carrier: ${reminder.carrier}`,
+        `Travel date: ${reminder.travelDate}`,
+        'Reminder is stored locally until real push providers are connected.'
+      ]
+    })
+  })
+}
+
 export function loadOutcomeReminderCandidates(): OutcomeReminderCandidate[] {
   if (!isBrowser()) return []
 
@@ -152,6 +180,7 @@ export function generateOutcomeReminders() {
     createdAt: now
   }))
 
+  deliverOutcomeReminderNotifications(additions)
   return saveOutcomeReminders([...additions, ...existing])
 }
 

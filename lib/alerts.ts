@@ -1,6 +1,7 @@
 import { buildDisruptionIntelligence } from './disruptionIntelligence'
 import { calculateRouteConfidence, type RouteConfidence } from './routeConfidence'
 import { loadSavedItineraryComparisons, type SavedItineraryComparison } from './savedItineraryComparisons'
+import { deliverNotification, eventTypeEnabled, type NotificationEventType } from './notificationDelivery'
 import { loadTripAlertPreferences, getTripAlertPreference, type TripAlertPreference, type TripAlertTargetType } from './tripAlertPreferences'
 import { defaultTravelerProfile, loadTravelerProfileFromStorage, type TravelerProfileScaffold } from './travelerProfile'
 import { loadSavedTripWatchlist, type SavedTripWatch } from './watchlist'
@@ -194,8 +195,55 @@ function itineraryTarget(itinerary: SavedItineraryComparison): AlertTarget {
 function alertsEnabled(preference: TripAlertPreference, type: RealTimeAlertType) {
   if (type === 'Confidence increased' || type === 'Confidence decreased') return preference.flags.scoreChanges || preference.flags.successProbabilityChanges
   if (type === 'Better route found' || type === 'New backup route available') return preference.flags.betterRouteFound
-  if (type === 'Disruption detected' || type === 'Weather risk increased') return preference.flags.delayCancellationUpdates
+  if (type === 'Disruption detected') return preference.flags.delayCancellationUpdates || preference.flags.disruptionAlerts
+  if (type === 'Weather risk increased') return preference.flags.weatherAlerts
   return true
+}
+
+function notificationEventTypeForAlert(type: RealTimeAlertType): NotificationEventType {
+  if (type === 'Confidence increased' || type === 'Confidence decreased') return 'route-confidence-changes'
+  if (type === 'Better route found' || type === 'New backup route available') return 'better-route-found'
+  if (type === 'Disruption detected') return 'disruption-alerts'
+  return 'weather-alerts'
+}
+
+function notificationSourceForAlert(type: RealTimeAlertType) {
+  if (type === 'Confidence increased' || type === 'Confidence decreased') return 'route-confidence' as const
+  if (type === 'Better route found' || type === 'New backup route available') return 'better-route' as const
+  if (type === 'Disruption detected') return 'disruption' as const
+  return 'weather' as const
+}
+
+function deliverAlertNotifications(alerts: RealTimeAlert[]) {
+  if (typeof window === 'undefined') return
+
+  alerts.forEach((alert) => {
+    const eventType = notificationEventTypeForAlert(alert.type)
+    if (!eventTypeEnabled(eventType)) return
+    deliverNotification({
+      eventType,
+      title: alert.title,
+      body: alert.body,
+      targetId: alert.targetId,
+      targetLabel: alert.targetLabel,
+      source: notificationSourceForAlert(alert.type),
+      eventKey: alert.eventKey,
+      details: alert.details
+    })
+
+    if (alert.source === 'watchlist') {
+      deliverNotification({
+        eventType: 'watchlist',
+        title: alert.title,
+        body: alert.body,
+        targetId: alert.targetId,
+        targetLabel: alert.targetLabel,
+        source: 'watchlist',
+        eventKey: `watchlist:${alert.eventKey}`,
+        details: alert.details
+      })
+    }
+  })
 }
 
 function buildAlert(target: AlertTarget, type: RealTimeAlertType, severity: RealTimeAlertSeverity, title: string, body: string, metricLabel: string, metricValue: string, details: string[], eventSuffix: string): RealTimeAlert {
@@ -348,6 +396,7 @@ export function refreshRealTimeAlerts() {
   const existingEventKeys = new Set(existingHistory.map((alert) => alert.eventKey))
   const generated = targets.flatMap((target) => generateAlertsForTarget(target, previousByTarget.get(targetKey(target)), targets, travelerProfile))
   const newAlerts = generated.filter((alert) => !existingEventKeys.has(alert.eventKey))
+  if (newAlerts.length) deliverAlertNotifications(newAlerts)
   const history = newAlerts.length ? saveAlertHistory([...newAlerts, ...existingHistory]) : existingHistory
 
   const nextSnapshots = targets.map((target) => {

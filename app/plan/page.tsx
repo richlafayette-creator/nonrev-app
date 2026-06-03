@@ -145,6 +145,7 @@ type ItineraryDebugMetadata = {
   emptyResults?: string[]
   rateLimits?: string[]
   invalidAirportCodes?: string[]
+  unsupportedAirportCodes?: string[]
   invalidDates?: string[]
   providerExplanation?: string[]
   providerStatuses?: ProviderStatus[]
@@ -1165,6 +1166,7 @@ export default function PlanPage() {
   const [liveItineraries, setLiveItineraries] = useState<LiveItineraryResult[]>([])
   const [itineraryWarnings, setItineraryWarnings] = useState<string[]>([])
   const [itinerarySource, setItinerarySource] = useState('Supabase flights table')
+  const [itineraryDataMode, setItineraryDataMode] = useState('Awaiting live search')
   const [itineraryDebug, setItineraryDebug] = useState<ItineraryDebugMetadata | null>(null)
   const [query, setQuery] = useState('')
   const [flights, setFlights] = useState<any[]>([])
@@ -1248,11 +1250,13 @@ export default function PlanPage() {
       setLiveItineraries([])
       setItineraryDebug(null)
       setItineraryStatus('Enter an itinerary request to search live flight data.')
+      setItineraryDataMode('Awaiting live search')
       return
     }
 
     setItineraryLoading(true)
     setItineraryStatus('Searching Supabase flights first, then enriching matches when FlightAware is configured...')
+    setItineraryDataMode('Searching live providers')
     setItineraryWarnings([])
     setItineraryDebug(null)
 
@@ -1271,6 +1275,7 @@ export default function PlanPage() {
       const apiWarnings = Array.isArray(data?.warnings) ? data.warnings : []
       setItineraryWarnings(data?.errorMessage ? [...new Set([...apiWarnings, data.errorMessage])] : apiWarnings)
       setItinerarySource(data?.sourceLabel || (data?.enrichedWithFlightAware ? 'Supabase flights + FlightAware enrichment' : 'Supabase flights table'))
+      setItineraryDataMode(data?.dataMode === 'fallback' || itineraries.length === 0 ? 'Fallback planning guidance' : 'Live provider data')
       setItineraryDebug(data?.debug || null)
       setItineraryStatus(data?.statusMessage || (itineraries.length
         ? `${itineraries.length} live itinerary result${itineraries.length === 1 ? '' : 's'} found for ${data?.request?.origin || 'any origin'} → ${data?.request?.destination || 'any destination'}.`
@@ -1280,6 +1285,7 @@ export default function PlanPage() {
       setLiveItineraries([])
       setItineraryDebug(null)
       setItineraryStatus('Live itinerary search failed. Showing fallback planning guidance.')
+      setItineraryDataMode('Fallback planning guidance')
       setItineraryWarnings(['Itinerary API request failed'])
     } finally {
       setItineraryLoading(false)
@@ -1584,6 +1590,9 @@ export default function PlanPage() {
           <p style={{ color: itineraryLoading ? '#facc15' : '#94a3b8' }}>
             {itineraryStatus} · Source: {itinerarySource}
           </p>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, border: `1px solid ${itineraryDataMode === 'Live provider data' ? '#22c55e' : itineraryDataMode === 'Fallback planning guidance' ? '#facc15' : '#334155'}`, borderRadius: 999, padding: '6px 12px', background: '#020617', color: itineraryDataMode === 'Live provider data' ? '#bbf7d0' : itineraryDataMode === 'Fallback planning guidance' ? '#fef3c7' : '#cbd5e1', marginBottom: 14, fontWeight: 'bold' }}>
+            Data mode: {itineraryDataMode}
+          </div>
           {itineraryWarnings.length > 0 && (
             <div style={{ border: '1px solid #854d0e', borderRadius: 14, padding: 14, background: '#1c1917', color: '#fde68a', marginBottom: 14 }}>
               <strong>Pipeline notes</strong>
@@ -1634,13 +1643,14 @@ export default function PlanPage() {
                 </div>
               </div>
             ) : null}
-            {[...(itineraryDebug?.emptyResults || []), ...(itineraryDebug?.rateLimits || []), ...(itineraryDebug?.invalidAirportCodes || []), ...(itineraryDebug?.invalidDates || [])].length ? (
+            {[...(itineraryDebug?.emptyResults || []), ...(itineraryDebug?.rateLimits || []), ...(itineraryDebug?.invalidAirportCodes || []), ...(itineraryDebug?.unsupportedAirportCodes || []), ...(itineraryDebug?.invalidDates || [])].length ? (
               <div style={{ border: '1px solid #854d0e', borderRadius: 12, padding: 10, background: '#1c1917', color: '#fde68a', marginTop: 12 }}>
                 <strong>Reliability diagnostics</strong>
                 <ul style={{ marginBottom: 0 }}>
                   {(itineraryDebug?.emptyResults || []).map((message) => <li key={`empty-${message}`}>Empty result: {message}</li>)}
                   {(itineraryDebug?.rateLimits || []).map((message) => <li key={`rate-${message}`}>Rate limit: {message}</li>)}
                   {(itineraryDebug?.invalidAirportCodes || []).map((message) => <li key={`airport-${message}`}>Invalid airport code: {message}</li>)}
+                  {(itineraryDebug?.unsupportedAirportCodes || []).map((message) => <li key={`unsupported-airport-${message}`}>Unsupported airport code: {message}</li>)}
                   {(itineraryDebug?.invalidDates || []).map((message) => <li key={`date-${message}`}>Invalid date: {message}</li>)}
                 </ul>
               </div>

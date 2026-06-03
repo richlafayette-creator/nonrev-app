@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { airportScaffoldFor } from '../../../../lib/airportMapScaffold'
 import { buildItinerariesFromFlights, flightMatchesRequest, normalizeItineraryRequest, type ItineraryResult } from '../../../../lib/itinerarySearch'
 
 export const dynamic = 'force-dynamic'
@@ -48,6 +49,7 @@ type ItineraryDebugMetadata = {
   emptyResults: string[]
   rateLimits: string[]
   invalidAirportCodes: string[]
+  unsupportedAirportCodes: string[]
   invalidDates: string[]
   providerExplanation: string[]
   providerStatuses: ProviderStatus[]
@@ -176,6 +178,16 @@ function emptyCounts(): ApiResponseCounts {
 
 function isValidAirportCode(value?: string | null) {
   return !value || /^[A-Za-z]{3}$/.test(value.trim())
+}
+
+function requestedAirportCodes(request: ReturnType<typeof normalizeItineraryRequest>) {
+  return [...new Set([request.origin, request.destination].filter((code): code is string => Boolean(code)))]
+}
+
+function unsupportedAirportCodeMessages(request: ReturnType<typeof normalizeItineraryRequest>) {
+  return requestedAirportCodes(request)
+    .filter((code) => !airportScaffoldFor(code))
+    .map((code) => `${code} is not in the local airport intelligence scaffold; live providers were still queried, but maps and airport guidance may be limited.`)
 }
 
 function isValidIsoDate(value?: string) {
@@ -514,6 +526,7 @@ function buildDebugMetadata({
   emptyResults,
   rateLimits,
   invalidAirportCodes,
+  unsupportedAirportCodes,
   invalidDates,
   providerStatuses,
   safeErrors
@@ -529,6 +542,7 @@ function buildDebugMetadata({
   emptyResults: string[]
   rateLimits: string[]
   invalidAirportCodes: string[]
+  unsupportedAirportCodes: string[]
   invalidDates: string[]
   providerStatuses: ProviderStatus[]
   safeErrors: string[]
@@ -549,6 +563,7 @@ function buildDebugMetadata({
     emptyResults,
     rateLimits,
     invalidAirportCodes,
+    unsupportedAirportCodes,
     invalidDates,
     providerExplanation: mergedProviderStatuses.map((status, index) => `${index + 1}. ${status.label}: ${status.detail}`),
     providerStatuses: mergedProviderStatuses,
@@ -567,12 +582,14 @@ export async function GET(request: Request) {
     ? [`${parsedRequest.date} is not a valid YYYY-MM-DD date; live search ignored this date filter to avoid hiding available flights.`]
     : []
   const effectiveRequest = invalidDates.length ? { ...parsedRequest, date: undefined } : parsedRequest
+  const unsupportedAirportCodes = unsupportedAirportCodeMessages(effectiveRequest)
   const warnings: string[] = []
   const emptyResults: string[] = []
   const rateLimits: string[] = []
   const counts = emptyCounts()
 
   if (invalidAirportCodes.length) warnings.push(`Invalid airport code input ignored: ${invalidAirportCodes.join(', ')}`)
+  if (unsupportedAirportCodes.length) warnings.push(...unsupportedAirportCodes)
   if (invalidDates.length) warnings.push(...invalidDates)
 
   const { flights: supabaseFlights, warning: supabaseWarning, queryDiagnostics: supabaseQueryPath } = await fetchSupabaseFlights(effectiveRequest)
@@ -614,6 +631,7 @@ export async function GET(request: Request) {
       emptyResults,
       rateLimits,
       invalidAirportCodes,
+      unsupportedAirportCodes,
       invalidDates,
       providerFallbackOrder,
       providerStatuses: [
@@ -629,6 +647,7 @@ export async function GET(request: Request) {
       request: effectiveRequest,
       source: 'supabase-flights-first',
       sourceLabel: sourceLabel('supabase', enriched),
+      dataMode: 'live',
       statusMessage: `${itineraries.length} itinerary result${itineraries.length === 1 ? '' : 's'} found in Supabase flights.`,
       enrichedWithFlightAware: enriched,
       providerBadges: enriched ? [providerLabels.supabase, providerLabels.flightaware] : [providerLabels.supabase],
@@ -675,6 +694,7 @@ export async function GET(request: Request) {
       emptyResults,
       rateLimits,
       invalidAirportCodes,
+      unsupportedAirportCodes,
       invalidDates,
       providerStatuses: [
         providerStatus('supabase', supabaseWarning ? 'warning' : 'skipped', supabaseWarning || 'No Supabase itineraries matched this request.'),
@@ -690,6 +710,7 @@ export async function GET(request: Request) {
       request: effectiveRequest,
       source: 'aviationstack-fallback',
       sourceLabel: sourceLabel('aviationstack', enriched),
+      dataMode: 'live',
       statusMessage: `${itineraries.length} itinerary result${itineraries.length === 1 ? '' : 's'} found through Aviationstack fallback.`,
       enrichedWithFlightAware: enriched,
       providerBadges: enriched ? [providerLabels.aviationstack, providerLabels.flightaware] : [providerLabels.aviationstack],
@@ -716,6 +737,7 @@ export async function GET(request: Request) {
     emptyResults,
     rateLimits,
     invalidAirportCodes,
+    unsupportedAirportCodes,
     invalidDates,
     providerStatuses: [
       providerStatus('supabase', supabaseWarning ? 'warning' : 'skipped', supabaseWarning || 'No Supabase itineraries matched this request.'),
@@ -732,6 +754,7 @@ export async function GET(request: Request) {
     request: effectiveRequest,
     source: 'planning-fallback',
     sourceLabel: sourceLabel('planning', false),
+    dataMode: 'fallback',
     statusMessage: noResultsMessage,
     errorMessage: noResultsMessage,
     enrichedWithFlightAware: false,

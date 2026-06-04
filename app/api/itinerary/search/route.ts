@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { airportScaffoldFor } from '../../../../lib/airportMapScaffold'
-import { buildItinerariesFromFlights, flightMatchesRequest, normalizeItineraryRequest, summarizeRouteMatching, type ItineraryResult, type RouteMatchingSummary } from '../../../../lib/itinerarySearch'
+import { buildItinerariesFromFlights, closestAvailableFlightDates, flightMatchesRequest, normalizeFlightRouteForDiagnostics, normalizeItineraryRequest, summarizeRouteMatching, type ItineraryResult, type ParsedItineraryRequest, type RouteMatchingSummary } from '../../../../lib/itinerarySearch'
 import { mvpRouteSeedDate, mvpRouteSeedFlightsForRequest } from '../../../../lib/mvpRouteSeedData'
 
 export const dynamic = 'force-dynamic'
@@ -289,6 +289,44 @@ function nextIsoDate(date: string) {
   if (!Number.isFinite(parsed.getTime())) return undefined
   parsed.setUTCDate(parsed.getUTCDate() + 1)
   return parsed.toISOString().slice(0, 10)
+}
+
+function dayDistance(a?: string, b?: string) {
+  if (!a || !b) return Infinity
+  const left = Date.parse(`${a}T00:00:00.000Z`)
+  const right = Date.parse(`${b}T00:00:00.000Z`)
+  if (!Number.isFinite(left) || !Number.isFinite(right)) return Infinity
+  return Math.abs(Math.round((left - right) / 86400000))
+}
+
+function booleanParam(searchParams: URLSearchParams, key: string) {
+  const value = searchParams.get(key)?.toLowerCase()
+  return value === '1' || value === 'true' || value === 'yes' || value === 'on' || value === 'personal'
+}
+
+function nearestDateTolerance(searchParams: URLSearchParams) {
+  const configured = Number(searchParams.get('nearestDateToleranceDays') || process.env.PERSONAL_TESTING_NEAREST_DATE_TOLERANCE_DAYS || '45')
+  return Number.isFinite(configured) ? Math.max(0, Math.min(365, Math.round(configured))) : 45
+}
+
+function availableDatesForFlights(flights: FlightRecord[]) {
+  return [...new Set(flights.map((flight) => normalizeFlightRouteForDiagnostics(flight).date).filter(Boolean) as string[])].sort()
+}
+
+function nearestDateRequestForPersonalTesting(flights: FlightRecord[], request: ParsedItineraryRequest, toleranceDays: number) {
+  if (!request.date) return { request, nearestDateApplied: false, closestAvailableDates: [] as string[] }
+  const routeAndCarrierRequest = { ...request, date: undefined }
+  const routeAndCarrierFlights = flights.filter((flight) => flightMatchesRequest(flight, routeAndCarrierRequest))
+  const scopedDates = availableDatesForFlights(routeAndCarrierFlights.length ? routeAndCarrierFlights : flights)
+  const closestAvailableDates = closestAvailableFlightDates(scopedDates, request.date, 5)
+  const nearestDate = closestAvailableDates[0]
+  const withinTolerance = nearestDate ? dayDistance(nearestDate, request.date) <= toleranceDays : false
+  if (!withinTolerance) return { request, nearestDateApplied: false, closestAvailableDates }
+  return {
+    request: { ...request, date: nearestDate },
+    nearestDateApplied: nearestDate !== request.date,
+    closestAvailableDates
+  }
 }
 
 function supabaseQueryUrl(supabaseUrl: string, request: ReturnType<typeof normalizeItineraryRequest>, mode: 'direct' | 'connection' | 'routeCoverage' | 'recent') {
@@ -659,6 +697,8 @@ function buildDebugMetadata({
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const parsedRequest = normalizeItineraryRequest(searchParams)
+  const personalTestingMode = booleanParam(searchParams, 'personalTestingMode') || booleanParam(searchParams, 'testingMode')
+  const personalTestingToleranceDays = nearestDateTolerance(searchParams)
   const invalidAirportCodes = [
     !isValidAirportCode(searchParams.get('origin')) ? `origin=${searchParams.get('origin')}` : undefined,
     !isValidAirportCode(searchParams.get('destination')) ? `destination=${searchParams.get('destination')}` : undefined
@@ -733,21 +773,32 @@ export async function GET(request: Request) {
 
   const { flights: supabaseFlights, warning: supabaseWarning, queryDiagnostics: supabaseQueryPath } = await fetchSupabaseFlights(effectiveRequest)
   counts.supabaseFetched = supabaseFlights.length
-  const routeMatching = summarizeRouteMatching(supabaseFlights, effectiveRequest)
-  const supabaseMatchedFlights = supabaseFlights.filter((flight) => flightMatchesRequest(flight, effectiveRequest))
+  const nearestDateMatch = personalTestingMode
+    ? nearestDateRequestForPersonalTesting(supabaseFlights, effectiveRequest, personalTestingToleranceDays)
+    : { request: effectiveRequest, nearestDateApplied: false, closestAvailableDates: [] as string[] }
+  const matchingRequest = nearestDateMatch.request
+  const routeMatching = summarizeRouteMatching(supabaseFlights, matchingRequest, {
+    requestedDate: effectiveRequest.date,
+    effectiveMatchDate: matchingRequest.date,
+    nearestDateApplied: nearestDateMatch.nearestDateApplied,
+    nearestDateToleranceDays: personalTestingMode ? personalTestingToleranceDays : undefined
+  })
+  const supabaseMatchedFlights = supabaseFlights.filter((flight) => flightMatchesRequest(flight, matchingRequest))
   counts.supabaseMatchedFlights = supabaseMatchedFlights.length
   if (supabaseWarning) warnings.push(supabaseWarning)
+  if (routeMatching.dateCoverage.warning) warnings.push(routeMatching.dateCoverage.warning)
+  if (routeMatching.dateCoverage.nearestDateApplied) warnings.push(`Personal Testing Mode matched nearest available date ${routeMatching.dateCoverage.effectiveMatchDate} within ${personalTestingToleranceDays} days of requested date ${routeMatching.dateCoverage.requestedSearchDate}; not a production strict-date result.`)
   if (supabaseFlights.length === 0) emptyResults.push('Supabase returned zero flight rows.')
   if (supabaseFlights.length > 0 && supabaseMatchedFlights.length === 0) emptyResults.push(routeMatching.matchExplanation)
 
-  const supabaseItineraries = buildItinerariesFromFlights(supabaseFlights, effectiveRequest)
+  const supabaseItineraries = buildItinerariesFromFlights(supabaseFlights, matchingRequest)
   counts.supabaseItineraries = supabaseItineraries.length
   if (supabaseItineraries.length > 0) {
     const itineraryFlightIdents = new Set(supabaseItineraries.flatMap((itinerary) => itinerary.legs.map((leg) => leg.flightNumber.replace(/\s+/g, '')).filter(Boolean)))
     const supabaseFlightsToEnrich = supabaseFlights
       .filter((flight) => {
         const ident = flightIdent(flight)
-        return flightMatchesRequest(flight, effectiveRequest) || (ident ? itineraryFlightIdents.has(ident) : false)
+        return flightMatchesRequest(flight, matchingRequest) || (ident ? itineraryFlightIdents.has(ident) : false)
       })
       .slice(0, 8)
     const { enrichments, warning: flightAwareWarning, status: flightAwareStatus, requestedCount } = await enrichWithFlightAware(supabaseFlightsToEnrich)
@@ -756,7 +807,7 @@ export async function GET(request: Request) {
     if (flightAwareWarning) warnings.push(flightAwareWarning)
     const flightAwareLimit = rateLimitMessage('FlightAware', undefined, flightAwareWarning)
     if (flightAwareLimit) rateLimits.push(flightAwareLimit)
-    const enrichedItineraries = buildItinerariesFromFlights(supabaseFlights, effectiveRequest, enrichments)
+    const enrichedItineraries = buildItinerariesFromFlights(supabaseFlights, matchingRequest, enrichments)
     const enriched = Object.keys(enrichments).length > 0
     const itineraries = addProviderBadges(enrichedItineraries.length ? enrichedItineraries : supabaseItineraries, 'supabase', enriched)
     counts.finalItineraries = itineraries.length
@@ -790,8 +841,10 @@ export async function GET(request: Request) {
       request: effectiveRequest,
       source: 'supabase-flights-first',
       sourceLabel: sourceLabel('supabase', enriched),
-      dataMode: 'live',
-      statusMessage: `${itineraries.length} itinerary result${itineraries.length === 1 ? '' : 's'} found in Supabase flights.`,
+      dataMode: routeMatching.dateCoverage.nearestDateApplied ? 'nearest-date-testing' : 'live',
+      statusMessage: routeMatching.dateCoverage.nearestDateApplied
+        ? `${itineraries.length} nearest-date itinerary result${itineraries.length === 1 ? '' : 's'} found in Supabase flights for ${routeMatching.dateCoverage.effectiveMatchDate}; requested ${routeMatching.dateCoverage.requestedSearchDate}.`
+        : `${itineraries.length} itinerary result${itineraries.length === 1 ? '' : 's'} found in Supabase flights.`,
       enrichedWithFlightAware: enriched,
       providerBadges: enriched ? [providerLabels.supabase, providerLabels.flightaware] : [providerLabels.supabase],
       warnings: uniqueMessages(warnings),
@@ -869,14 +922,24 @@ export async function GET(request: Request) {
     ? `queried; ${aviationstackFlights.length} flight record${aviationstackFlights.length === 1 ? '' : 's'} returned but no itineraries matched`
     : aviationstackWarning ? 'queried; no usable flight records returned' : 'queried; no matching flights returned'
 
-  const mvpSeedFlights = mvpRouteSeedFlightsForRequest(effectiveRequest)
-  const mvpSeedItineraries = buildItinerariesFromFlights(mvpSeedFlights, effectiveRequest)
+  const seedNearestDateMatch = personalTestingMode
+    ? nearestDateRequestForPersonalTesting(mvpRouteSeedFlightsForRequest({ ...effectiveRequest, date: undefined }), effectiveRequest, personalTestingToleranceDays)
+    : { request: effectiveRequest, nearestDateApplied: false, closestAvailableDates: [] as string[] }
+  const mvpSeedFlights = mvpRouteSeedFlightsForRequest(seedNearestDateMatch.request)
+  const mvpSeedItineraries = buildItinerariesFromFlights(mvpSeedFlights, seedNearestDateMatch.request)
   if (mvpSeedItineraries.length > 0) {
-    const seedRouteMatching = summarizeRouteMatching(mvpSeedFlights, effectiveRequest)
+    const seedRouteMatching = summarizeRouteMatching(mvpSeedFlights, seedNearestDateMatch.request, {
+      requestedDate: effectiveRequest.date,
+      effectiveMatchDate: seedNearestDateMatch.request.date,
+      nearestDateApplied: seedNearestDateMatch.nearestDateApplied,
+      nearestDateToleranceDays: personalTestingMode ? personalTestingToleranceDays : undefined
+    })
     const itineraries = addProviderBadges(mvpSeedItineraries, 'supabase', false)
     counts.finalItineraries = itineraries.length
-    const seedMessage = `Showing ${itineraries.length} MVP test-data itinerary card${itineraries.length === 1 ? '' : 's'} for personal testing. These are static seed rows dated ${mvpRouteSeedDate}, not live flight data.`
-    const finalWarnings = uniqueMessages([...warnings, seedMessage])
+    const seedMessage = seedRouteMatching.dateCoverage.nearestDateApplied
+      ? `Showing ${itineraries.length} MVP test-data nearest-date itinerary card${itineraries.length === 1 ? '' : 's'} for ${seedRouteMatching.dateCoverage.effectiveMatchDate}; requested ${seedRouteMatching.dateCoverage.requestedSearchDate}. These static seed rows are not live flight data.`
+      : `Showing ${itineraries.length} MVP test-data itinerary card${itineraries.length === 1 ? '' : 's'} for personal testing. These are static seed rows dated ${mvpRouteSeedDate}, not live flight data.`
+    const finalWarnings = uniqueMessages([...warnings, seedRouteMatching.dateCoverage.warning, seedMessage].filter(Boolean) as string[])
     const debug = buildDebugMetadata({
       parsedRequest: effectiveRequest,
       supabaseResultCount: 0,
@@ -906,7 +969,7 @@ export async function GET(request: Request) {
       request: effectiveRequest,
       source: 'mvp-route-seed-test-data',
       sourceLabel: 'MVP route seed test data',
-      dataMode: 'test-data',
+      dataMode: seedRouteMatching.dateCoverage.nearestDateApplied ? 'nearest-date-testing' : 'test-data',
       statusMessage: seedMessage,
       errorMessage: seedMessage,
       enrichedWithFlightAware: false,

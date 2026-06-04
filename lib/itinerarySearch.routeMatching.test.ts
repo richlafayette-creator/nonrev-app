@@ -75,6 +75,28 @@ describe('route matching diagnostics', () => {
     assert.match(missingDate.matchExplanation, /1 exact normalized route row, but no rows matched date 2026-06-06/)
   })
 
+  it('reports stale date coverage and nearest-date testing matches', () => {
+    const nearestDateRequest = requestWith({ origin: 'LAX', destination: 'HNL', date: '2026-06-05' })
+    const shiftedCandidates = JSON.parse(JSON.stringify(candidates).replaceAll('2026-06-05', '2026-05-24')) as Record<string, unknown>[]
+    const strict = summarizeRouteMatching(shiftedCandidates, nearestDateRequest)
+    const nearest = summarizeRouteMatching(shiftedCandidates, { ...nearestDateRequest, date: '2026-05-24' }, {
+      requestedDate: '2026-06-05',
+      effectiveMatchDate: '2026-05-24',
+      nearestDateApplied: true,
+      nearestDateToleranceDays: 14
+    })
+
+    assert.equal(strict.finalMatchedRows, 0)
+    assert.equal(strict.dateCoverage.oldestFlightDate, '2026-05-24')
+    assert.equal(strict.dateCoverage.newestFlightDate, '2026-05-24')
+    assert.equal(strict.dateCoverage.requestedDateIsNewerThanAvailableData, true)
+    assert.match(strict.dateCoverage.warning || '', /Requested search date 2026-06-05 is newer/)
+    assert.equal(nearest.finalMatchedRows, 1)
+    assert.equal(nearest.dateCoverage.nearestDateApplied, true)
+    assert.equal(nearest.dateCoverage.effectiveMatchDate, '2026-05-24')
+    assert.match(nearest.matchExplanation, /Personal Testing Mode nearest-date matching/)
+  })
+
   it('produces a route coverage report for required Hawaii routes', () => {
     const routes = [
       ['LAX', 'HNL'],

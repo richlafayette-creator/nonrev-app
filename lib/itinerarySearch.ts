@@ -94,6 +94,20 @@ export type ClosestMatchingRoute = {
   sampleFlightNumbers: string[]
 }
 
+export type DateCoverageDiagnostics = {
+  requestedSearchDate?: string
+  effectiveMatchDate?: string
+  oldestFlightDate?: string
+  newestFlightDate?: string
+  availableDates: string[]
+  closestAvailableDates: string[]
+  requestedDateIsNewerThanAvailableData: boolean
+  nearestDateApplied: boolean
+  nearestDateToleranceDays?: number
+  dateMode: 'strict' | 'nearest-date-testing'
+  warning?: string
+}
+
 export type RouteMatchingSummary = {
   requested: {
     origin?: string
@@ -109,6 +123,7 @@ export type RouteMatchingSummary = {
   finalMatchedRows: number
   totalCandidates: number
   matchExplanation: string
+  dateCoverage: DateCoverageDiagnostics
   routeNormalization: RouteNormalizationDiagnostics
   closestMatchingRoutes: ClosestMatchingRoute[]
   rejectedCandidates: FlightRouteMatchDiagnostics[]
@@ -477,6 +492,59 @@ function topCounts<T>(values: T[], keyForValue: (value: T) => string, limit = 5)
     .slice(0, limit)
 }
 
+function dayNumber(date?: string) {
+  if (!date) return NaN
+  const time = Date.parse(`${date}T00:00:00.000Z`)
+  return Number.isFinite(time) ? Math.floor(time / 86400000) : NaN
+}
+
+function daysBetweenDates(a?: string, b?: string) {
+  const left = dayNumber(a)
+  const right = dayNumber(b)
+  if (!Number.isFinite(left) || !Number.isFinite(right)) return Infinity
+  return Math.abs(left - right)
+}
+
+function uniqueNormalizedFlightDates(diagnostics: FlightRouteMatchDiagnostics[]) {
+  return [...new Set(diagnostics.map((diagnostic) => diagnostic.normalized.date).filter(Boolean) as string[])].sort()
+}
+
+export function closestAvailableFlightDates(availableDates: string[], requestedDate?: string, limit = 3) {
+  if (!requestedDate) return availableDates.slice(-limit).reverse()
+  return [...availableDates]
+    .sort((a, b) => daysBetweenDates(a, requestedDate) - daysBetweenDates(b, requestedDate) || b.localeCompare(a))
+    .slice(0, limit)
+}
+
+function dateCoverageDiagnostics(
+  diagnostics: FlightRouteMatchDiagnostics[],
+  requestedDate?: string,
+  options: { effectiveMatchDate?: string; nearestDateApplied?: boolean; nearestDateToleranceDays?: number } = {}
+): DateCoverageDiagnostics {
+  const availableDates = uniqueNormalizedFlightDates(diagnostics)
+  const oldestFlightDate = availableDates[0]
+  const newestFlightDate = availableDates[availableDates.length - 1]
+  const requestedDateIsNewerThanAvailableData = Boolean(requestedDate && newestFlightDate && dayNumber(requestedDate) > dayNumber(newestFlightDate))
+  const closestAvailableDates = closestAvailableFlightDates(availableDates, requestedDate, 5)
+  const warning = requestedDateIsNewerThanAvailableData
+    ? `Requested search date ${requestedDate} is newer than the newest available flight date ${newestFlightDate}. Closest available dates: ${closestAvailableDates.join(', ') || 'none'}.`
+    : undefined
+
+  return {
+    requestedSearchDate: requestedDate,
+    effectiveMatchDate: options.effectiveMatchDate || requestedDate,
+    oldestFlightDate,
+    newestFlightDate,
+    availableDates,
+    closestAvailableDates,
+    requestedDateIsNewerThanAvailableData,
+    nearestDateApplied: Boolean(options.nearestDateApplied),
+    nearestDateToleranceDays: options.nearestDateToleranceDays,
+    dateMode: options.nearestDateApplied ? 'nearest-date-testing' : 'strict',
+    warning
+  }
+}
+
 function routeNormalizationDiagnostics(diagnostics: FlightRouteMatchDiagnostics[]): RouteNormalizationDiagnostics {
   const normalizedWithRoutes = diagnostics.filter((diagnostic) => diagnostic.normalized.origin || diagnostic.normalized.destination)
   const routeBuckets = topCounts(normalizedWithRoutes, (diagnostic) => `${diagnostic.normalized.origin || '??'} → ${diagnostic.normalized.destination || '??'}`, 8)
@@ -536,7 +604,8 @@ function closestMatchingRoutes(diagnostics: FlightRouteMatchDiagnostics[], reque
     .map(({ score: _score, ...route }) => route)
 }
 
-function routeMatchExplanation(summary: Pick<RouteMatchingSummary, 'requested' | 'totalCandidates' | 'originMatches' | 'destinationMatches' | 'dateMatches' | 'carrierMatches' | 'exactRouteMatches' | 'finalMatchedRows'>) {
+function routeMatchExplanation(summary: Pick<RouteMatchingSummary, 'requested' | 'totalCandidates' | 'originMatches' | 'destinationMatches' | 'dateMatches' | 'carrierMatches' | 'exactRouteMatches' | 'finalMatchedRows' | 'dateCoverage'>) {
+  if (summary.finalMatchedRows > 0 && summary.dateCoverage.nearestDateApplied) return `${summary.finalMatchedRows} fetched row${summary.finalMatchedRows === 1 ? '' : 's'} matched using Personal Testing Mode nearest-date matching: requested ${summary.dateCoverage.requestedSearchDate || 'any date'}, matched ${summary.dateCoverage.effectiveMatchDate || 'nearest available date'}. Results are not strict same-date matches.`
   if (summary.finalMatchedRows > 0) return `${summary.finalMatchedRows} fetched row${summary.finalMatchedRows === 1 ? '' : 's'} matched the normalized route, carrier, and date filters.`
   if (summary.totalCandidates === 0) return 'No Supabase rows were available to match against this request.'
 
@@ -559,13 +628,18 @@ function routeMatchExplanation(summary: Pick<RouteMatchingSummary, 'requested' |
   return `Supabase returned ${summary.totalCandidates} candidate row${summary.totalCandidates === 1 ? '' : 's'}, but no single row matched all normalized route/carrier/date filters together. This usually means fetched rows share only one endpoint, are connection candidates, or the exact route is absent from the current dataset.`
 }
 
-export function summarizeRouteMatching(flights: Record<string, unknown>[], request: ParsedItineraryRequest): RouteMatchingSummary {
+export function summarizeRouteMatching(
+  flights: Record<string, unknown>[],
+  request: ParsedItineraryRequest,
+  options: { requestedDate?: string; effectiveMatchDate?: string; nearestDateApplied?: boolean; nearestDateToleranceDays?: number } = {}
+): RouteMatchingSummary {
   const diagnostics = flights.map((flight) => routeMatchDiagnosticsForFlight(flight, request))
+  const requestedDate = options.requestedDate || request.date
   const summary = {
     requested: {
       origin: request.origin,
       destination: request.destination,
-      date: request.date,
+      date: requestedDate,
       carrier: request.carrier || 'all'
     },
     originMatches: diagnostics.filter((diagnostic) => diagnostic.originMatches).length,
@@ -579,6 +653,7 @@ export function summarizeRouteMatching(flights: Record<string, unknown>[], reque
     }).length,
     finalMatchedRows: diagnostics.filter((diagnostic) => diagnostic.matched).length,
     totalCandidates: flights.length,
+    dateCoverage: dateCoverageDiagnostics(diagnostics, requestedDate, options),
     routeNormalization: routeNormalizationDiagnostics(diagnostics),
     closestMatchingRoutes: closestMatchingRoutes(diagnostics, request),
     rejectedCandidates: diagnostics.filter((diagnostic) => !diagnostic.matched).slice(0, 5)

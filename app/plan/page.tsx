@@ -209,6 +209,19 @@ type RouteMatchingSummary = {
   finalMatchedRows: number
   totalCandidates: number
   matchExplanation: string
+  dateCoverage: {
+    requestedSearchDate?: string
+    effectiveMatchDate?: string
+    oldestFlightDate?: string
+    newestFlightDate?: string
+    availableDates: string[]
+    closestAvailableDates: string[]
+    requestedDateIsNewerThanAvailableData: boolean
+    nearestDateApplied: boolean
+    nearestDateToleranceDays?: number
+    dateMode: 'strict' | 'nearest-date-testing'
+    warning?: string
+  }
   routeNormalization: {
     normalizedRouteCount: number
     normalizedRoutes: Array<{
@@ -1486,6 +1499,8 @@ export default function PlanPage() {
   const [travelerCount, setTravelerCount] = useState('1')
   const [maxLegs, setMaxLegs] = useState('2')
   const [carrier, setCarrier] = useState('all')
+  const [personalTestingMode, setPersonalTestingMode] = useState(true)
+  const [nearestDateToleranceDays, setNearestDateToleranceDays] = useState('45')
   const [voiceStatus, setVoiceStatus] = useState('Voice capture scaffold ready.')
   const [submitted, setSubmitted] = useState(false)
   const [itineraryStatus, setItineraryStatus] = useState('Enter an itinerary request to search live flight data.')
@@ -1626,6 +1641,10 @@ export default function PlanPage() {
     if (requestedTravelWindow) params.set('date', requestedTravelWindow)
     params.set('carrier', requestedCarrier)
     params.set('maxLegs', requestedMaxLegs)
+    if (personalTestingMode) {
+      params.set('personalTestingMode', 'true')
+      params.set('nearestDateToleranceDays', nearestDateToleranceDays || '45')
+    }
 
     try {
       const response = await fetch(`/api/itinerary/search?${params.toString()}`)
@@ -1635,7 +1654,9 @@ export default function PlanPage() {
       const apiWarnings = Array.isArray(data?.warnings) ? data.warnings : []
       setItineraryWarnings(data?.errorMessage ? [...new Set([...apiWarnings, data.errorMessage])] : apiWarnings)
       setItinerarySource(data?.sourceLabel || (data?.enrichedWithFlightAware ? 'Supabase flights + FlightAware enrichment' : 'Supabase flights table'))
-      setItineraryDataMode(data?.dataMode === 'test-data'
+      setItineraryDataMode(data?.dataMode === 'nearest-date-testing'
+        ? 'Nearest-date test match — not production strict'
+        : data?.dataMode === 'test-data'
         ? 'MVP test data — not live'
         : data?.dataMode === 'fallback' || itineraries.length === 0
           ? 'Fallback demo guidance'
@@ -1954,6 +1975,29 @@ export default function PlanPage() {
                 ))}
               </select>
             </label>
+            <div style={{ border: '1px solid #475569', borderRadius: 14, padding: 12, background: '#020617', marginBottom: 12 }}>
+              <label style={{ display: 'flex', gap: 10, alignItems: 'flex-start', color: '#fde68a', fontWeight: 'bold' }}>
+                <input
+                  type="checkbox"
+                  checked={personalTestingMode}
+                  onChange={(event) => setPersonalTestingMode(event.target.checked)}
+                  style={{ marginTop: 4 }}
+                />
+                Personal Testing Mode: allow nearest-date matches when Supabase data is stale
+              </label>
+              <label style={{ display: 'block', color: '#cbd5e1', marginTop: 10 }}>
+                Nearest-date tolerance days
+                <input
+                  value={nearestDateToleranceDays}
+                  onChange={(event) => setNearestDateToleranceDays(event.target.value.replace(/[^0-9]/g, ''))}
+                  inputMode="numeric"
+                  style={{ boxSizing: 'border-box', width: '100%', marginTop: 6, padding: 10, borderRadius: 10, border: '1px solid #475569', background: '#0f172a', color: 'white' }}
+                />
+              </label>
+              <p style={{ color: '#94a3b8', margin: '8px 0 0' }}>
+                Disable this for production-style strict date matching. Nearest-date cards are clearly labeled and should not be treated as live availability.
+              </p>
+            </div>
             <p style={{ color: '#94a3b8' }}>
               Supported today: United, Delta, Alaska Group. Alaska Group includes Alaska and Hawaiian. Search uses Supabase first, then Aviationstack fallback and FlightAware enrichment when configured.
             </p>
@@ -1999,7 +2043,7 @@ export default function PlanPage() {
           <p style={{ color: itineraryLoading ? '#facc15' : '#94a3b8' }}>
             {itineraryStatus} · Source: {itinerarySource}
           </p>
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, border: `1px solid ${itineraryDataMode === 'Live provider data' ? '#22c55e' : itineraryDataMode.includes('Fallback') ? '#facc15' : '#334155'}`, borderRadius: 999, padding: '6px 12px', background: '#020617', color: itineraryDataMode === 'Live provider data' ? '#bbf7d0' : itineraryDataMode.includes('Fallback') ? '#fef3c7' : '#cbd5e1', marginBottom: 14, fontWeight: 'bold' }}>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, border: `1px solid ${itineraryDataMode === 'Live provider data' ? '#22c55e' : itineraryDataMode.includes('Fallback') || itineraryDataMode.includes('Nearest') || itineraryDataMode.includes('test') ? '#facc15' : '#334155'}`, borderRadius: 999, padding: '6px 12px', background: '#020617', color: itineraryDataMode === 'Live provider data' ? '#bbf7d0' : itineraryDataMode.includes('Fallback') || itineraryDataMode.includes('Nearest') || itineraryDataMode.includes('test') ? '#fef3c7' : '#cbd5e1', marginBottom: 14, fontWeight: 'bold' }}>
             Data mode: {itineraryDataMode}
           </div>
           {itineraryWarnings.length > 0 && (
@@ -2068,6 +2112,34 @@ export default function PlanPage() {
                 <p style={{ color: itineraryDebug.routeMatching.finalMatchedRows > 0 ? '#bbf7d0' : '#fde68a', margin: '6px 0 0' }}>
                   {itineraryDebug.routeMatching.matchExplanation}
                 </p>
+                {itineraryDebug.routeMatching.dateCoverage ? (
+                  <div style={{ border: `1px solid ${itineraryDebug.routeMatching.dateCoverage.nearestDateApplied ? '#facc15' : '#334155'}`, borderRadius: 12, padding: 12, background: '#0f172a', marginTop: 10 }}>
+                    <strong style={{ color: itineraryDebug.routeMatching.dateCoverage.nearestDateApplied ? '#facc15' : '#38bdf8' }}>Flight date coverage</strong>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10, marginTop: 10 }}>
+                      {[
+                        ['Oldest flight date', itineraryDebug.routeMatching.dateCoverage.oldestFlightDate || 'Unavailable'],
+                        ['Newest flight date', itineraryDebug.routeMatching.dateCoverage.newestFlightDate || 'Unavailable'],
+                        ['Requested search date', itineraryDebug.routeMatching.dateCoverage.requestedSearchDate || 'Flexible'],
+                        ['Effective match date', itineraryDebug.routeMatching.dateCoverage.effectiveMatchDate || 'Flexible'],
+                        ['Date mode', itineraryDebug.routeMatching.dateCoverage.dateMode],
+                        ['Tolerance', itineraryDebug.routeMatching.dateCoverage.nearestDateToleranceDays !== undefined ? `${itineraryDebug.routeMatching.dateCoverage.nearestDateToleranceDays} days` : 'Strict']
+                      ].map(([label, value]) => (
+                        <article key={label} style={{ border: '1px solid #334155', borderRadius: 10, padding: 10, background: '#020617' }}>
+                          <small style={{ color: '#94a3b8' }}>{label}</small>
+                          <p style={{ margin: '4px 0 0', color: '#f8fafc', fontWeight: 'bold' }}>{value}</p>
+                        </article>
+                      ))}
+                    </div>
+                    {itineraryDebug.routeMatching.dateCoverage.warning ? (
+                      <p style={{ color: '#fde68a', margin: '10px 0 0' }}>{itineraryDebug.routeMatching.dateCoverage.warning}</p>
+                    ) : null}
+                    {itineraryDebug.routeMatching.dateCoverage.closestAvailableDates.length ? (
+                      <p style={{ color: '#cbd5e1', margin: '8px 0 0' }}>
+                        Closest available dates: {itineraryDebug.routeMatching.dateCoverage.closestAvailableDates.join(', ')}
+                      </p>
+                    ) : null}
+                  </div>
+                ) : null}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10, marginTop: 10 }}>
                   {[
                     ['Origin matches', itineraryDebug.routeMatching.originMatches],

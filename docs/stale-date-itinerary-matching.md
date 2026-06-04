@@ -2,7 +2,7 @@
 
 ## Supabase flight date audit
 
-Live Supabase `public.flights` currently contains stale sample data relative to the current personal-testing search date.
+Stored Supabase `public.flights` currently contains stale sample data relative to the current personal-testing search date.
 
 Audited on 2026-06-04 UTC:
 

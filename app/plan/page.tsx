@@ -153,6 +153,8 @@ type LiveItineraryResult = {
   risk: string
   source: string
   providerBadges?: string[]
+  dataFreshnessLabel?: string
+  dataFreshnessDetail?: string
 }
 
 type ProviderStatus = {
@@ -265,6 +267,9 @@ type ItineraryDebugMetadata = {
   invalidDates?: string[]
   providerExplanation?: string[]
   providerStatuses?: ProviderStatus[]
+  trueLiveDataAvailable?: boolean
+  trueLiveDataUnavailableReason?: string
+  dataFreshnessMode?: 'live-current-api' | 'stored-supabase' | 'nearest-date-testing' | 'demo-fallback' | 'mvp-test-data'
   safeErrors: string[]
 }
 
@@ -318,6 +323,8 @@ type ItineraryComparison = {
   flightNumber: string
   isLive: boolean
   providerBadges: string[]
+  dataFreshnessLabel?: string
+  dataFreshnessDetail?: string
   disruption: DisruptionIntelligence
   routeConfidence: RouteConfidence
   weatherRisk: WeatherRisk
@@ -448,8 +455,8 @@ function buildScoringExplanation(input: ScoringExplanationInput): ScoringExplana
     whyRankedHere: [
       `Rank is driven by composite score ${input.score}/100 and success probability ${input.successProbability}%, then sorted against the other itinerary recommendations.`,
       input.isLive
-        ? `Live itinerary score ${input.sourceScore}/100 receives extra weight because it reflects current flight data for ${input.route}.`
-        : `Planning scaffold rank ${input.sourceScore}/100 is used when no live matching itinerary is available.`,
+        ? `Provider itinerary score ${input.sourceScore}/100 receives extra weight because it reflects the current result source for ${input.route}.`
+        : `Planning scaffold rank ${input.sourceScore}/100 is used when no provider matching itinerary is available.`,
       input.connections === 0
         ? 'Nonstop routing avoids connection failure points, so no connection penalty is applied.'
         : `${input.connections} connection${input.connections === 1 ? '' : 's'} adds a placeholder connection-risk penalty before ranking.`,
@@ -706,13 +713,15 @@ function buildLiveItineraryComparison(
     totalTravelTime: totalTravelTimeFromItinerary(itinerary),
     flightNumber: itinerary.flightNumber,
     isLive: true,
-    providerBadges: itinerary.providerBadges?.length ? itinerary.providerBadges : [itinerary.source.includes('aviationstack') ? 'Aviationstack' : 'Live Supabase', ...(itinerary.source.includes('flightaware') ? ['FlightAware enriched'] : [])],
+    providerBadges: itinerary.providerBadges?.length ? itinerary.providerBadges : [itinerary.source.includes('aviationstack') ? 'Live current API data' : 'Stored Supabase data', ...(itinerary.source.includes('flightaware') ? ['FlightAware enriched'] : [])],
+    dataFreshnessLabel: itinerary.dataFreshnessLabel,
+    dataFreshnessDetail: itinerary.dataFreshnessDetail,
     disruption,
     routeConfidence,
     weatherRisk,
     airportIntelligence,
     why: [
-      `Blends live itinerary score ${itinerary.score}/100 with probability engine baseline ${predictionEngine.successProbability}%.`,
+      `Blends provider itinerary score ${itinerary.score}/100 with probability engine baseline ${predictionEngine.successProbability}%.`,
       `Route confidence engine scores this option ${routeConfidence.score}/100 (${routeConfidence.badge}) with a ${routeConfidence.trend} trend.`,
       `Weather intelligence labels this route ${weatherRisk.category} and adjusts success probability by ${weatherRisk.successProbabilityImpact} point${weatherRisk.successProbabilityImpact === 1 || weatherRisk.successProbabilityImpact === -1 ? '' : 's'}.`,
       `Airport intelligence gives this route a ${airportIntelligence.connectionRiskScore}/100 connection risk score and ${airportIntelligence.backupFlightAvailability} backup flight availability.`,
@@ -1295,7 +1304,7 @@ function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: It
       totalTravelTime: comparison.totalTravelTime,
       travelDate: travelDate.trim() || undefined,
       why: comparison.why,
-      sourceLabel: comparison.isLive ? 'Live itinerary option' : 'Planning scaffold option'
+      sourceLabel: comparison.dataFreshnessLabel || (comparison.isLive ? 'Provider itinerary option' : 'Planning scaffold option')
     })
 
     if (saved) {
@@ -1360,7 +1369,7 @@ function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: It
                 </div>
               )}
               <small style={{ color: isBest ? '#86efac' : '#94a3b8', textTransform: 'uppercase', fontWeight: 800, letterSpacing: 1 }}>
-                #{index + 1} · {comparison.isLive ? 'Live option' : 'Planning scaffold'}
+                #{index + 1} · {comparison.dataFreshnessLabel || (comparison.isLive ? 'Provider option' : 'Planning scaffold')}
               </small>
               <h4 style={{ color: '#f8fafc', fontSize: 22, margin: '8px 0' }}>{comparison.route}</h4>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
@@ -1369,6 +1378,9 @@ function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: It
                 ))}
                 <WeatherRiskBadge weatherRisk={comparison.weatherRisk} />
               </div>
+              {comparison.dataFreshnessDetail ? (
+                <p style={{ color: '#fde68a', margin: '0 0 12px' }}>{comparison.dataFreshnessDetail}</p>
+              ) : null}
               <p style={{ color: '#cbd5e1', margin: '0 0 12px' }}>
                 Carrier: {comparison.carrier} · {comparison.flightNumber}
               </p>
@@ -1631,7 +1643,7 @@ export default function PlanPage() {
     markActivationStep('runFirstTripPlan')
     setConfidenceUpdateTrigger('itinerary-search-run')
     setItineraryStatus('Searching Supabase flights first, then enriching matches when FlightAware is configured...')
-    setItineraryDataMode('Searching live providers')
+    setItineraryDataMode('Searching providers')
     setItineraryWarnings([])
     setItineraryDebug(null)
 
@@ -1653,23 +1665,25 @@ export default function PlanPage() {
       setLiveItineraries(itineraries)
       const apiWarnings = Array.isArray(data?.warnings) ? data.warnings : []
       setItineraryWarnings(data?.errorMessage ? [...new Set([...apiWarnings, data.errorMessage])] : apiWarnings)
-      setItinerarySource(data?.sourceLabel || (data?.enrichedWithFlightAware ? 'Supabase flights + FlightAware enrichment' : 'Supabase flights table'))
+      setItinerarySource(data?.sourceLabel || (data?.enrichedWithFlightAware ? 'Stored Supabase data + FlightAware enrichment' : 'Stored Supabase data'))
       setItineraryDataMode(data?.dataMode === 'nearest-date-testing'
         ? 'Nearest-date test match — not production strict'
+        : data?.dataMode === 'stored-supabase'
+          ? 'Stored Supabase data'
         : data?.dataMode === 'test-data'
         ? 'MVP test data — not live'
         : data?.dataMode === 'fallback' || itineraries.length === 0
           ? 'Fallback demo guidance'
-          : 'Live provider data')
+          : 'Live current API data')
       setItineraryDebug(data?.debug || null)
       setItineraryStatus(data?.statusMessage || (itineraries.length
         ? `${itineraries.length} live itinerary result${itineraries.length === 1 ? '' : 's'} found for ${data?.request?.origin || 'any origin'} → ${data?.request?.destination || 'any destination'}.`
-        : 'No live flights found for this search. Showing fallback demo guidance.'
+        : 'No provider flights found for this search. Showing fallback demo guidance.'
       ))
     } catch {
       setLiveItineraries([])
       setItineraryDebug(null)
-      setItineraryStatus('Live itinerary search failed. Showing fallback demo guidance.')
+      setItineraryStatus('Itinerary search failed. Showing fallback demo guidance.')
       setItineraryDataMode('Fallback demo guidance')
       setItineraryWarnings(['Itinerary API request failed'])
     } finally {
@@ -1698,7 +1712,7 @@ export default function PlanPage() {
     setLiveItineraries([])
     setItineraryDataMode('Fallback demo guidance')
     setItinerarySource('Planning fallback')
-    setItineraryStatus('Carrier scope updated. Demo recommendations refreshed; add a route to search live provider data.')
+    setItineraryStatus('Carrier scope updated. Demo recommendations refreshed; add a route to search provider data.')
   }
 
   function handleMaxLegsChange(nextMaxLegs: string) {
@@ -2039,13 +2053,21 @@ export default function PlanPage() {
         </div>
 
         <section style={{ marginTop: 30 }}>
-          <h2 style={{ fontSize: 30 }}>Live itinerary results</h2>
+          <h2 style={{ fontSize: 30 }}>Itinerary results</h2>
           <p style={{ color: itineraryLoading ? '#facc15' : '#94a3b8' }}>
             {itineraryStatus} · Source: {itinerarySource}
           </p>
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, border: `1px solid ${itineraryDataMode === 'Live provider data' ? '#22c55e' : itineraryDataMode.includes('Fallback') || itineraryDataMode.includes('Nearest') || itineraryDataMode.includes('test') ? '#facc15' : '#334155'}`, borderRadius: 999, padding: '6px 12px', background: '#020617', color: itineraryDataMode === 'Live provider data' ? '#bbf7d0' : itineraryDataMode.includes('Fallback') || itineraryDataMode.includes('Nearest') || itineraryDataMode.includes('test') ? '#fef3c7' : '#cbd5e1', marginBottom: 14, fontWeight: 'bold' }}>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, border: `1px solid ${itineraryDataMode === 'Live current API data' ? '#22c55e' : itineraryDataMode.includes('Fallback') || itineraryDataMode.includes('Nearest') || itineraryDataMode.includes('test') ? '#facc15' : '#334155'}`, borderRadius: 999, padding: '6px 12px', background: '#020617', color: itineraryDataMode === 'Live current API data' ? '#bbf7d0' : itineraryDataMode.includes('Fallback') || itineraryDataMode.includes('Nearest') || itineraryDataMode.includes('test') ? '#fef3c7' : '#cbd5e1', marginBottom: 14, fontWeight: 'bold' }}>
             Data mode: {itineraryDataMode}
           </div>
+          {itineraryDebug?.dataFreshnessMode === 'nearest-date-testing' ? (
+            <div style={{ border: '1px solid #facc15', borderRadius: 14, padding: 14, background: '#1c1917', color: '#fde68a', marginBottom: 14 }}>
+              <strong>Nearest-date testing mode is active</strong>
+              <p style={{ margin: '6px 0 0' }}>
+                These itinerary cards are matched to {itineraryDebug.routeMatching?.dateCoverage.effectiveMatchDate || 'a nearest available stored date'} instead of requested date {itineraryDebug.routeMatching?.dateCoverage.requestedSearchDate || 'unknown'}. Do not treat them as live/current availability.
+              </p>
+            </div>
+          ) : null}
           {itineraryWarnings.length > 0 && (
             <div style={{ border: '1px solid #854d0e', borderRadius: 14, padding: 14, background: '#1c1917', color: '#fde68a', marginBottom: 14 }}>
               <strong>Pipeline notes</strong>
@@ -2079,6 +2101,16 @@ export default function PlanPage() {
               <p style={{ color: '#cbd5e1', margin: '12px 0 0' }}>
                 <strong style={{ color: '#38bdf8' }}>Parser explanation:</strong> {itineraryDebug.parserExplanation}
               </p>
+            ) : null}
+            {itineraryDebug ? (
+              <div style={{ border: `1px solid ${itineraryDebug.trueLiveDataAvailable ? '#22c55e' : '#facc15'}`, borderRadius: 12, padding: 12, background: '#0f172a', marginTop: 12 }}>
+                <strong style={{ color: itineraryDebug.trueLiveDataAvailable ? '#22c55e' : '#facc15' }}>True live current API status</strong>
+                <p style={{ color: '#cbd5e1', margin: '6px 0 0' }}>
+                  {itineraryDebug.trueLiveDataAvailable
+                    ? 'Current provider API data is available for this result set.'
+                    : itineraryDebug.trueLiveDataUnavailableReason || 'Current provider API data is unavailable for this result set.'}
+                </p>
+              </div>
             ) : null}
             {itineraryDebug?.apiResponseCounts ? (
               <div style={{ marginTop: 12 }}>
@@ -2262,13 +2294,19 @@ export default function PlanPage() {
                     <span style={{ color: riskColor(itinerary.risk), fontWeight: 'bold' }}>{itinerary.risk}</span>
                   </div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
-                    {(itinerary.providerBadges?.length ? itinerary.providerBadges : [itinerary.source.includes('aviationstack') ? 'Aviationstack' : 'Live Supabase', ...(itinerary.source.includes('flightaware') ? ['FlightAware enriched'] : [])]).map((badge) => (
+                    {(itinerary.providerBadges?.length ? itinerary.providerBadges : [itinerary.source.includes('aviationstack') ? 'Live current API data' : 'Stored Supabase data', ...(itinerary.source.includes('flightaware') ? ['FlightAware enriched'] : [])]).map((badge) => (
                       <ProviderBadge key={`${itinerary.id}-${badge}`} label={badge} />
                     ))}
+                    {itinerary.dataFreshnessLabel && !itinerary.providerBadges?.includes(itinerary.dataFreshnessLabel) ? (
+                      <ProviderBadge label={itinerary.dataFreshnessLabel} />
+                    ) : null}
                     <WeatherRiskBadge weatherRisk={getRouteWeatherRisk(itinerary.route)} />
                   </div>
+                  {itinerary.dataFreshnessDetail ? (
+                    <p style={{ color: '#fde68a', margin: '8px 0 0' }}>{itinerary.dataFreshnessDetail}</p>
+                  ) : null}
                   <p style={{ color: '#38bdf8', fontSize: 18, fontWeight: 'bold' }}>{itinerary.route}</p>
-                  <p style={{ color: '#facc15', fontWeight: 'bold' }}>Live score: {itinerary.score}/100</p>
+                  <p style={{ color: '#facc15', fontWeight: 'bold' }}>Provider score: {itinerary.score}/100</p>
                   <p style={{ color: '#cbd5e1' }}>
                     Carrier: {itinerary.carrier} · Aircraft: {itinerary.aircraft} · Status: {itinerary.status}
                   </p>
@@ -2298,7 +2336,7 @@ export default function PlanPage() {
                   <OutcomeCapture
                     subjectType="saved-itinerary"
                     subjectId={`live-${itinerary.id}`}
-                    title={`Live itinerary ${itinerary.flightNumber}`}
+                    title={`Itinerary ${itinerary.flightNumber}`}
                     route={itinerary.route}
                   />
                 </article>
@@ -2308,7 +2346,7 @@ export default function PlanPage() {
             <>
               <h3 style={{ color: '#facc15' }}>Fallback demo itinerary cards</h3>
               <p style={{ color: '#94a3b8' }}>
-                No live flights found for this search. These clearly marked demo cards keep search, scoring, probability, watchlist, and outcome capture testable without live API data.
+                No provider flights found for this search. These clearly marked demo cards keep search, scoring, probability, watchlist, and outcome capture testable without current API data.
               </p>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 16 }}>
                 {fallbackDemoItineraries.map((itinerary) => (

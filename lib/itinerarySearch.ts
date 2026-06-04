@@ -48,6 +48,8 @@ export type ItineraryResult = {
   risk: string
   source: string
   providerBadges?: string[]
+  dataFreshnessLabel?: string
+  dataFreshnessDetail?: string
 }
 
 export type FlightRouteNormalization = {

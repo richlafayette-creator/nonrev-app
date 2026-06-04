@@ -18,7 +18,7 @@ This report documents the route-matching diagnostics covered by `lib/itinerarySe
 - Date filtering verifies matching and non-matching normalized departure dates.
 - No-exact-route coverage verifies diagnostics explain when fetched rows do not contain an exact normalized route and recommend closest routes from the fetched dataset.
 
-## Live Supabase diagnostic finding
+## Stored Supabase diagnostic finding
 
 The inspected 300-row recent safety query normalized successfully, but produced 0 matches for LAX-HNL, SEA-HNL, and SFO-HNL because those exact routes existed outside the latest 300 rows and/or outside the requested date window. LAX-OGG had no exact route row in the inspected dataset; closest useful fetched routes included LAX-HNL and HNL-OGG depending on query coverage.
 

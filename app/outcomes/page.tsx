@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { loadTravelerProfileFromStorage, type TravelerProfileScaffold } from '../../lib/travelerProfile'
-import { loadTripOutcomes, tripOutcomeStats, type TripOutcome } from '../../lib/tripOutcomes'
+import { loadTripOutcomes, outcomeRepositoryDiagnostics, tripOutcomeStats, type TripOutcome } from '../../lib/tripOutcomes'
 
 function outcomeColor(status: string) {
   if (status === 'Yes, got on') return '#22c55e'
@@ -30,11 +30,15 @@ export default function OutcomesPage() {
   }, [])
 
   const stats = useMemo(() => tripOutcomeStats(outcomes), [outcomes])
+  const repository = useMemo(() => outcomeRepositoryDiagnostics(), [])
   const recentOutcomes = outcomes.slice(0, 12)
   const statCards: { label: string; value: string | number; color: string }[] = [
     { label: 'Total Trips', value: stats.outcomeCount, color: '#38bdf8' },
     { label: 'Successful Trips', value: stats.successCount, color: '#22c55e' },
-    { label: 'Success Rate', value: `${stats.successRate}%`, color: '#facc15' }
+    { label: 'Success Rate', value: `${stats.successRate}%`, color: '#facc15' },
+    { label: 'Cancelled Trips', value: stats.cancelledCount, color: '#c084fc' },
+    { label: 'Local Outcomes', value: stats.localOutcomeCount, color: '#f97316' },
+    { label: 'Database Outcomes', value: stats.databaseOutcomeCount, color: '#34d399' }
   ]
 
   return (
@@ -59,8 +63,13 @@ export default function OutcomesPage() {
         </p>
         <h1 style={{ fontSize: 44, lineHeight: 1.05, margin: '8px 0 12px' }}>Trip outcomes</h1>
         <p style={{ color: '#94a3b8', maxWidth: 760, fontSize: 18 }}>
-          Local trip outcome history from route recommendations and saved itineraries. This is the staging surface for future synced outcome tracking.
+          Outcome history from route recommendations and saved itineraries, now shaped for persistent storage with local fallback until production migration is ready.
         </p>
+
+        <section style={{ border: `1px solid ${repository.activeSource === 'Database' ? '#22c55e' : '#facc15'}`, borderRadius: 22, padding: 20, background: '#0f172a', marginTop: 24 }}>
+          <strong style={{ color: repository.activeSource === 'Database' ? '#22c55e' : '#facc15' }}>Outcome source: {repository.activeSource}</strong>
+          <p style={{ color: '#94a3b8', marginBottom: 0 }}>{repository.detail}</p>
+        </section>
 
         <section className="stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14, margin: '24px 0' }}>
           {statCards.map((card) => (
@@ -74,7 +83,7 @@ export default function OutcomesPage() {
         <section style={{ border: '1px solid #334155', borderRadius: 22, padding: 20, background: '#0f172a', marginBottom: 24 }}>
           <strong style={{ color: '#34d399' }}>Traveler profile connection</strong>
           <p style={{ color: '#94a3b8' }}>
-            Outcomes are currently local only and keyed to this browser. Future account sync can attach this history to the saved traveler profile.
+            Each new outcome stores a traveler profile snapshot so future database sync and community probability calibration can understand who was traveling.
           </p>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 12 }}>
             {[
@@ -111,7 +120,11 @@ export default function OutcomesPage() {
                   <div>
                     <h3 style={{ margin: 0 }}>{outcome.title}</h3>
                     <p style={{ color: '#38bdf8', fontWeight: 'bold', margin: '6px 0' }}>{outcome.route}</p>
-                    <small style={{ color: '#94a3b8' }}>{outcome.subjectType.replace('-', ' ')} · {new Date(outcome.createdAt).toLocaleString()}</small>
+                    <small style={{ color: '#94a3b8' }}>{outcome.subjectType.replace('-', ' ')} · {new Date(outcome.timestamp || outcome.createdAt).toLocaleString()}</small>
+                    <p style={{ color: outcome.source === 'Database' ? '#22c55e' : '#facc15', margin: '6px 0 0' }}>Source: {outcome.source}</p>
+                    <p style={{ color: '#64748b', margin: '4px 0 0' }}>
+                      Snapshot: {outcome.travelerProfileSnapshot.employeeAirline} · {outcome.travelerProfileSnapshot.travelerType} · {outcome.travelerProfileSnapshot.passPriority}
+                    </p>
                   </div>
                   <strong style={{ color: outcomeColor(outcome.status) }}>{outcome.status}</strong>
                 </div>

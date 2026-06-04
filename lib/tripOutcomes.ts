@@ -1,59 +1,40 @@
-export const tripOutcomeStorageKey = 'nonrevy.tripOutcomes'
+export {
+  tripOutcomeStorageKey,
+  tripOutcomeStatuses,
+  loadTripOutcomesFromRepository as loadTripOutcomes,
+  saveTripOutcomeToRepository as saveTripOutcome,
+  outcomeRepositoryDiagnostics,
+  outcomesForCommunityProbability,
+  type CreateTripOutcomeInput,
+  type OutcomeRepository,
+  type OutcomeRepositoryDiagnostics,
+  type OutcomeSource,
+  type TripOutcome,
+  type TripOutcomeStatus,
+  type TripOutcomeSubjectType
+} from './outcomeRepository'
 
-export type TripOutcomeStatus = 'Yes, got on' | 'No, did not get on' | 'Cancelled trip'
-
-export type TripOutcome = {
-  id: string
-  subjectType: 'route-recommendation' | 'saved-itinerary' | 'outcome-reminder'
-  subjectId: string
-  title: string
-  route: string
-  status: TripOutcomeStatus
-  notes: string
-  createdAt: string
-}
-
-export const tripOutcomeStatuses: TripOutcomeStatus[] = [
-  'Yes, got on',
-  'No, did not get on',
-  'Cancelled trip'
-]
-
-export function loadTripOutcomes() {
-  if (typeof window === 'undefined') return []
-
-  try {
-    const storedOutcomes = window.localStorage.getItem(tripOutcomeStorageKey)
-    if (!storedOutcomes) return []
-    const outcomes = JSON.parse(storedOutcomes)
-    return Array.isArray(outcomes) ? outcomes as TripOutcome[] : []
-  } catch {
-    return []
-  }
-}
-
-export function saveTripOutcome(outcome: Omit<TripOutcome, 'id' | 'createdAt'>) {
-  if (typeof window === 'undefined') return null
-
-  const nextOutcome: TripOutcome = {
-    ...outcome,
-    id: `${outcome.subjectType}-${outcome.subjectId}-${Date.now()}`,
-    createdAt: new Date().toISOString()
-  }
-  const outcomes = [nextOutcome, ...loadTripOutcomes()]
-  window.localStorage.setItem(tripOutcomeStorageKey, JSON.stringify(outcomes))
-  window.dispatchEvent(new Event('nonrevy-trip-outcomes-updated'))
-  return nextOutcome
-}
+import { outcomesForCommunityProbability, type TripOutcome } from './outcomeRepository'
 
 export function tripOutcomeStats(outcomes: TripOutcome[]) {
   const outcomeCount = outcomes.length
-  const successCount = outcomes.filter((outcome) => outcome.status === 'Yes, got on').length
-  const successRate = outcomeCount ? Math.round((successCount / outcomeCount) * 100) : 0
+  const localOutcomeCount = outcomes.filter((outcome) => outcome.source !== 'Database').length
+  const databaseOutcomeCount = outcomes.filter((outcome) => outcome.source === 'Database').length
+  const cancelledCount = outcomes.filter((outcome) => outcome.cancelled || outcome.status === 'Cancelled trip').length
+  const probabilityOutcomes = outcomesForCommunityProbability(outcomes)
+  const probabilityOutcomeCount = probabilityOutcomes.length
+  const successCount = probabilityOutcomes.filter((outcome) => outcome.success === true || outcome.status === 'Yes, got on').length
+  const failureCount = probabilityOutcomes.filter((outcome) => outcome.success === false || outcome.status === 'No, did not get on').length
+  const successRate = probabilityOutcomeCount ? Math.round((successCount / probabilityOutcomeCount) * 100) : 0
 
   return {
     outcomeCount,
+    probabilityOutcomeCount,
     successCount,
+    failureCount,
+    cancelledCount,
+    localOutcomeCount,
+    databaseOutcomeCount,
     successRate
   }
 }

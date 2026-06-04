@@ -17,7 +17,7 @@ export default function OutcomeCapture({ subjectType, subjectId, title, route }:
 
   function submitOutcome(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    saveTripOutcome({
+    const outcome = saveTripOutcome({
       subjectType,
       subjectId,
       title,
@@ -26,7 +26,7 @@ export default function OutcomeCapture({ subjectType, subjectId, title, route }:
       notes: notes.trim()
     })
     setNotes('')
-    setSaveStatus(`Saved locally: ${status}.`)
+    setSaveStatus(`Saved to ${outcome?.source || 'Local'} outcome repository: ${status}.`)
   }
 
   return (

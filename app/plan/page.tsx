@@ -1635,7 +1635,11 @@ export default function PlanPage() {
       const apiWarnings = Array.isArray(data?.warnings) ? data.warnings : []
       setItineraryWarnings(data?.errorMessage ? [...new Set([...apiWarnings, data.errorMessage])] : apiWarnings)
       setItinerarySource(data?.sourceLabel || (data?.enrichedWithFlightAware ? 'Supabase flights + FlightAware enrichment' : 'Supabase flights table'))
-      setItineraryDataMode(data?.dataMode === 'fallback' || itineraries.length === 0 ? 'Fallback demo guidance' : 'Live provider data')
+      setItineraryDataMode(data?.dataMode === 'test-data'
+        ? 'MVP test data — not live'
+        : data?.dataMode === 'fallback' || itineraries.length === 0
+          ? 'Fallback demo guidance'
+          : 'Live provider data')
       setItineraryDebug(data?.debug || null)
       setItineraryStatus(data?.statusMessage || (itineraries.length
         ? `${itineraries.length} live itinerary result${itineraries.length === 1 ? '' : 's'} found for ${data?.request?.origin || 'any origin'} → ${data?.request?.destination || 'any destination'}.`

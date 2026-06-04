@@ -604,7 +604,10 @@ export function normalizeFlightLeg(flight: Record<string, unknown>, enrichment?:
   const arrivalGate = valueFrom(flight, ['arrival_gate']) || valueFrom(enrichment || {}, ['gate_destination', 'arrival_gate'])
   const departureTerminal = valueFrom(flight, ['departure_terminal', 'terminal']) || valueFrom(enrichment || {}, ['terminal_origin', 'departure_terminal'])
   const arrivalTerminal = valueFrom(flight, ['arrival_terminal']) || valueFrom(enrichment || {}, ['terminal_destination', 'arrival_terminal'])
-  const sourceProvider = valueFrom(flight, ['source_provider']) || 'supabase'
+  const rawSourceProvider = valueFrom(flight, ['source_provider']) || 'supabase'
+  const sourceProvider = `${rawSourceProvider} ${status}`.toLowerCase().includes('test data')
+    ? 'mvp-route-seed-test-data'
+    : rawSourceProvider
   const delayMinutes = Math.max(
     numberFrom(enrichment || {}, ['departure_delay', 'arrival_delay', 'delay_minutes'], 0),
     numberFrom(flight, ['departure_delay', 'arrival_delay', 'delay_minutes'], 0),

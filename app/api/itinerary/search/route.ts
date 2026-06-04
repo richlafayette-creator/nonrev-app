@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { airportScaffoldFor } from '../../../../lib/airportMapScaffold'
 import { buildItinerariesFromFlights, flightMatchesRequest, normalizeItineraryRequest, summarizeRouteMatching, type ItineraryResult, type RouteMatchingSummary } from '../../../../lib/itinerarySearch'
+import { mvpRouteSeedDate, mvpRouteSeedFlightsForRequest } from '../../../../lib/mvpRouteSeedData'
 
 export const dynamic = 'force-dynamic'
 
@@ -227,7 +228,9 @@ function mergeProviderStatuses(overrides: ProviderStatus[]) {
 
 function providerBadgesForSource(source: string, enriched: boolean) {
   const badges: string[] = []
-  if (source.includes('aviationstack')) badges.push(providerLabels.aviationstack)
+  const lowerSource = source.toLowerCase()
+  if (lowerSource.includes('mvp-route-seed') || lowerSource.includes('test-data')) badges.push('MVP test data')
+  else if (source.includes('aviationstack')) badges.push(providerLabels.aviationstack)
   else badges.push(providerLabels.supabase)
   if (enriched || source.includes('flightaware')) badges.push(providerLabels.flightaware)
   return badges
@@ -236,7 +239,7 @@ function providerBadgesForSource(source: string, enriched: boolean) {
 function addProviderBadges(itineraries: ItineraryResult[], source: 'supabase' | 'aviationstack', enriched: boolean) {
   return itineraries.map((itinerary) => ({
     ...itinerary,
-    providerBadges: providerBadgesForSource(source, enriched || itinerary.source.includes('flightaware'))
+    providerBadges: providerBadgesForSource(itinerary.source || source, enriched || itinerary.source.includes('flightaware'))
   }))
 }
 
@@ -862,10 +865,60 @@ export async function GET(request: Request) {
     })
   }
 
-  const noResultsMessage = 'No live flights found for this search. Showing fallback demo guidance.'
   const aviationstackFallbackStatus = aviationstackFlights.length
     ? `queried; ${aviationstackFlights.length} flight record${aviationstackFlights.length === 1 ? '' : 's'} returned but no itineraries matched`
     : aviationstackWarning ? 'queried; no usable flight records returned' : 'queried; no matching flights returned'
+
+  const mvpSeedFlights = mvpRouteSeedFlightsForRequest(effectiveRequest)
+  const mvpSeedItineraries = buildItinerariesFromFlights(mvpSeedFlights, effectiveRequest)
+  if (mvpSeedItineraries.length > 0) {
+    const seedRouteMatching = summarizeRouteMatching(mvpSeedFlights, effectiveRequest)
+    const itineraries = addProviderBadges(mvpSeedItineraries, 'supabase', false)
+    counts.finalItineraries = itineraries.length
+    const seedMessage = `Showing ${itineraries.length} MVP test-data itinerary card${itineraries.length === 1 ? '' : 's'} for personal testing. These are static seed rows dated ${mvpRouteSeedDate}, not live flight data.`
+    const finalWarnings = uniqueMessages([...warnings, seedMessage])
+    const debug = buildDebugMetadata({
+      parsedRequest: effectiveRequest,
+      supabaseResultCount: 0,
+      providerFallbackOrder,
+      aviationstackFallbackStatus,
+      flightAwareEnrichmentStatus: 'skipped; MVP route seed data is static test data',
+      finalItineraryCount: itineraries.length,
+      apiResponseCounts: counts,
+      routeMatching: seedRouteMatching,
+      supabaseQueryPath,
+      emptyResults,
+      rateLimits,
+      invalidAirportCodes,
+      unsupportedAirportCodes,
+      invalidDates,
+      providerStatuses: [
+        providerStatus('supabase', supabaseWarning ? 'warning' : 'skipped', supabaseWarning || 'No Supabase itineraries matched this request.'),
+        providerStatus('aviationstack', aviationstackWarning ? 'warning' : 'skipped', aviationstackFallbackStatus),
+        providerStatus('flightaware', 'skipped', 'Skipped because MVP seed rows are static test data.'),
+        providerStatus('planning', 'success', 'MVP route seed test-data cards are active for personal testing.')
+      ],
+      safeErrors: finalWarnings
+    })
+
+    return NextResponse.json({
+      ok: true,
+      request: effectiveRequest,
+      source: 'mvp-route-seed-test-data',
+      sourceLabel: 'MVP route seed test data',
+      dataMode: 'test-data',
+      statusMessage: seedMessage,
+      errorMessage: seedMessage,
+      enrichedWithFlightAware: false,
+      providerBadges: ['MVP test data'],
+      warnings: finalWarnings,
+      debug,
+      count: itineraries.length,
+      itineraries
+    })
+  }
+
+  const noResultsMessage = 'No live flights found for this search. Showing fallback demo guidance.'
   const finalWarnings = uniqueMessages([...warnings, noResultsMessage])
   const debug = buildDebugMetadata({
     parsedRequest: effectiveRequest,

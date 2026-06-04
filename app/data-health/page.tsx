@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { loadReportsStorageKey } from '../../lib/loadReports'
 import { notificationDiagnostics, notificationPreferencesStorageKey, notificationDeliveriesStorageKey } from '../../lib/notificationDelivery'
+import { stripeBillingDiagnostics, stripeBillingStorageKey } from '../../lib/stripeBilling'
 import { travelerProfileStorageKey } from '../../lib/travelerProfile'
 import { tripOutcomeStorageKey } from '../../lib/tripOutcomes'
 
@@ -154,12 +155,40 @@ function notificationFrameworkStatus(): HealthItem {
   }
 }
 
+function stripeBillingFrameworkStatus(): HealthItem {
+  const lastChecked = new Date().toISOString()
+  try {
+    const diagnostics = stripeBillingDiagnostics()
+    const hasSubscriptionState = Boolean(window.localStorage.getItem(stripeBillingStorageKey))
+    return {
+      key: 'stripe-billing-framework',
+      label: 'Stripe billing framework',
+      status: diagnostics.status,
+      lastChecked,
+      safeErrorMessage: diagnostics.liveChargingEnabled ? 'Live charging is unexpectedly enabled.' : '',
+      recommendedFix: diagnostics.checkoutEnabled ? 'Verify test checkout routing before production.' : 'Keep using test mode until Stripe checkout, customer portal, webhooks, and production approval are ready.',
+      detail: `${diagnostics.detail} Subscription status ${hasSubscriptionState ? 'saved locally' : 'using Free defaults'}.`
+    }
+  } catch {
+    return {
+      key: 'stripe-billing-framework',
+      label: 'Stripe billing framework',
+      status: 'Error',
+      lastChecked,
+      safeErrorMessage: 'Stripe billing scaffold state could not be read safely.',
+      recommendedFix: 'Open Billing and reset to the Free local plan, or clear local billing data.',
+      detail: 'Local billing scaffold parse failed.'
+    }
+  }
+}
+
 function buildLocalChecks() {
   return [
     travelerProfileStatus(),
     localArrayStatus(loadReportsStorageKey, 'Community reports', 'Add or verify a load report from the Load Reports page.'),
     localArrayStatus(tripOutcomeStorageKey, 'Outcome history', 'Capture trip outcomes from the Outcomes page or reminder prompts.'),
-    notificationFrameworkStatus()
+    notificationFrameworkStatus(),
+    stripeBillingFrameworkStatus()
   ]
 }
 

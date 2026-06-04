@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import OutcomeHistorySection from '../OutcomeHistorySection'
 import ReferralProgramCard from '../ReferralProgramCard'
+import BillingStatusCard from '../BillingStatusCard'
 
 export default function AccountPage() {
   const [userEmail, setUserEmail] = useState('')
@@ -52,6 +53,9 @@ export default function AccountPage() {
         </div>
         <div style={{ marginTop: 18 }}>
           <ReferralProgramCard />
+        </div>
+        <div style={{ marginTop: 18 }}>
+          <BillingStatusCard />
         </div>
         <OutcomeHistorySection />
       </section>

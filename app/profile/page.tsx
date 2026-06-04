@@ -14,6 +14,7 @@ import OutcomeHistorySection from '../OutcomeHistorySection'
 import TrustScoreSection from '../TrustScoreSection'
 import ActivationProgressCard from '../ActivationProgressCard'
 import ReferralProgramCard from '../ReferralProgramCard'
+import BillingStatusCard from '../BillingStatusCard'
 
 const travelerTypes: TravelerType[] = ['Employee', 'Retiree', 'Companion', 'Buddy Pass']
 
@@ -92,6 +93,10 @@ export default function ProfilePage() {
 
         <div style={{ marginTop: 18 }}>
           <ReferralProgramCard />
+        </div>
+
+        <div style={{ marginTop: 18 }}>
+          <BillingStatusCard />
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 18, marginTop: 28 }}>

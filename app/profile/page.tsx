@@ -12,6 +12,7 @@ import {
 } from '../../lib/travelerProfile'
 import OutcomeHistorySection from '../OutcomeHistorySection'
 import TrustScoreSection from '../TrustScoreSection'
+import ActivationProgressCard from '../ActivationProgressCard'
 
 const travelerTypes: TravelerType[] = ['Employee', 'Retiree', 'Companion', 'Buddy Pass']
 
@@ -65,6 +66,7 @@ export default function ProfilePage() {
       <nav className="top-nav" style={{ marginBottom: 24 }}>
         <a href="/" style={{ marginRight: 16, color: '#38bdf8' }}>Home</a>
         <a href="/plan" style={{ marginRight: 16, color: '#fb7185' }}>Plan</a>
+        <a href="/onboarding" style={{ marginRight: 16, color: '#38bdf8' }}>Onboarding</a>
         <a href="/profile" style={{ marginRight: 16, color: '#22c55e' }}>Profile</a>
         <a href="/account" style={{ marginRight: 16, color: '#fbbf24' }}>Account</a>
         <a href="/load-reports" style={{ marginRight: 16, color: '#facc15' }}>Load Reports</a>
@@ -81,6 +83,10 @@ export default function ProfilePage() {
         <p style={{ color: '#94a3b8', maxWidth: 760, fontSize: 18 }}>
           Local profile settings that feed the planner success probability placeholder. Account sync can plug in later.
         </p>
+
+        <div style={{ marginTop: 24 }}>
+          <ActivationProgressCard />
+        </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 18, marginTop: 28 }}>
           <form onSubmit={saveProfile} style={{ border: '1px solid #334155', borderRadius: 22, padding: 22, background: '#0f172a' }}>

@@ -27,6 +27,7 @@ import {
 } from '../../lib/savedItineraryComparisons'
 import MapboxAirportMap from '../MapboxAirportMap'
 import OutcomeCapture from '../OutcomeCapture'
+import { markActivationStep } from '../../lib/onboardingActivation'
 
 const mockItineraries = [
   {
@@ -1400,6 +1401,7 @@ export default function PlanPage() {
     }
 
     setItineraryLoading(true)
+    markActivationStep('runFirstTripPlan')
     setConfidenceUpdateTrigger('itinerary-search-run')
     setItineraryStatus('Searching Supabase flights first, then enriching matches when FlightAware is configured...')
     setItineraryDataMode('Searching live providers')

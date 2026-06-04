@@ -5,6 +5,8 @@ import { supportedCarrierOptions } from '../lib/carrierScope'
 import { parseTripPlannerPrompt } from '../lib/aiTripPlanner'
 import { defaultTravelerProfile } from '../lib/travelerProfile'
 import { useVoiceInput } from '../lib/useVoiceInput'
+import { markActivationStep } from '../lib/onboardingActivation'
+import ActivationProgressCard from './ActivationProgressCard'
 
 export default function Home() {
   const [search, setSearch] = useState('')
@@ -26,6 +28,7 @@ export default function Home() {
       return
     }
 
+    markActivationStep('runFirstTripPlan')
     window.location.href = `/plan?q=${encodeURIComponent(query)}`
   }
 
@@ -46,6 +49,7 @@ export default function Home() {
       return
     }
 
+    markActivationStep('runFirstTripPlan')
     window.location.href = `/plan?aiTrip=${encodeURIComponent(prompt)}`
   }
 
@@ -55,6 +59,7 @@ export default function Home() {
         <a href="/plan" style={{ marginRight: 16, color: '#fb7185' }}>Plan</a>
         <a href="/best-routes" style={{ marginRight: 16, color: '#fb7185' }}>Best Routes</a>
         <a href="/watchlist" style={{ marginRight: 16, color: '#facc15' }}>Watchlist</a>
+        <a href="/onboarding" style={{ marginRight: 16, color: '#38bdf8' }}>Onboarding</a>
         <a href="/credits" style={{ marginRight: 16, color: '#fbbf24' }}>Credits</a>
         <a href="/reputation" style={{ marginRight: 16, color: '#34d399' }}>Trust</a>
         <a href="/notifications" style={{ marginRight: 16, color: '#f472b6' }}>Notifications</a>
@@ -71,6 +76,10 @@ export default function Home() {
             alt="NONREVY"
             style={{ width: 280, maxWidth: '80%', margin: '0 0 42px' }}
           />
+
+          <div style={{ marginBottom: 26 }}>
+            <ActivationProgressCard />
+          </div>
 
           <form onSubmit={submitSearch}>
             <label htmlFor="homepage-search" style={{ display: 'block', fontSize: 28, fontWeight: 'bold', marginBottom: 18 }}>

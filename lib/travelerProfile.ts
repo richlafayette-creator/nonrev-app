@@ -62,6 +62,8 @@ export function loadTravelerProfileFromStorage() {
 export function saveTravelerProfileToStorage(profile: TravelerProfileScaffold) {
   if (typeof window === 'undefined') return
   window.localStorage.setItem(travelerProfileStorageKey, JSON.stringify(normalizeTravelerProfile(profile)))
+  window.dispatchEvent(new Event('nonrevy-traveler-profile-updated'))
+  window.dispatchEvent(new Event('nonrevy-activation-progress-updated'))
 }
 
 export function travelerProfileAssumptions(profile: TravelerProfileScaffold) {

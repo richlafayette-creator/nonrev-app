@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import OutcomeHistorySection from '../OutcomeHistorySection'
+import ReferralProgramCard from '../ReferralProgramCard'
 
 export default function AccountPage() {
   const [userEmail, setUserEmail] = useState('')
@@ -32,6 +33,7 @@ export default function AccountPage() {
         <a href="/profile" style={{ marginRight: 16, color: '#22c55e' }}>Profile</a>
         <a href="/billing" style={{ marginRight: 16, color: '#fbbf24' }}>Billing</a>
         <a href="/membership" style={{ marginRight: 16, color: '#34d399' }}>Membership</a>
+        <a href="/referrals" style={{ marginRight: 16, color: '#38bdf8' }}>Referrals</a>
         <a href="/load-reports" style={{ marginRight: 16, color: '#facc15' }}>Load Reports</a>
         <a href="/requests" style={{ color: '#c084fc' }}>Open Requests</a>
       </nav>
@@ -47,6 +49,9 @@ export default function AccountPage() {
           <p style={{ color: '#cbd5e1' }}>Future fields: home airport, employee/companion traveler settings, preferred airlines, and accessibility/travel preferences.</p>
           <a href="/profile" style={{ color: '#38bdf8', marginRight: 14 }}>Open traveler profile scaffold</a>
           <a href="/load-reports" style={{ color: '#facc15' }}>Verify load report</a>
+        </div>
+        <div style={{ marginTop: 18 }}>
+          <ReferralProgramCard />
         </div>
         <OutcomeHistorySection />
       </section>

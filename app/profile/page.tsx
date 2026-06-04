@@ -13,6 +13,7 @@ import {
 import OutcomeHistorySection from '../OutcomeHistorySection'
 import TrustScoreSection from '../TrustScoreSection'
 import ActivationProgressCard from '../ActivationProgressCard'
+import ReferralProgramCard from '../ReferralProgramCard'
 
 const travelerTypes: TravelerType[] = ['Employee', 'Retiree', 'Companion', 'Buddy Pass']
 
@@ -69,6 +70,7 @@ export default function ProfilePage() {
         <a href="/onboarding" style={{ marginRight: 16, color: '#38bdf8' }}>Onboarding</a>
         <a href="/profile" style={{ marginRight: 16, color: '#22c55e' }}>Profile</a>
         <a href="/account" style={{ marginRight: 16, color: '#fbbf24' }}>Account</a>
+        <a href="/referrals" style={{ marginRight: 16, color: '#38bdf8' }}>Referrals</a>
         <a href="/load-reports" style={{ marginRight: 16, color: '#facc15' }}>Load Reports</a>
         <a href="/requests" style={{ color: '#c084fc' }}>Open Requests</a>
       </nav>
@@ -86,6 +88,10 @@ export default function ProfilePage() {
 
         <div style={{ marginTop: 24 }}>
           <ActivationProgressCard />
+        </div>
+
+        <div style={{ marginTop: 18 }}>
+          <ReferralProgramCard />
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 18, marginTop: 28 }}>

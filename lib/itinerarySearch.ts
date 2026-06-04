@@ -105,6 +105,7 @@ export type RouteMatchingSummary = {
   destinationMatches: number
   dateMatches: number
   carrierMatches: number
+  exactRouteMatches: number
   finalMatchedRows: number
   totalCandidates: number
   matchExplanation: string
@@ -535,9 +536,13 @@ function closestMatchingRoutes(diagnostics: FlightRouteMatchDiagnostics[], reque
     .map(({ score: _score, ...route }) => route)
 }
 
-function routeMatchExplanation(summary: Pick<RouteMatchingSummary, 'requested' | 'totalCandidates' | 'originMatches' | 'destinationMatches' | 'dateMatches' | 'carrierMatches' | 'finalMatchedRows'>) {
+function routeMatchExplanation(summary: Pick<RouteMatchingSummary, 'requested' | 'totalCandidates' | 'originMatches' | 'destinationMatches' | 'dateMatches' | 'carrierMatches' | 'exactRouteMatches' | 'finalMatchedRows'>) {
   if (summary.finalMatchedRows > 0) return `${summary.finalMatchedRows} fetched row${summary.finalMatchedRows === 1 ? '' : 's'} matched the normalized route, carrier, and date filters.`
   if (summary.totalCandidates === 0) return 'No Supabase rows were available to match against this request.'
+
+  if (summary.requested.origin && summary.requested.destination && summary.exactRouteMatches === 0) {
+    return `Supabase returned ${summary.totalCandidates} candidate row${summary.totalCandidates === 1 ? '' : 's'}, but no row normalized to exact route ${summary.requested.origin} → ${summary.requested.destination}. See closest matching routes for alternatives in the fetched dataset.`
+  }
 
   const blockers = [
     summary.requested.origin && summary.originMatches === 0 ? `no rows normalized to origin ${summary.requested.origin}` : undefined,
@@ -545,6 +550,10 @@ function routeMatchExplanation(summary: Pick<RouteMatchingSummary, 'requested' |
     summary.requested.date && summary.dateMatches === 0 ? `no rows matched date ${summary.requested.date}` : undefined,
     summary.requested.carrier && summary.requested.carrier !== 'all' && summary.carrierMatches === 0 ? `no rows matched carrier ${summary.requested.carrier}` : undefined
   ].filter(Boolean)
+
+  if (summary.exactRouteMatches > 0 && blockers.length) {
+    return `Supabase returned ${summary.totalCandidates} candidate row${summary.totalCandidates === 1 ? '' : 's'} and ${summary.exactRouteMatches} exact normalized route row${summary.exactRouteMatches === 1 ? '' : 's'}, but ${blockers.join('; ')}.`
+  }
 
   if (blockers.length) return `Supabase returned ${summary.totalCandidates} candidate row${summary.totalCandidates === 1 ? '' : 's'}, but ${blockers.join('; ')}.`
   return `Supabase returned ${summary.totalCandidates} candidate row${summary.totalCandidates === 1 ? '' : 's'}, but no single row matched all normalized route/carrier/date filters together. This usually means fetched rows share only one endpoint, are connection candidates, or the exact route is absent from the current dataset.`
@@ -563,6 +572,11 @@ export function summarizeRouteMatching(flights: Record<string, unknown>[], reque
     destinationMatches: diagnostics.filter((diagnostic) => diagnostic.destinationMatches).length,
     dateMatches: diagnostics.filter((diagnostic) => diagnostic.dateMatches).length,
     carrierMatches: diagnostics.filter((diagnostic) => diagnostic.carrierMatches).length,
+    exactRouteMatches: diagnostics.filter((diagnostic) => {
+      const originMatches = request.origin ? diagnostic.normalized.origin === request.origin : true
+      const destinationMatches = request.destination ? diagnostic.normalized.destination === request.destination : true
+      return originMatches && destinationMatches
+    }).length,
     finalMatchedRows: diagnostics.filter((diagnostic) => diagnostic.matched).length,
     totalCandidates: flights.length,
     routeNormalization: routeNormalizationDiagnostics(diagnostics),

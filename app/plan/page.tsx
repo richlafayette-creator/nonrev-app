@@ -205,6 +205,7 @@ type RouteMatchingSummary = {
   destinationMatches: number
   dateMatches: number
   carrierMatches: number
+  exactRouteMatches: number
   finalMatchedRows: number
   totalCandidates: number
   matchExplanation: string
@@ -2067,6 +2068,7 @@ export default function PlanPage() {
                   {[
                     ['Origin matches', itineraryDebug.routeMatching.originMatches],
                     ['Destination matches', itineraryDebug.routeMatching.destinationMatches],
+                    ['Exact route rows', itineraryDebug.routeMatching.exactRouteMatches],
                     ['Date matches', itineraryDebug.routeMatching.dateMatches],
                     ['Carrier matches', itineraryDebug.routeMatching.carrierMatches],
                     ['Final matched rows', itineraryDebug.routeMatching.finalMatchedRows]

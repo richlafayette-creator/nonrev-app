@@ -23,6 +23,7 @@ describe('route matching diagnostics', () => {
   it('matches LAX-HNL and reports rejected candidate reasons', () => {
     const summary = summarizeRouteMatching(candidates, request('LAX', 'HNL'))
     assert.equal(summary.finalMatchedRows, 1)
+    assert.equal(summary.exactRouteMatches, 1)
     assert.equal(summary.originMatches, 2)
     assert.equal(summary.destinationMatches, 3)
     assert.ok(summary.rejectedCandidates.length <= 5)
@@ -51,7 +52,8 @@ describe('route matching diagnostics', () => {
     const withoutDirectOgg = candidates.filter((candidate) => candidate.id !== 'lax-ogg')
     const summary = summarizeRouteMatching(withoutDirectOgg, request('LAX', 'OGG'))
     assert.equal(summary.finalMatchedRows, 0)
-    assert.match(summary.matchExplanation, /no rows normalized to destination OGG/)
+    assert.equal(summary.exactRouteMatches, 0)
+    assert.match(summary.matchExplanation, /no row normalized to exact route LAX → OGG/)
     assert.equal(summary.closestMatchingRoutes[0].route, 'LAX → HNL')
     assert.match(summary.closestMatchingRoutes[0].reason, /same origin/)
   })
@@ -67,8 +69,37 @@ describe('route matching diagnostics', () => {
     const matchingDate = summarizeRouteMatching(candidates, requestWith({ origin: 'LAX', destination: 'HNL', date: '2026-06-05' }))
     const missingDate = summarizeRouteMatching(candidates, requestWith({ origin: 'LAX', destination: 'HNL', date: '2026-06-06' }))
     assert.equal(matchingDate.finalMatchedRows, 1)
+    assert.equal(missingDate.exactRouteMatches, 1)
     assert.equal(missingDate.finalMatchedRows, 0)
     assert.equal(missingDate.dateMatches, 0)
-    assert.match(missingDate.matchExplanation, /no rows matched date 2026-06-06/)
+    assert.match(missingDate.matchExplanation, /1 exact normalized route row, but no rows matched date 2026-06-06/)
+  })
+
+  it('produces a route coverage report for required Hawaii routes', () => {
+    const routes = [
+      ['LAX', 'HNL'],
+      ['LAX', 'OGG'],
+      ['SEA', 'HNL'],
+      ['SFO', 'HNL']
+    ] as const
+    const coverageCandidates = candidates.filter((candidate) => candidate.id !== 'lax-ogg')
+    const report = routes.map(([origin, destination]) => {
+      const summary = summarizeRouteMatching(coverageCandidates, request(origin, destination))
+      return {
+        route: `${origin} → ${destination}`,
+        exactRouteMatches: summary.exactRouteMatches,
+        finalMatchedRows: summary.finalMatchedRows,
+        closestRoute: summary.closestMatchingRoutes[0]?.route || 'none',
+        explanation: summary.matchExplanation
+      }
+    })
+
+    assert.deepEqual(report.map((entry) => [entry.route, entry.exactRouteMatches, entry.finalMatchedRows]), [
+      ['LAX → HNL', 1, 1],
+      ['LAX → OGG', 0, 0],
+      ['SEA → HNL', 1, 1],
+      ['SFO → HNL', 1, 1]
+    ])
+    assert.equal(report.find((entry) => entry.route === 'LAX → OGG')?.closestRoute, 'LAX → HNL')
   })
 })

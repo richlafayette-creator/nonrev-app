@@ -32,6 +32,7 @@ type SupabaseQueryDiagnostics = {
   usedPath: string
   directCount: number
   connectionCandidateCount: number
+  routeCoverageCount: number
   targetedCount: number
   recentCount: number
 }
@@ -287,11 +288,11 @@ function nextIsoDate(date: string) {
   return parsed.toISOString().slice(0, 10)
 }
 
-function supabaseQueryUrl(supabaseUrl: string, request: ReturnType<typeof normalizeItineraryRequest>, mode: 'direct' | 'connection' | 'recent') {
+function supabaseQueryUrl(supabaseUrl: string, request: ReturnType<typeof normalizeItineraryRequest>, mode: 'direct' | 'connection' | 'routeCoverage' | 'recent') {
   const params = new URLSearchParams({
     select: '*',
     order: 'created_at.desc',
-    limit: mode === 'recent' ? '300' : '600'
+    limit: mode === 'recent' ? '300' : mode === 'routeCoverage' ? '300' : '600'
   })
 
   if (mode === 'direct') {
@@ -316,6 +317,12 @@ function supabaseQueryUrl(supabaseUrl: string, request: ReturnType<typeof normal
     }
   }
 
+  if (mode === 'routeCoverage') {
+    if (request.origin && request.destination) params.set('or', `(origin.eq.${request.origin},destination.eq.${request.destination})`)
+    else if (request.origin) params.set('origin', `eq.${request.origin}`)
+    else if (request.destination) params.set('destination', `eq.${request.destination}`)
+  }
+
   return `${supabaseUrl}/rest/v1/flights?${params.toString()}`
 }
 
@@ -337,6 +344,7 @@ async function fetchSupabaseFlights(request: ReturnType<typeof normalizeItinerar
     usedPath: 'not configured',
     directCount: 0,
     connectionCandidateCount: 0,
+    routeCoverageCount: 0,
     targetedCount: 0,
     recentCount: 0
   }
@@ -353,6 +361,7 @@ async function fetchSupabaseFlights(request: ReturnType<typeof normalizeItinerar
   const warnings: string[] = []
   let directFlights: FlightRecord[] = []
   let targetedFlights: FlightRecord[] = []
+  let routeCoverageFlights: FlightRecord[] = []
   let recentFlights: FlightRecord[] = []
 
   if (shouldTryTargeted) {
@@ -393,6 +402,21 @@ async function fetchSupabaseFlights(request: ReturnType<typeof normalizeItinerar
 
   const routeCandidateCount = directFlights.length + targetedFlights.length
   const targetedHasMatches = [...directFlights, ...targetedFlights].some((flight) => flightMatchesRequest(flight, request))
+  const needsRouteCoverageQuery = Boolean(request.origin || request.destination) && (routeCandidateCount === 0 || !targetedHasMatches)
+  if (needsRouteCoverageQuery) {
+    try {
+      const { response, data } = await fetchJsonWithTimeout(supabaseQueryUrl(supabaseUrl, request, 'routeCoverage'), { headers })
+      if (!response.ok) {
+        warnings.push(safeProviderMessage('Supabase', response.status, safeMessage(data?.message || data?.error || `Supabase route-coverage request failed with ${response.status}`)))
+      } else {
+        routeCoverageFlights = Array.isArray(data) ? data as FlightRecord[] : []
+        queryDiagnostics.routeCoverageCount = routeCoverageFlights.length
+      }
+    } catch (error) {
+      warnings.push(`Supabase route-coverage request failed; trying recent-row safety query (${safeMessage(error) || 'request aborted'})`)
+    }
+  }
+
   const needsRecentSafetyQuery = !shouldTryTargeted || routeCandidateCount === 0 || !targetedHasMatches
   if (needsRecentSafetyQuery) {
     try {
@@ -408,22 +432,29 @@ async function fetchSupabaseFlights(request: ReturnType<typeof normalizeItinerar
     }
   }
 
-  const flights = uniqueFlights([...directFlights, ...targetedFlights, ...recentFlights])
-  queryDiagnostics.usedPath = directFlights.length && targetedFlights.length && !needsRecentSafetyQuery
-    ? 'direct route/date query + connection-candidate query'
-    : directFlights.length && !needsRecentSafetyQuery
-      ? 'direct route/date query'
-      : targetedFlights.length && !needsRecentSafetyQuery
-        ? 'connection-candidate query'
-        : (directFlights.length || targetedFlights.length) && recentFlights.length
-          ? 'route/date candidate query + recent-row safety query'
-          : (directFlights.length || targetedFlights.length)
-            ? 'route/date candidate query + empty recent-row safety query'
-      : recentFlights.length
-        ? 'recent-row safety query'
-        : shouldTryTargeted
-          ? 'route/date candidate query + empty recent-row safety query'
-          : 'recent-row safety query'
+  const flights = uniqueFlights([...directFlights, ...targetedFlights, ...routeCoverageFlights, ...recentFlights])
+  queryDiagnostics.targetedCount = directFlights.length + targetedFlights.length
+  if (directFlights.length && targetedFlights.length && !needsRecentSafetyQuery) {
+    queryDiagnostics.usedPath = 'direct route/date query + connection-candidate query'
+  } else if (directFlights.length && !needsRecentSafetyQuery) {
+    queryDiagnostics.usedPath = 'direct route/date query'
+  } else if (targetedFlights.length && !needsRecentSafetyQuery) {
+    queryDiagnostics.usedPath = 'connection-candidate query'
+  } else if (routeCoverageFlights.length && recentFlights.length) {
+    queryDiagnostics.usedPath = 'route coverage query + recent-row safety query'
+  } else if (routeCoverageFlights.length) {
+    queryDiagnostics.usedPath = 'route coverage query'
+  } else if ((directFlights.length || targetedFlights.length) && recentFlights.length) {
+    queryDiagnostics.usedPath = 'route/date candidate query + recent-row safety query'
+  } else if (directFlights.length || targetedFlights.length) {
+    queryDiagnostics.usedPath = 'route/date candidate query + empty recent-row safety query'
+  } else if (recentFlights.length) {
+    queryDiagnostics.usedPath = 'recent-row safety query'
+  } else if (shouldTryTargeted) {
+    queryDiagnostics.usedPath = 'route/date candidate query + empty recent-row safety query'
+  } else {
+    queryDiagnostics.usedPath = 'recent-row safety query'
+  }
 
   return {
     flights,
@@ -651,6 +682,7 @@ export async function GET(request: Request) {
       usedPath: 'skipped; parser route incomplete',
       directCount: 0,
       connectionCandidateCount: 0,
+      routeCoverageCount: 0,
       targetedCount: 0,
       recentCount: 0
     }

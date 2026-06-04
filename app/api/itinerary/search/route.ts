@@ -721,7 +721,7 @@ export async function GET(request: Request) {
     })
   }
 
-  const noResultsMessage = 'No live flights found for this search. Showing fallback planning guidance.'
+  const noResultsMessage = 'No live flights found for this search. Showing fallback demo guidance.'
   const aviationstackFallbackStatus = aviationstackFlights.length
     ? `queried; ${aviationstackFlights.length} flight record${aviationstackFlights.length === 1 ? '' : 's'} returned but no itineraries matched`
     : aviationstackWarning ? 'queried; no usable flight records returned' : 'queried; no matching flights returned'
@@ -743,7 +743,7 @@ export async function GET(request: Request) {
       providerStatus('supabase', supabaseWarning ? 'warning' : 'skipped', supabaseWarning || 'No Supabase itineraries matched this request.'),
       providerStatus('aviationstack', aviationstackWarning ? 'warning' : 'skipped', aviationstackFallbackStatus),
       providerStatus('flightaware', 'skipped', 'Skipped because neither Supabase nor Aviationstack returned known flight numbers.'),
-      providerStatus('planning', 'success', 'Placeholder planning fallback is active in the UI.')
+      providerStatus('planning', 'success', 'Clearly marked demo fallback cards are active in the UI for personal testing.')
     ],
     providerFallbackOrder,
     safeErrors: finalWarnings

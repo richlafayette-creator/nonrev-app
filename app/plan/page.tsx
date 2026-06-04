@@ -9,6 +9,7 @@ import { buildRouteAirportIntelligence, connectionRiskColor, type RouteAirportIn
 import { generateAiTripPlan, parseTripPlannerPrompt } from '../../lib/aiTripPlanner'
 import { carrierScoringProfiles, getCarrierScoringScaffold, normalizeCarrierFamily, supportedCarrierOptions } from '../../lib/carrierScope'
 import { historicalRouteStats, type HistoricalRoute } from '../../lib/historicalRoutes'
+import { parseItineraryPrompt } from '../../lib/itinerarySearch'
 import { loadLoadReports, type LoadReport } from '../../lib/loadReports'
 import { calculatePredictionEngine } from '../../lib/predictionEngine'
 import { buildDisruptionIntelligence, routeHealthColor, type DisruptionIntelligence } from '../../lib/disruptionIntelligence'
@@ -68,6 +69,45 @@ const mockItineraries = [
 const rankedItineraries = [...mockItineraries]
   .map((itinerary) => ({ ...itinerary, ranking: rankItinerary(itinerary) }))
   .sort((a, b) => b.ranking.score - a.ranking.score)
+
+const demoSearchFlights = [
+  {
+    id: 'demo-UA1170-LAX-HNL',
+    flight_number: 'UA1170-DEMO',
+    origin: 'LAX',
+    destination: 'HNL',
+    aircraft: '777 demo',
+    status: 'Demo fallback — verify live loads before travel',
+    score: 78,
+    departure_time: '09:15 demo',
+    arrival_time: '12:55 demo',
+    source_provider: 'personal-testing-demo'
+  },
+  {
+    id: 'demo-DL443-SFO-DEN',
+    flight_number: 'DL443-DEMO',
+    origin: 'SFO',
+    destination: 'DEN',
+    aircraft: 'A321 demo',
+    status: 'Demo fallback — no live API row matched',
+    score: 72,
+    departure_time: '13:35 demo',
+    arrival_time: '17:05 demo',
+    source_provider: 'personal-testing-demo'
+  },
+  {
+    id: 'demo-AS875-SEA-HNL',
+    flight_number: 'AS875-DEMO',
+    origin: 'SEA',
+    destination: 'HNL',
+    aircraft: '737 demo',
+    status: 'Demo fallback — use for UI testing only',
+    score: 74,
+    departure_time: '08:40 demo',
+    arrival_time: '12:25 demo',
+    source_provider: 'personal-testing-demo'
+  }
+]
 
 function confidenceColor(confidence: string) {
   if (confidence === 'Strong') return '#22c55e'
@@ -152,6 +192,13 @@ type ItineraryDebugMetadata = {
   providerExplanation?: string[]
   providerStatuses?: ProviderStatus[]
   safeErrors: string[]
+}
+
+type ItinerarySearchOverrides = {
+  carrier?: string
+  maxLegs?: string
+  homeAirport?: string
+  travelWindow?: string
 }
 
 function riskColor(risk: string) {
@@ -246,7 +293,18 @@ type ScoringExplanationInput = {
   airportIntelligence: RouteAirportIntelligence
 }
 
-type FallbackItineraryResult = (typeof rankedItineraries)[number]
+type FallbackItineraryResult = {
+  id: string | number
+  title: string
+  route: string
+  confidence: string
+  window: string
+  notes: string
+  segments: string[]
+  backupOptions: number
+  travelerFriction: number
+  ranking: ReturnType<typeof rankItinerary>
+}
 
 function clampScore(value: number) {
   return Math.max(1, Math.min(99, Math.round(value)))
@@ -412,6 +470,72 @@ function fallbackTravelTimeEstimate(itinerary: FallbackItineraryResult) {
   const hours = Math.floor(estimatedMinutes / 60)
   const minutes = estimatedMinutes % 60
   return `${hours}h ${minutes.toString().padStart(2, '0')}m estimate`
+}
+
+function carrierHubForDemo(carrierValue: string) {
+  const normalizedCarrier = normalizeCarrierFamily(carrierValue)
+  if (normalizedCarrier === 'delta') return 'ATL'
+  if (normalizedCarrier === 'alaska-group') return 'SEA'
+  return 'DEN'
+}
+
+function buildFallbackDemoItineraries({
+  origin,
+  destination,
+  carrierValue,
+  travelWindow
+}: {
+  origin?: string
+  destination?: string
+  carrierValue: string
+  travelWindow?: string
+}): FallbackItineraryResult[] {
+  const normalizedOrigin = origin?.trim().toUpperCase().match(/\b[A-Z]{3}\b/)?.[0]
+  const normalizedDestination = destination?.trim().toUpperCase().match(/\b[A-Z]{3}\b/)?.[0]
+  if (!normalizedOrigin || !normalizedDestination || normalizedOrigin === normalizedDestination) return rankedItineraries
+
+  const hub = carrierHubForDemo(carrierValue)
+  const secondaryHub = hub === 'DEN' ? 'SFO' : hub === 'SEA' ? 'PDX' : 'MSP'
+  const demoWindow = travelWindow?.trim() || 'Flexible personal test window'
+  const demoItineraries = [
+    {
+      id: `demo-direct-${normalizedOrigin}-${normalizedDestination}`,
+      title: 'Demo nonstop fallback',
+      route: `${normalizedOrigin} → ${normalizedDestination}`,
+      confidence: 'Verify',
+      window: demoWindow,
+      notes: 'Live providers returned no matching flights, so this demo card keeps the planner usable for personal testing. Verify real schedules and loads before travel.',
+      segments: [`${normalizedOrigin} to ${normalizedDestination}: direct demo option`, 'Check live airline app and airport standby list before committing'],
+      backupOptions: 2,
+      travelerFriction: 3
+    },
+    {
+      id: `demo-hub-${normalizedOrigin}-${hub}-${normalizedDestination}`,
+      title: 'Demo hub backup',
+      route: `${normalizedOrigin} → ${hub} → ${normalizedDestination}`,
+      confidence: 'Verify',
+      window: demoWindow,
+      notes: `Fallback demo routing through ${hub}. Use this to test scoring, probability, watchlist, and outcome capture when live APIs are empty.`,
+      segments: [`${normalizedOrigin} to ${hub}: positioning leg`, `${hub} to ${normalizedDestination}: recovery leg`, 'Keep same-day backup options open'],
+      backupOptions: 4,
+      travelerFriction: 6
+    },
+    {
+      id: `demo-alt-${normalizedOrigin}-${secondaryHub}-${normalizedDestination}`,
+      title: 'Demo alternate connection',
+      route: `${normalizedOrigin} → ${secondaryHub} → ${normalizedDestination}`,
+      confidence: 'Caution',
+      window: demoWindow,
+      notes: `Alternate demo path through ${secondaryHub}. It intentionally carries more friction so personal testing can compare lower-ranked backups.`,
+      segments: [`${normalizedOrigin} to ${secondaryHub}: alternate positioning`, `${secondaryHub} to ${normalizedDestination}: destination leg`, 'Use only if primary/hub options tighten'],
+      backupOptions: 3,
+      travelerFriction: 8
+    }
+  ]
+
+  return demoItineraries
+    .map((itinerary) => ({ ...itinerary, ranking: rankItinerary(itinerary) }))
+    .sort((a, b) => b.ranking.score - a.ranking.score)
 }
 
 function buildLiveItineraryComparison(
@@ -1056,7 +1180,7 @@ function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: It
     }
   }, [])
 
-  if (comparisons.length < 2 && savedComparisons.length === 0) return null
+  if (comparisons.length === 0 && savedComparisons.length === 0) return null
 
   function watchRoute(comparison: ItineraryComparison) {
     const saved = saveTripWatch({
@@ -1121,14 +1245,16 @@ function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: It
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', alignItems: 'flex-start' }}>
         <div>
           <strong style={{ color: '#38bdf8', textTransform: 'uppercase', letterSpacing: 1 }}>Itinerary comparison engine</strong>
-          <h3 style={{ fontSize: 28, margin: '8px 0' }}>Top 3 recommended itineraries</h3>
+          <h3 style={{ fontSize: 28, margin: '8px 0' }}>Recommended itineraries</h3>
           <p style={{ color: '#94a3b8', marginTop: 0 }}>
             Ranked with traveler profile, route intelligence, historical routes, community load reports, saved outcomes, disruption intelligence, weather impact, and the route confidence engine.
           </p>
         </div>
-        <span style={{ border: '1px solid #22c55e', borderRadius: 999, color: '#22c55e', padding: '8px 12px', fontWeight: 'bold' }}>
-          Best: {comparisons[0]?.route}
-        </span>
+        {comparisons[0] && (
+          <span style={{ border: '1px solid #22c55e', borderRadius: 999, color: '#22c55e', padding: '8px 12px', fontWeight: 'bold' }}>
+            Best: {comparisons[0].route}
+          </span>
+        )}
       </div>
 
       {watchStatus && <p style={{ color: '#22c55e', fontWeight: 'bold' }}>{watchStatus} <a href="/watchlist" style={{ color: '#38bdf8' }}>Open watchlist</a></p>}
@@ -1199,6 +1325,12 @@ function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: It
 
               <RouteAirportDetails route={comparison.route} />
               <ScoringExplanationDetails comparison={comparison} backup={comparisons[index + 1] || comparisons.find((item) => item.id !== comparison.id)} />
+              <OutcomeCapture
+                subjectType="route-recommendation"
+                subjectId={`comparison-${comparison.id}`}
+                title={`Planner recommendation ${comparison.route}`}
+                route={comparison.route}
+              />
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10, marginTop: 14 }}>
                 <button
                   type="button"
@@ -1376,13 +1508,27 @@ export default function PlanPage() {
 
   useEffect(() => {
     async function loadFlights() {
-      const res = await fetch(
-        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/flights?select=*&order=created_at.desc&limit=100`,
-        { headers: { apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '' } }
-      )
-      const data = await res.json()
-      setFlights(Array.isArray(data) ? data : [])
-      setLastUpdated(new Date().toLocaleTimeString())
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+      const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+      if (!supabaseUrl || !supabaseKey) {
+        setFlights(demoSearchFlights)
+        setLastUpdated(`${new Date().toLocaleTimeString()} · demo fallback`)
+        return
+      }
+
+      try {
+        const res = await fetch(
+          `${supabaseUrl}/rest/v1/flights?select=*&order=created_at.desc&limit=100`,
+          { headers: { apikey: supabaseKey } }
+        )
+        const data = await res.json()
+        setFlights(Array.isArray(data) && data.length ? data : demoSearchFlights)
+        setLastUpdated(`${new Date().toLocaleTimeString()}${Array.isArray(data) && data.length ? '' : ' · demo fallback'}`)
+      } catch {
+        setFlights(demoSearchFlights)
+        setLastUpdated(`${new Date().toLocaleTimeString()} · demo fallback`)
+      }
     }
 
     loadFlights()
@@ -1390,9 +1536,14 @@ export default function PlanPage() {
     return () => window.clearInterval(refresh)
   }, [])
 
-  async function runItinerarySearch(searchText: string) {
+  async function runItinerarySearch(searchText: string, overrides: ItinerarySearchOverrides = {}) {
     const trimmedSearch = searchText.trim()
-    if (!trimmedSearch && !homeAirport.trim()) {
+    const originAirport = (overrides.homeAirport ?? homeAirport).trim().toUpperCase()
+    const requestedTravelWindow = (overrides.travelWindow ?? travelWindow).trim()
+    const requestedCarrier = overrides.carrier ?? carrier
+    const requestedMaxLegs = overrides.maxLegs ?? maxLegs
+
+    if (!trimmedSearch && !originAirport) {
       setLiveItineraries([])
       setItineraryDebug(null)
       setItineraryStatus('Enter an itinerary request to search live flight data.')
@@ -1410,10 +1561,10 @@ export default function PlanPage() {
 
     const params = new URLSearchParams()
     if (trimmedSearch) params.set('q', trimmedSearch)
-    if (homeAirport.trim()) params.set('origin', homeAirport.trim().toUpperCase())
-    if (travelWindow.trim()) params.set('date', travelWindow.trim())
-    params.set('carrier', carrier)
-    params.set('maxLegs', maxLegs)
+    if (originAirport) params.set('origin', originAirport)
+    if (requestedTravelWindow) params.set('date', requestedTravelWindow)
+    params.set('carrier', requestedCarrier)
+    params.set('maxLegs', requestedMaxLegs)
 
     try {
       const response = await fetch(`/api/itinerary/search?${params.toString()}`)
@@ -1423,17 +1574,17 @@ export default function PlanPage() {
       const apiWarnings = Array.isArray(data?.warnings) ? data.warnings : []
       setItineraryWarnings(data?.errorMessage ? [...new Set([...apiWarnings, data.errorMessage])] : apiWarnings)
       setItinerarySource(data?.sourceLabel || (data?.enrichedWithFlightAware ? 'Supabase flights + FlightAware enrichment' : 'Supabase flights table'))
-      setItineraryDataMode(data?.dataMode === 'fallback' || itineraries.length === 0 ? 'Fallback planning guidance' : 'Live provider data')
+      setItineraryDataMode(data?.dataMode === 'fallback' || itineraries.length === 0 ? 'Fallback demo guidance' : 'Live provider data')
       setItineraryDebug(data?.debug || null)
       setItineraryStatus(data?.statusMessage || (itineraries.length
         ? `${itineraries.length} live itinerary result${itineraries.length === 1 ? '' : 's'} found for ${data?.request?.origin || 'any origin'} → ${data?.request?.destination || 'any destination'}.`
-        : 'No live flights found for this search. Showing fallback planning guidance.'
+        : 'No live flights found for this search. Showing fallback demo guidance.'
       ))
     } catch {
       setLiveItineraries([])
       setItineraryDebug(null)
-      setItineraryStatus('Live itinerary search failed. Showing fallback planning guidance.')
-      setItineraryDataMode('Fallback planning guidance')
+      setItineraryStatus('Live itinerary search failed. Showing fallback demo guidance.')
+      setItineraryDataMode('Fallback demo guidance')
       setItineraryWarnings(['Itinerary API request failed'])
     } finally {
       setItineraryLoading(false)
@@ -1448,6 +1599,33 @@ export default function PlanPage() {
       window.history.replaceState(null, '', `/plan?q=${encodeURIComponent(tripGoal.trim())}`)
     }
     await runItinerarySearch(tripGoal)
+  }
+
+  function handleCarrierChange(nextCarrier: string) {
+    setCarrier(nextCarrier)
+    setConfidenceUpdateTrigger('local-signal-refresh')
+    const currentSearch = (tripGoal || query).trim()
+    if (currentSearch || homeAirport.trim()) {
+      void runItinerarySearch(currentSearch, { carrier: nextCarrier })
+      return
+    }
+    setLiveItineraries([])
+    setItineraryDataMode('Fallback demo guidance')
+    setItinerarySource('Planning fallback')
+    setItineraryStatus('Carrier scope updated. Demo recommendations refreshed; add a route to search live provider data.')
+  }
+
+  function handleMaxLegsChange(nextMaxLegs: string) {
+    setMaxLegs(nextMaxLegs)
+    const currentSearch = (tripGoal || query).trim()
+    if (currentSearch || homeAirport.trim()) {
+      void runItinerarySearch(currentSearch, { maxLegs: nextMaxLegs })
+      return
+    }
+    setLiveItineraries([])
+    setItineraryDataMode('Fallback demo guidance')
+    setItinerarySource('Planning fallback')
+    setItineraryStatus('Max legs updated. Demo recommendations refreshed; add a route to search live itinerary assembly.')
   }
 
   function startVoiceScaffold() {
@@ -1474,6 +1652,12 @@ export default function PlanPage() {
     () => flights.filter((flight) => flightMatchesSearch(flight, query || tripGoal)),
     [flights, query, tripGoal]
   )
+  const visibleFlights = (query || tripGoal) ? (matchingFlights.length ? matchingFlights : demoSearchFlights) : flights
+  const flightResultsLabel = query || tripGoal
+    ? matchingFlights.length
+      ? `${matchingFlights.length} matching flights`
+      : `No matching flight rows; showing ${demoSearchFlights.length} demo fallback flights`
+    : `${flights.length} searchable flights loaded`
   const scoringScaffold = useMemo(() => getCarrierScoringScaffold(carrier, travelerProfile), [carrier, travelerProfile])
   const historicalStats = useMemo(() => historicalRouteStats(carrier), [carrier])
   const carrierProfile = useMemo(() => {
@@ -1493,6 +1677,19 @@ export default function PlanPage() {
     routeConfidenceScores
   }), [carrier, travelerProfile, carrierProfile, scoringScaffold, historicalStats, loadReports, outcomes, routeConfidenceScores])
 
+  const aiTripPreview = useMemo(
+    () => parseTripPlannerPrompt(aiTripPrompt, travelerProfile),
+    [aiTripPrompt, travelerProfile]
+  )
+
+  const parsedPlanRequest = useMemo(() => parseItineraryPrompt(tripGoal || query), [tripGoal, query, aiTripPrompt])
+  const fallbackDemoItineraries = useMemo(() => buildFallbackDemoItineraries({
+    origin: itineraryDebug?.parsedOrigin || homeAirport || parsedPlanRequest.origin || aiTripPreview.origin,
+    destination: itineraryDebug?.parsedDestination || parsedPlanRequest.destination || aiTripPreview.destination,
+    carrierValue: carrier,
+    travelWindow: travelWindow || parsedPlanRequest.date || aiTripPreview.dateRange
+  }), [itineraryDebug?.parsedOrigin, itineraryDebug?.parsedDestination, homeAirport, parsedPlanRequest.origin, parsedPlanRequest.destination, parsedPlanRequest.date, aiTripPreview.origin, aiTripPreview.destination, aiTripPreview.dateRange, carrier, travelWindow])
+
   const itineraryComparisons = useMemo(() => {
     const comparisons = liveItineraries.length > 0
       ? liveItineraries.map((itinerary) => buildLiveItineraryComparison(
@@ -1507,7 +1704,7 @@ export default function PlanPage() {
         scoringScaffold.recommendationScope,
         confidenceUpdateTrigger
       ))
-      : rankedItineraries.map((itinerary) => buildFallbackItineraryComparison(
+      : fallbackDemoItineraries.map((itinerary) => buildFallbackItineraryComparison(
         itinerary,
         predictionEngine,
         historicalStats.routes,
@@ -1523,12 +1720,8 @@ export default function PlanPage() {
     return comparisons
       .sort((a, b) => b.routeConfidence.score - a.routeConfidence.score || b.score - a.score || b.successProbability - a.successProbability)
       .slice(0, 3)
-  }, [liveItineraries, predictionEngine, historicalStats.routes, loadReports, outcomes, travelerProfile, scoringScaffold.routeIntelligence, scoringScaffold.weights, scoringScaffold.recommendationScope, confidenceUpdateTrigger])
+  }, [liveItineraries, predictionEngine, historicalStats.routes, loadReports, outcomes, travelerProfile, scoringScaffold.routeIntelligence, scoringScaffold.weights, scoringScaffold.recommendationScope, confidenceUpdateTrigger, fallbackDemoItineraries])
 
-  const aiTripPreview = useMemo(
-    () => parseTripPlannerPrompt(aiTripPrompt, travelerProfile),
-    [aiTripPrompt, travelerProfile]
-  )
   const aiTripPlan = useMemo(() => generateAiTripPlan({
     prompt: aiTripPrompt,
     travelerProfile,
@@ -1676,7 +1869,7 @@ export default function PlanPage() {
               Max legs
               <select
                 value={maxLegs}
-                onChange={(event) => setMaxLegs(event.target.value)}
+                onChange={(event) => handleMaxLegsChange(event.target.value)}
                 style={{ boxSizing: 'border-box', width: '100%', marginTop: 6, padding: 12, borderRadius: 12, border: '1px solid #475569', background: '#020617', color: 'white' }}
               >
                 <option value="1">Nonstop only</option>
@@ -1688,7 +1881,7 @@ export default function PlanPage() {
               Carrier scope scaffold
               <select
                 value={carrier}
-                onChange={(event) => setCarrier(event.target.value)}
+                onChange={(event) => handleCarrierChange(event.target.value)}
                 style={{ boxSizing: 'border-box', width: '100%', marginTop: 6, padding: 12, borderRadius: 12, border: '1px solid #475569', background: '#020617', color: 'white' }}
               >
                 {supportedCarrierOptions.map((option) => (
@@ -1701,9 +1894,10 @@ export default function PlanPage() {
             </p>
             <button
               type="submit"
-              style={{ width: '100%', padding: 14, borderRadius: 12, border: 'none', background: '#38bdf8', color: '#020617', fontWeight: 'bold' }}
+              disabled={itineraryLoading}
+              style={{ width: '100%', padding: 14, borderRadius: 12, border: 'none', background: itineraryLoading ? '#475569' : '#38bdf8', color: '#020617', fontWeight: 'bold', cursor: itineraryLoading ? 'not-allowed' : 'pointer' }}
             >
-              Update planner results
+              {itineraryLoading ? 'Searching providers…' : 'Update planner results'}
             </button>
             {submitted && (
               <p style={{ color: '#38bdf8', marginBottom: 0 }}>
@@ -1740,7 +1934,7 @@ export default function PlanPage() {
           <p style={{ color: itineraryLoading ? '#facc15' : '#94a3b8' }}>
             {itineraryStatus} · Source: {itinerarySource}
           </p>
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, border: `1px solid ${itineraryDataMode === 'Live provider data' ? '#22c55e' : itineraryDataMode === 'Fallback planning guidance' ? '#facc15' : '#334155'}`, borderRadius: 999, padding: '6px 12px', background: '#020617', color: itineraryDataMode === 'Live provider data' ? '#bbf7d0' : itineraryDataMode === 'Fallback planning guidance' ? '#fef3c7' : '#cbd5e1', marginBottom: 14, fontWeight: 'bold' }}>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, border: `1px solid ${itineraryDataMode === 'Live provider data' ? '#22c55e' : itineraryDataMode.includes('Fallback') ? '#facc15' : '#334155'}`, borderRadius: 999, padding: '6px 12px', background: '#020617', color: itineraryDataMode === 'Live provider data' ? '#bbf7d0' : itineraryDataMode.includes('Fallback') ? '#fef3c7' : '#cbd5e1', marginBottom: 14, fontWeight: 'bold' }}>
             Data mode: {itineraryDataMode}
           </div>
           {itineraryWarnings.length > 0 && (
@@ -1892,12 +2086,12 @@ export default function PlanPage() {
             </div>
           ) : (
             <>
-              <h3 style={{ color: '#facc15' }}>Placeholder fallback itinerary cards</h3>
+              <h3 style={{ color: '#facc15' }}>Fallback demo itinerary cards</h3>
               <p style={{ color: '#94a3b8' }}>
-                No live flights found for this search. Showing fallback planning guidance.
+                No live flights found for this search. These clearly marked demo cards keep search, scoring, probability, watchlist, and outcome capture testable without live API data.
               </p>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 16 }}>
-                {rankedItineraries.map((itinerary) => (
+                {fallbackDemoItineraries.map((itinerary) => (
               <article key={itinerary.id} style={{ border: '1px solid #334155', borderRadius: 20, padding: 18, background: '#0f172a' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
                   <h3 style={{ margin: 0 }}>{itinerary.title}</h3>
@@ -2181,9 +2375,9 @@ export default function PlanPage() {
         <section style={{ marginTop: 30 }}>
           <h2 style={{ fontSize: 30 }}>Flight results</h2>
           <p style={{ color: '#94a3b8' }}>
-            {query || tripGoal ? `${matchingFlights.length} matching flights` : `${flights.length} searchable flights loaded`} · Last refresh {lastUpdated || 'pending'}
+            {flightResultsLabel} · Last refresh {lastUpdated || 'pending'}
           </p>
-          {(query || tripGoal ? matchingFlights : flights).map((flight) => {
+          {(visibleFlights).map((flight) => {
             const risk = delayRiskScore(flight)
             return (
               <article key={flight.id} className="flight-card" style={{ border: '1px solid #334155', borderRadius: 18, padding: 18, marginBottom: 14, background: '#0f172a' }}>
@@ -2214,7 +2408,11 @@ export default function PlanPage() {
                     ))}
                   </div>
                 </details>
-                <a href={`/flights/${flight.id}`} style={{ color: '#38bdf8' }}>View flight detail</a>
+                {String(flight.id || '').startsWith('demo-') ? (
+                  <p style={{ color: '#facc15', fontWeight: 'bold', marginBottom: 0 }}>Demo fallback row — no live flight-detail page available.</p>
+                ) : (
+                  <a href={`/flights/${flight.id}`} style={{ color: '#38bdf8' }}>View flight detail</a>
+                )}
               </article>
             )
           })}

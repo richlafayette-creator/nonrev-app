@@ -73,6 +73,27 @@ export type FlightRouteMatchDiagnostics = {
   rejectionReasons: string[]
 }
 
+export type RouteNormalizationDiagnostics = {
+  normalizedRouteCount: number
+  normalizedRoutes: Array<{
+    route: string
+    count: number
+    sampleFlightNumbers: string[]
+  }>
+  missingOriginCount: number
+  missingDestinationCount: number
+  missingDateCount: number
+  carrierSamples: string[]
+  dateSamples: string[]
+}
+
+export type ClosestMatchingRoute = {
+  route: string
+  count: number
+  reason: string
+  sampleFlightNumbers: string[]
+}
+
 export type RouteMatchingSummary = {
   requested: {
     origin?: string
@@ -86,6 +107,9 @@ export type RouteMatchingSummary = {
   carrierMatches: number
   finalMatchedRows: number
   totalCandidates: number
+  matchExplanation: string
+  routeNormalization: RouteNormalizationDiagnostics
+  closestMatchingRoutes: ClosestMatchingRoute[]
   rejectedCandidates: FlightRouteMatchDiagnostics[]
 }
 
@@ -438,9 +462,97 @@ export function routeMatchDiagnosticsForFlight(flight: Record<string, unknown>, 
   }
 }
 
+function topCounts<T>(values: T[], keyForValue: (value: T) => string, limit = 5) {
+  const buckets = new Map<string, { count: number; values: T[] }>()
+  values.forEach((value) => {
+    const key = keyForValue(value)
+    const bucket = buckets.get(key) || { count: 0, values: [] }
+    bucket.count += 1
+    bucket.values.push(value)
+    buckets.set(key, bucket)
+  })
+  return [...buckets.entries()]
+    .sort((a, b) => b[1].count - a[1].count || a[0].localeCompare(b[0]))
+    .slice(0, limit)
+}
+
+function routeNormalizationDiagnostics(diagnostics: FlightRouteMatchDiagnostics[]): RouteNormalizationDiagnostics {
+  const normalizedWithRoutes = diagnostics.filter((diagnostic) => diagnostic.normalized.origin || diagnostic.normalized.destination)
+  const routeBuckets = topCounts(normalizedWithRoutes, (diagnostic) => `${diagnostic.normalized.origin || '??'} → ${diagnostic.normalized.destination || '??'}`, 8)
+  const carrierSamples = [...new Set(diagnostics.map((diagnostic) => diagnostic.normalized.carrierText).filter(Boolean))].slice(0, 8)
+  const dateSamples = [...new Set(diagnostics.map((diagnostic) => diagnostic.normalized.date).filter(Boolean) as string[])].slice(0, 8)
+
+  return {
+    normalizedRouteCount: routeBuckets.length,
+    normalizedRoutes: routeBuckets.map(([route, bucket]) => ({
+      route,
+      count: bucket.count,
+      sampleFlightNumbers: bucket.values.map((diagnostic) => diagnostic.flightNumber).filter(Boolean).slice(0, 4)
+    })),
+    missingOriginCount: diagnostics.filter((diagnostic) => !diagnostic.normalized.origin).length,
+    missingDestinationCount: diagnostics.filter((diagnostic) => !diagnostic.normalized.destination).length,
+    missingDateCount: diagnostics.filter((diagnostic) => !diagnostic.normalized.date).length,
+    carrierSamples,
+    dateSamples
+  }
+}
+
+function closestMatchingRoutes(diagnostics: FlightRouteMatchDiagnostics[], request: ParsedItineraryRequest): ClosestMatchingRoute[] {
+  const routeBuckets = topCounts(
+    diagnostics.filter((diagnostic) => diagnostic.normalized.origin && diagnostic.normalized.destination),
+    (diagnostic) => `${diagnostic.normalized.origin} → ${diagnostic.normalized.destination}`,
+    diagnostics.length
+  )
+
+  return routeBuckets
+    .map(([route, bucket]) => {
+      const [origin, destination] = route.split(' → ')
+      const sameOrigin = Boolean(request.origin && origin === request.origin)
+      const sameDestination = Boolean(request.destination && destination === request.destination)
+      const sameDateCount = bucket.values.filter((diagnostic) => diagnostic.dateMatches).length
+      const sameCarrierCount = bucket.values.filter((diagnostic) => diagnostic.carrierMatches).length
+      const score = (sameOrigin ? 4 : 0) + (sameDestination ? 4 : 0) + (sameDateCount > 0 ? 1 : 0) + (sameCarrierCount > 0 ? 1 : 0) + Math.min(bucket.count / 100, 1)
+      const exactMatches = bucket.values.filter((diagnostic) => diagnostic.matched).length
+      const reason = sameOrigin && sameDestination && exactMatches > 0
+        ? 'exact normalized route present in fetched rows'
+        : sameOrigin && sameDestination
+          ? 'same normalized route, but date or carrier filtering rejected it'
+        : sameOrigin
+          ? 'same origin; useful as a first-leg or nearby direct candidate'
+          : sameDestination
+            ? 'same destination; useful as a second-leg or nearby inbound candidate'
+            : 'nearby candidate from fetched rows; no exact endpoint match'
+      return {
+        route,
+        count: bucket.count,
+        reason,
+        sampleFlightNumbers: bucket.values.map((diagnostic) => diagnostic.flightNumber).filter(Boolean).slice(0, 4),
+        score
+      }
+    })
+    .sort((a, b) => b.score - a.score || b.count - a.count || a.route.localeCompare(b.route))
+    .slice(0, 5)
+    .map(({ score: _score, ...route }) => route)
+}
+
+function routeMatchExplanation(summary: Pick<RouteMatchingSummary, 'requested' | 'totalCandidates' | 'originMatches' | 'destinationMatches' | 'dateMatches' | 'carrierMatches' | 'finalMatchedRows'>) {
+  if (summary.finalMatchedRows > 0) return `${summary.finalMatchedRows} fetched row${summary.finalMatchedRows === 1 ? '' : 's'} matched the normalized route, carrier, and date filters.`
+  if (summary.totalCandidates === 0) return 'No Supabase rows were available to match against this request.'
+
+  const blockers = [
+    summary.requested.origin && summary.originMatches === 0 ? `no rows normalized to origin ${summary.requested.origin}` : undefined,
+    summary.requested.destination && summary.destinationMatches === 0 ? `no rows normalized to destination ${summary.requested.destination}` : undefined,
+    summary.requested.date && summary.dateMatches === 0 ? `no rows matched date ${summary.requested.date}` : undefined,
+    summary.requested.carrier && summary.requested.carrier !== 'all' && summary.carrierMatches === 0 ? `no rows matched carrier ${summary.requested.carrier}` : undefined
+  ].filter(Boolean)
+
+  if (blockers.length) return `Supabase returned ${summary.totalCandidates} candidate row${summary.totalCandidates === 1 ? '' : 's'}, but ${blockers.join('; ')}.`
+  return `Supabase returned ${summary.totalCandidates} candidate row${summary.totalCandidates === 1 ? '' : 's'}, but no single row matched all normalized route/carrier/date filters together. This usually means fetched rows share only one endpoint, are connection candidates, or the exact route is absent from the current dataset.`
+}
+
 export function summarizeRouteMatching(flights: Record<string, unknown>[], request: ParsedItineraryRequest): RouteMatchingSummary {
   const diagnostics = flights.map((flight) => routeMatchDiagnosticsForFlight(flight, request))
-  return {
+  const summary = {
     requested: {
       origin: request.origin,
       destination: request.destination,
@@ -453,7 +565,13 @@ export function summarizeRouteMatching(flights: Record<string, unknown>[], reque
     carrierMatches: diagnostics.filter((diagnostic) => diagnostic.carrierMatches).length,
     finalMatchedRows: diagnostics.filter((diagnostic) => diagnostic.matched).length,
     totalCandidates: flights.length,
+    routeNormalization: routeNormalizationDiagnostics(diagnostics),
+    closestMatchingRoutes: closestMatchingRoutes(diagnostics, request),
     rejectedCandidates: diagnostics.filter((diagnostic) => !diagnostic.matched).slice(0, 5)
+  }
+  return {
+    ...summary,
+    matchExplanation: routeMatchExplanation(summary)
   }
 }
 

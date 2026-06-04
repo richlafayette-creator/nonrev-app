@@ -207,6 +207,26 @@ type RouteMatchingSummary = {
   carrierMatches: number
   finalMatchedRows: number
   totalCandidates: number
+  matchExplanation: string
+  routeNormalization: {
+    normalizedRouteCount: number
+    normalizedRoutes: Array<{
+      route: string
+      count: number
+      sampleFlightNumbers: string[]
+    }>
+    missingOriginCount: number
+    missingDestinationCount: number
+    missingDateCount: number
+    carrierSamples: string[]
+    dateSamples: string[]
+  }
+  closestMatchingRoutes: Array<{
+    route: string
+    count: number
+    reason: string
+    sampleFlightNumbers: string[]
+  }>
   rejectedCandidates: FlightRouteMatchDiagnostics[]
 }
 
@@ -2040,6 +2060,9 @@ export default function PlanPage() {
                 <p style={{ color: '#94a3b8', margin: '6px 0 0' }}>
                   Normalized request: {itineraryDebug.routeMatching.requested.origin || 'any'} → {itineraryDebug.routeMatching.requested.destination || 'any'} · {itineraryDebug.routeMatching.requested.date || 'any date'} · {itineraryDebug.routeMatching.requested.carrier || 'all carriers'}
                 </p>
+                <p style={{ color: itineraryDebug.routeMatching.finalMatchedRows > 0 ? '#bbf7d0' : '#fde68a', margin: '6px 0 0' }}>
+                  {itineraryDebug.routeMatching.matchExplanation}
+                </p>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10, marginTop: 10 }}>
                   {[
                     ['Origin matches', itineraryDebug.routeMatching.originMatches],
@@ -2054,6 +2077,37 @@ export default function PlanPage() {
                     </article>
                   ))}
                 </div>
+                {itineraryDebug.routeMatching.closestMatchingRoutes.length > 0 ? (
+                  <div style={{ marginTop: 12 }}>
+                    <strong style={{ color: '#bbf7d0' }}>Closest matching routes in fetched rows</strong>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10, marginTop: 10 }}>
+                      {itineraryDebug.routeMatching.closestMatchingRoutes.map((route) => (
+                        <article key={route.route} style={{ border: '1px solid #14532d', borderRadius: 12, padding: 10, background: 'rgba(20, 83, 45, 0.18)' }}>
+                          <strong>{route.route}</strong>
+                          <p style={{ color: '#cbd5e1', margin: '6px 0 0' }}>{route.count} candidate row{route.count === 1 ? '' : 's'} · {route.reason}</p>
+                          <small style={{ color: '#94a3b8' }}>Samples: {route.sampleFlightNumbers.join(', ') || 'none'}</small>
+                        </article>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+                {itineraryDebug.routeMatching.routeNormalization.normalizedRoutes.length > 0 ? (
+                  <div style={{ marginTop: 12 }}>
+                    <strong style={{ color: '#38bdf8' }}>Route normalization diagnostics</strong>
+                    <p style={{ color: '#94a3b8', margin: '6px 0 0' }}>
+                      Missing origin: {itineraryDebug.routeMatching.routeNormalization.missingOriginCount} · Missing destination: {itineraryDebug.routeMatching.routeNormalization.missingDestinationCount} · Missing date: {itineraryDebug.routeMatching.routeNormalization.missingDateCount}
+                    </p>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 10, marginTop: 10 }}>
+                      {itineraryDebug.routeMatching.routeNormalization.normalizedRoutes.map((route) => (
+                        <article key={route.route} style={{ border: '1px solid #334155', borderRadius: 12, padding: 10, background: '#0f172a' }}>
+                          <strong>{route.route}</strong>
+                          <p style={{ color: '#cbd5e1', margin: '6px 0 0' }}>{route.count} row{route.count === 1 ? '' : 's'}</p>
+                          <small style={{ color: '#94a3b8' }}>Samples: {route.sampleFlightNumbers.join(', ') || 'none'}</small>
+                        </article>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
                 {itineraryDebug.routeMatching.rejectedCandidates.length > 0 ? (
                   <div style={{ marginTop: 12 }}>
                     <strong style={{ color: '#facc15' }}>First rejected Supabase candidate flights</strong>

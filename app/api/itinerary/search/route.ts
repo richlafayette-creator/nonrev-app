@@ -30,6 +30,8 @@ type ApiResponseCounts = {
 type SupabaseQueryDiagnostics = {
   attemptedPath: string
   usedPath: string
+  directCount: number
+  connectionCandidateCount: number
   targetedCount: number
   recentCount: number
 }
@@ -285,14 +287,24 @@ function nextIsoDate(date: string) {
   return parsed.toISOString().slice(0, 10)
 }
 
-function supabaseQueryUrl(supabaseUrl: string, request: ReturnType<typeof normalizeItineraryRequest>, targeted: boolean) {
+function supabaseQueryUrl(supabaseUrl: string, request: ReturnType<typeof normalizeItineraryRequest>, mode: 'direct' | 'connection' | 'recent') {
   const params = new URLSearchParams({
     select: '*',
     order: 'created_at.desc',
-    limit: targeted ? '600' : '300'
+    limit: mode === 'recent' ? '300' : '600'
   })
 
-  if (targeted) {
+  if (mode === 'direct') {
+    if (request.origin) params.set('origin', `eq.${request.origin}`)
+    if (request.destination) params.set('destination', `eq.${request.destination}`)
+    if (request.date) {
+      const nextDate = nextIsoDate(request.date)
+      params.append('departure_time', `gte.${request.date}`)
+      if (nextDate) params.append('departure_time', `lt.${nextDate}`)
+    }
+  }
+
+  if (mode === 'connection') {
     if (request.origin && request.destination) params.set('or', `(origin.eq.${request.origin},destination.eq.${request.destination})`)
     else if (request.origin) params.set('origin', `eq.${request.origin}`)
     else if (request.destination) params.set('destination', `eq.${request.destination}`)
@@ -323,6 +335,8 @@ async function fetchSupabaseFlights(request: ReturnType<typeof normalizeItinerar
   const queryDiagnostics: SupabaseQueryDiagnostics = {
     attemptedPath: 'not configured',
     usedPath: 'not configured',
+    directCount: 0,
+    connectionCandidateCount: 0,
     targetedCount: 0,
     recentCount: 0
   }
@@ -337,31 +351,52 @@ async function fetchSupabaseFlights(request: ReturnType<typeof normalizeItinerar
   }
   const shouldTryTargeted = Boolean(request.origin || request.destination || request.date)
   const warnings: string[] = []
+  let directFlights: FlightRecord[] = []
   let targetedFlights: FlightRecord[] = []
   let recentFlights: FlightRecord[] = []
 
   if (shouldTryTargeted) {
-    queryDiagnostics.attemptedPath = 'targeted route/date query'
+    queryDiagnostics.attemptedPath = request.origin && request.destination ? 'direct route/date query + connection-candidate query' : 'targeted route/date query'
     try {
-      const { response, data } = await fetchJsonWithTimeout(supabaseQueryUrl(supabaseUrl, request, true), { headers })
+      const { response, data } = await fetchJsonWithTimeout(supabaseQueryUrl(supabaseUrl, request, 'direct'), { headers })
       if (!response.ok) {
-        warnings.push(safeProviderMessage('Supabase', response.status, safeMessage(data?.message || data?.error || `Supabase targeted flights request failed with ${response.status}`)))
+        warnings.push(safeProviderMessage('Supabase', response.status, safeMessage(data?.message || data?.error || `Supabase direct route request failed with ${response.status}`)))
       } else {
-        targetedFlights = Array.isArray(data) ? data as FlightRecord[] : []
-        queryDiagnostics.targetedCount = targetedFlights.length
+        directFlights = Array.isArray(data) ? data as FlightRecord[] : []
+        queryDiagnostics.directCount = directFlights.length
       }
     } catch (error) {
-      warnings.push(`Supabase targeted flights request failed; trying recent-row safety query (${safeMessage(error) || 'request aborted'})`)
+      warnings.push(`Supabase direct route request failed; trying broader candidates (${safeMessage(error) || 'request aborted'})`)
+    }
+
+    const shouldTryConnections = request.origin && request.destination
+    if (shouldTryConnections) {
+      try {
+        const { response, data } = await fetchJsonWithTimeout(supabaseQueryUrl(supabaseUrl, request, 'connection'), { headers })
+        if (!response.ok) {
+          warnings.push(safeProviderMessage('Supabase', response.status, safeMessage(data?.message || data?.error || `Supabase connection-candidate request failed with ${response.status}`)))
+        } else {
+          targetedFlights = Array.isArray(data) ? data as FlightRecord[] : []
+          queryDiagnostics.connectionCandidateCount = targetedFlights.length
+          queryDiagnostics.targetedCount = directFlights.length + targetedFlights.length
+        }
+      } catch (error) {
+        warnings.push(`Supabase connection-candidate request failed; trying recent-row safety query (${safeMessage(error) || 'request aborted'})`)
+      }
+    } else {
+      targetedFlights = directFlights
+      queryDiagnostics.targetedCount = targetedFlights.length
     }
   } else {
     queryDiagnostics.attemptedPath = 'recent-row safety query'
   }
 
-  const targetedHasMatches = targetedFlights.some((flight) => flightMatchesRequest(flight, request))
-  const needsRecentSafetyQuery = !shouldTryTargeted || targetedFlights.length === 0 || !targetedHasMatches
+  const routeCandidateCount = directFlights.length + targetedFlights.length
+  const targetedHasMatches = [...directFlights, ...targetedFlights].some((flight) => flightMatchesRequest(flight, request))
+  const needsRecentSafetyQuery = !shouldTryTargeted || routeCandidateCount === 0 || !targetedHasMatches
   if (needsRecentSafetyQuery) {
     try {
-      const { response, data } = await fetchJsonWithTimeout(supabaseQueryUrl(supabaseUrl, request, false), { headers })
+      const { response, data } = await fetchJsonWithTimeout(supabaseQueryUrl(supabaseUrl, request, 'recent'), { headers })
       if (!response.ok) {
         warnings.push(safeProviderMessage('Supabase', response.status, safeMessage(data?.message || data?.error || `Supabase recent flights request failed with ${response.status}`)))
       } else {
@@ -373,15 +408,21 @@ async function fetchSupabaseFlights(request: ReturnType<typeof normalizeItinerar
     }
   }
 
-  const flights = uniqueFlights([...targetedFlights, ...recentFlights])
-  queryDiagnostics.usedPath = targetedFlights.length && !needsRecentSafetyQuery
-    ? 'targeted route/date query'
-    : targetedFlights.length && recentFlights.length
-      ? 'targeted route/date query + recent-row safety query'
+  const flights = uniqueFlights([...directFlights, ...targetedFlights, ...recentFlights])
+  queryDiagnostics.usedPath = directFlights.length && targetedFlights.length && !needsRecentSafetyQuery
+    ? 'direct route/date query + connection-candidate query'
+    : directFlights.length && !needsRecentSafetyQuery
+      ? 'direct route/date query'
+      : targetedFlights.length && !needsRecentSafetyQuery
+        ? 'connection-candidate query'
+        : (directFlights.length || targetedFlights.length) && recentFlights.length
+          ? 'route/date candidate query + recent-row safety query'
+          : (directFlights.length || targetedFlights.length)
+            ? 'route/date candidate query + empty recent-row safety query'
       : recentFlights.length
         ? 'recent-row safety query'
         : shouldTryTargeted
-          ? 'targeted route/date query + empty recent-row safety query'
+          ? 'route/date candidate query + empty recent-row safety query'
           : 'recent-row safety query'
 
   return {
@@ -608,6 +649,8 @@ export async function GET(request: Request) {
     const supabaseQueryPath: SupabaseQueryDiagnostics = {
       attemptedPath: 'skipped; parser route incomplete',
       usedPath: 'skipped; parser route incomplete',
+      directCount: 0,
+      connectionCandidateCount: 0,
       targetedCount: 0,
       recentCount: 0
     }
@@ -660,7 +703,7 @@ export async function GET(request: Request) {
   counts.supabaseMatchedFlights = supabaseMatchedFlights.length
   if (supabaseWarning) warnings.push(supabaseWarning)
   if (supabaseFlights.length === 0) emptyResults.push('Supabase returned zero flight rows.')
-  if (supabaseFlights.length > 0 && supabaseMatchedFlights.length === 0) emptyResults.push('Supabase returned rows, but none matched the normalized route/carrier/date request.')
+  if (supabaseFlights.length > 0 && supabaseMatchedFlights.length === 0) emptyResults.push(routeMatching.matchExplanation)
 
   const supabaseItineraries = buildItinerariesFromFlights(supabaseFlights, effectiveRequest)
   counts.supabaseItineraries = supabaseItineraries.length
@@ -698,7 +741,9 @@ export async function GET(request: Request) {
       invalidDates,
       providerFallbackOrder,
       providerStatuses: [
-        providerStatus('supabase', 'success', `${supabaseItineraries.length} matching itinerary result${supabaseItineraries.length === 1 ? '' : 's'} found from ${supabaseMatchedFlights.length} matched Supabase flight record${supabaseMatchedFlights.length === 1 ? '' : 's'} via ${supabaseQueryPath.usedPath}.`),
+        providerStatus('supabase', 'success', supabaseMatchedFlights.length > 0
+          ? `${supabaseItineraries.length} itinerary result${supabaseItineraries.length === 1 ? '' : 's'} found from ${supabaseMatchedFlights.length} exact matched Supabase flight record${supabaseMatchedFlights.length === 1 ? '' : 's'} via ${supabaseQueryPath.usedPath}.`
+          : `${supabaseItineraries.length} connecting itinerary result${supabaseItineraries.length === 1 ? '' : 's'} assembled from Supabase candidate rows, but no single direct row matched the normalized route. ${routeMatching.matchExplanation}`),
         providerStatus('aviationstack', 'skipped', 'Skipped because Supabase produced itinerary results.'),
         providerStatus('flightaware', enriched ? 'success' : 'warning', flightAwareStatus),
         providerStatus('planning', 'skipped', 'Skipped because live provider results are available.')

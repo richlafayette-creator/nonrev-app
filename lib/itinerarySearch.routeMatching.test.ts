@@ -7,6 +7,10 @@ function request(origin: string, destination: string) {
   return normalizeItineraryRequest(new URLSearchParams({ origin, destination, carrier: 'all', maxLegs: '2' }))
 }
 
+function requestWith(params: Record<string, string>) {
+  return normalizeItineraryRequest(new URLSearchParams({ carrier: 'all', maxLegs: '2', ...params }))
+}
+
 const candidates = [
   { id: 'lax-hnl', flight_number: 'UA1158', origin: 'LAX', destination: 'HNL', departure_time: '2026-06-05T08:00:00Z', carrier: 'United' },
   { id: 'lax-ogg', flight_number: 'HA33', dep_iata: 'LAX', arr_iata: 'OGG', departure: { scheduled: '2026-06-05T09:00:00Z' }, airline: 'Hawaiian Airlines' },
@@ -41,5 +45,30 @@ describe('route matching diagnostics', () => {
     const summary = summarizeRouteMatching(candidates, request('SEA', 'HNL'))
     assert.equal(summary.finalMatchedRows, 1)
     assert.equal(summary.rejectedCandidates.find((candidate) => candidate.id === 'sea-hnl'), undefined)
+  })
+
+  it('reports closest routes when no exact route exists in the dataset', () => {
+    const withoutDirectOgg = candidates.filter((candidate) => candidate.id !== 'lax-ogg')
+    const summary = summarizeRouteMatching(withoutDirectOgg, request('LAX', 'OGG'))
+    assert.equal(summary.finalMatchedRows, 0)
+    assert.match(summary.matchExplanation, /no rows normalized to destination OGG/)
+    assert.equal(summary.closestMatchingRoutes[0].route, 'LAX → HNL')
+    assert.match(summary.closestMatchingRoutes[0].reason, /same origin/)
+  })
+
+  it('verifies carrier normalization for United and Alaska Group aliases', () => {
+    const unitedSummary = summarizeRouteMatching(candidates, requestWith({ origin: 'LAX', destination: 'HNL', carrier: 'united' }))
+    const alaskaGroupSummary = summarizeRouteMatching(candidates, requestWith({ origin: 'SEA', destination: 'HNL', carrier: 'alaska-group' }))
+    assert.equal(unitedSummary.finalMatchedRows, 1)
+    assert.equal(alaskaGroupSummary.finalMatchedRows, 1)
+  })
+
+  it('verifies date filtering is applied to normalized departure dates', () => {
+    const matchingDate = summarizeRouteMatching(candidates, requestWith({ origin: 'LAX', destination: 'HNL', date: '2026-06-05' }))
+    const missingDate = summarizeRouteMatching(candidates, requestWith({ origin: 'LAX', destination: 'HNL', date: '2026-06-06' }))
+    assert.equal(matchingDate.finalMatchedRows, 1)
+    assert.equal(missingDate.finalMatchedRows, 0)
+    assert.equal(missingDate.dateMatches, 0)
+    assert.match(missingDate.matchExplanation, /no rows matched date 2026-06-06/)
   })
 })

@@ -174,6 +174,42 @@ type ApiResponseCounts = {
   finalItineraries: number
 }
 
+type FlightRouteMatchDiagnostics = {
+  id: string
+  flightNumber: string
+  normalized: {
+    origin?: string
+    destination?: string
+    date?: string
+    carrierText: string
+    originRaw?: string
+    destinationRaw?: string
+    dateRaw?: string
+  }
+  originMatches: boolean
+  destinationMatches: boolean
+  dateMatches: boolean
+  carrierMatches: boolean
+  matched: boolean
+  rejectionReasons: string[]
+}
+
+type RouteMatchingSummary = {
+  requested: {
+    origin?: string
+    destination?: string
+    date?: string
+    carrier?: string
+  }
+  originMatches: number
+  destinationMatches: number
+  dateMatches: number
+  carrierMatches: number
+  finalMatchedRows: number
+  totalCandidates: number
+  rejectedCandidates: FlightRouteMatchDiagnostics[]
+}
+
 type ItineraryDebugMetadata = {
   parsedOrigin?: string
   parsedDestination?: string
@@ -187,6 +223,7 @@ type ItineraryDebugMetadata = {
   flightAwareEnrichmentStatus: string
   finalItineraryCount: number
   apiResponseCounts?: ApiResponseCounts
+  routeMatching?: RouteMatchingSummary
   emptyResults?: string[]
   rateLimits?: string[]
   invalidAirportCodes?: string[]
@@ -1995,6 +2032,47 @@ export default function PlanPage() {
                     </article>
                   ))}
                 </div>
+              </div>
+            ) : null}
+            {itineraryDebug?.routeMatching ? (
+              <div style={{ marginTop: 12 }}>
+                <strong style={{ color: '#38bdf8' }}>Route matching diagnostics</strong>
+                <p style={{ color: '#94a3b8', margin: '6px 0 0' }}>
+                  Normalized request: {itineraryDebug.routeMatching.requested.origin || 'any'} → {itineraryDebug.routeMatching.requested.destination || 'any'} · {itineraryDebug.routeMatching.requested.date || 'any date'} · {itineraryDebug.routeMatching.requested.carrier || 'all carriers'}
+                </p>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10, marginTop: 10 }}>
+                  {[
+                    ['Origin matches', itineraryDebug.routeMatching.originMatches],
+                    ['Destination matches', itineraryDebug.routeMatching.destinationMatches],
+                    ['Date matches', itineraryDebug.routeMatching.dateMatches],
+                    ['Carrier matches', itineraryDebug.routeMatching.carrierMatches],
+                    ['Final matched rows', itineraryDebug.routeMatching.finalMatchedRows]
+                  ].map(([label, value]) => (
+                    <article key={label} style={{ border: '1px solid #334155', borderRadius: 12, padding: 10, background: '#0f172a' }}>
+                      <small style={{ color: '#94a3b8' }}>{label}</small>
+                      <p style={{ margin: '4px 0 0', color: '#f8fafc', fontWeight: 'bold' }}>{value}</p>
+                    </article>
+                  ))}
+                </div>
+                {itineraryDebug.routeMatching.rejectedCandidates.length > 0 ? (
+                  <div style={{ marginTop: 12 }}>
+                    <strong style={{ color: '#facc15' }}>First rejected Supabase candidate flights</strong>
+                    <div style={{ display: 'grid', gap: 10, marginTop: 10 }}>
+                      {itineraryDebug.routeMatching.rejectedCandidates.map((candidate) => (
+                        <article key={`${candidate.id}-${candidate.flightNumber}`} style={{ border: '1px solid #334155', borderRadius: 12, padding: 10, background: '#0f172a' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
+                            <strong>{candidate.flightNumber}</strong>
+                            <span style={{ color: '#94a3b8' }}>{candidate.normalized.origin || '??'} → {candidate.normalized.destination || '??'} · {candidate.normalized.date || 'no date'}</span>
+                          </div>
+                          <p style={{ color: '#cbd5e1', margin: '6px 0 0' }}>
+                            Raw route: {candidate.normalized.originRaw || 'missing'} → {candidate.normalized.destinationRaw || 'missing'} · Raw date: {candidate.normalized.dateRaw || 'missing'} · Carrier text: {candidate.normalized.carrierText || 'missing'}
+                          </p>
+                          <p style={{ color: '#fecaca', margin: '6px 0 0' }}>Rejected because: {candidate.rejectionReasons.join('; ')}</p>
+                        </article>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
               </div>
             ) : null}
             {[...(itineraryDebug?.emptyResults || []), ...(itineraryDebug?.rateLimits || []), ...(itineraryDebug?.invalidAirportCodes || []), ...(itineraryDebug?.unsupportedAirportCodes || []), ...(itineraryDebug?.invalidDates || [])].length ? (

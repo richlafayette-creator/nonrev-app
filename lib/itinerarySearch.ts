@@ -50,6 +50,45 @@ export type ItineraryResult = {
   providerBadges?: string[]
 }
 
+export type FlightRouteNormalization = {
+  origin?: string
+  destination?: string
+  date?: string
+  carrierText: string
+  flightNumber: string
+  originRaw?: string
+  destinationRaw?: string
+  dateRaw?: string
+}
+
+export type FlightRouteMatchDiagnostics = {
+  id: string
+  flightNumber: string
+  normalized: FlightRouteNormalization
+  originMatches: boolean
+  destinationMatches: boolean
+  dateMatches: boolean
+  carrierMatches: boolean
+  matched: boolean
+  rejectionReasons: string[]
+}
+
+export type RouteMatchingSummary = {
+  requested: {
+    origin?: string
+    destination?: string
+    date?: string
+    carrier?: string
+  }
+  originMatches: number
+  destinationMatches: number
+  dateMatches: number
+  carrierMatches: number
+  finalMatchedRows: number
+  totalCandidates: number
+  rejectedCandidates: FlightRouteMatchDiagnostics[]
+}
+
 const carrierAliases: Record<string, string[]> = {
   united: ['united', 'ua', 'ual'],
   delta: ['delta', 'dl', 'dal'],
@@ -285,13 +324,26 @@ export function normalizeItineraryRequest(searchParams: URLSearchParams): Parsed
   }
 }
 
+function nestedValueFrom(record: Record<string, unknown>, key: string) {
+  if (!key.includes('.')) return record[key]
+  return key.split('.').reduce<unknown>((current, part) => {
+    if (current && typeof current === 'object' && part in current) return (current as Record<string, unknown>)[part]
+    return undefined
+  }, record)
+}
+
 function valueFrom(flight: Record<string, unknown>, keys: string[]) {
   for (const key of keys) {
-    const value = flight[key]
+    const value = nestedValueFrom(flight, key)
     if (value !== undefined && value !== null && value !== '') return String(value)
   }
   return ''
 }
+
+const originFieldKeys = ['origin', 'origin_airport', 'origin_airport_code', 'origin_iata', 'departure_airport', 'departure_airport_code', 'departure_iata', 'departure_iata_code', 'dep_iata', 'dep_airport', 'departure.iata', 'departure.icao']
+const destinationFieldKeys = ['destination', 'destination_airport', 'destination_airport_code', 'destination_iata', 'arrival_airport', 'arrival_airport_code', 'arrival_iata', 'arrival_iata_code', 'arr_iata', 'arr_airport', 'arrival.iata', 'arrival.icao']
+const dateFieldKeys = ['date', 'flight_date', 'departure_date', 'scheduled_date']
+const departureTimeFieldKeys = ['departure_time', 'scheduled_departure', 'scheduled_out', 'actual_out', 'created_at', 'departure.scheduled', 'departure.estimated', 'departure.actual']
 
 function numberFrom(flight: Record<string, unknown>, keys: string[], fallback: number) {
   for (const key of keys) {
@@ -338,24 +390,81 @@ function flightMatchesCarrier(flight: Record<string, unknown>, carrier?: string)
 function flightMatchesDate(flight: Record<string, unknown>, date?: string) {
   if (!date) return true
   const text = [
-    valueFrom(flight, ['date', 'flight_date', 'departure_date', 'scheduled_date']),
-    valueFrom(flight, ['departure_time', 'scheduled_departure', 'scheduled_out', 'actual_out', 'created_at'])
+    valueFrom(flight, dateFieldKeys),
+    valueFrom(flight, departureTimeFieldKeys)
   ].join(' ')
   return text.includes(date)
 }
 
+export function normalizeFlightRouteForDiagnostics(flight: Record<string, unknown>): FlightRouteNormalization {
+  const originRaw = valueFrom(flight, originFieldKeys)
+  const destinationRaw = valueFrom(flight, destinationFieldKeys)
+  const dateRaw = [valueFrom(flight, dateFieldKeys), valueFrom(flight, departureTimeFieldKeys)].filter(Boolean).join(' ')
+  return {
+    origin: airportCode(originRaw),
+    destination: airportCode(destinationRaw),
+    date: dateRaw.match(/20\d{2}-\d{2}-\d{2}/)?.[0],
+    carrierText: `${carrierFromFlight(flight)} ${valueFrom(flight, ['flight_number', 'ident', 'fa_flight_id'])}`.trim(),
+    flightNumber: valueFrom(flight, ['flight_number', 'ident', 'fa_flight_id']) || 'Flight TBD',
+    originRaw: originRaw || undefined,
+    destinationRaw: destinationRaw || undefined,
+    dateRaw: dateRaw || undefined
+  }
+}
+
+export function routeMatchDiagnosticsForFlight(flight: Record<string, unknown>, request: ParsedItineraryRequest): FlightRouteMatchDiagnostics {
+  const normalized = normalizeFlightRouteForDiagnostics(flight)
+  const originMatches = request.origin ? normalized.origin === request.origin : true
+  const destinationMatches = request.destination ? normalized.destination === request.destination : true
+  const dateMatches = flightMatchesDate(flight, request.date)
+  const carrierMatches = flightMatchesCarrier(flight, request.carrier)
+  const rejectionReasons = [
+    !originMatches ? `origin ${normalized.origin || 'unavailable'} did not match ${request.origin}` : undefined,
+    !destinationMatches ? `destination ${normalized.destination || 'unavailable'} did not match ${request.destination}` : undefined,
+    !dateMatches ? `date ${normalized.date || 'unavailable'} did not match ${request.date}` : undefined,
+    !carrierMatches ? `carrier ${normalized.carrierText || 'unavailable'} did not match ${request.carrier}` : undefined
+  ].filter((reason): reason is string => Boolean(reason))
+
+  return {
+    id: valueFrom(flight, ['id']) || normalized.flightNumber || 'unknown-flight',
+    flightNumber: normalized.flightNumber,
+    normalized,
+    originMatches,
+    destinationMatches,
+    dateMatches,
+    carrierMatches,
+    matched: originMatches && destinationMatches && dateMatches && carrierMatches,
+    rejectionReasons
+  }
+}
+
+export function summarizeRouteMatching(flights: Record<string, unknown>[], request: ParsedItineraryRequest): RouteMatchingSummary {
+  const diagnostics = flights.map((flight) => routeMatchDiagnosticsForFlight(flight, request))
+  return {
+    requested: {
+      origin: request.origin,
+      destination: request.destination,
+      date: request.date,
+      carrier: request.carrier || 'all'
+    },
+    originMatches: diagnostics.filter((diagnostic) => diagnostic.originMatches).length,
+    destinationMatches: diagnostics.filter((diagnostic) => diagnostic.destinationMatches).length,
+    dateMatches: diagnostics.filter((diagnostic) => diagnostic.dateMatches).length,
+    carrierMatches: diagnostics.filter((diagnostic) => diagnostic.carrierMatches).length,
+    finalMatchedRows: diagnostics.filter((diagnostic) => diagnostic.matched).length,
+    totalCandidates: flights.length,
+    rejectedCandidates: diagnostics.filter((diagnostic) => !diagnostic.matched).slice(0, 5)
+  }
+}
+
 export function flightMatchesRequest(flight: Record<string, unknown>, request: ParsedItineraryRequest) {
-  const origin = airportCode(valueFrom(flight, ['origin', 'origin_airport', 'departure_airport', 'departure_airport_code']))
-  const destination = airportCode(valueFrom(flight, ['destination', 'destination_airport', 'arrival_airport', 'arrival_airport_code']))
-  const originMatches = request.origin ? origin === request.origin : true
-  const destinationMatches = request.destination ? destination === request.destination : true
-  return originMatches && destinationMatches && flightMatchesCarrier(flight, request.carrier) && flightMatchesDate(flight, request.date)
+  return routeMatchDiagnosticsForFlight(flight, request).matched
 }
 
 export function normalizeFlightLeg(flight: Record<string, unknown>, enrichment?: Record<string, unknown>): ItineraryLeg {
-  const origin = airportCode(valueFrom(flight, ['origin', 'origin_airport', 'departure_airport', 'departure_airport_code']) || valueFrom(enrichment || {}, ['origin', 'origin_airport'])) || 'TBD'
-  const destination = airportCode(valueFrom(flight, ['destination', 'destination_airport', 'arrival_airport', 'arrival_airport_code']) || valueFrom(enrichment || {}, ['destination', 'destination_airport'])) || 'TBD'
-  const departureTime = valueFrom(flight, ['departure_time', 'scheduled_departure', 'scheduled_out', 'actual_out', 'departure']) || valueFrom(enrichment || {}, ['scheduled_out', 'actual_out', 'scheduled_off', 'filed_departure_time']) || 'Pending'
+  const origin = airportCode(valueFrom(flight, originFieldKeys) || valueFrom(enrichment || {}, ['origin', 'origin_airport', 'origin.code_iata'])) || 'TBD'
+  const destination = airportCode(valueFrom(flight, destinationFieldKeys) || valueFrom(enrichment || {}, ['destination', 'destination_airport', 'destination.code_iata'])) || 'TBD'
+  const departureTime = valueFrom(flight, ['departure_time', 'scheduled_departure', 'scheduled_out', 'actual_out', 'departure', 'departure.scheduled']) || valueFrom(enrichment || {}, ['scheduled_out', 'actual_out', 'scheduled_off', 'filed_departure_time']) || 'Pending'
   const arrivalTime = valueFrom(flight, ['arrival_time', 'scheduled_arrival', 'scheduled_in', 'actual_in', 'arrival']) || valueFrom(enrichment || {}, ['scheduled_in', 'actual_in', 'scheduled_on', 'estimated_in']) || 'Pending'
   const status = valueFrom(enrichment || {}, ['status']) || valueFrom(flight, ['status', 'flight_status']) || 'Unknown'
   const score = numberFrom(flight, ['score', 'load_score', 'availability_score'], status.toLowerCase().includes('cancel') ? 35 : 68)

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { airportScaffoldFor } from '../../../../lib/airportMapScaffold'
-import { buildItinerariesFromFlights, flightMatchesRequest, normalizeItineraryRequest, type ItineraryResult } from '../../../../lib/itinerarySearch'
+import { buildItinerariesFromFlights, flightMatchesRequest, normalizeItineraryRequest, summarizeRouteMatching, type ItineraryResult, type RouteMatchingSummary } from '../../../../lib/itinerarySearch'
 
 export const dynamic = 'force-dynamic'
 
@@ -47,6 +47,7 @@ type ItineraryDebugMetadata = {
   flightAwareEnrichmentStatus: string
   finalItineraryCount: number
   apiResponseCounts: ApiResponseCounts
+  routeMatching: RouteMatchingSummary
   supabaseQueryPath: SupabaseQueryDiagnostics
   providerFallbackOrder: string[]
   emptyResults: string[]
@@ -525,6 +526,7 @@ function buildDebugMetadata({
   flightAwareEnrichmentStatus,
   finalItineraryCount,
   apiResponseCounts,
+  routeMatching,
   supabaseQueryPath,
   emptyResults,
   rateLimits,
@@ -540,6 +542,7 @@ function buildDebugMetadata({
   flightAwareEnrichmentStatus: string
   finalItineraryCount: number
   apiResponseCounts: ApiResponseCounts
+  routeMatching: RouteMatchingSummary
   supabaseQueryPath: SupabaseQueryDiagnostics
   providerFallbackOrder: string[]
   emptyResults: string[]
@@ -564,6 +567,7 @@ function buildDebugMetadata({
     flightAwareEnrichmentStatus,
     finalItineraryCount,
     apiResponseCounts,
+    routeMatching,
     supabaseQueryPath,
     providerFallbackOrder,
     emptyResults,
@@ -615,6 +619,7 @@ export async function GET(request: Request) {
       flightAwareEnrichmentStatus: 'skipped; no known live flight numbers available to enrich',
       finalItineraryCount: 0,
       apiResponseCounts: counts,
+      routeMatching: summarizeRouteMatching([], effectiveRequest),
       supabaseQueryPath,
       emptyResults,
       rateLimits,
@@ -650,6 +655,7 @@ export async function GET(request: Request) {
 
   const { flights: supabaseFlights, warning: supabaseWarning, queryDiagnostics: supabaseQueryPath } = await fetchSupabaseFlights(effectiveRequest)
   counts.supabaseFetched = supabaseFlights.length
+  const routeMatching = summarizeRouteMatching(supabaseFlights, effectiveRequest)
   const supabaseMatchedFlights = supabaseFlights.filter((flight) => flightMatchesRequest(flight, effectiveRequest))
   counts.supabaseMatchedFlights = supabaseMatchedFlights.length
   if (supabaseWarning) warnings.push(supabaseWarning)
@@ -683,6 +689,7 @@ export async function GET(request: Request) {
       flightAwareEnrichmentStatus: flightAwareStatus,
       finalItineraryCount: itineraries.length,
       apiResponseCounts: counts,
+      routeMatching,
       supabaseQueryPath,
       emptyResults,
       rateLimits,
@@ -746,6 +753,7 @@ export async function GET(request: Request) {
       flightAwareEnrichmentStatus: flightAwareStatus,
       finalItineraryCount: itineraries.length,
       apiResponseCounts: counts,
+      routeMatching,
       supabaseQueryPath,
       emptyResults,
       rateLimits,
@@ -789,6 +797,7 @@ export async function GET(request: Request) {
     flightAwareEnrichmentStatus: 'skipped; no known live flight numbers available to enrich',
     finalItineraryCount: 0,
     apiResponseCounts: counts,
+    routeMatching,
     supabaseQueryPath,
     emptyResults,
     rateLimits,

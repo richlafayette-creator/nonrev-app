@@ -178,6 +178,9 @@ type ItineraryDebugMetadata = {
   parsedOrigin?: string
   parsedDestination?: string
   parsedDate?: string
+  parserConfidence?: number
+  parserExplanation?: string
+  parserFallbackApplied?: boolean
   selectedCarrier: string
   supabaseResultCount: number
   aviationstackFallbackStatus: string
@@ -1952,6 +1955,8 @@ export default function PlanPage() {
                 ['Parsed origin', itineraryDebug?.parsedOrigin || 'Not parsed'],
                 ['Parsed destination', itineraryDebug?.parsedDestination || 'Not parsed'],
                 ['Parsed date', itineraryDebug?.parsedDate || 'Flexible'],
+                ['Parser confidence', itineraryDebug?.parserConfidence !== undefined ? `${itineraryDebug.parserConfidence}%` : 'Pending'],
+                ['Parser fallback', itineraryDebug?.parserFallbackApplied ? 'Active' : 'Not needed'],
                 ['Selected carrier', itineraryDebug?.selectedCarrier || carrier],
                 ['Supabase result count', itineraryDebug?.supabaseResultCount ?? 'Pending'],
                 ['Aviationstack fallback', itineraryDebug?.aviationstackFallbackStatus || 'Pending'],
@@ -1964,6 +1969,11 @@ export default function PlanPage() {
                 </article>
               ))}
             </div>
+            {itineraryDebug?.parserExplanation ? (
+              <p style={{ color: '#cbd5e1', margin: '12px 0 0' }}>
+                <strong style={{ color: '#38bdf8' }}>Parser explanation:</strong> {itineraryDebug.parserExplanation}
+              </p>
+            ) : null}
             {itineraryDebug?.apiResponseCounts ? (
               <div style={{ marginTop: 12 }}>
                 <strong style={{ color: '#38bdf8' }}>API response counts</strong>

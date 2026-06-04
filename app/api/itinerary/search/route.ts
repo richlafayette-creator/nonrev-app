@@ -38,6 +38,9 @@ type ItineraryDebugMetadata = {
   parsedOrigin?: string
   parsedDestination?: string
   parsedDate?: string
+  parserConfidence: number
+  parserExplanation: string
+  parserFallbackApplied: boolean
   selectedCarrier: string
   supabaseResultCount: number
   aviationstackFallbackStatus: string
@@ -552,6 +555,9 @@ function buildDebugMetadata({
     parsedOrigin: parsedRequest.origin,
     parsedDestination: parsedRequest.destination,
     parsedDate: parsedRequest.date,
+    parserConfidence: parsedRequest.parserConfidence,
+    parserExplanation: parsedRequest.parserExplanation,
+    parserFallbackApplied: parsedRequest.parserFallbackApplied,
     selectedCarrier: parsedRequest.carrier || 'all',
     supabaseResultCount,
     aviationstackFallbackStatus,
@@ -591,6 +597,56 @@ export async function GET(request: Request) {
   if (invalidAirportCodes.length) warnings.push(`Invalid airport code input ignored: ${invalidAirportCodes.join(', ')}`)
   if (unsupportedAirportCodes.length) warnings.push(...unsupportedAirportCodes)
   if (invalidDates.length) warnings.push(...invalidDates)
+
+  if (effectiveRequest.parserFallbackApplied) {
+    const noRouteMessage = 'Parser could not determine a complete origin and destination. Showing safe fallback demo guidance instead of running a broad live search.'
+    const finalWarnings = uniqueMessages([...warnings, noRouteMessage])
+    const supabaseQueryPath: SupabaseQueryDiagnostics = {
+      attemptedPath: 'skipped; parser route incomplete',
+      usedPath: 'skipped; parser route incomplete',
+      targetedCount: 0,
+      recentCount: 0
+    }
+    emptyResults.push('Live provider search skipped because the normalized request did not contain both origin and destination.')
+    const debug = buildDebugMetadata({
+      parsedRequest: effectiveRequest,
+      supabaseResultCount: 0,
+      aviationstackFallbackStatus: 'skipped; parser route incomplete',
+      flightAwareEnrichmentStatus: 'skipped; no known live flight numbers available to enrich',
+      finalItineraryCount: 0,
+      apiResponseCounts: counts,
+      supabaseQueryPath,
+      emptyResults,
+      rateLimits,
+      invalidAirportCodes,
+      unsupportedAirportCodes,
+      invalidDates,
+      providerStatuses: [
+        providerStatus('supabase', 'skipped', 'Skipped to avoid an unrestricted live search without a complete parsed route.'),
+        providerStatus('aviationstack', 'skipped', 'Skipped to avoid an unrestricted fallback-provider search without a complete parsed route.'),
+        providerStatus('flightaware', 'skipped', 'Skipped because no provider returned known flight numbers.'),
+        providerStatus('planning', 'success', 'Clearly marked demo fallback cards are active in the UI until the route is complete.')
+      ],
+      providerFallbackOrder,
+      safeErrors: finalWarnings
+    })
+
+    return NextResponse.json({
+      ok: true,
+      request: effectiveRequest,
+      source: 'parser-safe-planning-fallback',
+      sourceLabel: sourceLabel('planning', false),
+      dataMode: 'fallback',
+      statusMessage: noRouteMessage,
+      errorMessage: noRouteMessage,
+      enrichedWithFlightAware: false,
+      providerBadges: [providerLabels.planning],
+      warnings: finalWarnings,
+      debug,
+      count: 0,
+      itineraries: []
+    })
+  }
 
   const { flights: supabaseFlights, warning: supabaseWarning, queryDiagnostics: supabaseQueryPath } = await fetchSupabaseFlights(effectiveRequest)
   counts.supabaseFetched = supabaseFlights.length

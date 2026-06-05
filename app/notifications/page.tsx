@@ -5,6 +5,7 @@ import { supabase } from '../../lib/supabase'
 import { loadSavedItineraryComparisons, type SavedItineraryComparison } from '../../lib/savedItineraryComparisons'
 import { loadSavedTripWatchlist, type SavedTripWatch } from '../../lib/watchlist'
 import { alertSeverityColor, realTimeAlertTypeColor, refreshRealTimeAlerts, type RealTimeAlert } from '../../lib/alerts'
+import { loadNotificationDeliveries, notificationDiagnostics, processNotificationQueue, type NotificationDeliveryRecord } from '../../lib/notificationDelivery'
 import {
   enabledTripAlertLabels,
   getTripAlertPreference,
@@ -34,13 +35,16 @@ export default function NotificationsPage() {
   const [watchlist, setWatchlist] = useState<SavedTripWatch[]>([])
   const [savedItineraries, setSavedItineraries] = useState<SavedItineraryComparison[]>([])
   const [alertPreferences, setAlertPreferences] = useState<TripAlertPreference[]>([])
+  const [deliveries, setDeliveries] = useState<NotificationDeliveryRecord[]>([])
 
   useEffect(() => {
     function refreshAlertPreferences() {
       setWatchlist(loadSavedTripWatchlist())
       setSavedItineraries(loadSavedItineraryComparisons())
       setAlertPreferences(loadTripAlertPreferences())
+      processNotificationQueue()
       setAlerts(refreshRealTimeAlerts())
+      setDeliveries(loadNotificationDeliveries())
     }
 
     refreshAlertPreferences()
@@ -48,12 +52,16 @@ export default function NotificationsPage() {
     window.addEventListener('nonrevy-itinerary-comparisons-updated', refreshAlertPreferences)
     window.addEventListener('nonrevy-trip-alert-preferences-updated', refreshAlertPreferences)
     window.addEventListener('nonrevy-alerts-updated', refreshAlertPreferences)
+    window.addEventListener('nonrevy-notification-deliveries-updated', refreshAlertPreferences)
+    window.addEventListener('nonrevy-notification-queue-updated', refreshAlertPreferences)
     window.addEventListener('storage', refreshAlertPreferences)
     return () => {
       window.removeEventListener('nonrevy-watchlist-updated', refreshAlertPreferences)
       window.removeEventListener('nonrevy-itinerary-comparisons-updated', refreshAlertPreferences)
       window.removeEventListener('nonrevy-trip-alert-preferences-updated', refreshAlertPreferences)
       window.removeEventListener('nonrevy-alerts-updated', refreshAlertPreferences)
+      window.removeEventListener('nonrevy-notification-deliveries-updated', refreshAlertPreferences)
+      window.removeEventListener('nonrevy-notification-queue-updated', refreshAlertPreferences)
       window.removeEventListener('storage', refreshAlertPreferences)
     }
   }, [])
@@ -101,6 +109,8 @@ export default function NotificationsPage() {
   const unread = notifications.filter((item) => !item.read).length
   const unreadAlerts = alerts.filter((alert) => !alert.read).length
   const latestAlerts = alerts.slice(0, 6)
+  const diagnostics = notificationDiagnostics()
+  const latestDeliveries = deliveries.slice(0, 5)
   const preferenceTargets = [
     ...watchlist.map((route) => ({
       id: route.id,
@@ -131,19 +141,48 @@ export default function NotificationsPage() {
         <a href="/reputation" style={{ marginRight: 16, color: '#34d399' }}>Trust</a>
         <a href="/notifications" style={{ marginRight: 16, color: '#f472b6' }}>Notifications</a>
         <a href="/notification-preferences" style={{ marginRight: 16, color: '#fb7185' }}>Notification Preferences</a>
+        <a href="/notification-history" style={{ marginRight: 16, color: '#f0abfc' }}>History</a>
         <a href="/alerts" style={{ marginRight: 16, color: '#22c55e' }}>Alerts</a>
         <a href="/agent" style={{ color: '#a78bfa' }}>Agent</a>
       </nav>
 
       <section className="hero-grid">
         <div>
-          <p style={{ color: '#f472b6', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1 }}>Notification center scaffold</p>
+          <p style={{ color: '#f472b6', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1 }}>Notification center</p>
           <h1 style={{ fontSize: 44, margin: '8px 0' }}>Notifications</h1>
-          <p style={{ color: '#94a3b8' }}>{unread} unread notifications · {unreadAlerts} unread route alerts · {enabledAlertCount} enabled trip alerts · staged for route alerts, request answers, credit events, and agent health notices.</p>
+          <p style={{ color: '#94a3b8' }}>{unread} unread notifications · {unreadAlerts} unread route alerts · {enabledAlertCount} enabled trip alerts · {diagnostics.queued} queued engine notifications · {diagnostics.sentBrowser} browser pushes sent.</p>
         </div>
         <button onClick={markAllRead} style={{ alignSelf: 'start', padding: 12, borderRadius: 10, border: 'none', background: '#f472b6', color: '#020617', fontWeight: 'bold' }}>
           Mark all read
         </button>
+      </section>
+
+      <section style={{ border: '1px solid #334155', borderRadius: 22, padding: 20, background: '#0f172a', marginTop: 24 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+          <div>
+            <p style={{ color: '#f0abfc', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1, marginTop: 0 }}>Delivery history</p>
+            <h2 style={{ margin: '8px 0' }}>Latest notification deliveries</h2>
+            <p style={{ color: '#94a3b8', margin: 0 }}>{diagnostics.detail}</p>
+          </div>
+          <a href="/notification-history" style={{ border: '1px solid #f0abfc', borderRadius: 999, padding: '10px 14px', color: '#f5d0fe', fontWeight: 'bold' }}>
+            Open Notification History
+          </a>
+        </div>
+        {latestDeliveries.length === 0 ? (
+          <article style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#020617', marginTop: 16 }}>
+            <p style={{ color: '#cbd5e1', margin: 0 }}>No notification deliveries yet. Add a watchlist item, submit a community load report, or refresh alerts to enqueue notifications.</p>
+          </article>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14, marginTop: 16 }}>
+            {latestDeliveries.map((delivery) => (
+              <article key={delivery.id} style={{ border: '1px solid #334155', borderRadius: 16, padding: 14, background: '#020617' }}>
+                <strong style={{ color: '#f8fafc' }}>{delivery.title}</strong>
+                <p style={{ color: '#cbd5e1' }}>{delivery.body}</p>
+                <small style={{ color: '#94a3b8' }}>{delivery.eventType} · {delivery.channel} · {delivery.status}</small>
+              </article>
+            ))}
+          </div>
+        )}
       </section>
 
       <section style={{ border: '1px solid #334155', borderRadius: 22, padding: 20, background: '#0f172a', marginTop: 24 }}>

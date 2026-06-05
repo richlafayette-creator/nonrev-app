@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { loadReportsStorageKey } from '../../lib/loadReports'
-import { notificationDiagnostics, notificationPreferencesStorageKey, notificationDeliveriesStorageKey } from '../../lib/notificationDelivery'
+import { notificationDiagnostics, notificationPreferencesStorageKey, notificationDeliveriesStorageKey, notificationQueueStorageKey } from '../../lib/notificationDelivery'
 import { stripeBillingDiagnostics, stripeBillingStorageKey } from '../../lib/stripeBilling'
 import { travelerProfileStorageKey } from '../../lib/travelerProfile'
 import { tripOutcomeStorageKey } from '../../lib/tripOutcomes'
@@ -152,19 +152,20 @@ function notificationFrameworkStatus(): HealthItem {
     const diagnostics = notificationDiagnostics()
     const hasPreferences = Boolean(window.localStorage.getItem(notificationPreferencesStorageKey))
     const hasDeliveries = Boolean(window.localStorage.getItem(notificationDeliveriesStorageKey))
+    const hasQueue = Boolean(window.localStorage.getItem(notificationQueueStorageKey))
     return {
       key: 'notification-delivery-framework',
-      label: 'Notification delivery framework',
+      label: 'Notification engine and queue',
       status: diagnostics.status,
       lastChecked,
       safeErrorMessage: diagnostics.status === 'Connected' ? '' : 'Notification framework is available, but no alert type or delivery channel is enabled.',
       recommendedFix: diagnostics.status === 'Connected' ? 'No action needed.' : 'Open Notification Preferences and enable at least one alert type and channel.',
-      detail: `${diagnostics.detail} Preferences ${hasPreferences ? 'saved' : 'using defaults'}; delivery diagnostics ${hasDeliveries ? 'present' : 'empty'}.`
+      detail: `${diagnostics.detail} Preferences ${hasPreferences ? 'saved' : 'using defaults'}; delivery history ${hasDeliveries ? 'present' : 'empty'}; queue ${hasQueue ? 'present' : 'empty'}.`
     }
   } catch {
     return {
       key: 'notification-delivery-framework',
-      label: 'Notification delivery framework',
+      label: 'Notification engine and queue',
       status: 'Error',
       lastChecked,
       safeErrorMessage: 'Notification preferences or delivery diagnostics could not be read safely.',

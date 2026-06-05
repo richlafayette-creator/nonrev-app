@@ -1,3 +1,5 @@
+import { deliverNotification } from './notificationDelivery'
+
 export const loadReportsStorageKey = 'nonrevy.verifiedLoadReports'
 
 export type LoadStatus = 'Seats open' | 'Looks workable' | 'Tight' | 'Full' | 'Unknown'
@@ -239,6 +241,22 @@ export function saveLoadReport(report: Omit<LoadReport, 'id' | 'verified' | 'tru
   }
   const reports = [nextReport, ...loadLoadReports()]
   window.localStorage.setItem(loadReportsStorageKey, JSON.stringify(reports))
+  deliverNotification({
+    eventType: 'community-load-reports',
+    title: `Community load report: ${nextReport.origin} → ${nextReport.destination}`,
+    body: loadReportSummary(nextReport),
+    targetId: nextReport.id,
+    targetLabel: `${nextReport.origin} → ${nextReport.destination}`,
+    source: 'community-load-report',
+    eventKey: `community-load-report:${nextReport.flightNumber}:${nextReport.origin}:${nextReport.destination}:${nextReport.date}:${nextReport.createdAt}`,
+    details: [
+      `Airline: ${nextReport.airline}`,
+      `Seats available estimate: ${nextReport.seatsAvailableEstimate ?? 'unknown'}`,
+      `Standbys cleared estimate: ${nextReport.standbysClearedEstimate ?? 'unknown'}`,
+      `Report trust: ${nextReport.reportTrustScore}/100`,
+      `Recency weight: ${nextReport.recencyWeight}x`
+    ]
+  })
   window.dispatchEvent(new Event('nonrevy-load-reports-updated'))
   return nextReport
 }

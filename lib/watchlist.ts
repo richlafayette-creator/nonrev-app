@@ -1,3 +1,5 @@
+import { deliverNotification } from './notificationDelivery'
+
 export const savedTripWatchlistStorageKey = 'nonrevy.savedTripWatchlist'
 
 export type SavedTripWatch = {
@@ -64,6 +66,21 @@ export function saveTripWatch(watch: Omit<SavedTripWatch, 'id' | 'origin' | 'des
   )
   const watchlist = [nextWatch, ...deduped]
   window.localStorage.setItem(savedTripWatchlistStorageKey, JSON.stringify(watchlist))
+  deliverNotification({
+    eventType: 'watchlist',
+    title: `Watchlist added: ${nextWatch.origin} → ${nextWatch.destination}`,
+    body: `${nextWatch.selectedItinerary} is now watched for ${nextWatch.travelDate || 'flexible dates'} with ${nextWatch.successProbability}% success probability and ${nextWatch.score}/100 score.`,
+    targetId: nextWatch.id,
+    targetLabel: `${nextWatch.origin} → ${nextWatch.destination}`,
+    source: 'watchlist',
+    eventKey: `watchlist-added:${nextWatch.id}`,
+    details: [
+      `Carrier: ${nextWatch.carrier}`,
+      `Risk level: ${nextWatch.riskLevel}`,
+      `Connections: ${nextWatch.connections}`,
+      `Total travel time: ${nextWatch.totalTravelTime}`
+    ]
+  })
   window.dispatchEvent(new Event('nonrevy-watchlist-updated'))
   return nextWatch
 }

@@ -3,21 +3,29 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
   clearNotificationDeliveries,
+  clearNotificationQueue,
   loadNotificationDeliveries,
   loadNotificationPreferences,
+  loadNotificationQueue,
   notificationChannelOptions,
   notificationDiagnostics,
   notificationEventOptions,
+  notificationFrequencyOptions,
+  processNotificationQueue,
+  requestBrowserPushPermission,
   saveNotificationPreferences,
   type NotificationChannel,
   type NotificationDeliveryRecord,
   type NotificationEventType,
-  type NotificationPreferences
+  type NotificationFrequency,
+  type NotificationPreferences,
+  type NotificationQueueRecord
 } from '../../lib/notificationDelivery'
 
 function statusColor(status: string) {
-  if (status === 'stored-local') return '#22c55e'
-  if (status === 'blocked-by-preference') return '#facc15'
+  if (status === 'sent-browser') return '#22c55e'
+  if (status === 'stored-local' || status === 'placeholder') return '#38bdf8'
+  if (status === 'blocked-by-preference' || status === 'queued-by-frequency' || status === 'browser-permission-blocked') return '#facc15'
   return '#f87171'
 }
 
@@ -32,23 +40,28 @@ function formatDate(value: string) {
 export default function NotificationPreferencesPage() {
   const [preferences, setPreferences] = useState<NotificationPreferences>(() => loadNotificationPreferences())
   const [deliveries, setDeliveries] = useState<NotificationDeliveryRecord[]>([])
+  const [queue, setQueue] = useState<NotificationQueueRecord[]>([])
   const [status, setStatus] = useState('Notification preferences are stored locally in this browser.')
 
   function refresh() {
     setPreferences(loadNotificationPreferences())
+    processNotificationQueue()
     setDeliveries(loadNotificationDeliveries())
+    setQueue(loadNotificationQueue())
   }
 
   useEffect(() => {
     refresh()
     window.addEventListener('nonrevy-notification-preferences-updated', refresh)
     window.addEventListener('nonrevy-notification-deliveries-updated', refresh)
+    window.addEventListener('nonrevy-notification-queue-updated', refresh)
     window.addEventListener('nonrevy-alerts-updated', refresh)
     window.addEventListener('nonrevy-outcome-reminders-updated', refresh)
     window.addEventListener('storage', refresh)
     return () => {
       window.removeEventListener('nonrevy-notification-preferences-updated', refresh)
       window.removeEventListener('nonrevy-notification-deliveries-updated', refresh)
+      window.removeEventListener('nonrevy-notification-queue-updated', refresh)
       window.removeEventListener('nonrevy-alerts-updated', refresh)
       window.removeEventListener('nonrevy-outcome-reminders-updated', refresh)
       window.removeEventListener('storage', refresh)
@@ -75,9 +88,38 @@ export default function NotificationPreferencesPage() {
     setStatus(`${notificationChannelOptions.find((option) => option.key === key)?.label || key} channel ${enabled ? 'enabled' : 'disabled'}.`)
   }
 
+  function updateFrequency(frequency: NotificationFrequency) {
+    const next = saveNotificationPreferences({ ...preferences, frequency })
+    setPreferences(next)
+    setStatus(`Notification frequency set to ${notificationFrequencyOptions.find((option) => option.key === frequency)?.label || frequency}.`)
+  }
+
+  function updateMaxPerHour(maxPerHour: number) {
+    const next = saveNotificationPreferences({ ...preferences, maxPerHour })
+    setPreferences(next)
+    setStatus(`Notification rate limit set to ${next.maxPerHour} browser pushes per hour.`)
+  }
+
+  async function enableBrowserPush() {
+    const permission = await requestBrowserPushPermission()
+    setStatus(`Browser push permission: ${permission}.`)
+    refresh()
+  }
+
+  function processNow() {
+    processNotificationQueue({ force: true })
+    refresh()
+    setStatus('Processed queued notifications now.')
+  }
+
   function clearDeliveries() {
     setDeliveries(clearNotificationDeliveries())
     setStatus('Cleared local notification delivery diagnostics.')
+  }
+
+  function clearQueue() {
+    setQueue(clearNotificationQueue())
+    setStatus('Cleared local notification queue.')
   }
 
   return (
@@ -96,7 +138,7 @@ export default function NotificationPreferencesPage() {
           <p style={{ color: '#f472b6', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1, marginTop: 0 }}>Push notification framework</p>
           <h1 style={{ fontSize: 44, margin: '8px 0 12px' }}>Notification Preferences</h1>
           <p style={{ color: '#94a3b8', fontSize: 18, maxWidth: 860 }}>
-            Local controls for alert types and future delivery channels. Browser push, email, and mobile push are represented through one delivery abstraction; real providers can attach later without changing alert logic.
+            Notification engine controls for alert types, queueing frequency, and delivery channels. Browser push uses the Notification API when permission is granted; email and mobile push remain safe provider placeholders.
           </p>
           <p style={{ color: '#cbd5e1' }}>{status}</p>
         </div>
@@ -109,8 +151,10 @@ export default function NotificationPreferencesPage() {
         {[
           ['Enabled alert types', `${diagnostics.enabledEvents}/${notificationEventOptions.length}`, '#22c55e'],
           ['Enabled channels', `${diagnostics.enabledChannels.length}/${notificationChannelOptions.length}`, '#38bdf8'],
-          ['Local deliveries', deliveries.length, '#f472b6'],
-          ['Blocked/skipped', diagnostics.blocked, '#facc15']
+          ['Queued', queue.length, '#facc15'],
+          ['History records', deliveries.length, '#f472b6'],
+          ['Browser sent', diagnostics.sentBrowser, '#22c55e'],
+          ['Blocked/skipped', diagnostics.blocked, '#f87171']
         ].map(([label, value, color]) => (
           <article key={label} className="mini-card" style={{ border: '1px solid #334155', borderRadius: 18, padding: 18, background: '#0f172a' }}>
             <strong style={{ color: String(color), fontSize: 32 }}>{value}</strong>
@@ -141,7 +185,7 @@ export default function NotificationPreferencesPage() {
 
         <article style={{ border: '1px solid #334155', borderRadius: 22, padding: 20, background: '#0f172a' }}>
           <p style={{ color: '#38bdf8', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1, marginTop: 0 }}>Delivery channels</p>
-          <h2 style={{ marginTop: 0 }}>Future channel support</h2>
+          <h2 style={{ marginTop: 0 }}>Channel support</h2>
           <div style={{ display: 'grid', gap: 12 }}>
             {notificationChannelOptions.map((option) => {
               const enabled = preferences.channels[option.key]
@@ -156,8 +200,81 @@ export default function NotificationPreferencesPage() {
               )
             })}
           </div>
-          <p style={{ color: '#94a3b8' }}>Current implementation stores delivery attempts locally. Email/mobile provider credentials are intentionally not required yet.</p>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 14 }}>
+            <button type="button" onClick={enableBrowserPush} style={{ border: '1px solid #38bdf8', borderRadius: 12, padding: '10px 14px', background: '#020617', color: '#bae6fd', fontWeight: 'bold' }}>
+              Enable browser push
+            </button>
+            <a href="/notification-history" style={{ border: '1px solid #f472b6', borderRadius: 12, padding: '10px 14px', color: '#fbcfe8', fontWeight: 'bold' }}>
+              Open history
+            </a>
+          </div>
+          <p style={{ color: '#94a3b8' }}>Browser permission: {diagnostics.browserPermission}. Email/mobile provider credentials are intentionally not required yet.</p>
         </article>
+
+        <article style={{ border: '1px solid #334155', borderRadius: 22, padding: 20, background: '#0f172a' }}>
+          <p style={{ color: '#facc15', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1, marginTop: 0 }}>Frequency controls</p>
+          <h2 style={{ marginTop: 0 }}>Queue behavior</h2>
+          <div style={{ display: 'grid', gap: 12 }}>
+            {notificationFrequencyOptions.map((option) => {
+              const enabled = preferences.frequency === option.key
+              return (
+                <label key={option.key} style={{ border: `1px solid ${enabled ? '#facc15' : '#334155'}`, borderRadius: 14, padding: 14, background: enabled ? 'rgba(250,204,21,0.10)' : '#020617', display: 'grid', gap: 8 }}>
+                  <span style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
+                    <strong style={{ color: enabled ? '#fde68a' : '#cbd5e1' }}>{option.label}</strong>
+                    <input type="radio" name="notification-frequency" checked={enabled} onChange={() => updateFrequency(option.key)} />
+                  </span>
+                  <small style={{ color: '#94a3b8' }}>{option.description}</small>
+                </label>
+              )
+            })}
+          </div>
+          <label style={{ display: 'block', color: '#cbd5e1', marginTop: 14 }}>
+            Browser pushes per hour
+            <input
+              type="number"
+              min="1"
+              max="200"
+              value={preferences.maxPerHour}
+              onChange={(event) => updateMaxPerHour(Number(event.target.value))}
+              style={{ boxSizing: 'border-box', width: '100%', marginTop: 6, padding: 12, borderRadius: 12, border: '1px solid #475569', background: '#020617', color: 'white' }}
+            />
+          </label>
+        </article>
+      </section>
+
+      <section style={{ border: '1px solid #334155', borderRadius: 22, padding: 20, background: '#0f172a', marginTop: 24 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+          <div>
+            <p style={{ color: '#facc15', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1, margin: 0 }}>Notification queue</p>
+            <h2 style={{ margin: '8px 0' }}>Pending delivery work</h2>
+            <p style={{ color: '#94a3b8', margin: 0 }}>Frequency controls hold notifications here before browser/email/mobile delivery attempts.</p>
+          </div>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            <button type="button" onClick={processNow} style={{ border: '1px solid #22c55e', borderRadius: 12, padding: '10px 14px', background: '#020617', color: '#bbf7d0', fontWeight: 'bold' }}>
+              Process now
+            </button>
+            <button type="button" onClick={clearQueue} style={{ border: '1px solid #f87171', borderRadius: 12, padding: '10px 14px', background: '#020617', color: '#fecaca', fontWeight: 'bold' }}>
+              Clear queue
+            </button>
+          </div>
+        </div>
+
+        {queue.length === 0 ? (
+          <article style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#020617', marginTop: 16 }}>
+            <p style={{ color: '#cbd5e1', margin: 0 }}>No queued notifications.</p>
+          </article>
+        ) : (
+          <div style={{ display: 'grid', gap: 12, marginTop: 16 }}>
+            {queue.slice(0, 8).map((item) => (
+              <article key={item.id} style={{ border: '1px solid #facc15', borderRadius: 16, padding: 14, background: '#020617' }}>
+                <strong style={{ color: '#f8fafc' }}>{item.title}</strong>
+                <p style={{ color: '#cbd5e1', margin: '6px 0' }}>{item.body}</p>
+                <small style={{ color: '#94a3b8' }}>{item.eventType} · {item.channels.join(', ')} · next attempt {formatDate(item.nextAttemptAt)}</small>
+                <p style={{ color: '#94a3b8', marginBottom: 0 }}>{item.statusMessage}</p>
+              </article>
+            ))}
+          </div>
+        )}
       </section>
 
       <section style={{ border: '1px solid #334155', borderRadius: 22, padding: 20, background: '#0f172a', marginTop: 24 }}>

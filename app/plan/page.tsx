@@ -164,6 +164,18 @@ type ProviderStatus = {
   detail: string
 }
 
+type ScheduleProviderReadinessStatus = 'Configured' | 'Missing' | 'Limited' | 'Placeholder'
+
+type ScheduleProviderReadiness = {
+  key: string
+  label: string
+  status: ScheduleProviderReadinessStatus
+  whatItCanProvide: string[]
+  whatItCannotProvide: string[]
+  recommendedNextAction: string
+  detail: string
+}
+
 type ApiResponseCounts = {
   supabaseFetched: number
   supabaseMatchedFlights: number
@@ -270,6 +282,7 @@ type ItineraryDebugMetadata = {
   trueLiveDataAvailable?: boolean
   trueLiveDataUnavailableReason?: string
   dataFreshnessMode?: 'live-current-api' | 'stored-supabase' | 'nearest-date-testing' | 'demo-fallback' | 'mvp-test-data'
+  scheduleProviderReadiness?: ScheduleProviderReadiness[]
   safeErrors: string[]
 }
 
@@ -291,6 +304,13 @@ function providerBadgeStyle(label: string) {
   if (label.includes('Aviationstack')) return { border: '#38bdf8', text: '#bae6fd', background: 'rgba(56, 189, 248, 0.12)' }
   if (label.includes('FlightAware')) return { border: '#c084fc', text: '#e9d5ff', background: 'rgba(192, 132, 252, 0.12)' }
   return { border: '#facc15', text: '#fef3c7', background: 'rgba(250, 204, 21, 0.12)' }
+}
+
+function readinessBadgeStyle(status: ScheduleProviderReadinessStatus) {
+  if (status === 'Configured') return { border: '#22c55e', text: '#bbf7d0', background: 'rgba(34, 197, 94, 0.12)' }
+  if (status === 'Limited') return { border: '#38bdf8', text: '#bae6fd', background: 'rgba(56, 189, 248, 0.12)' }
+  if (status === 'Missing') return { border: '#facc15', text: '#fef3c7', background: 'rgba(250, 204, 21, 0.12)' }
+  return { border: '#94a3b8', text: '#cbd5e1', background: 'rgba(148, 163, 184, 0.12)' }
 }
 
 function ProviderBadge({ label }: { label: string }) {
@@ -2110,6 +2130,33 @@ export default function PlanPage() {
                     ? 'Current provider API data is available for this result set.'
                     : itineraryDebug.trueLiveDataUnavailableReason || 'Current provider API data is unavailable for this result set.'}
                 </p>
+              </div>
+            ) : null}
+            {itineraryDebug?.scheduleProviderReadiness?.length ? (
+              <div style={{ marginTop: 12 }}>
+                <strong style={{ color: '#c084fc' }}>Live schedule provider readiness</strong>
+                <p style={{ color: '#94a3b8', margin: '6px 0 0' }}>
+                  Readiness is diagnostic only and does not change the current Supabase-first itinerary search behavior.
+                </p>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 10, marginTop: 10 }}>
+                  {itineraryDebug.scheduleProviderReadiness.map((provider) => {
+                    const colors = readinessBadgeStyle(provider.status)
+                    return (
+                      <article key={provider.key} style={{ border: `1px solid ${colors.border}`, borderRadius: 12, padding: 10, background: '#0f172a' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'flex-start' }}>
+                          <strong style={{ color: '#f8fafc' }}>{provider.label}</strong>
+                          <span style={{ border: `1px solid ${colors.border}`, borderRadius: 999, padding: '4px 9px', color: colors.text, background: colors.background, whiteSpace: 'nowrap', fontSize: 12, fontWeight: 'bold' }}>
+                            {provider.status}
+                          </span>
+                        </div>
+                        <p style={{ color: '#cbd5e1', margin: '8px 0' }}>{provider.detail}</p>
+                        <p style={{ color: '#bbf7d0', margin: '6px 0 0' }}><strong>Can:</strong> {provider.whatItCanProvide.join(', ') || 'None yet'}</p>
+                        <p style={{ color: '#fecaca', margin: '6px 0 0' }}><strong>Cannot:</strong> {provider.whatItCannotProvide.join(', ') || 'No known gaps'}</p>
+                        <p style={{ color: '#fde68a', margin: '6px 0 0' }}><strong>Next:</strong> {provider.recommendedNextAction}</p>
+                      </article>
+                    )
+                  })}
+                </div>
               </div>
             ) : null}
             {itineraryDebug?.apiResponseCounts ? (

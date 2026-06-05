@@ -322,3 +322,132 @@ export const liveScheduleProviderPlaceholders = [
   createCiriumOagScheduleProvider,
   createSupabaseScheduleIngestionProvider
 ]
+
+export type ScheduleProviderReadinessStatus = 'Configured' | 'Missing' | 'Limited' | 'Placeholder'
+
+export type ScheduleProviderReadiness = {
+  key: LiveScheduleProviderKey
+  label: string
+  status: ScheduleProviderReadinessStatus
+  whatItCanProvide: string[]
+  whatItCannotProvide: string[]
+  recommendedNextAction: string
+  detail: string
+}
+
+type ReadinessOverride = {
+  status?: Exclude<ScheduleProviderReadinessStatus, 'Placeholder'>
+  detail?: string
+  recommendedNextAction?: string
+}
+
+type ReadinessOptions = {
+  overrides?: Partial<Record<LiveScheduleProviderKey, ReadinessOverride>>
+  env?: NodeJS.ProcessEnv
+}
+
+function capabilityList(capabilities: LiveScheduleProvider['capabilities']) {
+  const provides: string[] = []
+  const cannotProvide: string[] = []
+  const labels: Array<[keyof LiveScheduleProvider['capabilities'], string]> = [
+    ['futureSchedules', 'future scheduled flights'],
+    ['currentFlightStatus', 'current flight status'],
+    ['routeSearch', 'origin/destination route search'],
+    ['flightNumberEnrichment', 'flight-number enrichment']
+  ]
+
+  labels.forEach(([key, label]) => {
+    if (capabilities[key]) provides.push(label)
+    else cannotProvide.push(label)
+  })
+
+  return { provides, cannotProvide }
+}
+
+function withOverride(base: ScheduleProviderReadiness, override?: ReadinessOverride): ScheduleProviderReadiness {
+  if (!override) return base
+  return {
+    ...base,
+    status: override.status || base.status,
+    detail: override.detail || base.detail,
+    recommendedNextAction: override.recommendedNextAction || base.recommendedNextAction
+  }
+}
+
+export function getLiveScheduleProviderReadiness(options: ReadinessOptions = {}): ScheduleProviderReadiness[] {
+  const env = options.env || process.env
+  const aviationstack = createAviationstackScheduleProvider(env.AVIATIONSTACK_API_KEY)
+  const flightAware = createFlightAwareScheduleProvider()
+  const amadeus = createAmadeusScheduleProvider()
+  const ciriumOag = createCiriumOagScheduleProvider()
+  const supabase = createSupabaseScheduleIngestionProvider()
+  const supabaseConfigured = Boolean((env.SUPABASE_URL || env.NEXT_PUBLIC_SUPABASE_URL) && (env.SUPABASE_SERVICE_ROLE_KEY || env.NEXT_PUBLIC_SUPABASE_ANON_KEY))
+  const aviationstackConfigured = Boolean(env.AVIATIONSTACK_API_KEY)
+  const flightAwareConfigured = Boolean(env.FLIGHTAWARE_API_KEY)
+
+  const supabaseCapabilities = capabilityList(supabase.capabilities)
+  const aviationstackCapabilities = capabilityList(aviationstack.capabilities)
+  const flightAwareCapabilities = capabilityList(flightAware.capabilities)
+  const amadeusCapabilities = capabilityList(amadeus.capabilities)
+  const ciriumOagCapabilities = capabilityList(ciriumOag.capabilities)
+
+  return [
+    withOverride({
+      key: 'supabase-schedule-ingestion',
+      label: supabase.label,
+      status: supabaseConfigured ? 'Configured' : 'Missing',
+      whatItCanProvide: [...supabaseCapabilities.provides, 'stored schedule cache for itinerary search'],
+      whatItCannotProvide: [...supabaseCapabilities.cannotProvide, 'true live current API freshness by itself'],
+      recommendedNextAction: supabaseConfigured
+        ? 'Keep Supabase rows labeled as stored data and add a scheduled ingestion job only after selecting a primary live provider.'
+        : 'Configure Supabase URL/key before enabling schedule ingestion or stored schedule cache reads.',
+      detail: supabaseConfigured
+        ? 'Supabase is configured for stored schedule ingestion/readback; stored rows are not live current API data.'
+        : 'Supabase schedule ingestion is not ready because Supabase environment variables are missing.'
+    }, options.overrides?.['supabase-schedule-ingestion']),
+    withOverride({
+      key: 'aviationstack',
+      label: aviationstack.label,
+      status: aviationstackConfigured ? 'Configured' : 'Missing',
+      whatItCanProvide: aviationstackCapabilities.provides,
+      whatItCannotProvide: [...aviationstackCapabilities.cannotProvide, 'reliable availability when account quota or plan is exhausted'],
+      recommendedNextAction: aviationstackConfigured
+        ? 'Verify Aviationstack quota/plan health and prefer the future-schedules endpoint before promoting it beyond fallback.'
+        : 'Set AVIATIONSTACK_API_KEY only if Aviationstack should remain a fallback schedule source.',
+      detail: aviationstackConfigured
+        ? 'Aviationstack credentials are present and the abstraction can call the existing fallback search safely.'
+        : 'Aviationstack fallback will be skipped because its API key is missing.'
+    }, options.overrides?.aviationstack),
+    withOverride({
+      key: 'flightaware',
+      label: flightAware.label,
+      status: flightAwareConfigured ? 'Configured' : 'Missing',
+      whatItCanProvide: [...flightAwareCapabilities.provides, 'current operational enrichment in existing app code'],
+      whatItCannotProvide: ['full itinerary schedule population until a schedule adapter is implemented and wired'],
+      recommendedNextAction: flightAwareConfigured
+        ? 'Implement the FlightAware schedules adapter as the primary live itinerary provider path.'
+        : 'Set FLIGHTAWARE_API_KEY before wiring FlightAware schedules as the primary live provider.',
+      detail: flightAwareConfigured
+        ? 'FlightAware credentials are present; current code uses AeroAPI enrichment, while schedule search remains an abstraction placeholder.'
+        : 'FlightAware enrichment and future schedule adapter work are blocked until the API key is configured.'
+    }, options.overrides?.flightaware),
+    {
+      key: 'amadeus',
+      label: amadeus.label,
+      status: 'Placeholder',
+      whatItCanProvide: amadeusCapabilities.provides,
+      whatItCannotProvide: [...amadeusCapabilities.cannotProvide, 'production data until credentials, contracts, and an adapter are added'],
+      recommendedNextAction: 'Leave as placeholder unless Amadeus becomes the chosen commercial schedule provider.',
+      detail: 'Amadeus is documented in the provider abstraction but is not wired to any paid API call.'
+    },
+    {
+      key: 'cirium-oag',
+      label: ciriumOag.label,
+      status: 'Placeholder',
+      whatItCanProvide: ciriumOagCapabilities.provides,
+      whatItCannotProvide: [...ciriumOagCapabilities.cannotProvide, 'production data until enterprise access and an adapter are added'],
+      recommendedNextAction: 'Use only after enterprise contract/API details are confirmed; keep FlightAware as the recommended near-term path.',
+      detail: 'Cirium/OAG is represented as an enterprise placeholder and makes no external API requests.'
+    }
+  ]
+}

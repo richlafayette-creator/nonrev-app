@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server'
+import { getLiveScheduleProviderReadiness, type LiveScheduleProviderKey, type ScheduleProviderReadiness } from '../../../lib/liveScheduleProviders'
 
 export const dynamic = 'force-dynamic'
 
 type HealthStatus = 'Connected' | 'Missing' | 'Limited' | 'Error'
+type ProviderReadinessRuntimeStatus = 'Configured' | 'Missing' | 'Limited'
 
 type HealthItem = {
   key: string
@@ -211,6 +213,48 @@ async function checkFlightAware(): Promise<HealthItem> {
   }
 }
 
+function readinessStatusFromHealth(check: HealthItem): ProviderReadinessRuntimeStatus {
+  if (check.status === 'Connected') return 'Configured'
+  if (check.status === 'Missing') return 'Missing'
+  return 'Limited'
+}
+
+function providerReadinessFromChecks(checks: HealthItem[]): ScheduleProviderReadiness[] {
+  const byKey = new Map(checks.map((check) => [check.key, check]))
+  const overrides: Partial<Record<LiveScheduleProviderKey, { status: ProviderReadinessRuntimeStatus; detail: string; recommendedNextAction: string }>> = {}
+
+  const supabase = byKey.get('supabase-flight-data')
+  if (supabase) {
+    overrides['supabase-schedule-ingestion'] = {
+      status: readinessStatusFromHealth(supabase),
+      detail: supabase.detail,
+      recommendedNextAction: supabase.recommendedFix
+    }
+  }
+
+  const aviationstack = byKey.get('aviationstack-fallback')
+  if (aviationstack) {
+    overrides.aviationstack = {
+      status: readinessStatusFromHealth(aviationstack),
+      detail: aviationstack.detail,
+      recommendedNextAction: aviationstack.recommendedFix
+    }
+  }
+
+  const flightAware = byKey.get('flightaware-enrichment')
+  if (flightAware) {
+    overrides.flightaware = {
+      status: readinessStatusFromHealth(flightAware),
+      detail: flightAware.detail,
+      recommendedNextAction: flightAware.recommendedFix === 'No action needed.'
+        ? 'Implement the FlightAware schedules adapter as the primary live itinerary provider path.'
+        : flightAware.recommendedFix
+    }
+  }
+
+  return getLiveScheduleProviderReadiness({ overrides })
+}
+
 async function checkMapbox(): Promise<HealthItem> {
   const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN
   if (!token) {
@@ -268,6 +312,7 @@ export async function GET() {
 
   return NextResponse.json({
     checkedAt: checkedAt(),
-    checks
+    checks,
+    scheduleProviderReadiness: providerReadinessFromChecks(checks)
   })
 }

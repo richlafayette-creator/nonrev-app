@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { airportScaffoldFor } from '../../../../lib/airportMapScaffold'
 import { buildItinerariesFromFlights, closestAvailableFlightDates, flightMatchesRequest, normalizeFlightRouteForDiagnostics, normalizeItineraryRequest, summarizeRouteMatching, type ItineraryResult, type ParsedItineraryRequest, type RouteMatchingSummary } from '../../../../lib/itinerarySearch'
 import { mvpRouteSeedDate, mvpRouteSeedFlightsForRequest } from '../../../../lib/mvpRouteSeedData'
-import { createAviationstackScheduleProvider, scheduleResultsToFlightRecords } from '../../../../lib/liveScheduleProviders'
+import { createAviationstackScheduleProvider, getLiveScheduleProviderReadiness, scheduleResultsToFlightRecords, type ScheduleProviderReadiness } from '../../../../lib/liveScheduleProviders'
 
 export const dynamic = 'force-dynamic'
 
@@ -65,6 +65,7 @@ type ItineraryDebugMetadata = {
   trueLiveDataAvailable: boolean
   trueLiveDataUnavailableReason: string
   dataFreshnessMode: 'live-current-api' | 'stored-supabase' | 'nearest-date-testing' | 'demo-fallback' | 'mvp-test-data'
+  scheduleProviderReadiness: ScheduleProviderReadiness[]
   safeErrors: string[]
 }
 
@@ -684,6 +685,7 @@ function buildDebugMetadata({
     trueLiveDataAvailable,
     trueLiveDataUnavailableReason,
     dataFreshnessMode,
+    scheduleProviderReadiness: getLiveScheduleProviderReadiness(),
     safeErrors
   }
 }

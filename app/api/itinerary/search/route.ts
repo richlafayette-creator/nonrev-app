@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { airportScaffoldFor } from '../../../../lib/airportMapScaffold'
 import { buildItinerariesFromFlights, closestAvailableFlightDates, flightMatchesRequest, normalizeFlightRouteForDiagnostics, normalizeItineraryRequest, summarizeRouteMatching, type ItineraryResult, type ParsedItineraryRequest, type RouteMatchingSummary } from '../../../../lib/itinerarySearch'
 import { mvpRouteSeedDate, mvpRouteSeedFlightsForRequest } from '../../../../lib/mvpRouteSeedData'
+import { createAviationstackScheduleProvider, scheduleResultsToFlightRecords } from '../../../../lib/liveScheduleProviders'
 
 export const dynamic = 'force-dynamic'
 
@@ -567,53 +568,19 @@ async function enrichWithFlightAware(flights: FlightRecord[]) {
 }
 
 async function fetchAviationstackFlights(request: ReturnType<typeof normalizeItineraryRequest>) {
-  const apiKey = process.env.AVIATIONSTACK_API_KEY
-  if (!apiKey) {
-    return {
-      flights: [] as FlightRecord[],
-      warning: 'Aviationstack API key missing; fallback search skipped safely',
-      requestCount: 0
-    }
-  }
-
-  const carrierCodes = aviationstackCarrierCodes(request.carrier)
-  const warnings: string[] = []
-  const flights: FlightRecord[] = []
-
-  await Promise.all(carrierCodes.map(async (carrierCode) => {
-    const params = new URLSearchParams({
-      access_key: apiKey,
-      limit: '50'
-    })
-    if (request.origin) params.set('dep_iata', request.origin)
-    if (request.destination) params.set('arr_iata', request.destination)
-    if (request.date) params.set('flight_date', request.date)
-    if (carrierCode) params.set('airline_iata', carrierCode)
-
-    try {
-      const { response, data } = await fetchJsonWithTimeout(`https://api.aviationstack.com/v1/flights?${params.toString()}`)
-
-      if (!response.ok || data?.error) {
-        const status = response.status || 400
-        const rawMessage = safeMessage(data?.error?.message || data?.error?.code || `Aviationstack request failed with ${status}`)
-        warnings.push(safeProviderMessage('Aviationstack', status, rawMessage))
-        return
-      }
-
-      if (Array.isArray(data?.data)) {
-        flights.push(...data.data.map(normalizeAviationstackFlight))
-      } else {
-        warnings.push('Aviationstack returned an unexpected payload; no fallback flights were used')
-      }
-    } catch {
-      warnings.push('Aviationstack request failed; fallback provider skipped safely')
-    }
-  }))
+  const provider = createAviationstackScheduleProvider()
+  const response = await provider.searchSchedules({
+    origin: request.origin,
+    destination: request.destination,
+    date: request.date,
+    carrier: request.carrier,
+    maxResults: 50
+  })
 
   return {
-    flights: uniqueFlights(flights),
-    warning: warnings.length ? uniqueMessages(warnings).join(' · ') : undefined,
-    requestCount: carrierCodes.length
+    flights: uniqueFlights(scheduleResultsToFlightRecords(response.results)),
+    warning: response.warning,
+    requestCount: response.requestCount
   }
 }
 

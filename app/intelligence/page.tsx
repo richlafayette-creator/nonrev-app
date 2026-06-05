@@ -8,7 +8,7 @@ import {
   type SupportedCarrierValue
 } from '../../lib/carrierScope'
 import { historicalRoutes, routesForCarrier, type HistoricalRoute } from '../../lib/historicalRoutes'
-import { loadLoadReports, type LoadReport } from '../../lib/loadReports'
+import { loadLoadReports, loadReportSignal, type LoadReport } from '../../lib/loadReports'
 import { buildDisruptionIntelligence } from '../../lib/disruptionIntelligence'
 import { buildRouteAirportIntelligence, connectionRiskColor, type RouteAirportIntelligence } from '../../lib/airportIntelligence'
 import { calculateRouteConfidence, confidenceBadgeColor, confidenceTrendColor, confidenceUpdateTriggerLabel, type ConfidenceBadge, type ConfidenceTrend, type RouteConfidence } from '../../lib/routeConfidence'
@@ -86,15 +86,6 @@ function recentSignalScore(values: string[]) {
     if (age <= 14) return total + 4
     return total
   }, 0)
-}
-
-function loadReportSignal(report: LoadReport) {
-  const weight = report.trustedWeight || 1
-  if (report.loadStatus === 'Seats open') return 5 * weight
-  if (report.loadStatus === 'Looks workable') return 3 * weight
-  if (report.loadStatus === 'Tight') return -3 * weight
-  if (report.loadStatus === 'Full') return -7 * weight
-  return 0
 }
 
 function outcomeSuccessCount(outcomes: TripOutcome[]) {

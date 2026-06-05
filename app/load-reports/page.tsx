@@ -3,10 +3,12 @@
 import { type FormEvent, useEffect, useMemo, useState } from 'react'
 import {
   loadLoadReports,
+  loadReportConfidenceOptions,
   loadReportStats,
   loadStatusOptions,
   saveLoadReport,
   type LoadReport,
+  type LoadReportConfidenceLevel,
   type LoadStatus
 } from '../../lib/loadReports'
 import { calculateTrustScore } from '../../lib/reputation'
@@ -22,10 +24,14 @@ function statusColor(status: LoadStatus) {
 }
 
 export default function LoadReportsPage() {
-  const [carrier, setCarrier] = useState('United')
+  const [airline, setAirline] = useState('United')
   const [flightNumber, setFlightNumber] = useState('')
-  const [route, setRoute] = useState('')
+  const [origin, setOrigin] = useState('')
+  const [destination, setDestination] = useState('')
   const [date, setDate] = useState('')
+  const [seatsAvailableEstimate, setSeatsAvailableEstimate] = useState('')
+  const [standbysClearedEstimate, setStandbysClearedEstimate] = useState('')
+  const [confidenceLevel, setConfidenceLevel] = useState<LoadReportConfidenceLevel>('Medium')
   const [loadStatus, setLoadStatus] = useState<LoadStatus>('Looks workable')
   const [notes, setNotes] = useState('')
   const [reports, setReports] = useState<LoadReport[]>([])
@@ -53,26 +59,35 @@ export default function LoadReportsPage() {
 
   const stats = useMemo(() => loadReportStats(reports), [reports])
   const trust = useMemo(() => calculateTrustScore(outcomes, stats.verifiedReportsCount), [outcomes, stats.verifiedReportsCount])
-  const recentReports = reports.slice(0, 12)
+  const recentReports = reports.slice(0, 6)
+  const reportHistory = reports.slice(0, 40)
 
   function submitLoadReport(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const savedReport = saveLoadReport({
-      carrier: carrier.trim() || 'Unknown carrier',
+      airline: airline.trim() || 'Unknown airline',
       flightNumber: flightNumber.trim().toUpperCase() || 'TBD',
-      route: route.trim().toUpperCase() || 'Route TBD',
+      origin: origin.trim().toUpperCase(),
+      destination: destination.trim().toUpperCase(),
       date: date || 'Date TBD',
       loadStatus,
+      seatsAvailableEstimate: seatsAvailableEstimate === '' ? null : Number(seatsAvailableEstimate),
+      standbysClearedEstimate: standbysClearedEstimate === '' ? null : Number(standbysClearedEstimate),
+      confidenceLevel,
       notes: notes.trim(),
       contributorTrustScore: trust.trustScore
     })
 
     if (savedReport) {
       setReports(loadLoadReports())
-      setSaveStatus(`Saved local verification for ${savedReport.flightNumber} with ${savedReport.trustedWeight}x placeholder trust weight.`)
+      setSaveStatus(`Saved structured report for ${savedReport.flightNumber} with ${savedReport.reportTrustScore}/100 report trust and ${savedReport.recencyWeight} recency weight.`)
       setFlightNumber('')
-      setRoute('')
+      setOrigin('')
+      setDestination('')
       setDate('')
+      setSeatsAvailableEstimate('')
+      setStandbysClearedEstimate('')
+      setConfidenceLevel('Medium')
       setNotes('')
     }
   }
@@ -102,6 +117,8 @@ export default function LoadReportsPage() {
             ['Recent Reports', stats.totalReports, '#38bdf8'],
             ['Verified Reports Count', stats.verifiedReportsCount, '#22c55e'],
             ['Contributor Trust Score', `${trust.trustScore}/100`, '#facc15'],
+            ['Avg Report Trust', `${stats.averageReportTrustScore}/100`, '#34d399'],
+            ['Recency Weight', `${stats.averageRecencyWeight}x avg`, '#38bdf8'],
             ['Trusted Weighting Signal', `${stats.trustedSignal}x`, '#c084fc']
           ].map(([label, value, color]) => (
             <article key={label} className="mini-card" style={{ border: '1px solid #334155', borderRadius: 18, padding: 18, background: '#0f172a' }}>
@@ -115,10 +132,10 @@ export default function LoadReportsPage() {
           <form onSubmit={submitLoadReport} style={{ border: '1px solid #334155', borderRadius: 22, padding: 22, background: '#0f172a' }}>
             <h2 style={{ marginTop: 0 }}>Submit load report</h2>
             <label style={{ display: 'block', color: '#cbd5e1', marginBottom: 12 }}>
-              Carrier
+              Airline
               <select
-                value={carrier}
-                onChange={(event) => setCarrier(event.target.value)}
+                value={airline}
+                onChange={(event) => setAirline(event.target.value)}
                 style={{ boxSizing: 'border-box', width: '100%', marginTop: 6, padding: 12, borderRadius: 12, border: '1px solid #475569', background: '#020617', color: 'white' }}
               >
                 <option>United</option>
@@ -137,11 +154,22 @@ export default function LoadReportsPage() {
               />
             </label>
             <label style={{ display: 'block', color: '#cbd5e1', marginBottom: 12 }}>
-              Route
+              Origin
               <input
-                value={route}
-                onChange={(event) => setRoute(event.target.value.toUpperCase())}
-                placeholder="LAX → DEN"
+                value={origin}
+                onChange={(event) => setOrigin(event.target.value.toUpperCase())}
+                placeholder="LAX"
+                maxLength={3}
+                style={{ boxSizing: 'border-box', width: '100%', marginTop: 6, padding: 12, borderRadius: 12, border: '1px solid #475569', background: '#020617', color: 'white' }}
+              />
+            </label>
+            <label style={{ display: 'block', color: '#cbd5e1', marginBottom: 12 }}>
+              Destination
+              <input
+                value={destination}
+                onChange={(event) => setDestination(event.target.value.toUpperCase())}
+                placeholder="DEN"
+                maxLength={3}
                 style={{ boxSizing: 'border-box', width: '100%', marginTop: 6, padding: 12, borderRadius: 12, border: '1px solid #475569', background: '#020617', color: 'white' }}
               />
             </label>
@@ -153,6 +181,40 @@ export default function LoadReportsPage() {
                 onChange={(event) => setDate(event.target.value)}
                 style={{ boxSizing: 'border-box', width: '100%', marginTop: 6, padding: 12, borderRadius: 12, border: '1px solid #475569', background: '#020617', color: 'white' }}
               />
+            </label>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12 }}>
+              <label style={{ display: 'block', color: '#cbd5e1', marginBottom: 12 }}>
+                Seats available estimate
+                <input
+                  type="number"
+                  min="0"
+                  value={seatsAvailableEstimate}
+                  onChange={(event) => setSeatsAvailableEstimate(event.target.value)}
+                  placeholder="8"
+                  style={{ boxSizing: 'border-box', width: '100%', marginTop: 6, padding: 12, borderRadius: 12, border: '1px solid #475569', background: '#020617', color: 'white' }}
+                />
+              </label>
+              <label style={{ display: 'block', color: '#cbd5e1', marginBottom: 12 }}>
+                Standbys cleared estimate
+                <input
+                  type="number"
+                  min="0"
+                  value={standbysClearedEstimate}
+                  onChange={(event) => setStandbysClearedEstimate(event.target.value)}
+                  placeholder="3"
+                  style={{ boxSizing: 'border-box', width: '100%', marginTop: 6, padding: 12, borderRadius: 12, border: '1px solid #475569', background: '#020617', color: 'white' }}
+                />
+              </label>
+            </div>
+            <label style={{ display: 'block', color: '#cbd5e1', marginBottom: 12 }}>
+              Confidence level
+              <select
+                value={confidenceLevel}
+                onChange={(event) => setConfidenceLevel(event.target.value as LoadReportConfidenceLevel)}
+                style={{ boxSizing: 'border-box', width: '100%', marginTop: 6, padding: 12, borderRadius: 12, border: '1px solid #475569', background: '#020617', color: 'white' }}
+              >
+                {loadReportConfidenceOptions.map((level) => <option key={level}>{level}</option>)}
+              </select>
             </label>
             <label style={{ display: 'block', color: '#cbd5e1', marginBottom: 12 }}>
               Load Status
@@ -188,7 +250,7 @@ export default function LoadReportsPage() {
             <div style={{ display: 'grid', gap: 12 }}>
               {[
                 ['Community Contribution Level', trust.communityContributionLevel],
-                ['Weighted contributor rule', 'New 1.0x · Trusted 1.25x · Elite 1.5x'],
+                ['Weighted contributor rule', 'New 1.0x · Trusted 1.25x · Elite 1.5x, then confidence and recency weighted'],
                 ['Traveler profile', `${profile?.employeeAirline || 'Profile pending'} · ${profile?.travelerType || 'Traveler pending'}`],
                 ['Home airport', profile?.homeAirport || 'Profile pending']
               ].map(([label, value]) => (
@@ -220,18 +282,55 @@ export default function LoadReportsPage() {
               <article key={report.id} className="flight-card" style={{ border: '1px solid #334155', borderRadius: 18, padding: 18, background: '#0f172a' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
                   <div>
-                    <h3 style={{ margin: 0 }}>{report.carrier} {report.flightNumber}</h3>
-                    <p style={{ color: '#38bdf8', fontWeight: 'bold', margin: '6px 0' }}>{report.route}</p>
+                    <h3 style={{ margin: 0 }}>{report.airline || report.carrier} {report.flightNumber}</h3>
+                    <p style={{ color: '#38bdf8', fontWeight: 'bold', margin: '6px 0' }}>{report.origin || '???'} → {report.destination || '???'}</p>
                     <small style={{ color: '#94a3b8' }}>{report.date} · {new Date(report.createdAt).toLocaleString()}</small>
                   </div>
                   <div style={{ textAlign: 'right' }}>
                     <strong style={{ color: statusColor(report.loadStatus) }}>{report.loadStatus}</strong>
-                    <p style={{ color: '#94a3b8', margin: '6px 0 0' }}>{report.trustedWeight}x trust weight</p>
+                    <p style={{ color: '#94a3b8', margin: '6px 0 0' }}>{report.reportTrustScore}/100 report trust · {report.recencyWeight}x recency</p>
                   </div>
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
+                  <span style={{ border: '1px solid #334155', borderRadius: 999, padding: '4px 8px', color: '#cbd5e1' }}>Seats est: {report.seatsAvailableEstimate ?? 'unknown'}</span>
+                  <span style={{ border: '1px solid #334155', borderRadius: 999, padding: '4px 8px', color: '#cbd5e1' }}>Standbys cleared est: {report.standbysClearedEstimate ?? 'unknown'}</span>
+                  <span style={{ border: '1px solid #334155', borderRadius: 999, padding: '4px 8px', color: '#cbd5e1' }}>{report.confidenceLevel} confidence</span>
                 </div>
                 {report.notes && <p style={{ color: '#cbd5e1', marginBottom: 0 }}>{report.notes}</p>}
               </article>
             ))}
+          </div>
+        </section>
+
+        <section style={{ marginTop: 30, border: '1px solid #334155', borderRadius: 22, padding: 22, background: '#0f172a' }}>
+          <h2 style={{ marginTop: 0 }}>Report History</h2>
+          <p style={{ color: '#94a3b8' }}>Structured local history used by route confidence, success probability, and route ranking. Most recent and highest-trust reports carry more weight.</p>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 820 }}>
+              <thead>
+                <tr style={{ color: '#94a3b8', textAlign: 'left' }}>
+                  {['Flight', 'Date', 'Route', 'Seats', 'Cleared', 'Confidence', 'Report Trust', 'Recency', 'Submitted'].map((heading) => (
+                    <th key={heading} style={{ borderBottom: '1px solid #334155', padding: '10px 8px' }}>{heading}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {reportHistory.map((report) => (
+                  <tr key={`history-${report.id}`} style={{ color: '#e2e8f0' }}>
+                    <td style={{ borderBottom: '1px solid #1e293b', padding: '10px 8px' }}>{report.airline || report.carrier} {report.flightNumber}</td>
+                    <td style={{ borderBottom: '1px solid #1e293b', padding: '10px 8px' }}>{report.date}</td>
+                    <td style={{ borderBottom: '1px solid #1e293b', padding: '10px 8px' }}>{report.origin || '???'} → {report.destination || '???'}</td>
+                    <td style={{ borderBottom: '1px solid #1e293b', padding: '10px 8px' }}>{report.seatsAvailableEstimate ?? 'unknown'}</td>
+                    <td style={{ borderBottom: '1px solid #1e293b', padding: '10px 8px' }}>{report.standbysClearedEstimate ?? 'unknown'}</td>
+                    <td style={{ borderBottom: '1px solid #1e293b', padding: '10px 8px' }}>{report.confidenceLevel}</td>
+                    <td style={{ borderBottom: '1px solid #1e293b', padding: '10px 8px' }}>{report.reportTrustScore}/100</td>
+                    <td style={{ borderBottom: '1px solid #1e293b', padding: '10px 8px' }}>{report.recencyWeight}x</td>
+                    <td style={{ borderBottom: '1px solid #1e293b', padding: '10px 8px' }}>{new Date(report.createdAt).toLocaleString()}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {!reportHistory.length && <p style={{ color: '#cbd5e1' }}>No report history yet.</p>}
           </div>
         </section>
       </section>

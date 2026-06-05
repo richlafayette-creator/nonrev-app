@@ -3,7 +3,7 @@
 import { type FormEvent, useEffect, useMemo, useState } from 'react'
 import { removeTripWatch, loadSavedTripWatchlist, saveTripWatch, type SavedTripWatch } from '../../lib/watchlist'
 import { loadSavedItineraryComparisons, type SavedItineraryComparison } from '../../lib/savedItineraryComparisons'
-import { loadLoadReports, type LoadReport } from '../../lib/loadReports'
+import { loadLoadReports, loadReportSignal, type LoadReport } from '../../lib/loadReports'
 import { buildDisruptionIntelligence } from '../../lib/disruptionIntelligence'
 import { calculateRouteConfidence, confidenceBadgeColor, confidenceTrendColor, confidenceUpdateTriggerLabel, type ConfidenceUpdateTrigger, type RouteConfidence } from '../../lib/routeConfidence'
 import { defaultTravelerProfile, loadTravelerProfileFromStorage, type TravelerProfileScaffold } from '../../lib/travelerProfile'
@@ -43,15 +43,6 @@ function routeMatchesRoute(reportOrOutcomeRoute: string, selectedRoute: string) 
   const normalizedSource = normalizeRoute(reportOrOutcomeRoute)
   const normalizedSelected = normalizeRoute(selectedRoute)
   return normalizedSource === normalizedSelected || normalizedSelected.includes(normalizedSource) || normalizedSource.includes(normalizedSelected)
-}
-
-function loadReportSignal(report: LoadReport) {
-  const weight = report.trustedWeight || 1
-  if (report.loadStatus === 'Seats open') return 5 * weight
-  if (report.loadStatus === 'Looks workable') return 3 * weight
-  if (report.loadStatus === 'Tight') return -3 * weight
-  if (report.loadStatus === 'Full') return -7 * weight
-  return 0
 }
 
 function outcomeSuccessRate(outcomes: TripOutcome[], fallback: number) {

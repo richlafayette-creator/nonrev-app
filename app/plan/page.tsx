@@ -10,7 +10,7 @@ import { generateAiTripPlan, parseTripPlannerPrompt } from '../../lib/aiTripPlan
 import { carrierScoringProfiles, getCarrierScoringScaffold, normalizeCarrierFamily, supportedCarrierOptions } from '../../lib/carrierScope'
 import { historicalRouteStats, type HistoricalRoute } from '../../lib/historicalRoutes'
 import { parseItineraryPrompt } from '../../lib/itinerarySearch'
-import { loadLoadReports, type LoadReport } from '../../lib/loadReports'
+import { effectiveLoadReportWeight, loadLoadReports, loadReportSignal, loadReportSummary, type LoadReport } from '../../lib/loadReports'
 import { calculatePredictionEngine } from '../../lib/predictionEngine'
 import { buildDisruptionIntelligence, routeHealthColor, type DisruptionIntelligence } from '../../lib/disruptionIntelligence'
 import { calculateRouteConfidence, confidenceBadgeColor, confidenceTrendColor, confidenceUpdateTriggerLabel, type ConfidenceTrend, type ConfidenceUpdateTrigger, type RouteConfidence } from '../../lib/routeConfidence'
@@ -349,6 +349,8 @@ type ItineraryComparison = {
   routeConfidence: RouteConfidence
   weatherRisk: WeatherRisk
   airportIntelligence: RouteAirportIntelligence
+  communityReports: LoadReport[]
+  communityReportSummary: string
   why: string[]
   explanation: ScoringExplanation
 }
@@ -438,14 +440,14 @@ function matchingRouteOutcomes(route: string, outcomes: TripOutcome[]) {
 }
 
 function loadReportAdjustment(reports: LoadReport[]) {
-  return reports.reduce((total, report) => {
-    const weight = report.trustedWeight || 1
-    if (report.loadStatus === 'Seats open') return total + 3 * weight
-    if (report.loadStatus === 'Looks workable') return total + 1.5 * weight
-    if (report.loadStatus === 'Tight') return total - 2 * weight
-    if (report.loadStatus === 'Full') return total - 5 * weight
-    return total
-  }, 0)
+  return reports.reduce((total, report) => total + loadReportSignal(report), 0)
+}
+
+function reportTrustAndRecencySummary(reports: LoadReport[]) {
+  if (!reports.length) return 'No community report trust/recency signal yet.'
+  const averageTrust = Math.round(reports.reduce((total, report) => total + report.reportTrustScore, 0) / reports.length)
+  const averageRecency = Number((reports.reduce((total, report) => total + effectiveLoadReportWeight(report), 0) / reports.length).toFixed(2))
+  return `${reports.length} report${reports.length === 1 ? '' : 's'} · avg report trust ${averageTrust}/100 · avg effective weight ${averageRecency}x`
 }
 
 function outcomeSuccessRate(outcomes: TripOutcome[]) {
@@ -505,12 +507,12 @@ function buildScoringExplanation(input: ScoringExplanationInput): ScoringExplana
     ],
     communityIntelligenceFactors: [
       input.routeReports.length
-        ? `${input.routeReports.length} matching community load report${input.routeReports.length === 1 ? '' : 's'} create a ${loadDirection} ${input.loadAdjustment >= 0 ? '+' : ''}${input.loadAdjustment.toFixed(1)} point load signal.`
+        ? `${input.routeReports.length} matching structured community load report${input.routeReports.length === 1 ? '' : 's'} create a ${loadDirection} ${input.loadAdjustment >= 0 ? '+' : ''}${input.loadAdjustment.toFixed(1)} point trust/recency-weighted load signal. ${reportTrustAndRecencySummary(input.routeReports)}.`
         : 'No matching community load reports yet; route keeps the neutral community-load assumption.',
       input.routeOutcomes.length
         ? `${input.routeOutcomes.length} saved outcome${input.routeOutcomes.length === 1 ? '' : 's'} calibrate this route at ${input.outcomeRate}% success.`
         : 'No saved outcomes for this exact route yet; community outcome calibration remains neutral.',
-      'Community intelligence remains local/static in this scaffold and is ready for future realtime load/outcome signals.'
+      'Community intelligence remains local/static in this scaffold and now includes structured seats, cleared standby estimates, confidence level, report trust, and recency weighting.'
     ],
     disruptionFactors: [
       `Route health is ${input.disruption.routeHealth} with disruption impact score ${input.disruption.disruptionImpactScore}/99.`,
@@ -539,7 +541,7 @@ function buildScoringExplanation(input: ScoringExplanationInput): ScoringExplana
       'Live/source route score: about 24–52% depending on data source.',
       'Probability engine baseline: about 34–36% of success probability.',
       'Historical success and score: about 34% combined before adjustments.',
-      'Community load reports: capped between -8 and +8 points.',
+      'Community load reports: seats/standbys, confidence, contributor trust, and recency are weighted, then capped between -8 and +8 points.',
       'Flight disruption intelligence: delays, cancellations, diversions, and airport alerts can reduce probability and ranking after the base score.',
       'Weather intelligence layer: weather risk can reduce success probability and route ranking through live or placeholder provider signals.',
       'Route confidence engine: success probability, historical route data, community reports, traveler profile, disruption, and weather are blended into a 0–100 confidence score.',
@@ -740,6 +742,8 @@ function buildLiveItineraryComparison(
     routeConfidence,
     weatherRisk,
     airportIntelligence,
+    communityReports: routeReports,
+    communityReportSummary: reportTrustAndRecencySummary(routeReports),
     why: [
       `Blends provider itinerary score ${itinerary.score}/100 with probability engine baseline ${predictionEngine.successProbability}%.`,
       `Route confidence engine scores this option ${routeConfidence.score}/100 (${routeConfidence.badge}) with a ${routeConfidence.trend} trend.`,
@@ -750,7 +754,7 @@ function buildLiveItineraryComparison(
         ? `Historical route match ${historicalRoute.route} contributes ${historicalRoute.successRate}% success and ${historicalRoute.reportCount} reports.`
         : `Carrier historical scaffold contributes ${predictionEngine.inputSummary.historicalSuccessRate}% average success.` ,
       routeReports.length
-        ? `${routeReports.length} community load report${routeReports.length === 1 ? '' : 's'} add a ${loadAdjustment >= 0 ? '+' : ''}${loadAdjustment.toFixed(1)} weighted load signal.`
+        ? `${routeReports.length} structured community load report${routeReports.length === 1 ? '' : 's'} add a ${loadAdjustment >= 0 ? '+' : ''}${loadAdjustment.toFixed(1)} trust/recency-weighted load signal.`
         : 'No matching community load reports yet, so the comparison keeps the route-neutral load assumption.',
       routeOutcomes.length
         ? `${routeOutcomes.length} saved outcome${routeOutcomes.length === 1 ? '' : 's'} calibrate this route at ${outcomeRate}% success.`
@@ -859,6 +863,8 @@ function buildFallbackItineraryComparison(
     routeConfidence,
     weatherRisk,
     airportIntelligence,
+    communityReports: routeReports,
+    communityReportSummary: reportTrustAndRecencySummary(routeReports),
     why: [
       `Combines fallback ranking ${itinerary.ranking.score}/100 with probability engine baseline ${predictionEngine.successProbability}%.`,
       `Route confidence engine scores this option ${routeConfidence.score}/100 (${routeConfidence.badge}) with a ${routeConfidence.trend} trend.`,
@@ -869,7 +875,7 @@ function buildFallbackItineraryComparison(
         ? `Historical route match ${historicalRoute.route} contributes ${historicalRoute.successRate}% success and ${historicalRoute.reportCount} reports.`
         : `Historical carrier scaffold contributes ${predictionEngine.inputSummary.historicalSuccessRate}% average success.`,
       routeReports.length
-        ? `${routeReports.length} community load report${routeReports.length === 1 ? '' : 's'} add a ${loadAdjustment >= 0 ? '+' : ''}${loadAdjustment.toFixed(1)} weighted load signal.`
+        ? `${routeReports.length} structured community load report${routeReports.length === 1 ? '' : 's'} add a ${loadAdjustment >= 0 ? '+' : ''}${loadAdjustment.toFixed(1)} trust/recency-weighted load signal.`
         : 'No matching community load reports yet; use this as planning guidance only.',
       routeOutcomes.length
         ? `${routeOutcomes.length} saved outcome${routeOutcomes.length === 1 ? '' : 's'} calibrate this route at ${outcomeRate}% success.`
@@ -1428,6 +1434,26 @@ function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: It
                 ))}
               </div>
               <p style={{ color: '#cbd5e1', margin: '12px 0 0' }}>{comparison.routeConfidence.updateExplanation}</p>
+
+              <section style={{ border: '1px solid #334155', borderRadius: 14, padding: 12, background: '#020617', marginTop: 12 }}>
+                <strong style={{ color: '#facc15' }}>Community load reports</strong>
+                <p style={{ color: '#94a3b8', margin: '6px 0 0' }}>{comparison.communityReportSummary}</p>
+                {comparison.communityReports.length ? (
+                  <div style={{ display: 'grid', gap: 8, marginTop: 10 }}>
+                    {comparison.communityReports.slice(0, 3).map((report) => (
+                      <article key={`${comparison.id}-${report.id}`} style={{ border: '1px solid #1e293b', borderRadius: 12, padding: 10, background: '#0f172a' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
+                          <strong style={{ color: '#f8fafc' }}>{report.airline || report.carrier} {report.flightNumber}</strong>
+                          <span style={{ color: '#fde68a' }}>{report.reportTrustScore}/100 trust · {report.recencyWeight}x recency</span>
+                        </div>
+                        <p style={{ color: '#cbd5e1', margin: '6px 0 0' }}>{loadReportSummary(report)}</p>
+                      </article>
+                    ))}
+                  </div>
+                ) : (
+                  <p style={{ color: '#64748b', margin: '8px 0 0' }}>Submit a matching report in Load Reports to influence ranking.</p>
+                )}
+              </section>
 
               <RouteAirportDetails route={comparison.route} />
               <ScoringExplanationDetails comparison={comparison} backup={comparisons[index + 1] || comparisons.find((item) => item.id !== comparison.id)} />

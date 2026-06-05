@@ -12,6 +12,7 @@ import {
   notificationEventOptions,
   notificationFrequencyOptions,
   processNotificationQueue,
+  registerBrowserPushSubscription,
   requestBrowserPushPermission,
   saveNotificationPreferences,
   type NotificationChannel,
@@ -21,9 +22,10 @@ import {
   type NotificationPreferences,
   type NotificationQueueRecord
 } from '../../lib/notificationDelivery'
+import { runNotificationEngine } from '../../lib/notificationEngine'
 
 function statusColor(status: string) {
-  if (status === 'sent-browser') return '#22c55e'
+  if (status === 'sent-browser' || status === 'sent-service-worker') return '#22c55e'
   if (status === 'stored-local' || status === 'placeholder') return '#38bdf8'
   if (status === 'blocked-by-preference' || status === 'queued-by-frequency' || status === 'browser-permission-blocked') return '#facc15'
   return '#f87171'
@@ -45,7 +47,7 @@ export default function NotificationPreferencesPage() {
 
   function refresh() {
     setPreferences(loadNotificationPreferences())
-    processNotificationQueue()
+    runNotificationEngine()
     setDeliveries(loadNotificationDeliveries())
     setQueue(loadNotificationQueue())
   }
@@ -102,7 +104,8 @@ export default function NotificationPreferencesPage() {
 
   async function enableBrowserPush() {
     const permission = await requestBrowserPushPermission()
-    setStatus(`Browser push permission: ${permission}.`)
+    const subscription = await registerBrowserPushSubscription()
+    setStatus(`Browser push permission: ${permission}. ${subscription?.statusMessage || ''}`)
     refresh()
   }
 
@@ -129,6 +132,7 @@ export default function NotificationPreferencesPage() {
         <a href="/plan" style={{ marginRight: 16, color: '#fb7185' }}>Plan</a>
         <a href="/watchlist" style={{ marginRight: 16, color: '#facc15' }}>Watchlist</a>
         <a href="/notifications" style={{ marginRight: 16, color: '#f472b6' }}>Notifications</a>
+        <a href="/notification-diagnostics" style={{ marginRight: 16, color: '#38bdf8' }}>Diagnostics</a>
         <a href="/alerts" style={{ marginRight: 16, color: '#22c55e' }}>Alerts</a>
         <a href="/data-health" style={{ color: '#c084fc' }}>Data Health</a>
       </nav>
@@ -138,7 +142,7 @@ export default function NotificationPreferencesPage() {
           <p style={{ color: '#f472b6', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1, marginTop: 0 }}>Push notification framework</p>
           <h1 style={{ fontSize: 44, margin: '8px 0 12px' }}>Notification Preferences</h1>
           <p style={{ color: '#94a3b8', fontSize: 18, maxWidth: 860 }}>
-            Notification engine controls for alert types, queueing frequency, and delivery channels. Browser push uses the Notification API when permission is granted; email and mobile push remain safe provider placeholders.
+            Notification engine controls for alert types, queueing frequency, and delivery channels. Browser push uses the service worker and Notification API when permission is granted; email and mobile push remain safe provider placeholders.
           </p>
           <p style={{ color: '#cbd5e1' }}>{status}</p>
         </div>
@@ -208,7 +212,7 @@ export default function NotificationPreferencesPage() {
               Open history
             </a>
           </div>
-          <p style={{ color: '#94a3b8' }}>Browser permission: {diagnostics.browserPermission}. Email/mobile provider credentials are intentionally not required yet.</p>
+          <p style={{ color: '#94a3b8' }}>Browser permission: {diagnostics.browserPermission}. Push subscription: {diagnostics.browserPushSubscription?.status || 'not registered'}. Email/mobile provider credentials are intentionally not required yet.</p>
         </article>
 
         <article style={{ border: '1px solid #334155', borderRadius: 22, padding: 20, background: '#0f172a' }}>

@@ -15,6 +15,7 @@ const navItems = [
   ['Load Reports', '/load-reports'],
   ['Notifications', '/notifications'],
   ['Notification History', '/notification-history'],
+  ['Notification Diagnostics', '/notification-diagnostics'],
   ['Alerts', '/alerts'],
   ['Reminders', '/reminders'],
   ['Agent', '/agent'],

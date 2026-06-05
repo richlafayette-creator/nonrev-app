@@ -3,12 +3,15 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
   loadNotificationDeliveries,
+  loadNotificationEngineRuns,
   loadNotificationQueue,
   notificationDiagnostics,
   processNotificationQueue,
   type NotificationDeliveryRecord,
+  type NotificationEngineRunRecord,
   type NotificationQueueRecord
 } from '../../lib/notificationDelivery'
+import { runNotificationEngine } from '../../lib/notificationEngine'
 
 function formatDate(value: string) {
   try {
@@ -19,7 +22,7 @@ function formatDate(value: string) {
 }
 
 function statusColor(status: string) {
-  if (status === 'sent-browser') return '#22c55e'
+  if (status === 'sent-browser' || status === 'sent-service-worker') return '#22c55e'
   if (status === 'placeholder' || status === 'stored-local') return '#38bdf8'
   if (status === 'queued-by-frequency' || status === 'browser-permission-blocked') return '#facc15'
   return '#f87171'
@@ -28,12 +31,14 @@ function statusColor(status: string) {
 export default function NotificationHistoryPage() {
   const [deliveries, setDeliveries] = useState<NotificationDeliveryRecord[]>([])
   const [queue, setQueue] = useState<NotificationQueueRecord[]>([])
+  const [engineRuns, setEngineRuns] = useState<NotificationEngineRunRecord[]>([])
   const [filter, setFilter] = useState('all')
 
   function refresh() {
-    processNotificationQueue()
+    runNotificationEngine()
     setDeliveries(loadNotificationDeliveries())
     setQueue(loadNotificationQueue())
+    setEngineRuns(loadNotificationEngineRuns())
   }
 
   useEffect(() => {
@@ -60,6 +65,7 @@ export default function NotificationHistoryPage() {
         <a href="/" style={{ marginRight: 16, color: '#38bdf8' }}>Flights</a>
         <a href="/notifications" style={{ marginRight: 16, color: '#f472b6' }}>Notifications</a>
         <a href="/notification-preferences" style={{ marginRight: 16, color: '#fb7185' }}>Preferences</a>
+        <a href="/notification-diagnostics" style={{ marginRight: 16, color: '#38bdf8' }}>Diagnostics</a>
         <a href="/alerts" style={{ marginRight: 16, color: '#22c55e' }}>Alerts</a>
         <a href="/data-health" style={{ color: '#c084fc' }}>Data Health</a>
       </nav>
@@ -102,6 +108,24 @@ export default function NotificationHistoryPage() {
               <p style={{ color: '#cbd5e1' }}>{item.body}</p>
               <small style={{ color: '#94a3b8' }}>{item.eventType} · {item.channels.join(', ')} · next {formatDate(item.nextAttemptAt)}</small>
               <p style={{ color: '#94a3b8', marginBottom: 0 }}>{item.statusMessage}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section style={{ border: '1px solid #334155', borderRadius: 22, padding: 20, background: '#0f172a', marginBottom: 24 }}>
+        <div>
+          <h2 style={{ margin: 0 }}>Engine run diagnostics</h2>
+          <p style={{ color: '#94a3b8' }}>Each run checks watchlists, route confidence, load-report-driven confidence, better itineraries, weather/disruption risk, outcome reminders, and then processes the queue.</p>
+        </div>
+        <div style={{ display: 'grid', gap: 12 }}>
+          {engineRuns.length === 0 ? <p style={{ color: '#cbd5e1' }}>No engine runs recorded yet.</p> : engineRuns.slice(0, 8).map((run) => (
+            <article key={run.id} style={{ border: `1px solid ${run.status === 'completed' ? '#22c55e' : '#facc15'}`, borderRadius: 16, padding: 14, background: '#020617' }}>
+              <strong style={{ color: run.status === 'completed' ? '#bbf7d0' : '#fde68a' }}>{run.status} · {formatDate(run.completedAt)}</strong>
+              <p style={{ color: '#cbd5e1' }}>{run.statusMessage}</p>
+              <small style={{ color: '#94a3b8' }}>
+                Alerts {run.alertsBefore} → {run.alertsAfter} · reminders {run.remindersBefore} → {run.remindersAfter} · queue {run.queueBefore} → {run.queueAfter} · deliveries {run.deliveriesBefore} → {run.deliveriesAfter}
+              </small>
             </article>
           ))}
         </div>

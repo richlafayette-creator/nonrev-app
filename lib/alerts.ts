@@ -1,4 +1,5 @@
 import { buildDisruptionIntelligence } from './disruptionIntelligence'
+import { effectiveLoadReportWeight, loadLoadReports, loadReportSignal } from './loadReports'
 import { calculateRouteConfidence, type RouteConfidence } from './routeConfidence'
 import { loadSavedItineraryComparisons, type SavedItineraryComparison } from './savedItineraryComparisons'
 import { deliverNotification, eventTypeEnabled, type NotificationEventType } from './notificationDelivery'
@@ -86,6 +87,11 @@ function sameRouteMarket(a: string, b: string) {
   return left.origin === right.origin && left.destination === right.destination
 }
 
+function reportsForRoute(route: string) {
+  const endpoints = routeEndpoints(route)
+  return loadLoadReports().filter((report) => report.origin === endpoints.origin && report.destination === endpoints.destination)
+}
+
 function alertTypeColor(type: RealTimeAlertType) {
   if (type === 'Confidence increased') return '#22c55e'
   if (type === 'Confidence decreased') return '#f87171'
@@ -150,14 +156,17 @@ function saveAlertSnapshots(snapshots: AlertSnapshot[]) {
 
 function confidenceForTarget(target: AlertTarget, travelerProfile: TravelerProfileScaffold): RouteConfidence {
   const disruption = buildDisruptionIntelligence({ route: target.route })
+  const matchingReports = reportsForRoute(target.route)
+  const communityLoadAdjustment = Math.round(matchingReports.reduce((total, report) => total + loadReportSignal(report), 0))
+  const weightedReportCount = Math.round(matchingReports.reduce((total, report) => total + effectiveLoadReportWeight(report), 0))
   return calculateRouteConfidence({
     route: target.route,
     successProbability: target.successProbability,
     historicalScore: target.score,
     historicalSuccessRate: target.successProbability,
-    historicalReportCount: 0,
-    communityReportCount: 0,
-    communityLoadAdjustment: 0,
+    historicalReportCount: matchingReports.length,
+    communityReportCount: weightedReportCount,
+    communityLoadAdjustment,
     travelerProfile,
     disruption,
     previousConfidenceScore: target.storedConfidenceScore

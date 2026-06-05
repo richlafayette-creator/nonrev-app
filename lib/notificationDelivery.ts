@@ -1,6 +1,8 @@
 export const notificationPreferencesStorageKey = 'nonrevy.notificationPreferences'
 export const notificationDeliveriesStorageKey = 'nonrevy.notificationDeliveries'
 export const notificationQueueStorageKey = 'nonrevy.notificationQueue'
+export const notificationPushSubscriptionStorageKey = 'nonrevy.browserPushSubscription'
+export const notificationEngineRunStorageKey = 'nonrevy.notificationEngineRuns'
 
 export type NotificationChannel = 'browser-push' | 'email' | 'mobile-push'
 export type NotificationFrequency = 'immediate' | 'hourly' | 'daily' | 'paused'
@@ -16,6 +18,7 @@ export type NotificationEventType =
 
 export type NotificationDeliveryStatus =
   | 'sent-browser'
+  | 'sent-service-worker'
   | 'stored-local'
   | 'placeholder'
   | 'queued-by-frequency'
@@ -25,6 +28,31 @@ export type NotificationDeliveryStatus =
   | 'delivery-error'
 
 export type NotificationQueueStatus = 'queued' | 'processed' | 'blocked'
+
+export type BrowserPushSubscriptionRecord = {
+  endpoint: string
+  expirationTime: number | null
+  keys?: Record<string, string>
+  createdAt: string
+  status: 'active' | 'missing-public-key' | 'unsupported' | 'permission-blocked' | 'subscribe-error'
+  statusMessage: string
+}
+
+export type NotificationEngineRunRecord = {
+  id: string
+  startedAt: string
+  completedAt: string
+  alertsBefore: number
+  alertsAfter: number
+  remindersBefore: number
+  remindersAfter: number
+  queueBefore: number
+  queueAfter: number
+  deliveriesBefore: number
+  deliveriesAfter: number
+  status: 'completed' | 'partial'
+  statusMessage: string
+}
 
 export type NotificationPreferences = {
   eventTypes: Record<NotificationEventType, boolean>
@@ -214,7 +242,7 @@ function nextAttemptForFrequency(frequency: NotificationFrequency, now = new Dat
 
 function deliveriesLastHour(deliveries = loadNotificationDeliveries()) {
   const cutoff = Date.now() - 3_600_000
-  return deliveries.filter((delivery) => delivery.status === 'sent-browser' && Date.parse(delivery.createdAt) >= cutoff).length
+  return deliveries.filter((delivery) => (delivery.status === 'sent-browser' || delivery.status === 'sent-service-worker') && Date.parse(delivery.createdAt) >= cutoff).length
 }
 
 function alreadySeen(eventType: NotificationEventType, eventKey: string) {
@@ -234,6 +262,122 @@ function statusForChannel(channel: NotificationChannel): NotificationDeliverySta
   return 'placeholder'
 }
 
+async function registrationReady() {
+  if (!('serviceWorker' in navigator)) return null
+  try {
+    const existing = await navigator.serviceWorker.getRegistration('/sw.js')
+    if (existing) return existing
+    return await navigator.serviceWorker.register('/sw.js')
+  } catch {
+    return null
+  }
+}
+
+function persistPushSubscription(record: BrowserPushSubscriptionRecord | null) {
+  if (!isBrowser()) return record
+  if (!record) window.localStorage.removeItem(notificationPushSubscriptionStorageKey)
+  else window.localStorage.setItem(notificationPushSubscriptionStorageKey, JSON.stringify(record))
+  window.dispatchEvent(new Event('nonrevy-browser-push-subscription-updated'))
+  return record
+}
+
+export function loadBrowserPushSubscription() {
+  if (!isBrowser()) return null
+  try {
+    const stored = window.localStorage.getItem(notificationPushSubscriptionStorageKey)
+    if (!stored) return null
+    return JSON.parse(stored) as BrowserPushSubscriptionRecord
+  } catch {
+    return null
+  }
+}
+
+function urlBase64ToUint8Array(value: string) {
+  const padding = '='.repeat((4 - value.length % 4) % 4)
+  const base64 = (value + padding).replace(/-/g, '+').replace(/_/g, '/')
+  const rawData = window.atob(base64)
+  return Uint8Array.from([...rawData].map((char) => char.charCodeAt(0)))
+}
+
+export async function registerBrowserPushSubscription() {
+  if (!isBrowser()) return null
+  if (!('Notification' in window) || !('serviceWorker' in navigator) || !('PushManager' in window)) {
+    return persistPushSubscription({
+      endpoint: '',
+      expirationTime: null,
+      createdAt: nowIso(),
+      status: 'unsupported',
+      statusMessage: 'This browser does not support the Push API and service-worker notifications.'
+    })
+  }
+
+  const permission = Notification.permission === 'granted' ? 'granted' : await Notification.requestPermission()
+  if (permission !== 'granted') {
+    return persistPushSubscription({
+      endpoint: '',
+      expirationTime: null,
+      createdAt: nowIso(),
+      status: 'permission-blocked',
+      statusMessage: `Browser push permission is ${permission}.`
+    })
+  }
+
+  const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
+  if (!publicKey) {
+    return persistPushSubscription({
+      endpoint: '',
+      expirationTime: null,
+      createdAt: nowIso(),
+      status: 'missing-public-key',
+      statusMessage: 'Browser push permission is granted. Add NEXT_PUBLIC_VAPID_PUBLIC_KEY to enable remote Push API subscriptions.'
+    })
+  }
+
+  try {
+    const registration = await registrationReady()
+    if (!registration) throw new Error('Service worker unavailable')
+    const subscription = await registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(publicKey)
+    })
+    const serialized = subscription.toJSON() as PushSubscriptionJSON
+    return persistPushSubscription({
+      endpoint: serialized.endpoint || '',
+      expirationTime: subscription.expirationTime,
+      keys: serialized.keys,
+      createdAt: nowIso(),
+      status: 'active',
+      statusMessage: 'Browser Push API subscription is active on this device.'
+    })
+  } catch {
+    return persistPushSubscription({
+      endpoint: '',
+      expirationTime: null,
+      createdAt: nowIso(),
+      status: 'subscribe-error',
+      statusMessage: 'Browser Push API subscription failed; local service-worker notifications still work when the app is open.'
+    })
+  }
+}
+
+function sendServiceWorkerNotification(record: NotificationQueueRecord) {
+  if (!('serviceWorker' in navigator)) return false
+
+  navigator.serviceWorker.ready.then((registration) => {
+    registration.showNotification(record.title, {
+      body: record.body,
+      tag: record.eventKey,
+      badge: '/icons/nonrevy-icon.svg',
+      icon: '/icons/nonrevy-icon.svg',
+      data: { eventType: record.eventType, targetId: record.targetId, source: record.source, url: '/notifications' }
+    })
+  }).catch(() => {
+    // Delivery diagnostics are recorded by the caller; do not interrupt queue processing.
+  })
+
+  return true
+}
+
 function deliverToChannel(record: NotificationQueueRecord, channel: NotificationChannel): NotificationDeliveryRecord {
   const createdAt = nowIso()
   const status = statusForChannel(channel)
@@ -241,12 +385,18 @@ function deliverToChannel(record: NotificationQueueRecord, channel: Notification
 
   try {
     if (channel === 'browser-push' && status === 'sent-browser') {
-      new Notification(record.title, {
-        body: record.body,
-        tag: record.eventKey,
-        data: { eventType: record.eventType, targetId: record.targetId, source: record.source }
-      })
-      statusMessage = 'Browser Notification API accepted the push notification.'
+      const sentViaServiceWorker = sendServiceWorkerNotification(record)
+      if (!sentViaServiceWorker) {
+        new Notification(record.title, {
+          body: record.body,
+          tag: record.eventKey,
+          icon: '/icons/nonrevy-icon.svg',
+          data: { eventType: record.eventType, targetId: record.targetId, source: record.source, url: '/notifications' }
+        })
+      }
+      statusMessage = sentViaServiceWorker
+        ? 'Service worker accepted the browser push notification.'
+        : 'Browser Notification API accepted the push notification.'
     } else if (channel === 'browser-push' && status === 'browser-permission-blocked') {
       statusMessage = 'Browser push permission is denied; notification retained in local history.'
     } else if (channel === 'browser-push') {
@@ -269,7 +419,7 @@ function deliverToChannel(record: NotificationQueueRecord, channel: Notification
     ...record,
     id: `${record.eventType}-${record.eventKey}-${channel}-${Date.now()}`,
     channel,
-    status,
+    status: channel === 'browser-push' && status === 'sent-browser' && 'serviceWorker' in navigator ? 'sent-service-worker' : status,
     statusMessage,
     createdAt
   }
@@ -369,7 +519,7 @@ export function processNotificationQueue(options: { force?: boolean } = {}) {
     record.channels.forEach((channel) => {
       const delivery = deliverToChannel(record, channel)
       newDeliveries.push(delivery)
-      if (delivery.status === 'sent-browser') sentThisHour += 1
+      if (delivery.status === 'sent-browser' || delivery.status === 'sent-service-worker') sentThisHour += 1
     })
   })
 
@@ -392,6 +542,20 @@ export async function requestBrowserPushPermission() {
   return permission
 }
 
+export function loadNotificationEngineRuns() {
+  return readArray<NotificationEngineRunRecord>(notificationEngineRunStorageKey)
+}
+
+export function saveNotificationEngineRun(record: NotificationEngineRunRecord) {
+  if (!isBrowser()) return []
+  const runs = [record, ...loadNotificationEngineRuns()]
+    .sort((a, b) => Date.parse(b.startedAt) - Date.parse(a.startedAt))
+    .slice(0, 80)
+  window.localStorage.setItem(notificationEngineRunStorageKey, JSON.stringify(runs))
+  window.dispatchEvent(new Event('nonrevy-notification-engine-runs-updated'))
+  return runs
+}
+
 export function clearNotificationDeliveries() {
   if (!isBrowser()) return []
   window.localStorage.setItem(notificationDeliveriesStorageKey, JSON.stringify([]))
@@ -412,12 +576,14 @@ export function notificationDiagnostics() {
   const queue = loadNotificationQueue()
   const enabledEvents = notificationEventOptions.filter((option) => preferences.eventTypes[option.key]).length
   const enabledChannels = enabledNotificationChannels(preferences)
-  const sentBrowser = deliveries.filter((delivery) => delivery.status === 'sent-browser').length
+  const sentBrowser = deliveries.filter((delivery) => delivery.status === 'sent-browser' || delivery.status === 'sent-service-worker').length
+  const sentServiceWorker = deliveries.filter((delivery) => delivery.status === 'sent-service-worker').length
   const storedLocal = deliveries.filter((delivery) => delivery.status === 'stored-local').length
   const placeholders = deliveries.filter((delivery) => delivery.status === 'placeholder').length
   const blocked = deliveries.filter((delivery) => ['blocked-by-preference', 'no-channel-enabled', 'browser-permission-blocked', 'delivery-error', 'queued-by-frequency'].includes(delivery.status)).length
   const queued = queue.filter((record) => record.status === 'queued').length
   const browserPermission = isBrowser() && 'Notification' in window ? Notification.permission : 'unsupported'
+  const browserPushSubscription = loadBrowserPushSubscription()
   const readyForBrowserPush = browserPermission === 'granted' && preferences.channels['browser-push']
 
   return {
@@ -427,11 +593,13 @@ export function notificationDiagnostics() {
     enabledEvents,
     enabledChannels,
     sentBrowser,
+    sentServiceWorker,
     storedLocal,
     placeholders,
     blocked,
     queued,
     browserPermission,
+    browserPushSubscription,
     readyForBrowserPush,
     status: enabledEvents > 0 && enabledChannels.length > 0 ? 'Connected' as const : 'Limited' as const,
     detail: `${enabledEvents}/${notificationEventOptions.length} alert types enabled; ${enabledChannels.length}/${notificationChannelOptions.length} channels enabled; ${queued} queued; ${deliveries.length} delivery/history record${deliveries.length === 1 ? '' : 's'}; browser permission ${browserPermission}.`

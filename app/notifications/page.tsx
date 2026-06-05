@@ -5,7 +5,8 @@ import { supabase } from '../../lib/supabase'
 import { loadSavedItineraryComparisons, type SavedItineraryComparison } from '../../lib/savedItineraryComparisons'
 import { loadSavedTripWatchlist, type SavedTripWatch } from '../../lib/watchlist'
 import { alertSeverityColor, realTimeAlertTypeColor, refreshRealTimeAlerts, type RealTimeAlert } from '../../lib/alerts'
-import { loadNotificationDeliveries, notificationDiagnostics, processNotificationQueue, type NotificationDeliveryRecord } from '../../lib/notificationDelivery'
+import { loadNotificationDeliveries, notificationDiagnostics, type NotificationDeliveryRecord } from '../../lib/notificationDelivery'
+import { runNotificationEngine } from '../../lib/notificationEngine'
 import {
   enabledTripAlertLabels,
   getTripAlertPreference,
@@ -42,7 +43,7 @@ export default function NotificationsPage() {
       setWatchlist(loadSavedTripWatchlist())
       setSavedItineraries(loadSavedItineraryComparisons())
       setAlertPreferences(loadTripAlertPreferences())
-      processNotificationQueue()
+      runNotificationEngine()
       setAlerts(refreshRealTimeAlerts())
       setDeliveries(loadNotificationDeliveries())
     }
@@ -51,6 +52,7 @@ export default function NotificationsPage() {
     window.addEventListener('nonrevy-watchlist-updated', refreshAlertPreferences)
     window.addEventListener('nonrevy-itinerary-comparisons-updated', refreshAlertPreferences)
     window.addEventListener('nonrevy-trip-alert-preferences-updated', refreshAlertPreferences)
+    window.addEventListener('nonrevy-load-reports-updated', refreshAlertPreferences)
     window.addEventListener('nonrevy-alerts-updated', refreshAlertPreferences)
     window.addEventListener('nonrevy-notification-deliveries-updated', refreshAlertPreferences)
     window.addEventListener('nonrevy-notification-queue-updated', refreshAlertPreferences)
@@ -59,6 +61,7 @@ export default function NotificationsPage() {
       window.removeEventListener('nonrevy-watchlist-updated', refreshAlertPreferences)
       window.removeEventListener('nonrevy-itinerary-comparisons-updated', refreshAlertPreferences)
       window.removeEventListener('nonrevy-trip-alert-preferences-updated', refreshAlertPreferences)
+      window.removeEventListener('nonrevy-load-reports-updated', refreshAlertPreferences)
       window.removeEventListener('nonrevy-alerts-updated', refreshAlertPreferences)
       window.removeEventListener('nonrevy-notification-deliveries-updated', refreshAlertPreferences)
       window.removeEventListener('nonrevy-notification-queue-updated', refreshAlertPreferences)
@@ -142,6 +145,7 @@ export default function NotificationsPage() {
         <a href="/notifications" style={{ marginRight: 16, color: '#f472b6' }}>Notifications</a>
         <a href="/notification-preferences" style={{ marginRight: 16, color: '#fb7185' }}>Notification Preferences</a>
         <a href="/notification-history" style={{ marginRight: 16, color: '#f0abfc' }}>History</a>
+        <a href="/notification-diagnostics" style={{ marginRight: 16, color: '#38bdf8' }}>Diagnostics</a>
         <a href="/alerts" style={{ marginRight: 16, color: '#22c55e' }}>Alerts</a>
         <a href="/agent" style={{ color: '#a78bfa' }}>Agent</a>
       </nav>

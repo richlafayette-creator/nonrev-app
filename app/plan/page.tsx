@@ -124,6 +124,7 @@ type LiveItineraryLeg = {
   flightNumber: string
   departureTime: string
   arrivalTime: string
+  duration?: string
   aircraft: string
   status: string
   gate?: string
@@ -135,6 +136,8 @@ type LiveItineraryLeg = {
   score: number
   risk: string
   source: string
+  sourceProvider?: string
+  sourceCheckedAt?: string
 }
 
 type LiveItineraryResult = {
@@ -145,6 +148,7 @@ type LiveItineraryResult = {
   flightNumber: string
   departureTime: string
   arrivalTime: string
+  duration?: string
   aircraft: string
   status: string
   gate?: string
@@ -152,6 +156,8 @@ type LiveItineraryResult = {
   score: number
   risk: string
   source: string
+  sourceProvider?: string
+  sourceCheckedAt?: string
   providerBadges?: string[]
   dataFreshnessLabel?: string
   dataFreshnessDetail?: string
@@ -177,6 +183,9 @@ type ScheduleProviderReadiness = {
 }
 
 type ApiResponseCounts = {
+  flightAwareScheduleRequests?: number
+  flightAwareScheduleFetched?: number
+  flightAwareScheduleItineraries?: number
   supabaseFetched: number
   supabaseMatchedFlights: number
   supabaseItineraries: number
@@ -283,6 +292,19 @@ type ItineraryDebugMetadata = {
   trueLiveDataUnavailableReason?: string
   dataFreshnessMode?: 'live-current-api' | 'stored-supabase' | 'nearest-date-testing' | 'demo-fallback' | 'mvp-test-data'
   scheduleProviderReadiness?: ScheduleProviderReadiness[]
+  normalizedFlightAwareItinerarySample?: {
+    provider: string
+    sourceCheckedAt: string
+    flightNumber: string
+    carrier: string
+    origin: string
+    destination: string
+    departureTime: string
+    arrivalTime: string
+    duration: string
+    aircraft: string
+    status: string
+  }
   safeErrors: string[]
 }
 
@@ -320,6 +342,11 @@ function validateTravelDate(value: string) {
   const parsed = new Date(`${trimmed}T00:00:00Z`)
   if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== trimmed) return 'That date is not valid. Use YYYY-MM-DD, e.g. 2026-06-06.'
   return ''
+}
+
+function displayField(value?: string | number | null) {
+  if (value === undefined || value === null || value === '') return 'Not provided'
+  return String(value)
 }
 
 function ProviderBadge({ label }: { label: string }) {
@@ -2234,6 +2261,9 @@ export default function PlanPage() {
                 <strong style={{ color: '#38bdf8' }}>API response counts</strong>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 150px), 1fr))', gap: 10, marginTop: 10 }}>
                   {[
+                    ['FlightAware schedule calls', itineraryDebug.apiResponseCounts.flightAwareScheduleRequests ?? 0],
+                    ['FlightAware schedule rows', itineraryDebug.apiResponseCounts.flightAwareScheduleFetched ?? 0],
+                    ['FlightAware itineraries', itineraryDebug.apiResponseCounts.flightAwareScheduleItineraries ?? 0],
                     ['Supabase fetched', itineraryDebug.apiResponseCounts.supabaseFetched],
                     ['Supabase matched', itineraryDebug.apiResponseCounts.supabaseMatchedFlights],
                     ['Supabase itineraries', itineraryDebug.apiResponseCounts.supabaseItineraries],
@@ -2368,6 +2398,20 @@ export default function PlanPage() {
                 </ul>
               </div>
             ) : null}
+            {itineraryDebug?.normalizedFlightAwareItinerarySample ? (
+              <div style={{ border: '1px solid #7e22ce', borderRadius: 12, padding: 10, background: 'rgba(88, 28, 135, 0.22)', color: '#e9d5ff', marginTop: 12 }}>
+                <strong>Temporary FlightAware normalized itinerary sample</strong>
+                <p style={{ color: '#cbd5e1', margin: '6px 0 0' }}>Safe sample only; no credentials or raw provider payloads are shown.</p>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 150px), 1fr))', gap: 8, marginTop: 10 }}>
+                  {Object.entries(itineraryDebug.normalizedFlightAwareItinerarySample).map(([label, value]) => (
+                    <div key={`flightaware-sample-${label}`} style={{ border: '1px solid #581c87', borderRadius: 10, padding: 8, background: '#020617' }}>
+                      <small style={{ color: '#c084fc', textTransform: 'uppercase' }}>{label}</small>
+                      <p style={{ margin: '4px 0 0', overflowWrap: 'anywhere' }}>{displayField(value)}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
             {itineraryDebug?.providerStatuses?.length ? (
               <div style={{ marginTop: 12 }}>
                 <strong style={{ color: '#c084fc' }}>Provider fallback strategy</strong>
@@ -2422,16 +2466,30 @@ export default function PlanPage() {
                   {itinerary.dataFreshnessDetail ? (
                     <p style={{ color: '#fde68a', margin: '8px 0 0' }}>{itinerary.dataFreshnessDetail}</p>
                   ) : null}
-                  <p style={{ color: '#38bdf8', fontSize: 18, fontWeight: 'bold' }}>{itinerary.route}</p>
+                  <p style={{ color: '#38bdf8', fontSize: 18, fontWeight: 'bold' }}>{displayField(itinerary.route)}</p>
                   <p style={{ color: '#facc15', fontWeight: 'bold' }}>Provider score: {itinerary.score}/100</p>
-                  <p style={{ color: '#cbd5e1' }}>
-                    Carrier: {itinerary.carrier} · Aircraft: {itinerary.aircraft} · Status: {itinerary.status}
-                  </p>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 150px), 1fr))', gap: 10, margin: '12px 0' }}>
+                    {[
+                      ['Airline/carrier', itinerary.carrier],
+                      ['Flight number', itinerary.flightNumber],
+                      ['Origin', itinerary.legs[0]?.origin],
+                      ['Destination', itinerary.legs[itinerary.legs.length - 1]?.destination],
+                      ['Departure time', itinerary.departureTime],
+                      ['Arrival time', itinerary.arrivalTime],
+                      ['Duration', itinerary.duration],
+                      ['Aircraft', itinerary.aircraft],
+                      ['Status', itinerary.status],
+                      ['Source provider', itinerary.sourceProvider || itinerary.source],
+                      ['Source checked', itinerary.sourceCheckedAt]
+                    ].map(([label, value]) => (
+                      <div key={`${itinerary.id}-${label}`} style={{ border: '1px solid #334155', borderRadius: 12, padding: 10, background: '#020617' }}>
+                        <small style={{ color: '#94a3b8' }}>{label}</small>
+                        <p style={{ margin: '4px 0 0', color: '#f8fafc', overflowWrap: 'anywhere' }}>{displayField(value)}</p>
+                      </div>
+                    ))}
+                  </div>
                   <p style={{ color: '#94a3b8' }}>
-                    Depart: {itinerary.departureTime} · Arrive: {itinerary.arrivalTime}
-                  </p>
-                  <p style={{ color: '#94a3b8' }}>
-                    Gate: {itinerary.gate || 'Not available'} · Terminal: {itinerary.terminal || 'Not available'} · {itinerary.source}
+                    Gate: {displayField(itinerary.gate)} · Terminal: {displayField(itinerary.terminal)}
                   </p>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 210px), 1fr))', gap: 10, margin: '12px 0' }}>
                     {airportCodesFromRoute(itinerary.route).map((code) => (
@@ -2442,10 +2500,10 @@ export default function PlanPage() {
                   <div style={{ display: 'grid', gap: 10, marginTop: 12 }}>
                     {itinerary.legs.map((leg, index) => (
                       <div key={`${itinerary.id}-${leg.flightNumber}-${index}`} style={{ border: '1px solid #334155', borderRadius: 14, padding: 12, background: '#020617' }}>
-                        <strong style={{ color: '#f8fafc' }}>Leg {index + 1}: {leg.flightNumber}</strong>
-                        <p style={{ color: '#38bdf8', margin: '6px 0' }}>{leg.origin} → {leg.destination}</p>
+                        <strong style={{ color: '#f8fafc' }}>Leg {index + 1}: {displayField(leg.flightNumber)}</strong>
+                        <p style={{ color: '#38bdf8', margin: '6px 0' }}>{displayField(leg.origin)} → {displayField(leg.destination)}</p>
                         <p style={{ color: '#cbd5e1', margin: 0 }}>
-                          {leg.departureTime} → {leg.arrivalTime} · {leg.aircraft} · {leg.status} · Score {leg.score}
+                          {displayField(leg.departureTime)} → {displayField(leg.arrivalTime)} · Duration {displayField(leg.duration)} · Aircraft {displayField(leg.aircraft)} · Status {displayField(leg.status)} · Source {displayField(leg.sourceProvider || leg.source)} · Checked {displayField(leg.sourceCheckedAt)} · Score {leg.score}
                         </p>
                       </div>
                     ))}

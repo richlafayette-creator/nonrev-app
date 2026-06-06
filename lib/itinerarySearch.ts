@@ -19,6 +19,7 @@ export type ItineraryLeg = {
   flightNumber: string
   departureTime: string
   arrivalTime: string
+  duration?: string
   aircraft: string
   status: string
   gate?: string
@@ -42,6 +43,7 @@ export type ItineraryResult = {
   flightNumber: string
   departureTime: string
   arrivalTime: string
+  duration?: string
   aircraft: string
   status: string
   gate?: string
@@ -390,6 +392,7 @@ const originFieldKeys = ['origin', 'origin_airport', 'origin_airport_code', 'ori
 const destinationFieldKeys = ['destination', 'destination_airport', 'destination_airport_code', 'destination_iata', 'arrival_airport', 'arrival_airport_code', 'arrival_iata', 'arrival_iata_code', 'arr_iata', 'arr_airport', 'arrival.iata', 'arrival.icao']
 const dateFieldKeys = ['date', 'flight_date', 'departure_date', 'scheduled_date']
 const departureTimeFieldKeys = ['departure_time', 'scheduled_departure', 'scheduled_out', 'actual_out', 'created_at', 'departure.scheduled', 'departure.estimated', 'departure.actual']
+const notProvidedLabel = 'Not provided'
 
 function numberFrom(flight: Record<string, unknown>, keys: string[], fallback: number) {
   for (const key of keys) {
@@ -404,6 +407,17 @@ function minutesBetween(later?: string, earlier?: string) {
   const earlierTime = earlier ? Date.parse(earlier) : NaN
   if (!Number.isFinite(laterTime) || !Number.isFinite(earlierTime) || laterTime <= earlierTime) return 0
   return Math.round((laterTime - earlierTime) / 60000)
+}
+
+function durationLabel(minutes: number) {
+  if (!minutes) return notProvidedLabel
+  const hours = Math.floor(minutes / 60)
+  const remainingMinutes = minutes % 60
+  return hours ? `${hours}h ${remainingMinutes}m` : `${remainingMinutes}m`
+}
+
+function fieldValue(value: string) {
+  return value && value.trim() ? value : notProvidedLabel
 }
 
 function carrierFromFlight(flight: Record<string, unknown>) {
@@ -429,7 +443,12 @@ function riskFromScore(score: number, status: string) {
 
 function flightMatchesCarrier(flight: Record<string, unknown>, carrier?: string) {
   if (!carrier || carrier === 'all') return true
-  const text = `${carrierFromFlight(flight)} ${valueFrom(flight, ['flight_number', 'ident'])}`.toLowerCase()
+  const carrierText = carrierFromFlight(flight)
+  const flightNumber = valueFrom(flight, ['flight_number', 'ident'])
+  const text = `${carrierText} ${flightNumber}`.toLowerCase()
+  const hasFlightNumberEvidence = Boolean(flightNumber.trim()) && flightNumber.toLowerCase() !== notProvidedLabel.toLowerCase()
+  const hasCarrierEvidence = hasFlightNumberEvidence || !['unknown carrier', 'not provided'].includes(carrierText.toLowerCase())
+  if (!hasCarrierEvidence && valueFrom(flight, ['source_provider']) === 'flightaware') return true
   return carrierAliases[carrier]?.some((alias) => text.includes(alias)) ?? text.includes(carrier.toLowerCase())
 }
 
@@ -679,7 +698,7 @@ export function normalizeFlightLeg(flight: Record<string, unknown>, enrichment?:
   const destination = airportCode(valueFrom(flight, destinationFieldKeys) || valueFrom(enrichment || {}, ['destination', 'destination_airport', 'destination.code_iata'])) || 'TBD'
   const departureTime = valueFrom(flight, ['departure_time', 'scheduled_departure', 'scheduled_out', 'actual_out', 'departure', 'departure.scheduled']) || valueFrom(enrichment || {}, ['scheduled_out', 'actual_out', 'scheduled_off', 'filed_departure_time']) || 'Pending'
   const arrivalTime = valueFrom(flight, ['arrival_time', 'scheduled_arrival', 'scheduled_in', 'actual_in', 'arrival']) || valueFrom(enrichment || {}, ['scheduled_in', 'actual_in', 'scheduled_on', 'estimated_in']) || 'Pending'
-  const status = valueFrom(enrichment || {}, ['status']) || valueFrom(flight, ['status', 'flight_status']) || 'Unknown'
+  const status = fieldValue(valueFrom(enrichment || {}, ['status']) || valueFrom(flight, ['status', 'flight_status']))
   const score = numberFrom(flight, ['score', 'load_score', 'availability_score'], status.toLowerCase().includes('cancel') ? 35 : 68)
   const departureGate = valueFrom(flight, ['departure_gate', 'gate']) || valueFrom(enrichment || {}, ['gate_origin', 'departure_gate'])
   const arrivalGate = valueFrom(flight, ['arrival_gate']) || valueFrom(enrichment || {}, ['gate_destination', 'arrival_gate'])
@@ -709,11 +728,12 @@ export function normalizeFlightLeg(flight: Record<string, unknown>, enrichment?:
     route: `${origin} → ${destination}`,
     origin,
     destination,
-    carrier: carrierFromFlight(flight),
-    flightNumber: valueFrom(flight, ['flight_number', 'ident', 'fa_flight_id']) || 'Flight TBD',
+    carrier: fieldValue(carrierFromFlight(flight)),
+    flightNumber: fieldValue(valueFrom(flight, ['flight_number', 'ident', 'fa_flight_id'])),
     departureTime,
     arrivalTime,
-    aircraft: valueFrom(enrichment || {}, ['aircraft_type']) || valueFrom(flight, ['aircraft', 'aircraft_type', 'equipment']) || 'Unknown',
+    duration: fieldValue(valueFrom(flight, ['duration']) || durationLabel(minutesBetween(arrivalTime, departureTime))),
+    aircraft: fieldValue(valueFrom(enrichment || {}, ['aircraft_type']) || valueFrom(flight, ['aircraft', 'aircraft_type', 'equipment'])),
     status,
     gate: [departureGate, arrivalGate].filter(Boolean).join(' → ') || undefined,
     terminal: [departureTerminal, arrivalTerminal].filter(Boolean).join(' → ') || undefined,
@@ -771,6 +791,7 @@ function itineraryFromLegs(legs: ItineraryLeg[]): ItineraryResult {
     flightNumber: legs.map((leg) => leg.flightNumber).join(' / '),
     departureTime: legs[0].departureTime,
     arrivalTime: legs[legs.length - 1].arrivalTime,
+    duration: legs.map((leg) => leg.duration).filter(Boolean).join(' + ') || notProvidedLabel,
     aircraft: [...new Set(legs.map((leg) => leg.aircraft))].join(' + '),
     status: legs.map((leg) => leg.status).every((status) => status === legs[0].status) ? legs[0].status : 'Mixed',
     gate: legs.map((leg) => leg.gate).filter(Boolean).join(' · ') || undefined,

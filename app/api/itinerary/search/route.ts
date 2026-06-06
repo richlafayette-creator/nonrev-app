@@ -42,6 +42,20 @@ type SupabaseQueryDiagnostics = {
   recentCount: number
 }
 
+type SafeNormalizedItinerarySample = {
+  provider: string
+  sourceCheckedAt: string
+  flightNumber: string
+  carrier: string
+  origin: string
+  destination: string
+  departureTime: string
+  arrivalTime: string
+  duration: string
+  aircraft: string
+  status: string
+}
+
 type ItineraryDebugMetadata = {
   parsedOrigin?: string
   parsedDestination?: string
@@ -70,6 +84,7 @@ type ItineraryDebugMetadata = {
   dataFreshnessMode: 'live-current-api' | 'stored-supabase' | 'nearest-date-testing' | 'demo-fallback' | 'mvp-test-data'
   scheduleProviderReadiness: ScheduleProviderReadiness[]
   safeErrors: string[]
+  normalizedFlightAwareItinerarySample?: SafeNormalizedItinerarySample
 }
 
 type AviationstackFlight = {
@@ -246,6 +261,28 @@ function providerBadgesForSource(source: string, enriched: boolean) {
   else badges.push(providerLabels.supabase)
   if (enriched && !badges.includes(providerLabels.flightaware)) badges.push(providerLabels.flightaware)
   return badges
+}
+
+function safeDisplayValue(value?: string) {
+  return value && value.trim() ? value : 'Not provided'
+}
+
+function safeNormalizedItinerarySample(itinerary?: ItineraryResult): SafeNormalizedItinerarySample | undefined {
+  const leg = itinerary?.legs[0]
+  if (!itinerary || !leg) return undefined
+  return {
+    provider: safeDisplayValue(leg.sourceProvider || itinerary.sourceProvider || itinerary.source),
+    sourceCheckedAt: safeDisplayValue(leg.sourceCheckedAt || itinerary.sourceCheckedAt),
+    flightNumber: safeDisplayValue(leg.flightNumber),
+    carrier: safeDisplayValue(leg.carrier),
+    origin: safeDisplayValue(leg.origin),
+    destination: safeDisplayValue(leg.destination),
+    departureTime: safeDisplayValue(leg.departureTime),
+    arrivalTime: safeDisplayValue(leg.arrivalTime),
+    duration: safeDisplayValue(leg.duration || itinerary.duration),
+    aircraft: safeDisplayValue(leg.aircraft),
+    status: safeDisplayValue(leg.status)
+  }
 }
 
 function addProviderBadges(itineraries: ItineraryResult[], source: 'flightaware' | 'supabase' | 'aviationstack', enriched: boolean, freshness: Pick<ItineraryResult, 'dataFreshnessLabel' | 'dataFreshnessDetail'> = {}) {
@@ -603,8 +640,15 @@ async function fetchFlightAwareScheduleFlights(request: ReturnType<typeof normal
     maxResults: 50
   })
 
+  const flights = scheduleResultsToFlightRecords(response.results).map((flight) => ({
+    ...flight,
+    flight_date: request.date,
+    origin: flight.origin === 'Not provided' ? request.origin || flight.origin : flight.origin,
+    destination: flight.destination === 'Not provided' ? request.destination || flight.destination : flight.destination
+  }))
+
   return {
-    flights: uniqueFlights(scheduleResultsToFlightRecords(response.results)),
+    flights: uniqueFlights(flights),
     warning: response.warning,
     requestCount: response.requestCount,
     detail: response.detail,
@@ -677,7 +721,8 @@ function buildDebugMetadata({
   trueLiveDataAvailable,
   trueLiveDataUnavailableReason,
   dataFreshnessMode,
-  safeErrors
+  safeErrors,
+  normalizedFlightAwareItinerarySample
 }: {
   parsedRequest: ReturnType<typeof normalizeItineraryRequest>
   supabaseResultCount: number
@@ -698,6 +743,7 @@ function buildDebugMetadata({
   trueLiveDataUnavailableReason: string
   dataFreshnessMode: ItineraryDebugMetadata['dataFreshnessMode']
   safeErrors: string[]
+  normalizedFlightAwareItinerarySample?: SafeNormalizedItinerarySample
 }): ItineraryDebugMetadata {
   const mergedProviderStatuses = mergeProviderStatuses(providerStatuses)
   return {
@@ -727,7 +773,8 @@ function buildDebugMetadata({
     trueLiveDataUnavailableReason,
     dataFreshnessMode,
     scheduleProviderReadiness: getLiveScheduleProviderReadiness(),
-    safeErrors
+    safeErrors,
+    normalizedFlightAwareItinerarySample
   }
 }
 
@@ -857,7 +904,8 @@ export async function GET(request: Request) {
       trueLiveDataAvailable: true,
       trueLiveDataUnavailableReason: '',
       dataFreshnessMode: 'live-current-api',
-      safeErrors: uniqueMessages(warnings)
+      safeErrors: uniqueMessages(warnings),
+      normalizedFlightAwareItinerarySample: safeNormalizedItinerarySample(itineraries[0])
     })
 
     return NextResponse.json({

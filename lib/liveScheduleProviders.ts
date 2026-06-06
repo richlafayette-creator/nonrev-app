@@ -12,6 +12,7 @@ export type NormalizedScheduleResult = {
   destination: string
   departureTime: string
   arrivalTime: string
+  duration?: string
   aircraft: string
   status: string
   source: LiveScheduleProviderKey | string
@@ -104,6 +105,9 @@ type FlightAwareSchedule = {
   estimated_out?: string
   actual_in?: string
   actual_out?: string
+  scheduled_block_time?: string | number
+  block_time?: string | number
+  duration?: string | number
   origin?: string
   origin_icao?: string
   origin_iata?: string
@@ -151,11 +155,28 @@ function carrierMatchesSchedule(result: NormalizedScheduleResult, carrier?: stri
   if (!carrier || carrier === 'all') return true
   const allowedCodes = carrierIataCodes[carrier]?.map((code) => code.toLowerCase()) || [carrier.toLowerCase()]
   const text = `${result.carrier} ${result.flightNumber}`.toLowerCase()
+  const hasCarrierEvidence = !text.split(/\s+/).every((part) => !part || part === 'not' || part === 'provided')
+  if (!hasCarrierEvidence && result.source === 'flightaware') return true
   return allowedCodes.some((code) => text.includes(code)) || text.includes(carrier.toLowerCase())
 }
 
 function uniqueMessages(messages: Array<string | undefined>) {
   return [...new Set(messages.filter((message): message is string => Boolean(message?.trim())))]
+}
+
+function provided(value?: string | number | null) {
+  if (value === undefined || value === null || value === '') return 'Not provided'
+  return String(value)
+}
+
+function durationBetween(departure?: string, arrival?: string) {
+  const departureMs = departure ? Date.parse(departure) : NaN
+  const arrivalMs = arrival ? Date.parse(arrival) : NaN
+  if (!Number.isFinite(departureMs) || !Number.isFinite(arrivalMs) || arrivalMs <= departureMs) return undefined
+  const totalMinutes = Math.round((arrivalMs - departureMs) / 60000)
+  const hours = Math.floor(totalMinutes / 60)
+  const minutes = totalMinutes % 60
+  return hours ? `${hours}h ${minutes}m` : `${minutes}m`
 }
 
 function safeMessage(value: unknown) {
@@ -231,21 +252,24 @@ export function normalizeAviationstackScheduleResult(flight: AviationstackFlight
 }
 
 export function normalizeFlightAwareScheduleResult(flight: FlightAwareSchedule, sourceCheckedAt = new Date().toISOString()): NormalizedScheduleResult {
-  const flightNumber = flight.ident_iata || flight.actual_ident_iata || flight.ident || flight.actual_ident || flight.fa_flight_id || 'Flight TBD'
-  const origin = flight.origin_iata || flight.origin_lid || flight.origin_icao || flight.origin || 'TBD'
-  const destination = flight.destination_iata || flight.destination_lid || flight.destination_icao || flight.destination || 'TBD'
-  const carrier = flight.operator_iata || flight.operator_icao || flight.operator || String(flightNumber).match(/^[A-Z]+/)?.[0] || 'Unknown Airline'
-  const status = flight.status || (flight.cancelled ? 'Cancelled' : flight.diverted ? 'Diverted' : 'Scheduled')
+  const flightNumber = flight.ident_iata || flight.actual_ident_iata || flight.ident || flight.actual_ident || flight.fa_flight_id
+  const origin = flight.origin_iata || flight.origin_lid || flight.origin_icao || flight.origin
+  const destination = flight.destination_iata || flight.destination_lid || flight.destination_icao || flight.destination
+  const carrier = flight.operator_iata || flight.operator_icao || flight.operator || String(flightNumber || '').match(/^[A-Z]+/)?.[0]
+  const status = flight.status || (flight.cancelled ? 'Cancelled' : flight.diverted ? 'Diverted' : undefined)
+  const departureTime = flight.scheduled_out || flight.estimated_out || flight.actual_out
+  const arrivalTime = flight.scheduled_in || flight.estimated_in || flight.actual_in
 
   return {
-    carrier,
-    flightNumber,
-    origin,
-    destination,
-    departureTime: flight.scheduled_out || flight.estimated_out || flight.actual_out || 'Pending',
-    arrivalTime: flight.scheduled_in || flight.estimated_in || flight.actual_in || 'Pending',
-    aircraft: flight.aircraft_type || 'Unknown',
-    status,
+    carrier: provided(carrier),
+    flightNumber: provided(flightNumber),
+    origin: provided(origin),
+    destination: provided(destination),
+    departureTime: provided(departureTime),
+    arrivalTime: provided(arrivalTime),
+    duration: provided(flight.scheduled_block_time || flight.block_time || flight.duration || durationBetween(departureTime, arrivalTime)),
+    aircraft: provided(flight.aircraft_type),
+    status: provided(status),
     source: 'flightaware',
     sourceCheckedAt
   }
@@ -263,6 +287,7 @@ export function scheduleResultsToFlightRecords(results: NormalizedScheduleResult
     destination: result.destination,
     departure_time: result.departureTime,
     arrival_time: result.arrivalTime,
+    duration: result.duration || 'Not provided',
     aircraft: result.aircraft,
     status: result.status,
     score: result.status.toLowerCase().includes('cancel') ? 35 : 68

@@ -313,6 +313,15 @@ function readinessBadgeStyle(status: ScheduleProviderReadinessStatus) {
   return { border: '#94a3b8', text: '#cbd5e1', background: 'rgba(148, 163, 184, 0.12)' }
 }
 
+function validateTravelDate(value: string) {
+  const trimmed = value.trim()
+  if (!trimmed) return ''
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return 'Use YYYY-MM-DD, e.g. 2026-06-06, or leave it blank for flexible dates.'
+  const parsed = new Date(`${trimmed}T00:00:00Z`)
+  if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== trimmed) return 'That date is not valid. Use YYYY-MM-DD, e.g. 2026-06-06.'
+  return ''
+}
+
 function ProviderBadge({ label }: { label: string }) {
   const style = providerBadgeStyle(label)
   return (
@@ -995,7 +1004,7 @@ function DisruptionIntelligenceSection({ comparisons }: { comparisons: Itinerary
         </span>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginTop: 14 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 150px), 1fr))', gap: 12, marginTop: 14 }}>
         {[
           ['Avg Impact Score', `${averageImpact}/99`, averageImpact >= 50 ? '#f87171' : averageImpact >= 22 ? '#facc15' : '#22c55e'],
           ['Delays', totalDelaySignals, totalDelaySignals ? '#facc15' : '#22c55e'],
@@ -1010,7 +1019,7 @@ function DisruptionIntelligenceSection({ comparisons }: { comparisons: Itinerary
         ))}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 12, marginTop: 14 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 260px), 1fr))', gap: 12, marginTop: 14 }}>
         <article style={{ border: '1px solid #334155', borderRadius: 16, padding: 14, background: '#0f172a' }}>
           <strong style={{ color: '#38bdf8' }}>Impact on Success Probability</strong>
           <p style={{ color: '#cbd5e1' }}>{mostImpacted.route}: {mostImpacted.disruption.successProbabilityImpact} points from disruption signals.</p>
@@ -1032,7 +1041,7 @@ function DisruptionIntelligenceSection({ comparisons }: { comparisons: Itinerary
 
       <details open style={{ border: '1px solid #334155', borderRadius: 16, padding: 14, background: '#020617', marginTop: 14 }}>
         <summary style={{ color: '#facc15', cursor: 'pointer', fontWeight: 'bold' }}>Disruption explanation</summary>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 12, marginTop: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))', gap: 12, marginTop: 12 }}>
           {comparisons.map((comparison) => (
             <article key={`disruption-${comparison.id}`} style={{ border: '1px solid #1e293b', borderRadius: 14, padding: 12, background: '#0f172a' }}>
               <strong style={{ color: routeHealthColor(comparison.disruption.routeHealth) }}>{comparison.route} · {comparison.disruption.routeHealth}</strong>
@@ -1071,7 +1080,7 @@ function WeatherIntelligenceSection({ comparisons }: { comparisons: ItineraryCom
         </span>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 12, marginTop: 14 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 170px), 1fr))', gap: 12, marginTop: 14 }}>
         {[
           ['Avg Weather Impact', `${averageImpact}/40`, averageImpact >= 30 ? '#f87171' : averageImpact >= 18 ? '#fb7185' : averageImpact >= 7 ? '#facc15' : '#22c55e'],
           ['Lowest Risk Route', lowestRisk.route, weatherRiskColor(lowestRisk.weatherRisk.category)],
@@ -1087,7 +1096,7 @@ function WeatherIntelligenceSection({ comparisons }: { comparisons: ItineraryCom
 
       <details open style={{ border: '1px solid #334155', borderRadius: 16, padding: 14, background: '#020617', marginTop: 14 }}>
         <summary style={{ color: '#22c55e', cursor: 'pointer', fontWeight: 'bold' }}>Weather diagnostics</summary>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 12, marginTop: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))', gap: 12, marginTop: 12 }}>
           {comparisons.map((comparison) => (
             <article key={`weather-${comparison.id}`} style={{ border: '1px solid #1e293b', borderRadius: 14, padding: 12, background: '#0f172a' }}>
               <strong style={{ color: weatherRiskColor(comparison.weatherRisk.category) }}>{comparison.route} · {comparison.weatherRisk.category}</strong>
@@ -1134,7 +1143,7 @@ function RouteConfidenceSection({ comparisons }: { comparisons: ItineraryCompari
         </span>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginTop: 14 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 180px), 1fr))', gap: 12, marginTop: 14 }}>
         {[
           ['Avg Route Confidence', `${averageConfidence}/100`, averageConfidence >= 85 ? '#22c55e' : averageConfidence >= 72 ? '#38bdf8' : averageConfidence >= 58 ? '#facc15' : '#f87171'],
           ['Top Badge', bestConfidence.routeConfidence.badge, confidenceBadgeColor(bestConfidence.routeConfidence.badge)],
@@ -1150,7 +1159,7 @@ function RouteConfidenceSection({ comparisons }: { comparisons: ItineraryCompari
 
       <details open style={{ border: '1px solid #334155', borderRadius: 16, padding: 14, background: '#020617', marginTop: 14 }}>
         <summary style={{ color: '#38bdf8', cursor: 'pointer', fontWeight: 'bold' }}>Confidence explanation</summary>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 12, marginTop: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))', gap: 12, marginTop: 12 }}>
           {comparisons.map((comparison) => (
             <article key={`confidence-${comparison.id}`} style={{ border: '1px solid #1e293b', borderRadius: 14, padding: 12, background: '#0f172a' }}>
               <strong style={{ color: confidenceBadgeColor(comparison.routeConfidence.badge) }}>{comparison.route} · {comparison.routeConfidence.score}/100 · {comparison.routeConfidence.badge}</strong>
@@ -1196,7 +1205,7 @@ function AirportIntelligenceSection({ comparisons }: { comparisons: ItineraryCom
         </span>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 12, marginTop: 14 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 170px), 1fr))', gap: 12, marginTop: 14 }}>
         {[
           ['Avg Connection Risk', `${averageRisk}/100`, connectionRiskColor(averageRisk)],
           ['Easiest Route', easiest.route, '#22c55e'],
@@ -1212,7 +1221,7 @@ function AirportIntelligenceSection({ comparisons }: { comparisons: ItineraryCom
 
       <details open style={{ border: '1px solid #334155', borderRadius: 16, padding: 14, background: '#020617', marginTop: 14 }}>
         <summary style={{ color: '#facc15', cursor: 'pointer', fontWeight: 'bold' }}>Airport intelligence details</summary>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(270px, 1fr))', gap: 12, marginTop: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 270px), 1fr))', gap: 12, marginTop: 12 }}>
           {comparisons.map((comparison) => (
             <article key={`airport-${comparison.id}`} style={{ border: '1px solid #1e293b', borderRadius: 14, padding: 12, background: '#0f172a' }}>
               <strong style={{ color: connectionRiskColor(comparison.airportIntelligence.connectionRiskScore) }}>{comparison.route} · Risk {comparison.airportIntelligence.connectionRiskScore}/100</strong>
@@ -1374,7 +1383,7 @@ function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: It
       <AirportIntelligenceSection comparisons={comparisons} />
       <DisruptionIntelligenceSection comparisons={comparisons} />
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14, marginTop: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))', gap: 14, marginTop: 16 }}>
         {comparisons.map((comparison, index) => {
           const isBest = index === 0
           return (
@@ -1463,7 +1472,7 @@ function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: It
                 title={`Planner recommendation ${comparison.route}`}
                 route={comparison.route}
               />
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10, marginTop: 14 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 130px), 1fr))', gap: 10, marginTop: 14 }}>
                 <button
                   type="button"
                   onClick={() => watchRoute(comparison)}
@@ -1504,7 +1513,7 @@ function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: It
             <p style={{ color: '#cbd5e1', margin: 0 }}>No saved itinerary options yet. Use “Save to Compare” on any recommendation above.</p>
           </article>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 14, marginTop: 14 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 260px), 1fr))', gap: 14, marginTop: 14 }}>
             {savedComparisons.map((item) => (
               <article key={item.id} className="flight-card" style={{ border: '1px solid #334155', borderRadius: 18, padding: 16, background: '#0f172a' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'flex-start' }}>
@@ -1554,6 +1563,7 @@ export default function PlanPage() {
   const [tripGoal, setTripGoal] = useState('')
   const [homeAirport, setHomeAirport] = useState('')
   const [travelWindow, setTravelWindow] = useState('')
+  const [travelDateError, setTravelDateError] = useState('')
   const [travelerCount, setTravelerCount] = useState('1')
   const [maxLegs, setMaxLegs] = useState('2')
   const [carrier, setCarrier] = useState('all')
@@ -1565,7 +1575,7 @@ export default function PlanPage() {
   const [itineraryLoading, setItineraryLoading] = useState(false)
   const [liveItineraries, setLiveItineraries] = useState<LiveItineraryResult[]>([])
   const [itineraryWarnings, setItineraryWarnings] = useState<string[]>([])
-  const [itinerarySource, setItinerarySource] = useState('Supabase flights table')
+  const [itinerarySource, setItinerarySource] = useState('FlightAware live schedules')
   const [itineraryDataMode, setItineraryDataMode] = useState('Awaiting live search')
   const [itineraryDebug, setItineraryDebug] = useState<ItineraryDebugMetadata | null>(null)
   const [query, setQuery] = useState('')
@@ -1676,6 +1686,17 @@ export default function PlanPage() {
     const requestedTravelWindow = (overrides.travelWindow ?? travelWindow).trim()
     const requestedCarrier = overrides.carrier ?? carrier
     const requestedMaxLegs = overrides.maxLegs ?? maxLegs
+    const dateError = validateTravelDate(requestedTravelWindow)
+
+    if (dateError) {
+      setTravelDateError(dateError)
+      setLiveItineraries([])
+      setItineraryDebug(null)
+      setItineraryStatus(dateError)
+      setItineraryDataMode('Awaiting valid date')
+      return
+    }
+    setTravelDateError('')
 
     if (!trimmedSearch && !originAirport) {
       setLiveItineraries([])
@@ -1688,7 +1709,7 @@ export default function PlanPage() {
     setItineraryLoading(true)
     markActivationStep('runFirstTripPlan')
     setConfidenceUpdateTrigger('itinerary-search-run')
-    setItineraryStatus('Searching Supabase flights first, then enriching matches when FlightAware is configured...')
+    setItineraryStatus('Searching FlightAware live schedules first, then Supabase cached schedules, Aviationstack fallback, and demo last...')
     setItineraryDataMode('Searching providers')
     setItineraryWarnings([])
     setItineraryDebug(null)
@@ -1711,7 +1732,7 @@ export default function PlanPage() {
       setLiveItineraries(itineraries)
       const apiWarnings = Array.isArray(data?.warnings) ? data.warnings : []
       setItineraryWarnings(data?.errorMessage ? [...new Set([...apiWarnings, data.errorMessage])] : apiWarnings)
-      setItinerarySource(data?.sourceLabel || (data?.enrichedWithFlightAware ? 'Stored Supabase data + FlightAware enrichment' : 'Stored Supabase data'))
+      setItinerarySource(data?.sourceLabel || (data?.enrichedWithFlightAware ? 'Cached provider: Supabase + FlightAware enrichment' : 'Cached provider: Supabase'))
       setItineraryDataMode(data?.dataMode === 'nearest-date-testing'
         ? 'Nearest-date test match — not production strict'
         : data?.dataMode === 'stored-supabase'
@@ -1740,6 +1761,13 @@ export default function PlanPage() {
   async function submitPlanRequest(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setSubmitted(true)
+    const dateError = validateTravelDate(travelWindow)
+    setTravelDateError(dateError)
+    if (dateError) {
+      setItineraryStatus(dateError)
+      setItineraryDataMode('Awaiting valid date')
+      return
+    }
     if (tripGoal.trim()) {
       setQuery(tripGoal.trim())
       window.history.replaceState(null, '', `/plan?q=${encodeURIComponent(tripGoal.trim())}`)
@@ -1877,8 +1905,12 @@ export default function PlanPage() {
     predictionEngine
   }), [aiTripPrompt, travelerProfile, scoringScaffold.routeIntelligence, scoringScaffold.routeRecommendations, historicalStats.routes, predictionEngine])
 
+  const travelDateHelperText = travelDateError || (travelWindow.trim()
+    ? 'Single-date search active. Edit manually as YYYY-MM-DD or use the calendar picker where available.'
+    : 'Optional. Use the calendar picker where available, or type YYYY-MM-DD, e.g. 2026-06-06. Blank searches stay flexible.')
+
   return (
-    <main className="app-shell" style={{ minHeight: '100vh', background: '#020617', color: 'white', padding: 32, fontFamily: 'Arial' }}>
+    <main className="app-shell" style={{ minHeight: '100vh', background: '#020617', color: 'white', padding: 'clamp(16px, 4vw, 32px)', fontFamily: 'Arial', overflowX: 'hidden' }}>
       <nav className="top-nav" style={{ marginBottom: 24 }}>
         <a href="/" style={{ marginRight: 16, color: '#38bdf8' }}>Home</a>
         <a href="/plan" style={{ marginRight: 16, color: '#fb7185' }}>Plan</a>
@@ -1895,7 +1927,7 @@ export default function PlanPage() {
         <p style={{ color: '#fb7185', fontWeight: 'bold', letterSpacing: 1, textTransform: 'uppercase' }}>
           Search and itinerary planner
         </p>
-        <h1 style={{ fontSize: 44, lineHeight: 1.05, margin: '8px 0 12px' }}>
+        <h1 style={{ fontSize: 'clamp(34px, 9vw, 44px)', lineHeight: 1.05, margin: '8px 0 12px' }}>
           Plan your nonrevy route.
         </h1>
         <p style={{ color: '#94a3b8', maxWidth: 720, fontSize: 18 }}>
@@ -1908,10 +1940,10 @@ export default function PlanPage() {
           </ul>
         </div>
 
-        <section style={{ border: '1px solid #c084fc', borderRadius: 24, padding: 22, background: 'linear-gradient(135deg, rgba(49, 46, 129, 0.66), rgba(15, 23, 42, 0.96))', marginTop: 24 }}>
+        <section style={{ border: '1px solid #c084fc', borderRadius: 24, padding: 'clamp(16px, 4vw, 22px)', background: 'linear-gradient(135deg, rgba(49, 46, 129, 0.66), rgba(15, 23, 42, 0.96))', marginTop: 24, overflow: 'hidden' }}>
           <p style={{ color: '#c084fc', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1, marginTop: 0 }}>AI Trip Planner scaffold</p>
-          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.1fr) minmax(280px, 0.9fr)', gap: 18, alignItems: 'start' }}>
-            <form onSubmit={submitAiTripPlanner}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 320px), 1fr))', gap: 18, alignItems: 'start', width: '100%' }}>
+            <form onSubmit={submitAiTripPlanner} style={{ minWidth: 0 }}>
               <h2 style={{ fontSize: 30, margin: '0 0 10px' }}>Ask in natural language.</h2>
               <p style={{ color: '#cbd5e1' }}>
                 Examples: “get me to Maui this weekend”, “best Hawaii trip from LAX tomorrow”, “cheapest nonrev path to Tokyo”.
@@ -1923,7 +1955,7 @@ export default function PlanPage() {
                 placeholder="cheapest nonrev path to Tokyo"
                 style={{ boxSizing: 'border-box', width: '100%', padding: 14, borderRadius: 16, border: '1px solid #475569', background: '#020617', color: 'white' }}
               />
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10, marginTop: 12 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 150px), 1fr))', gap: 10, marginTop: 12 }}>
                 {[
                   ['Origin', aiTripPreview.origin],
                   ['Destination', `${aiTripPreview.destinationLabel} (${aiTripPreview.destination})`],
@@ -1942,11 +1974,11 @@ export default function PlanPage() {
               <p style={{ color: '#d8b4fe', marginBottom: 0 }}>{aiPlannerStatus}</p>
             </form>
 
-            <aside style={{ border: '1px solid #334155', borderRadius: 18, padding: 18, background: '#020617' }}>
+            <aside style={{ border: '1px solid #334155', borderRadius: 18, padding: 18, background: '#020617', minWidth: 0, overflowWrap: 'anywhere' }}>
               <strong style={{ color: '#22c55e' }}>Recommended plan</strong>
               <h3 style={{ color: '#f8fafc', margin: '8px 0' }}>{aiTripPlan.bestRoute}</h3>
               <p style={{ color: '#38bdf8', fontWeight: 'bold' }}>Backup: {aiTripPlan.backupRoute}</p>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 150px), 1fr))', gap: 10 }}>
                 <div style={{ border: '1px solid #334155', borderRadius: 12, padding: 10, background: '#0f172a' }}>
                   <small style={{ color: '#94a3b8' }}>Estimated success</small>
                   <p style={{ margin: '4px 0 0', color: '#22c55e', fontWeight: 'bold' }}>{aiTripPlan.estimatedSuccessProbability}%</p>
@@ -1966,7 +1998,7 @@ export default function PlanPage() {
           </div>
         </section>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 18, marginTop: 28 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))', gap: 18, marginTop: 28 }}>
           <form
             onSubmit={submitPlanRequest}
             style={{ border: '1px solid #334155', borderRadius: 22, padding: 22, background: '#0f172a' }}
@@ -1991,15 +2023,27 @@ export default function PlanPage() {
                 style={{ boxSizing: 'border-box', width: '100%', marginTop: 6, padding: 12, borderRadius: 12, border: '1px solid #475569', background: '#020617', color: 'white' }}
               />
             </label>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 180px), 1fr))', gap: 12 }}>
               <label style={{ display: 'block', color: '#cbd5e1', marginBottom: 12 }}>
-                Travel window
+                Travel date (optional single date)
                 <input
+                  type="date"
                   value={travelWindow}
-                  onChange={(event) => setTravelWindow(event.target.value)}
-                  placeholder="Apr 12-18"
-                  style={{ boxSizing: 'border-box', width: '100%', marginTop: 6, padding: 12, borderRadius: 12, border: '1px solid #475569', background: '#020617', color: 'white' }}
+                  onChange={(event) => {
+                    const nextDate = event.target.value
+                    setTravelWindow(nextDate)
+                    setTravelDateError(validateTravelDate(nextDate))
+                  }}
+                  onBlur={(event) => setTravelDateError(validateTravelDate(event.target.value))}
+                  placeholder="2026-06-06"
+                  pattern="\d{4}-\d{2}-\d{2}"
+                  aria-describedby="travel-date-helper"
+                  aria-invalid={Boolean(travelDateError)}
+                  style={{ boxSizing: 'border-box', width: '100%', marginTop: 6, padding: 12, borderRadius: 12, border: `1px solid ${travelDateError ? '#f87171' : '#475569'}`, background: '#020617', color: 'white', colorScheme: 'dark' }}
                 />
+                <small id="travel-date-helper" style={{ display: 'block', color: travelDateError ? '#fecaca' : '#94a3b8', marginTop: 6, lineHeight: 1.4 }}>
+                  {travelDateHelperText}
+                </small>
               </label>
               <label style={{ display: 'block', color: '#cbd5e1', marginBottom: 12 }}>
                 Travelers
@@ -2059,7 +2103,7 @@ export default function PlanPage() {
               </p>
             </div>
             <p style={{ color: '#94a3b8' }}>
-              Supported today: United, Delta, Alaska Group. Alaska Group includes Alaska and Hawaiian. Search uses Supabase first, then Aviationstack fallback and FlightAware enrichment when configured.
+              Supported today: United, Delta, Alaska Group. Alaska Group includes Alaska and Hawaiian. Search uses FlightAware live schedules first, Supabase cached schedules second, Aviationstack fallback third, and demo fallback last.
             </p>
             <button
               type="submit"
@@ -2124,7 +2168,7 @@ export default function PlanPage() {
           )}
           <div style={{ border: '1px solid #334155', borderRadius: 16, padding: 14, background: '#020617', marginBottom: 16 }}>
             <strong style={{ color: '#38bdf8' }}>Developer Diagnostics</strong>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 10, marginTop: 12 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 170px), 1fr))', gap: 10, marginTop: 12 }}>
               {[
                 ['Parsed origin', itineraryDebug?.parsedOrigin || 'Not parsed'],
                 ['Parsed destination', itineraryDebug?.parsedDestination || 'Not parsed'],
@@ -2162,9 +2206,9 @@ export default function PlanPage() {
               <div style={{ marginTop: 12 }}>
                 <strong style={{ color: '#c084fc' }}>Live schedule provider readiness</strong>
                 <p style={{ color: '#94a3b8', margin: '6px 0 0' }}>
-                  Readiness is diagnostic only and does not change the current Supabase-first itinerary search behavior.
+                  Readiness is diagnostic only. Itinerary search checks FlightAware first, then Supabase cached schedules, Aviationstack fallback, and demo fallback.
                 </p>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 10, marginTop: 10 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))', gap: 10, marginTop: 10 }}>
                   {itineraryDebug.scheduleProviderReadiness.map((provider) => {
                     const colors = readinessBadgeStyle(provider.status)
                     return (
@@ -2188,7 +2232,7 @@ export default function PlanPage() {
             {itineraryDebug?.apiResponseCounts ? (
               <div style={{ marginTop: 12 }}>
                 <strong style={{ color: '#38bdf8' }}>API response counts</strong>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10, marginTop: 10 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 150px), 1fr))', gap: 10, marginTop: 10 }}>
                   {[
                     ['Supabase fetched', itineraryDebug.apiResponseCounts.supabaseFetched],
                     ['Supabase matched', itineraryDebug.apiResponseCounts.supabaseMatchedFlights],
@@ -2220,7 +2264,7 @@ export default function PlanPage() {
                 {itineraryDebug.routeMatching.dateCoverage ? (
                   <div style={{ border: `1px solid ${itineraryDebug.routeMatching.dateCoverage.nearestDateApplied ? '#facc15' : '#334155'}`, borderRadius: 12, padding: 12, background: '#0f172a', marginTop: 10 }}>
                     <strong style={{ color: itineraryDebug.routeMatching.dateCoverage.nearestDateApplied ? '#facc15' : '#38bdf8' }}>Flight date coverage</strong>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10, marginTop: 10 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 150px), 1fr))', gap: 10, marginTop: 10 }}>
                       {[
                         ['Oldest flight date', itineraryDebug.routeMatching.dateCoverage.oldestFlightDate || 'Unavailable'],
                         ['Newest flight date', itineraryDebug.routeMatching.dateCoverage.newestFlightDate || 'Unavailable'],
@@ -2245,7 +2289,7 @@ export default function PlanPage() {
                     ) : null}
                   </div>
                 ) : null}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10, marginTop: 10 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 150px), 1fr))', gap: 10, marginTop: 10 }}>
                   {[
                     ['Origin matches', itineraryDebug.routeMatching.originMatches],
                     ['Destination matches', itineraryDebug.routeMatching.destinationMatches],
@@ -2263,7 +2307,7 @@ export default function PlanPage() {
                 {itineraryDebug.routeMatching.closestMatchingRoutes.length > 0 ? (
                   <div style={{ marginTop: 12 }}>
                     <strong style={{ color: '#bbf7d0' }}>Closest matching routes in fetched rows</strong>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10, marginTop: 10 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))', gap: 10, marginTop: 10 }}>
                       {itineraryDebug.routeMatching.closestMatchingRoutes.map((route) => (
                         <article key={route.route} style={{ border: '1px solid #14532d', borderRadius: 12, padding: 10, background: 'rgba(20, 83, 45, 0.18)' }}>
                           <strong>{route.route}</strong>
@@ -2280,7 +2324,7 @@ export default function PlanPage() {
                     <p style={{ color: '#94a3b8', margin: '6px 0 0' }}>
                       Missing origin: {itineraryDebug.routeMatching.routeNormalization.missingOriginCount} · Missing destination: {itineraryDebug.routeMatching.routeNormalization.missingDestinationCount} · Missing date: {itineraryDebug.routeMatching.routeNormalization.missingDateCount}
                     </p>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 10, marginTop: 10 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 190px), 1fr))', gap: 10, marginTop: 10 }}>
                       {itineraryDebug.routeMatching.routeNormalization.normalizedRoutes.map((route) => (
                         <article key={route.route} style={{ border: '1px solid #334155', borderRadius: 12, padding: 10, background: '#0f172a' }}>
                           <strong>{route.route}</strong>
@@ -2327,7 +2371,7 @@ export default function PlanPage() {
             {itineraryDebug?.providerStatuses?.length ? (
               <div style={{ marginTop: 12 }}>
                 <strong style={{ color: '#c084fc' }}>Provider fallback strategy</strong>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: 10, marginTop: 10 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 210px), 1fr))', gap: 10, marginTop: 10 }}>
                   {itineraryDebug.providerStatuses.map((status) => (
                     <article key={status.provider} style={{ border: `1px solid ${status.state === 'success' ? '#22c55e' : status.state === 'warning' ? '#facc15' : '#334155'}`, borderRadius: 12, padding: 10, background: '#0f172a' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center' }}>
@@ -2359,7 +2403,7 @@ export default function PlanPage() {
           </div>
           <ItineraryComparisonPanel comparisons={itineraryComparisons} travelDate={travelWindow} />
           {liveItineraries.length > 0 ? (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))', gap: 16 }}>
               {liveItineraries.map((itinerary) => (
                 <article key={itinerary.id} style={{ border: '1px solid #334155', borderRadius: 20, padding: 18, background: '#0f172a' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
@@ -2389,7 +2433,7 @@ export default function PlanPage() {
                   <p style={{ color: '#94a3b8' }}>
                     Gate: {itinerary.gate || 'Not available'} · Terminal: {itinerary.terminal || 'Not available'} · {itinerary.source}
                   </p>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: 10, margin: '12px 0' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 210px), 1fr))', gap: 10, margin: '12px 0' }}>
                     {airportCodesFromRoute(itinerary.route).map((code) => (
                       <MapboxAirportMap key={`${itinerary.id}-${code}`} airportCode={code} title={`${code} airport preview`} compact />
                     ))}
@@ -2421,7 +2465,7 @@ export default function PlanPage() {
               <p style={{ color: '#94a3b8' }}>
                 No provider flights found for this search. These clearly marked demo cards keep search, scoring, probability, watchlist, and outcome capture testable without current API data.
               </p>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 16 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 260px), 1fr))', gap: 16 }}>
                 {fallbackDemoItineraries.map((itinerary) => (
               <article key={itinerary.id} style={{ border: '1px solid #334155', borderRadius: 20, padding: 18, background: '#0f172a' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
@@ -2436,7 +2480,7 @@ export default function PlanPage() {
                 <p style={{ color: '#38bdf8', fontSize: 18, fontWeight: 'bold' }}>{itinerary.route}</p>
                 <p style={{ color: '#94a3b8' }}>Window: {itinerary.window}</p>
                 <p>{itinerary.notes}</p>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: 10, margin: '12px 0' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 210px), 1fr))', gap: 10, margin: '12px 0' }}>
                   {airportCodesFromRoute(itinerary.route).map((code) => (
                     <MapboxAirportMap key={`${itinerary.id}-${code}`} airportCode={code} title={`${code} airport preview`} compact />
                   ))}
@@ -2472,7 +2516,7 @@ export default function PlanPage() {
           <p style={{ color: '#cbd5e1' }}>
             Placeholder weights: Hub Strength {scoringScaffold.weights['Hub Strength']} · Route Complexity {scoringScaffold.weights['Route Complexity']} · Seasonal Demand {scoringScaffold.weights['Seasonal Demand']} · Historical Performance {scoringScaffold.weights['Historical Performance']}
           </p>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 180px), 1fr))', gap: 12 }}>
             {scoringScaffold.breakdown.map((item) => (
               <article key={item.label} style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#020617' }}>
                 <small style={{ color: '#94a3b8' }}>{item.label}</small>
@@ -2486,7 +2530,7 @@ export default function PlanPage() {
             <p style={{ color: '#94a3b8' }}>
               Prediction engine scaffold blended from Outcome History, Community Load Reports, Historical Route Database, Route Confidence Scores, Reputation/Trust Scores, and Traveler Profile for {scoringScaffold.recommendationScope}.
             </p>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 180px), 1fr))', gap: 12 }}>
               <article style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#0f172a' }}>
                 <small style={{ color: '#94a3b8' }}>Probability %</small>
                 <h3 style={{ color: '#f8fafc', margin: '6px 0 0' }}>{predictionEngine.successProbability}%</h3>
@@ -2521,7 +2565,7 @@ export default function PlanPage() {
             </div>
             <div style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#0f172a', marginTop: 14 }}>
               <strong style={{ color: '#c084fc' }}>Data Sources Used</strong>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12, marginTop: 12 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))', gap: 12, marginTop: 12 }}>
                 {predictionEngine.dataSourcesUsed.map((source) => (
                   <article key={source.label} style={{ border: `1px solid ${source.used ? '#22c55e' : '#334155'}`, borderRadius: 14, padding: 14, background: '#020617' }}>
                     <small style={{ color: source.used ? '#86efac' : '#94a3b8' }}>{source.used ? 'Used' : 'Pending'}</small>
@@ -2534,7 +2578,7 @@ export default function PlanPage() {
             </div>
             <div style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#0f172a', marginTop: 14 }}>
               <strong style={{ color: '#facc15' }}>Placeholder weighting formula</strong>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10, marginTop: 12 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 160px), 1fr))', gap: 10, marginTop: 12 }}>
                 {predictionEngine.placeholderWeights.map((weight) => (
                   <article key={weight.label} style={{ border: '1px solid #334155', borderRadius: 12, padding: 12, background: '#020617' }}>
                     <small style={{ color: '#94a3b8' }}>{weight.label}</small>
@@ -2546,7 +2590,7 @@ export default function PlanPage() {
             <div style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#0f172a', marginTop: 14 }}>
               <strong style={{ color: '#34d399' }}>Community contribution impact</strong>
               <p style={{ color: '#cbd5e1' }}>{predictionEngine.communityContributionImpact.summary}</p>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 150px), 1fr))', gap: 10 }}>
                 {[
                   ['New contributors', predictionEngine.communityContributionImpact.newContributorReports],
                   ['Trusted contributors', predictionEngine.communityContributionImpact.trustedContributorReports],
@@ -2573,7 +2617,7 @@ export default function PlanPage() {
                 ))}
               </ul>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginTop: 14 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 160px), 1fr))', gap: 12, marginTop: 14 }}>
               {[
                 ['Carrier base', `${predictionEngine.inputSummary.carrierDefaultProbability}%`],
                 ['Route risk', predictionEngine.inputSummary.routeRisk],
@@ -2594,7 +2638,7 @@ export default function PlanPage() {
             <p style={{ color: '#94a3b8' }}>
               Placeholder route guidance tied to the selected carrier profile. No backend APIs yet.
             </p>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 180px), 1fr))', gap: 12 }}>
               {Object.entries(scoringScaffold.routeIntelligence).map(([label, value]) => (
                 <article key={label} style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#0f172a' }}>
                   <small style={{ color: '#94a3b8' }}>{label}</small>
@@ -2608,7 +2652,7 @@ export default function PlanPage() {
             <p style={{ color: '#94a3b8' }}>
               {historicalStats.explanation}
             </p>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 160px), 1fr))', gap: 12 }}>
               {[
                 ['Historical score', historicalStats.averageScore],
                 ['Historical success', `${historicalStats.averageSuccessRate}%`],
@@ -2639,7 +2683,7 @@ export default function PlanPage() {
             <p style={{ color: '#94a3b8' }}>
               Local profile values currently feeding route scoring assumptions.
             </p>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 160px), 1fr))', gap: 12 }}>
               {[
                 ['Employee airline', travelerProfile.employeeAirline],
                 ['Traveler type', travelerProfile.travelerType],
@@ -2716,11 +2760,11 @@ export default function PlanPage() {
                 <p style={{ color: '#38bdf8' }}>{flight.origin} → {flight.destination}</p>
                 <p>Aircraft: {flight.aircraft || 'Unknown'} · Status: {flight.status || 'Unknown'} · Score: {flight.score ?? 'Not scored'}</p>
                 <p>Delay risk: {risk.label} ({risk.score}/100)</p>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 12, marginTop: 12 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))', gap: 12, marginTop: 12 }}>
                   <MapboxAirportMap airportCode={flight.origin} title={`${flight.origin || 'Origin'} airport map`} compact />
                   <MapboxAirportMap airportCode={flight.destination} title={`${flight.destination || 'Destination'} airport map`} compact />
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10, marginTop: 12 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 180px), 1fr))', gap: 10, marginTop: 12 }}>
                   {richFlightFieldLabels.map((field) => (
                     <div key={field.key} style={{ border: '1px solid #334155', borderRadius: 12, padding: 10, background: '#020617' }}>
                       <small style={{ color: '#94a3b8' }}>{field.label}</small>
@@ -2730,7 +2774,7 @@ export default function PlanPage() {
                 </div>
                 <details style={{ marginTop: 12 }}>
                   <summary style={{ color: '#38bdf8', cursor: 'pointer' }}>Show all DB fields</summary>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 8, marginTop: 10 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 180px), 1fr))', gap: 8, marginTop: 10 }}>
                     {allFlightFields(flight).map(([key, value]) => (
                       <div key={key} style={{ border: '1px solid #334155', borderRadius: 10, padding: 8, background: '#020617' }}>
                         <small style={{ color: '#94a3b8' }}>{key}</small>

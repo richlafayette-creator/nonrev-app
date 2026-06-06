@@ -30,6 +30,8 @@ export type ItineraryLeg = {
   score: number
   risk: string
   source: string
+  sourceProvider?: string
+  sourceCheckedAt?: string
 }
 
 export type ItineraryResult = {
@@ -47,6 +49,8 @@ export type ItineraryResult = {
   score: number
   risk: string
   source: string
+  sourceProvider?: string
+  sourceCheckedAt?: string
   providerBadges?: string[]
   dataFreshnessLabel?: string
   dataFreshnessDetail?: string
@@ -685,6 +689,7 @@ export function normalizeFlightLeg(flight: Record<string, unknown>, enrichment?:
   const sourceProvider = `${rawSourceProvider} ${status}`.toLowerCase().includes('test data')
     ? 'mvp-route-seed-test-data'
     : rawSourceProvider
+  const sourceCheckedAt = valueFrom(flight, ['source_checked_at']) || valueFrom(enrichment || {}, ['source_checked_at']) || undefined
   const delayMinutes = Math.max(
     numberFrom(enrichment || {}, ['departure_delay', 'arrival_delay', 'delay_minutes'], 0),
     numberFrom(flight, ['departure_delay', 'arrival_delay', 'delay_minutes'], 0),
@@ -718,7 +723,9 @@ export function normalizeFlightLeg(flight: Record<string, unknown>, enrichment?:
     disruptionSource: enrichment ? 'FlightAware enrichment' : sourceProvider,
     score,
     risk: riskFromScore(score, status),
-    source: enrichment ? `${sourceProvider}+flightaware` : sourceProvider
+    source: enrichment ? `${sourceProvider}+flightaware` : sourceProvider,
+    sourceProvider,
+    sourceCheckedAt
   }
 }
 
@@ -772,7 +779,9 @@ function itineraryFromLegs(legs: ItineraryLeg[]): ItineraryResult {
     risk: riskFromScore(score, legs.map((leg) => leg.status).join(' ')),
     source: legs.some((leg) => leg.source.includes('flightaware'))
       ? `${legs[0].source.replace('+flightaware', '')}+flightaware`
-      : legs[0].source
+      : legs[0].source,
+    sourceProvider: legs[0].sourceProvider,
+    sourceCheckedAt: legs.map((leg) => leg.sourceCheckedAt).filter(Boolean).sort().slice(-1)[0]
   }
 }
 

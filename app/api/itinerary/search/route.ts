@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { airportScaffoldFor } from '../../../../lib/airportMapScaffold'
 import { buildItinerariesFromFlights, closestAvailableFlightDates, flightMatchesRequest, normalizeFlightRouteForDiagnostics, normalizeItineraryRequest, summarizeRouteMatching, type ItineraryResult, type ParsedItineraryRequest, type RouteMatchingSummary } from '../../../../lib/itinerarySearch'
 import { mvpRouteSeedDate, mvpRouteSeedFlightsForRequest } from '../../../../lib/mvpRouteSeedData'
-import { createAviationstackScheduleProvider, getLiveScheduleProviderReadiness, scheduleResultsToFlightRecords, type ScheduleProviderReadiness } from '../../../../lib/liveScheduleProviders'
+import { createAviationstackScheduleProvider, createFlightAwareScheduleProvider, getLiveScheduleProviderReadiness, scheduleResultsToFlightRecords, type ScheduleProviderReadiness } from '../../../../lib/liveScheduleProviders'
 
 export const dynamic = 'force-dynamic'
 
@@ -18,6 +18,9 @@ type ProviderStatus = {
 }
 
 type ApiResponseCounts = {
+  flightAwareScheduleRequests: number
+  flightAwareScheduleFetched: number
+  flightAwareScheduleItineraries: number
   supabaseFetched: number
   supabaseMatchedFlights: number
   supabaseItineraries: number
@@ -119,45 +122,45 @@ const carrierIataCodes: Record<string, string[]> = {
 }
 
 const providerLabels: Record<ProviderKey, string> = {
-  supabase: 'Stored Supabase data',
-  aviationstack: 'Live current API data',
-  flightaware: 'FlightAware enriched',
-  planning: 'Demo fallback data'
+  supabase: 'Cached provider: Supabase',
+  aviationstack: 'Live provider fallback: Aviationstack',
+  flightaware: 'Live provider: FlightAware',
+  planning: 'Demo provider'
 }
 
 const providerFallbackOrder = [
-  '1. Supabase flights table (stored data; targeted route/date query, then recent-row safety query)',
-  '2. Current provider API fallback (Aviationstack; only if Supabase cannot assemble a matching itinerary)',
-  '3. FlightAware enrichment (only after a provider returns known flight numbers)',
-  '4. Demo fallback cards (only if no stored/current provider returns itinerary data)'
+  '1. FlightAware live schedules (route/date schedule search)',
+  '2. Supabase cached schedules (stored data; targeted route/date query, then recent-row safety query)',
+  '3. Aviationstack fallback (only when quota/account health allows usable results)',
+  '4. Demo fallback cards (only if no live or cached provider returns itinerary data)'
 ]
 
 const providerTimeoutMs = 7000
 
 const fallbackProviderStatuses: ProviderStatus[] = [
   {
+    provider: 'flightaware',
+    label: providerLabels.flightaware,
+    state: 'pending',
+    detail: 'FlightAware live route/date schedule search is checked first.'
+  },
+  {
     provider: 'supabase',
     label: providerLabels.supabase,
     state: 'pending',
-    detail: 'Supabase flights table is checked first for matching stored flight records.'
+    detail: 'Supabase cached schedules are checked after FlightAware live schedules.'
   },
   {
     provider: 'aviationstack',
     label: providerLabels.aviationstack,
     state: 'pending',
-    detail: 'Current provider API is queried only when Supabase has no usable matching itineraries.'
-  },
-  {
-    provider: 'flightaware',
-    label: providerLabels.flightaware,
-    state: 'pending',
-    detail: 'FlightAware enrichment runs after a provider returns known flight numbers.'
+    detail: 'Aviationstack fallback is queried only when FlightAware and Supabase have no usable matching itineraries.'
   },
   {
     provider: 'planning',
     label: providerLabels.planning,
     state: 'pending',
-    detail: 'Demo fallback cards are used only when no stored/current provider returns itinerary data.'
+    detail: 'Demo fallback cards are used only when no live or cached provider returns itinerary data.'
   }
 ]
 
@@ -177,6 +180,9 @@ function uniqueMessages(messages: Array<string | undefined>) {
 
 function emptyCounts(): ApiResponseCounts {
   return {
+    flightAwareScheduleRequests: 0,
+    flightAwareScheduleFetched: 0,
+    flightAwareScheduleItineraries: 0,
     supabaseFetched: 0,
     supabaseMatchedFlights: 0,
     supabaseItineraries: 0,
@@ -235,13 +241,14 @@ function providerBadgesForSource(source: string, enriched: boolean) {
   const badges: string[] = []
   const lowerSource = source.toLowerCase()
   if (lowerSource.includes('mvp-route-seed') || lowerSource.includes('test-data')) badges.push('MVP test data')
+  else if (source.includes('flightaware')) badges.push(providerLabels.flightaware)
   else if (source.includes('aviationstack')) badges.push(providerLabels.aviationstack)
   else badges.push(providerLabels.supabase)
-  if (enriched || source.includes('flightaware')) badges.push(providerLabels.flightaware)
+  if (enriched && !badges.includes(providerLabels.flightaware)) badges.push(providerLabels.flightaware)
   return badges
 }
 
-function addProviderBadges(itineraries: ItineraryResult[], source: 'supabase' | 'aviationstack', enriched: boolean, freshness: Pick<ItineraryResult, 'dataFreshnessLabel' | 'dataFreshnessDetail'> = {}) {
+function addProviderBadges(itineraries: ItineraryResult[], source: 'flightaware' | 'supabase' | 'aviationstack', enriched: boolean, freshness: Pick<ItineraryResult, 'dataFreshnessLabel' | 'dataFreshnessDetail'> = {}) {
   return itineraries.map((itinerary) => ({
     ...itinerary,
     dataFreshnessLabel: freshness.dataFreshnessLabel,
@@ -253,14 +260,15 @@ function addProviderBadges(itineraries: ItineraryResult[], source: 'supabase' | 
   }))
 }
 
-function trueLiveUnavailableReason(source: 'supabase' | 'aviationstack' | 'planning' | 'mvp-test-data', routeMatching?: RouteMatchingSummary) {
+function trueLiveUnavailableReason(source: 'flightaware' | 'supabase' | 'aviationstack' | 'planning' | 'mvp-test-data', routeMatching?: RouteMatchingSummary) {
+  if (source === 'flightaware') return ''
   if (source === 'aviationstack') return ''
   if (source === 'supabase') {
     if (routeMatching?.dateCoverage.nearestDateApplied) return `True live current API data was unavailable; using stored Supabase rows from nearest available date ${routeMatching.dateCoverage.effectiveMatchDate} for requested date ${routeMatching.dateCoverage.requestedSearchDate}.`
-    return 'True live current API data was unavailable or not needed because stored Supabase data produced itinerary cards; these rows are persisted database records, not a current provider API response.'
+    return 'FlightAware live schedules were unavailable or returned no usable itinerary, so cached Supabase rows produced itinerary cards; these rows are persisted database records, not a current provider API response.'
   }
-  if (source === 'mvp-test-data') return 'True live current API data was unavailable from Supabase/Aviationstack, so static MVP test data is being used.'
-  return 'True live current API data was unavailable from configured providers, so demo fallback guidance is being shown.'
+  if (source === 'mvp-test-data') return 'True live current API data was unavailable from FlightAware/Supabase/Aviationstack, so static MVP test data is being used.'
+  return 'True live current API data was unavailable from configured providers and cached schedules had no usable itinerary, so demo fallback guidance is being shown.'
 }
 
 function safeProviderMessage(provider: string, status: number, fallback: string) {
@@ -585,6 +593,37 @@ async function fetchAviationstackFlights(request: ReturnType<typeof normalizeIti
   }
 }
 
+async function fetchFlightAwareScheduleFlights(request: ReturnType<typeof normalizeItineraryRequest>) {
+  const provider = createFlightAwareScheduleProvider()
+  const response = await provider.searchSchedules({
+    origin: request.origin,
+    destination: request.destination,
+    date: request.date,
+    carrier: request.carrier,
+    maxResults: 50
+  })
+
+  return {
+    flights: uniqueFlights(scheduleResultsToFlightRecords(response.results)),
+    warning: response.warning,
+    requestCount: response.requestCount,
+    detail: response.detail,
+    status: response.status
+  }
+}
+
+function skippedSupabaseDiagnostics(reason: string): SupabaseQueryDiagnostics {
+  return {
+    attemptedPath: reason,
+    usedPath: reason,
+    directCount: 0,
+    connectionCandidateCount: 0,
+    routeCoverageCount: 0,
+    targetedCount: 0,
+    recentCount: 0
+  }
+}
+
 function normalizeAviationstackFlight(flight: AviationstackFlight): FlightRecord {
   const flightNumber = flight.flight?.iata || flight.flight?.icao || flight.flight?.number || 'Flight TBD'
   const origin = flight.departure?.iata || flight.departure?.icao || 'TBD'
@@ -594,6 +633,7 @@ function normalizeAviationstackFlight(flight: AviationstackFlight): FlightRecord
   return {
     id: `aviationstack-${flightNumber}-${origin}-${destination}-${flight.departure?.scheduled || flight.flight_date || 'pending'}`,
     source_provider: 'aviationstack',
+    source_checked_at: new Date().toISOString(),
     flight_date: flight.flight_date,
     flight_number: flightNumber,
     carrier: flight.airline?.name || flight.airline?.iata || flight.airline?.icao || 'Unknown Airline',
@@ -612,10 +652,11 @@ function normalizeAviationstackFlight(flight: AviationstackFlight): FlightRecord
   }
 }
 
-function sourceLabel(source: 'supabase' | 'aviationstack' | 'planning', enriched: boolean) {
+function sourceLabel(source: 'flightaware' | 'supabase' | 'aviationstack' | 'planning', enriched: boolean) {
   if (source === 'planning') return providerLabels.planning
-  if (source === 'aviationstack') return enriched ? 'Live current API data + FlightAware enriched' : providerLabels.aviationstack
-  return enriched ? 'Stored Supabase data + FlightAware enriched' : providerLabels.supabase
+  if (source === 'flightaware') return providerLabels.flightaware
+  if (source === 'aviationstack') return enriched ? 'Live provider fallback: Aviationstack + FlightAware enriched' : providerLabels.aviationstack
+  return enriched ? 'Cached provider: Supabase + FlightAware enriched' : providerLabels.supabase
 }
 
 function buildDebugMetadata({
@@ -743,7 +784,7 @@ export async function GET(request: Request) {
       providerStatuses: [
         providerStatus('supabase', 'skipped', 'Skipped to avoid an unrestricted stored-data search without a complete parsed route.'),
         providerStatus('aviationstack', 'skipped', 'Skipped to avoid an unrestricted fallback-provider search without a complete parsed route.'),
-        providerStatus('flightaware', 'skipped', 'Skipped because no provider returned known flight numbers.'),
+        providerStatus('flightaware', 'skipped', 'Skipped because the parser did not produce a complete route for live schedule search.'),
         providerStatus('planning', 'success', 'Clearly marked demo fallback cards are active in the UI until the route is complete.')
       ],
       providerFallbackOrder,
@@ -759,6 +800,8 @@ export async function GET(request: Request) {
       source: 'parser-safe-planning-fallback',
       sourceLabel: sourceLabel('planning', false),
       dataMode: 'fallback',
+      source_provider: 'demo',
+      source_checked_at: undefined,
       statusMessage: noRouteMessage,
       errorMessage: noRouteMessage,
       enrichedWithFlightAware: false,
@@ -767,6 +810,71 @@ export async function GET(request: Request) {
       debug,
       count: 0,
       itineraries: []
+    })
+  }
+
+  const { flights: flightAwareScheduleFlights, warning: flightAwareScheduleWarning, requestCount: flightAwareScheduleRequestCount, detail: flightAwareScheduleDetail } = await fetchFlightAwareScheduleFlights(effectiveRequest)
+  counts.flightAwareScheduleRequests = flightAwareScheduleRequestCount
+  counts.flightAwareScheduleFetched = flightAwareScheduleFlights.length
+  counts.flightAwareRequested = flightAwareScheduleRequestCount
+  if (flightAwareScheduleWarning) warnings.push(flightAwareScheduleWarning)
+  const flightAwareScheduleLimit = rateLimitMessage('FlightAware', undefined, flightAwareScheduleWarning)
+  if (flightAwareScheduleLimit) rateLimits.push(flightAwareScheduleLimit)
+  if (flightAwareScheduleRequestCount > 0 && flightAwareScheduleFlights.length === 0) emptyResults.push('FlightAware live schedule search returned zero usable flight rows.')
+
+  const flightAwareRouteMatching = summarizeRouteMatching(flightAwareScheduleFlights, effectiveRequest)
+  const flightAwareItineraries = buildItinerariesFromFlights(flightAwareScheduleFlights, effectiveRequest)
+  counts.flightAwareScheduleItineraries = flightAwareItineraries.length
+  if (flightAwareScheduleFlights.length > 0 && flightAwareItineraries.length === 0) emptyResults.push('FlightAware returned live schedule rows, but none matched itinerary assembly rules.')
+  if (flightAwareItineraries.length > 0) {
+    const itineraries = addProviderBadges(flightAwareItineraries, 'flightaware', false, {
+      dataFreshnessLabel: 'Live provider',
+      dataFreshnessDetail: effectiveRequest.date ? `FlightAware live schedule result checked for requested date ${effectiveRequest.date}.` : 'FlightAware live schedule result checked for the current schedule window.'
+    })
+    counts.finalItineraries = itineraries.length
+    const skippedSupabaseQueryPath = skippedSupabaseDiagnostics('skipped; FlightAware live schedules returned itinerary results')
+    const debug = buildDebugMetadata({
+      parsedRequest: effectiveRequest,
+      supabaseResultCount: 0,
+      aviationstackFallbackStatus: 'skipped; FlightAware live schedules returned itinerary results',
+      flightAwareEnrichmentStatus: flightAwareScheduleDetail || `${flightAwareItineraries.length} FlightAware live itinerary result${flightAwareItineraries.length === 1 ? '' : 's'} returned`,
+      finalItineraryCount: itineraries.length,
+      apiResponseCounts: counts,
+      routeMatching: flightAwareRouteMatching,
+      supabaseQueryPath: skippedSupabaseQueryPath,
+      emptyResults,
+      rateLimits,
+      invalidAirportCodes,
+      unsupportedAirportCodes,
+      invalidDates,
+      providerFallbackOrder,
+      providerStatuses: [
+        providerStatus('flightaware', 'success', `${flightAwareItineraries.length} itinerary result${flightAwareItineraries.length === 1 ? '' : 's'} found from ${flightAwareScheduleFlights.length} live FlightAware schedule row${flightAwareScheduleFlights.length === 1 ? '' : 's'}.`),
+        providerStatus('supabase', 'skipped', 'Skipped because FlightAware live schedules produced itinerary results.'),
+        providerStatus('aviationstack', 'skipped', 'Skipped because FlightAware live schedules produced itinerary results.'),
+        providerStatus('planning', 'skipped', 'Skipped because live provider results are available.')
+      ],
+      trueLiveDataAvailable: true,
+      trueLiveDataUnavailableReason: '',
+      dataFreshnessMode: 'live-current-api',
+      safeErrors: uniqueMessages(warnings)
+    })
+
+    return NextResponse.json({
+      ok: true,
+      request: effectiveRequest,
+      source: 'flightaware-live-schedules-first',
+      sourceLabel: sourceLabel('flightaware', false),
+      dataMode: 'live',
+      source_provider: 'flightaware',
+      source_checked_at: itineraries[0]?.sourceCheckedAt,
+      statusMessage: `${itineraries.length} live itinerary result${itineraries.length === 1 ? '' : 's'} found through FlightAware.`,
+      enrichedWithFlightAware: true,
+      providerBadges: [providerLabels.flightaware],
+      warnings: uniqueMessages(warnings),
+      debug,
+      count: itineraries.length,
+      itineraries
     })
   }
 
@@ -810,12 +918,12 @@ export async function GET(request: Request) {
     const enriched = Object.keys(enrichments).length > 0
     const supabaseFreshness = routeMatching.dateCoverage.nearestDateApplied
       ? {
-          dataFreshnessLabel: 'Nearest-date test match',
+          dataFreshnessLabel: 'Cached provider nearest-date test match',
           dataFreshnessDetail: `Requested ${routeMatching.dateCoverage.requestedSearchDate}; matched stored Supabase date ${routeMatching.dateCoverage.effectiveMatchDate}.`
         }
       : {
-          dataFreshnessLabel: effectiveRequest.date ? 'Stored date match' : 'Stored Supabase data',
-          dataFreshnessDetail: effectiveRequest.date ? `Stored Supabase row matches requested date ${effectiveRequest.date}; not a current API response.` : 'Stored Supabase row; no strict requested date was supplied.'
+          dataFreshnessLabel: effectiveRequest.date ? 'Cached provider date match' : 'Cached provider',
+          dataFreshnessDetail: effectiveRequest.date ? `Cached Supabase row matches requested date ${effectiveRequest.date}; not a current API response.` : 'Cached Supabase row; no strict requested date was supplied.'
         }
     const itineraries = addProviderBadges(enrichedItineraries.length ? enrichedItineraries : supabaseItineraries, 'supabase', enriched, supabaseFreshness)
     counts.finalItineraries = itineraries.length
@@ -839,7 +947,7 @@ export async function GET(request: Request) {
           ? `${supabaseItineraries.length} itinerary result${supabaseItineraries.length === 1 ? '' : 's'} found from ${supabaseMatchedFlights.length} exact matched Supabase flight record${supabaseMatchedFlights.length === 1 ? '' : 's'} via ${supabaseQueryPath.usedPath}.`
           : `${supabaseItineraries.length} connecting itinerary result${supabaseItineraries.length === 1 ? '' : 's'} assembled from Supabase candidate rows, but no single direct row matched the normalized route. ${routeMatching.matchExplanation}`),
         providerStatus('aviationstack', 'skipped', 'Skipped because stored Supabase data produced itinerary results.'),
-        providerStatus('flightaware', enriched ? 'success' : 'warning', flightAwareStatus),
+        providerStatus('flightaware', enriched ? 'success' : flightAwareScheduleWarning ? 'warning' : 'skipped', `${flightAwareScheduleDetail}; cached-result enrichment status: ${flightAwareStatus}.`),
         providerStatus('planning', 'skipped', 'Skipped because stored provider results are available.')
       ],
       trueLiveDataAvailable: false,
@@ -853,6 +961,8 @@ export async function GET(request: Request) {
       source: 'supabase-flights-first',
       sourceLabel: sourceLabel('supabase', enriched),
       dataMode: routeMatching.dateCoverage.nearestDateApplied ? 'nearest-date-testing' : 'stored-supabase',
+      source_provider: 'supabase',
+      source_checked_at: itineraries[0]?.sourceCheckedAt,
       statusMessage: routeMatching.dateCoverage.nearestDateApplied
         ? `${itineraries.length} nearest-date testing itinerary result${itineraries.length === 1 ? '' : 's'} found in stored Supabase data for ${routeMatching.dateCoverage.effectiveMatchDate}; requested ${routeMatching.dateCoverage.requestedSearchDate}.`
         : `${itineraries.length} itinerary result${itineraries.length === 1 ? '' : 's'} found in stored Supabase data.`,
@@ -865,7 +975,7 @@ export async function GET(request: Request) {
     })
   }
 
-  warnings.push('No matching Supabase flights found; trying Aviationstack fallback')
+  warnings.push('No matching FlightAware live or Supabase cached flights found; trying Aviationstack fallback')
   const { flights: aviationstackFlights, warning: aviationstackWarning, requestCount: aviationstackRequestCount } = await fetchAviationstackFlights(effectiveRequest)
   counts.aviationstackRequests = aviationstackRequestCount
   counts.aviationstackFetched = aviationstackFlights.length
@@ -887,7 +997,7 @@ export async function GET(request: Request) {
     const enrichedItineraries = buildItinerariesFromFlights(aviationstackFlights, effectiveRequest, enrichments)
     const enriched = Object.keys(enrichments).length > 0
     const itineraries = addProviderBadges(enrichedItineraries.length ? enrichedItineraries : aviationstackItineraries, 'aviationstack', enriched, {
-      dataFreshnessLabel: 'Live current API data',
+      dataFreshnessLabel: 'Live provider fallback',
       dataFreshnessDetail: effectiveRequest.date ? `Current provider API result for requested date ${effectiveRequest.date}.` : 'Current provider API result; no strict requested date was supplied.'
     })
     counts.finalItineraries = itineraries.length
@@ -910,7 +1020,7 @@ export async function GET(request: Request) {
       providerStatuses: [
         providerStatus('supabase', supabaseWarning ? 'warning' : 'skipped', supabaseWarning || 'No Supabase itineraries matched this request.'),
         providerStatus('aviationstack', 'success', `${aviationstackItineraries.length} matching itinerary result${aviationstackItineraries.length === 1 ? '' : 's'} found through fallback.`),
-        providerStatus('flightaware', enriched ? 'success' : 'warning', flightAwareStatus),
+        providerStatus('flightaware', enriched ? 'success' : flightAwareScheduleWarning ? 'warning' : 'skipped', `${flightAwareScheduleDetail}; Aviationstack-result enrichment status: ${flightAwareStatus}.`),
         providerStatus('planning', 'skipped', 'Skipped because Aviationstack produced itinerary results.')
       ],
       trueLiveDataAvailable: true,
@@ -925,6 +1035,8 @@ export async function GET(request: Request) {
       source: 'aviationstack-fallback',
       sourceLabel: sourceLabel('aviationstack', enriched),
       dataMode: 'live',
+      source_provider: 'aviationstack',
+      source_checked_at: itineraries[0]?.sourceCheckedAt,
       statusMessage: `${itineraries.length} itinerary result${itineraries.length === 1 ? '' : 's'} found through Aviationstack fallback.`,
       enrichedWithFlightAware: enriched,
       providerBadges: enriched ? [providerLabels.aviationstack, providerLabels.flightaware] : [providerLabels.aviationstack],
@@ -952,7 +1064,7 @@ export async function GET(request: Request) {
       nearestDateToleranceDays: personalTestingMode ? personalTestingToleranceDays : undefined
     })
     const itineraries = addProviderBadges(mvpSeedItineraries, 'supabase', false, {
-      dataFreshnessLabel: seedRouteMatching.dateCoverage.nearestDateApplied ? 'Nearest-date MVP test data' : 'MVP test data',
+      dataFreshnessLabel: seedRouteMatching.dateCoverage.nearestDateApplied ? 'Demo provider nearest-date MVP test data' : 'Demo provider MVP test data',
       dataFreshnessDetail: seedRouteMatching.dateCoverage.nearestDateApplied
         ? `Requested ${seedRouteMatching.dateCoverage.requestedSearchDate}; matched static test-data date ${seedRouteMatching.dateCoverage.effectiveMatchDate}.`
         : `Static MVP seed date ${mvpRouteSeedDate}; not live.`
@@ -980,7 +1092,7 @@ export async function GET(request: Request) {
       providerStatuses: [
         providerStatus('supabase', supabaseWarning ? 'warning' : 'skipped', supabaseWarning || 'No Supabase itineraries matched this request.'),
         providerStatus('aviationstack', aviationstackWarning ? 'warning' : 'skipped', aviationstackFallbackStatus),
-        providerStatus('flightaware', 'skipped', 'Skipped because MVP seed rows are static test data.'),
+        providerStatus('flightaware', flightAwareScheduleWarning ? 'warning' : 'skipped', `${flightAwareScheduleDetail}; skipped enrichment because MVP seed rows are static test data.`),
         providerStatus('planning', 'success', 'MVP route seed test-data cards are active for personal testing.')
       ],
       trueLiveDataAvailable: false,
@@ -995,6 +1107,8 @@ export async function GET(request: Request) {
       source: 'mvp-route-seed-test-data',
       sourceLabel: 'MVP route seed test data',
       dataMode: seedRouteMatching.dateCoverage.nearestDateApplied ? 'nearest-date-testing' : 'test-data',
+      source_provider: 'demo',
+      source_checked_at: undefined,
       statusMessage: seedMessage,
       errorMessage: seedMessage,
       enrichedWithFlightAware: false,
@@ -1006,7 +1120,7 @@ export async function GET(request: Request) {
     })
   }
 
-  const noResultsMessage = 'No stored or current-provider flights found for this search. Showing fallback demo guidance.'
+  const noResultsMessage = 'No live, cached, or fallback-provider flights found for this search. Showing fallback demo guidance.'
   const finalWarnings = uniqueMessages([...warnings, noResultsMessage])
   const debug = buildDebugMetadata({
     parsedRequest: effectiveRequest,
@@ -1025,7 +1139,7 @@ export async function GET(request: Request) {
     providerStatuses: [
       providerStatus('supabase', supabaseWarning ? 'warning' : 'skipped', supabaseWarning || 'No Supabase itineraries matched this request.'),
       providerStatus('aviationstack', aviationstackWarning ? 'warning' : 'skipped', aviationstackFallbackStatus),
-      providerStatus('flightaware', 'skipped', 'Skipped because neither Supabase nor Aviationstack returned known flight numbers.'),
+      providerStatus('flightaware', flightAwareScheduleWarning ? 'warning' : 'skipped', `${flightAwareScheduleDetail}; no later provider returned known flight numbers to enrich.`),
       providerStatus('planning', 'success', 'Clearly marked demo fallback cards are active in the UI for personal testing.')
     ],
     providerFallbackOrder,
@@ -1041,6 +1155,8 @@ export async function GET(request: Request) {
     source: 'planning-fallback',
     sourceLabel: sourceLabel('planning', false),
     dataMode: 'fallback',
+    source_provider: 'demo',
+    source_checked_at: undefined,
     statusMessage: noResultsMessage,
     errorMessage: noResultsMessage,
     enrichedWithFlightAware: false,

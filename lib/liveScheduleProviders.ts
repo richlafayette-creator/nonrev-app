@@ -15,6 +15,7 @@ export type NormalizedScheduleResult = {
   aircraft: string
   status: string
   source: LiveScheduleProviderKey | string
+  sourceCheckedAt?: string
 }
 
 export type LiveScheduleSearchRequest = {
@@ -89,6 +90,38 @@ type AviationstackFlight = {
   }
 }
 
+type FlightAwareSchedule = {
+  ident?: string
+  ident_icao?: string
+  ident_iata?: string
+  actual_ident?: string | null
+  actual_ident_icao?: string | null
+  actual_ident_iata?: string | null
+  aircraft_type?: string
+  scheduled_in?: string
+  scheduled_out?: string
+  estimated_in?: string
+  estimated_out?: string
+  actual_in?: string
+  actual_out?: string
+  origin?: string
+  origin_icao?: string
+  origin_iata?: string
+  origin_lid?: string
+  destination?: string
+  destination_icao?: string
+  destination_iata?: string
+  destination_lid?: string
+  fa_flight_id?: string
+  operator?: string
+  operator_icao?: string
+  operator_iata?: string
+  flight_number?: string
+  status?: string
+  cancelled?: boolean
+  diverted?: boolean
+}
+
 const carrierIataCodes: Record<string, string[]> = {
   united: ['UA'],
   delta: ['DL'],
@@ -100,6 +133,25 @@ const defaultProviderTimeoutMs = 7000
 function aviationstackCarrierCodes(carrier?: string) {
   if (!carrier || carrier === 'all') return [undefined]
   return carrierIataCodes[carrier] || [carrier.toUpperCase()]
+}
+
+function nextIsoDate(date: string) {
+  const parsed = new Date(`${date}T00:00:00.000Z`)
+  if (!Number.isFinite(parsed.getTime())) return undefined
+  parsed.setUTCDate(parsed.getUTCDate() + 1)
+  return parsed.toISOString().slice(0, 10)
+}
+
+function scheduleSearchDate(date?: string) {
+  if (date) return date
+  return new Date().toISOString().slice(0, 10)
+}
+
+function carrierMatchesSchedule(result: NormalizedScheduleResult, carrier?: string) {
+  if (!carrier || carrier === 'all') return true
+  const allowedCodes = carrierIataCodes[carrier]?.map((code) => code.toLowerCase()) || [carrier.toLowerCase()]
+  const text = `${result.carrier} ${result.flightNumber}`.toLowerCase()
+  return allowedCodes.some((code) => text.includes(code)) || text.includes(carrier.toLowerCase())
 }
 
 function uniqueMessages(messages: Array<string | undefined>) {
@@ -173,7 +225,29 @@ export function normalizeAviationstackScheduleResult(flight: AviationstackFlight
     arrivalTime: flight.arrival?.scheduled || flight.arrival?.estimated || flight.arrival?.actual || 'Pending',
     aircraft,
     status: flight.flight_status || 'Unknown',
-    source: 'aviationstack'
+    source: 'aviationstack',
+    sourceCheckedAt: new Date().toISOString()
+  }
+}
+
+export function normalizeFlightAwareScheduleResult(flight: FlightAwareSchedule, sourceCheckedAt = new Date().toISOString()): NormalizedScheduleResult {
+  const flightNumber = flight.ident_iata || flight.actual_ident_iata || flight.ident || flight.actual_ident || flight.fa_flight_id || 'Flight TBD'
+  const origin = flight.origin_iata || flight.origin_lid || flight.origin_icao || flight.origin || 'TBD'
+  const destination = flight.destination_iata || flight.destination_lid || flight.destination_icao || flight.destination || 'TBD'
+  const carrier = flight.operator_iata || flight.operator_icao || flight.operator || String(flightNumber).match(/^[A-Z]+/)?.[0] || 'Unknown Airline'
+  const status = flight.status || (flight.cancelled ? 'Cancelled' : flight.diverted ? 'Diverted' : 'Scheduled')
+
+  return {
+    carrier,
+    flightNumber,
+    origin,
+    destination,
+    departureTime: flight.scheduled_out || flight.estimated_out || flight.actual_out || 'Pending',
+    arrivalTime: flight.scheduled_in || flight.estimated_in || flight.actual_in || 'Pending',
+    aircraft: flight.aircraft_type || 'Unknown',
+    status,
+    source: 'flightaware',
+    sourceCheckedAt
   }
 }
 
@@ -181,6 +255,7 @@ export function scheduleResultsToFlightRecords(results: NormalizedScheduleResult
   return results.map((result) => ({
     id: `${result.source}-${result.flightNumber}-${result.origin}-${result.destination}-${result.departureTime}`,
     source_provider: result.source,
+    source_checked_at: result.sourceCheckedAt || new Date().toISOString(),
     flight_number: result.flightNumber,
     carrier: result.carrier,
     airline: result.carrier,
@@ -192,6 +267,102 @@ export function scheduleResultsToFlightRecords(results: NormalizedScheduleResult
     status: result.status,
     score: result.status.toLowerCase().includes('cancel') ? 35 : 68
   }))
+}
+
+export function createFlightAwareScheduleProvider(apiKey = process.env.FLIGHTAWARE_API_KEY): LiveScheduleProvider {
+  return {
+    key: 'flightaware',
+    label: 'FlightAware AeroAPI',
+    capabilities: {
+      futureSchedules: true,
+      currentFlightStatus: true,
+      routeSearch: true,
+      flightNumberEnrichment: true
+    },
+    async searchSchedules(request) {
+      if (!apiKey) {
+        return {
+          provider: 'flightaware',
+          results: [],
+          requestCount: 0,
+          status: 'skipped',
+          warning: 'FlightAware API key missing; live schedule search skipped safely',
+          detail: 'No FlightAware API key is configured.'
+        }
+      }
+
+      if (!request.origin || !request.destination) {
+        return {
+          provider: 'flightaware',
+          results: [],
+          requestCount: 0,
+          status: 'skipped',
+          detail: 'FlightAware live schedule search requires both origin and destination.'
+        }
+      }
+
+      const startDate = scheduleSearchDate(request.date)
+      const endDate = nextIsoDate(startDate) || startDate
+      const params = new URLSearchParams({
+        origin: request.origin,
+        destination: request.destination,
+        max_pages: '1'
+      })
+      const limit = request.maxResults || 50
+      const sourceCheckedAt = new Date().toISOString()
+
+      try {
+        const { response, data } = await fetchJsonWithTimeout(`https://aeroapi.flightaware.com/aeroapi/schedules/${encodeURIComponent(startDate)}/${encodeURIComponent(endDate)}?${params.toString()}`, {
+          headers: { 'x-apikey': apiKey }
+        })
+
+        if (!response.ok) {
+          const rawMessage = safeMessage(data?.title || data?.error || data?.message || `FlightAware schedule request failed with ${response.status}`)
+          return {
+            provider: 'flightaware',
+            results: [],
+            requestCount: 1,
+            status: 'warning',
+            warning: safeProviderMessage('FlightAware', response.status, rawMessage),
+            detail: 'FlightAware live schedule search returned no usable rows.'
+          }
+        }
+
+        if (!Array.isArray(data?.scheduled)) {
+          return {
+            provider: 'flightaware',
+            results: [],
+            requestCount: 1,
+            status: 'warning',
+            warning: 'FlightAware returned an unexpected schedule payload; live schedules were not used',
+            detail: 'FlightAware live schedule search returned no usable rows.'
+          }
+        }
+
+        const results = uniqueScheduleResults(data.scheduled
+          .map((flight: FlightAwareSchedule) => normalizeFlightAwareScheduleResult(flight, sourceCheckedAt))
+          .filter((result: NormalizedScheduleResult) => carrierMatchesSchedule(result, request.carrier))
+          .slice(0, limit))
+
+        return {
+          provider: 'flightaware',
+          results,
+          requestCount: 1,
+          status: results.length ? 'success' : 'skipped',
+          detail: results.length ? `${results.length} FlightAware live schedule result${results.length === 1 ? '' : 's'} returned.` : 'FlightAware returned no matching live schedule rows.'
+        }
+      } catch {
+        return {
+          provider: 'flightaware',
+          results: [],
+          requestCount: 1,
+          status: 'warning',
+          warning: 'FlightAware live schedule request failed; falling back safely',
+          detail: 'FlightAware live schedule search failed before returning usable rows.'
+        }
+      }
+    }
+  }
 }
 
 export function createAviationstackScheduleProvider(apiKey = process.env.AVIATIONSTACK_API_KEY): LiveScheduleProvider {
@@ -277,15 +448,6 @@ function placeholderProvider(key: LiveScheduleProviderKey, label: string, capabi
       }
     }
   }
-}
-
-export function createFlightAwareScheduleProvider(): LiveScheduleProvider {
-  return placeholderProvider('flightaware', 'FlightAware AeroAPI', {
-    futureSchedules: true,
-    currentFlightStatus: true,
-    routeSearch: true,
-    flightNumberEnrichment: true
-  }, 'FlightAware schedule search adapter placeholder; existing app code only uses FlightAware for flight-number enrichment today.')
 }
 
 export function createAmadeusScheduleProvider(): LiveScheduleProvider {
@@ -422,13 +584,13 @@ export function getLiveScheduleProviderReadiness(options: ReadinessOptions = {})
       key: 'flightaware',
       label: flightAware.label,
       status: flightAwareConfigured ? 'Configured' : 'Missing',
-      whatItCanProvide: [...flightAwareCapabilities.provides, 'current operational enrichment in existing app code'],
-      whatItCannotProvide: ['full itinerary schedule population until a schedule adapter is implemented and wired'],
+      whatItCanProvide: [...flightAwareCapabilities.provides, 'primary live schedule search in itinerary results', 'current operational enrichment in existing app code'],
+      whatItCannotProvide: ['stored cache persistence unless Supabase ingestion is added downstream'],
       recommendedNextAction: flightAwareConfigured
-        ? 'Implement the FlightAware schedules adapter as the primary live itinerary provider path.'
+        ? 'Keep FlightAware first for live itinerary search and use Supabase as labeled cache fallback.'
         : 'Set FLIGHTAWARE_API_KEY before wiring FlightAware schedules as the primary live provider.',
       detail: flightAwareConfigured
-        ? 'FlightAware credentials are present; current code uses AeroAPI enrichment, while schedule search remains an abstraction placeholder.'
+        ? 'FlightAware credentials are present; AeroAPI schedules are available as the primary live itinerary provider.'
         : 'FlightAware enrichment and future schedule adapter work are blocked until the API key is configured.'
     }, options.overrides?.flightaware),
     {

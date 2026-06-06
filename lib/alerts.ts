@@ -4,6 +4,7 @@ import { calculateRouteConfidence, type RouteConfidence } from './routeConfidenc
 import { loadSavedItineraryComparisons, type SavedItineraryComparison } from './savedItineraryComparisons'
 import { deliverNotification, eventTypeEnabled, type NotificationEventType } from './notificationDelivery'
 import { loadTripAlertPreferences, getTripAlertPreference, type TripAlertPreference, type TripAlertTargetType } from './tripAlertPreferences'
+import { loadTripOutcomes, tripOutcomeStats } from './tripOutcomes'
 import { defaultTravelerProfile, loadTravelerProfileFromStorage, type TravelerProfileScaffold } from './travelerProfile'
 import { loadSavedTripWatchlist, type SavedTripWatch } from './watchlist'
 
@@ -157,19 +158,25 @@ function saveAlertSnapshots(snapshots: AlertSnapshot[]) {
 function confidenceForTarget(target: AlertTarget, travelerProfile: TravelerProfileScaffold): RouteConfidence {
   const disruption = buildDisruptionIntelligence({ route: target.route })
   const matchingReports = reportsForRoute(target.route)
+  const matchingOutcomes = loadTripOutcomes().filter((outcome) => sameRouteMarket(outcome.route, target.route))
+  const outcomeStats = tripOutcomeStats(matchingOutcomes)
+  const storedSuccessProbability = outcomeStats.probabilityOutcomeCount
+    ? Math.round(target.successProbability * 0.64 + outcomeStats.successRate * 0.36)
+    : target.successProbability
   const communityLoadAdjustment = Math.round(matchingReports.reduce((total, report) => total + loadReportSignal(report), 0))
   const weightedReportCount = Math.round(matchingReports.reduce((total, report) => total + effectiveLoadReportWeight(report), 0))
   return calculateRouteConfidence({
     route: target.route,
-    successProbability: target.successProbability,
+    successProbability: storedSuccessProbability,
     historicalScore: target.score,
-    historicalSuccessRate: target.successProbability,
-    historicalReportCount: matchingReports.length,
+    historicalSuccessRate: outcomeStats.probabilityOutcomeCount ? outcomeStats.successRate : target.successProbability,
+    historicalReportCount: matchingReports.length + outcomeStats.probabilityOutcomeCount,
     communityReportCount: weightedReportCount,
     communityLoadAdjustment,
     travelerProfile,
     disruption,
-    previousConfidenceScore: target.storedConfidenceScore
+    previousConfidenceScore: target.storedConfidenceScore,
+    updateTrigger: outcomeStats.probabilityOutcomeCount ? 'outcome-history-changed' : undefined
   })
 }
 

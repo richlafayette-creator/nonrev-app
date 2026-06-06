@@ -21,7 +21,8 @@ const navItems = [
   ['Agent', '/agent'],
   ['Open Requests', '/requests'],
   ['My Requests', '/my-requests'],
-  ['Outcomes', '/outcomes']
+  ['Outcomes', '/outcomes'],
+  ['Outcome Diagnostics', '/outcome-diagnostics']
 ]
 
 export default function AppNavigation() {

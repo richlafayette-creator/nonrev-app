@@ -5,7 +5,7 @@ import { loadReportsStorageKey } from '../../lib/loadReports'
 import { notificationDiagnostics, notificationPreferencesStorageKey, notificationDeliveriesStorageKey, notificationQueueStorageKey } from '../../lib/notificationDelivery'
 import { stripeBillingDiagnostics, stripeBillingStorageKey } from '../../lib/stripeBilling'
 import { travelerProfileStorageKey } from '../../lib/travelerProfile'
-import { tripOutcomeStorageKey } from '../../lib/tripOutcomes'
+import { outcomeHealthDiagnostics, tripOutcomeStorageKey } from '../../lib/tripOutcomes'
 
 type HealthStatus = 'Connected' | 'Missing' | 'Limited' | 'Error'
 type ScheduleProviderReadinessStatus = 'Configured' | 'Missing' | 'Limited' | 'Placeholder'
@@ -202,11 +202,45 @@ function stripeBillingFrameworkStatus(): HealthItem {
   }
 }
 
+function outcomePersistenceStatus(): HealthItem {
+  const lastChecked = new Date().toISOString()
+  try {
+    const diagnostics = outcomeHealthDiagnostics()
+    const status: HealthStatus = diagnostics.lastSyncStatus === 'error'
+      ? 'Error'
+      : diagnostics.databaseReady
+        ? 'Connected'
+        : diagnostics.localOutcomeCount || diagnostics.localFallbackEnabled
+          ? 'Limited'
+          : 'Missing'
+    return {
+      key: 'outcome-persistence-framework',
+      label: 'Outcome persistence and migration',
+      status,
+      lastChecked,
+      safeErrorMessage: diagnostics.lastError || (diagnostics.databaseConfigured ? '' : 'Supabase outcome storage is not configured; local fallback is active.'),
+      recommendedFix: diagnostics.databaseReady ? 'No action needed.' : 'Configure Supabase environment variables and apply the trip_outcomes scaffold when ready.',
+      detail: `${diagnostics.detail} Merged outcomes ${diagnostics.mergedOutcomeCount}; probability eligible ${diagnostics.probabilityOutcomeCount}; pending migration ${diagnostics.migrationPendingCount}.`
+    }
+  } catch {
+    return {
+      key: 'outcome-persistence-framework',
+      label: 'Outcome persistence and migration',
+      status: 'Error',
+      lastChecked,
+      safeErrorMessage: 'Outcome repository diagnostics could not be read safely.',
+      recommendedFix: 'Open Outcome Diagnostics, run sync, or clear malformed local outcome diagnostics.',
+      detail: 'Outcome persistence diagnostics failed.'
+    }
+  }
+}
+
 function buildLocalChecks() {
   return [
     travelerProfileStatus(),
     localArrayStatus(loadReportsStorageKey, 'Community reports', 'Add or verify a load report from the Load Reports page.'),
     localArrayStatus(tripOutcomeStorageKey, 'Outcome history', 'Capture trip outcomes from the Outcomes page or reminder prompts.'),
+    outcomePersistenceStatus(),
     notificationFrameworkStatus(),
     stripeBillingFrameworkStatus()
   ]

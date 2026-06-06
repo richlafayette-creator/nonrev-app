@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { loadTravelerProfileFromStorage, type TravelerProfileScaffold } from '../../lib/travelerProfile'
-import { loadTripOutcomes, outcomeRepositoryDiagnostics, tripOutcomeStats, type TripOutcome } from '../../lib/tripOutcomes'
+import { loadTripOutcomes, outcomeRepositoryDiagnostics, syncOutcomeRepository, tripOutcomeStats, type TripOutcome } from '../../lib/tripOutcomes'
 
 function outcomeColor(status: string) {
   if (status === 'Yes, got on') return '#22c55e'
@@ -13,6 +13,7 @@ function outcomeColor(status: string) {
 export default function OutcomesPage() {
   const [outcomes, setOutcomes] = useState<TripOutcome[]>([])
   const [profile, setProfile] = useState<TravelerProfileScaffold | null>(null)
+  const [syncStatus, setSyncStatus] = useState('Outcome repository ready.')
 
   useEffect(() => {
     function refreshOutcomes() {
@@ -22,16 +23,25 @@ export default function OutcomesPage() {
 
     refreshOutcomes()
     window.addEventListener('nonrevy-trip-outcomes-updated', refreshOutcomes)
+    window.addEventListener('nonrevy-trip-outcome-health-updated', refreshOutcomes)
     window.addEventListener('storage', refreshOutcomes)
     return () => {
       window.removeEventListener('nonrevy-trip-outcomes-updated', refreshOutcomes)
+      window.removeEventListener('nonrevy-trip-outcome-health-updated', refreshOutcomes)
       window.removeEventListener('storage', refreshOutcomes)
     }
   }, [])
 
   const stats = useMemo(() => tripOutcomeStats(outcomes), [outcomes])
-  const repository = useMemo(() => outcomeRepositoryDiagnostics(), [])
+  const repository = useMemo(() => outcomeRepositoryDiagnostics(), [outcomes])
   const recentOutcomes = outcomes.slice(0, 12)
+
+  async function syncOutcomes() {
+    setSyncStatus('Syncing outcome repository...')
+    const diagnostics = await syncOutcomeRepository({ reason: 'manual' })
+    setOutcomes(loadTripOutcomes())
+    setSyncStatus(diagnostics.lastSyncStatus === 'synced' ? 'Outcome sync complete.' : diagnostics.detail)
+  }
   const statCards: { label: string; value: string | number; color: string }[] = [
     { label: 'Total Trips', value: stats.outcomeCount, color: '#38bdf8' },
     { label: 'Successful Trips', value: stats.successCount, color: '#22c55e' },
@@ -63,12 +73,21 @@ export default function OutcomesPage() {
         </p>
         <h1 style={{ fontSize: 44, lineHeight: 1.05, margin: '8px 0 12px' }}>Trip outcomes</h1>
         <p style={{ color: '#94a3b8', maxWidth: 760, fontSize: 18 }}>
-          Outcome history from route recommendations and saved itineraries, now shaped for persistent storage with local fallback until production migration is ready.
+          Outcome history from route recommendations and saved itineraries, backed by database-ready persistence with local fallback and migration diagnostics.
         </p>
 
         <section style={{ border: `1px solid ${repository.activeSource === 'Database' ? '#22c55e' : '#facc15'}`, borderRadius: 22, padding: 20, background: '#0f172a', marginTop: 24 }}>
-          <strong style={{ color: repository.activeSource === 'Database' ? '#22c55e' : '#facc15' }}>Outcome source: {repository.activeSource}</strong>
-          <p style={{ color: '#94a3b8', marginBottom: 0 }}>{repository.detail}</p>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', alignItems: 'center' }}>
+            <div>
+              <strong style={{ color: repository.activeSource === 'Database' ? '#22c55e' : '#facc15' }}>Outcome source: {repository.activeSource}</strong>
+              <p style={{ color: '#94a3b8', marginBottom: 0 }}>{repository.detail}</p>
+              <p style={{ color: '#cbd5e1', marginBottom: 0 }}>{syncStatus}</p>
+            </div>
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              <button type="button" onClick={syncOutcomes} style={{ border: 'none', borderRadius: 12, padding: '11px 14px', background: '#22c55e', color: '#020617', fontWeight: 'bold' }}>Sync outcomes</button>
+              <a href="/outcome-diagnostics" style={{ border: '1px solid #334155', borderRadius: 12, padding: '10px 14px', color: '#38bdf8', textDecoration: 'none', fontWeight: 'bold' }}>Diagnostics</a>
+            </div>
+          </div>
         </section>
 
         <section className="stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14, margin: '24px 0' }}>

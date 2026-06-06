@@ -13,7 +13,7 @@ import { buildDisruptionIntelligence } from '../../lib/disruptionIntelligence'
 import { buildRouteAirportIntelligence, connectionRiskColor, type RouteAirportIntelligence } from '../../lib/airportIntelligence'
 import { calculateRouteConfidence, confidenceBadgeColor, confidenceTrendColor, confidenceUpdateTriggerLabel, type ConfidenceBadge, type ConfidenceTrend, type RouteConfidence } from '../../lib/routeConfidence'
 import { loadTravelerProfileFromStorage, defaultTravelerProfile, travelerProfileAssumptions } from '../../lib/travelerProfile'
-import { loadTripOutcomes, type TripOutcome } from '../../lib/tripOutcomes'
+import { loadTripOutcomes, tripOutcomeStats, type TripOutcome } from '../../lib/tripOutcomes'
 
 type IntelligenceRoute = {
   id: string
@@ -88,10 +88,6 @@ function recentSignalScore(values: string[]) {
   }, 0)
 }
 
-function outcomeSuccessCount(outcomes: TripOutcome[]) {
-  return outcomes.filter((outcome) => outcome.status === 'Yes, got on').length
-}
-
 function routeIncludesCarrier(routeCarrier: string, selectedCarrier: SupportedCarrierValue) {
   if (selectedCarrier === 'all') return true
   return carrierFamilyLabels[selectedCarrier] === routeCarrier
@@ -122,8 +118,9 @@ function aggregateIntelligence(
       routeMatchesRoute(report.route, route.route)
     )
     const matchingOutcomes = outcomes.filter((outcome) => routeMatchesRoute(outcome.route, route.route))
-    const successfulOutcomes = outcomeSuccessCount(matchingOutcomes)
-    const outcomeRate = matchingOutcomes.length ? Math.round((successfulOutcomes / matchingOutcomes.length) * 100) : route.successRate
+    const outcomeStats = tripOutcomeStats(matchingOutcomes)
+    const successfulOutcomes = outcomeStats.successCount
+    const outcomeRate = outcomeStats.probabilityOutcomeCount ? outcomeStats.successRate : route.successRate
     const trustedLoadSignal = Number(matchingReports.reduce((total, report) => total + loadReportSignal(report), 0).toFixed(1))
     const recentCommunityScore = recentSignalScore(matchingReports.map((report) => report.createdAt || report.date))
     const recentOutcomeScore = recentSignalScore(matchingOutcomes.map((outcome) => outcome.createdAt))
@@ -143,7 +140,7 @@ function aggregateIntelligence(
     const dataConfidenceScore = Math.max(1, Math.min(99, Math.round(
       route.reportCount * 2.4 +
       matchingReports.length * 8 +
-      matchingOutcomes.length * 10 +
+      outcomeStats.probabilityOutcomeCount * 10 +
       (route.successRate >= 74 ? 10 : 0) +
       (route.score >= 82 ? 8 : 0)
     )))
@@ -158,7 +155,7 @@ function aggregateIntelligence(
       recentCommunityScore +
       recentOutcomeScore +
       matchingReports.length * 6 +
-      matchingOutcomes.length * 5 +
+      outcomeStats.probabilityOutcomeCount * 5 +
       route.reportCount * 1.6 +
       Math.max(0, trustedLoadSignal) +
       (route.successRate >= 74 ? 8 : 0)
@@ -176,7 +173,7 @@ function aggregateIntelligence(
       travelerProfile,
       disruption,
       previousConfidenceScore: dataConfidenceScore,
-      updateTrigger: matchingReports.length ? 'community-load-report-updated' : matchingOutcomes.length ? 'outcome-history-changed' : 'local-signal-refresh'
+      updateTrigger: matchingReports.length ? 'community-load-report-updated' : outcomeStats.probabilityOutcomeCount ? 'outcome-history-changed' : 'local-signal-refresh'
     })
 
     return {
@@ -201,7 +198,7 @@ function aggregateIntelligence(
       notes: route.notes,
       signalSummary: [
         `${route.reportCount} historical route reports`,
-        `${matchingOutcomes.length} local outcomes (${outcomeRate}% success signal)`,
+        `${matchingOutcomes.length} stored outcomes (${outcomeRate}% success signal)`,
         `${matchingReports.length} community load reports`,
         `${trustedLoadSignal >= 0 ? '+' : ''}${trustedLoadSignal} weighted load signal`,
         `${routeConfidence.score}/100 route confidence`,

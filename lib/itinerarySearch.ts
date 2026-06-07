@@ -56,6 +56,11 @@ export type ItineraryResult = {
   providerBadges?: string[]
   dataFreshnessLabel?: string
   dataFreshnessDetail?: string
+  dataFreshnessRule?: 'exact-requested-date' | 'nearest-date-testing-match' | 'stored-historical-data' | 'demo-fallback'
+  dataFreshnessWarning?: string
+  requestedDate?: string
+  matchedDate?: string
+  productionAvailability?: boolean
 }
 
 export type FlightRouteNormalization = {

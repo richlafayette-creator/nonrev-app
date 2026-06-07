@@ -82,6 +82,7 @@ type ItineraryDebugMetadata = {
   trueLiveDataAvailable: boolean
   trueLiveDataUnavailableReason: string
   dataFreshnessMode: 'live-current-api' | 'stored-supabase' | 'nearest-date-testing' | 'demo-fallback' | 'mvp-test-data'
+  dataFreshnessExplanation: string[]
   scheduleProviderReadiness: ScheduleProviderReadiness[]
   safeErrors: string[]
   normalizedFlightAwareItinerarySample?: SafeNormalizedItinerarySample
@@ -285,16 +286,35 @@ function safeNormalizedItinerarySample(itinerary?: ItineraryResult): SafeNormali
   }
 }
 
-function addProviderBadges(itineraries: ItineraryResult[], source: 'flightaware' | 'supabase' | 'aviationstack', enriched: boolean, freshness: Pick<ItineraryResult, 'dataFreshnessLabel' | 'dataFreshnessDetail'> = {}) {
+type FreshnessAnnotation = Pick<ItineraryResult, 'dataFreshnessLabel' | 'dataFreshnessDetail' | 'dataFreshnessRule' | 'dataFreshnessWarning' | 'requestedDate' | 'matchedDate' | 'productionAvailability'>
+
+function addProviderBadges(itineraries: ItineraryResult[], source: 'flightaware' | 'supabase' | 'aviationstack', enriched: boolean, freshness: FreshnessAnnotation = {}) {
   return itineraries.map((itinerary) => ({
     ...itinerary,
     dataFreshnessLabel: freshness.dataFreshnessLabel,
     dataFreshnessDetail: freshness.dataFreshnessDetail,
+    dataFreshnessRule: freshness.dataFreshnessRule,
+    dataFreshnessWarning: freshness.dataFreshnessWarning,
+    requestedDate: freshness.requestedDate,
+    matchedDate: freshness.matchedDate,
+    productionAvailability: freshness.productionAvailability,
     providerBadges: [
       ...providerBadgesForSource(itinerary.source || source, enriched || itinerary.source.includes('flightaware')),
       ...(freshness.dataFreshnessLabel ? [freshness.dataFreshnessLabel] : [])
     ]
   }))
+}
+
+function freshnessRuleExplanation(rule: NonNullable<ItineraryResult['dataFreshnessRule']>) {
+  if (rule === 'exact-requested-date') return 'Exact requested date: itinerary rows match the requested travel date. Stored Supabase rows remain stored data, not live provider API availability.'
+  if (rule === 'nearest-date-testing-match') return 'Nearest-date testing match: Personal Testing Mode substituted the nearest available stored/test date. These cards are blocked from production availability claims.'
+  if (rule === 'stored-historical-data') return 'Stored historical data: itinerary cards come from persisted data outside a strict requested-date live provider response.'
+  return 'Demo fallback: no usable live provider API or stored itinerary rows were available, so scaffold/demo guidance is shown.'
+}
+
+function freshnessExplanationsForItineraries(itineraries: ItineraryResult[], fallbackRule: NonNullable<ItineraryResult['dataFreshnessRule']>) {
+  const rules = new Set<NonNullable<ItineraryResult['dataFreshnessRule']>>(itineraries.map((itinerary) => itinerary.dataFreshnessRule || fallbackRule))
+  return [...rules].map(freshnessRuleExplanation)
 }
 
 function trueLiveUnavailableReason(source: 'flightaware' | 'supabase' | 'aviationstack' | 'planning' | 'mvp-test-data', routeMatching?: RouteMatchingSummary) {
@@ -721,6 +741,7 @@ function buildDebugMetadata({
   trueLiveDataAvailable,
   trueLiveDataUnavailableReason,
   dataFreshnessMode,
+  dataFreshnessExplanation,
   safeErrors,
   normalizedFlightAwareItinerarySample
 }: {
@@ -742,6 +763,7 @@ function buildDebugMetadata({
   trueLiveDataAvailable: boolean
   trueLiveDataUnavailableReason: string
   dataFreshnessMode: ItineraryDebugMetadata['dataFreshnessMode']
+  dataFreshnessExplanation: string[]
   safeErrors: string[]
   normalizedFlightAwareItinerarySample?: SafeNormalizedItinerarySample
 }): ItineraryDebugMetadata {
@@ -772,6 +794,7 @@ function buildDebugMetadata({
     trueLiveDataAvailable,
     trueLiveDataUnavailableReason,
     dataFreshnessMode,
+    dataFreshnessExplanation,
     scheduleProviderReadiness: getLiveScheduleProviderReadiness(),
     safeErrors,
     normalizedFlightAwareItinerarySample
@@ -838,6 +861,7 @@ export async function GET(request: Request) {
       trueLiveDataAvailable: false,
       trueLiveDataUnavailableReason: trueLiveUnavailableReason('planning'),
       dataFreshnessMode: 'demo-fallback',
+      dataFreshnessExplanation: [freshnessRuleExplanation('demo-fallback')],
       safeErrors: finalWarnings
     })
 
@@ -876,7 +900,11 @@ export async function GET(request: Request) {
   if (flightAwareItineraries.length > 0) {
     const itineraries = addProviderBadges(flightAwareItineraries, 'flightaware', false, {
       dataFreshnessLabel: 'Live provider API data',
-      dataFreshnessDetail: effectiveRequest.date ? `FlightAware live provider API schedule result checked for requested date ${effectiveRequest.date}.` : 'FlightAware live provider API schedule result checked for the current schedule window.'
+      dataFreshnessDetail: effectiveRequest.date ? `FlightAware live provider API schedule result checked for requested date ${effectiveRequest.date}.` : 'FlightAware live provider API schedule result checked for the current schedule window.',
+      dataFreshnessRule: 'exact-requested-date',
+      requestedDate: effectiveRequest.date,
+      matchedDate: effectiveRequest.date,
+      productionAvailability: true
     })
     counts.finalItineraries = itineraries.length
     const skippedSupabaseQueryPath = skippedSupabaseDiagnostics('skipped; FlightAware live schedules returned itinerary results')
@@ -904,6 +932,7 @@ export async function GET(request: Request) {
       trueLiveDataAvailable: true,
       trueLiveDataUnavailableReason: '',
       dataFreshnessMode: 'live-current-api',
+      dataFreshnessExplanation: freshnessExplanationsForItineraries(itineraries, 'exact-requested-date'),
       safeErrors: uniqueMessages(warnings),
       normalizedFlightAwareItinerarySample: safeNormalizedItinerarySample(itineraries[0])
     })
@@ -967,11 +996,29 @@ export async function GET(request: Request) {
     const supabaseFreshness = routeMatching.dateCoverage.nearestDateApplied
       ? {
           dataFreshnessLabel: 'Nearest-date testing data',
-          dataFreshnessDetail: `Requested ${routeMatching.dateCoverage.requestedSearchDate}; matched stored Supabase date ${routeMatching.dateCoverage.effectiveMatchDate}. This is nearest-date testing data, not live provider API data.`
+          dataFreshnessDetail: `Requested ${routeMatching.dateCoverage.requestedSearchDate}; matched stored Supabase date ${routeMatching.dateCoverage.effectiveMatchDate}. This is nearest-date testing data, not live provider API data.`,
+          dataFreshnessRule: 'nearest-date-testing-match' as const,
+          dataFreshnessWarning: `Not production availability: requested ${routeMatching.dateCoverage.requestedSearchDate}, showing nearest available stored Supabase date ${routeMatching.dateCoverage.effectiveMatchDate}.`,
+          requestedDate: routeMatching.dateCoverage.requestedSearchDate,
+          matchedDate: routeMatching.dateCoverage.effectiveMatchDate,
+          productionAvailability: false
+        }
+      : effectiveRequest.date
+        ? {
+          dataFreshnessLabel: 'Exact requested date',
+          dataFreshnessDetail: `Stored Supabase flight row matches requested date ${effectiveRequest.date}; still stored data, not a current provider API response.`,
+          dataFreshnessRule: 'exact-requested-date' as const,
+          requestedDate: effectiveRequest.date,
+          matchedDate: routeMatching.dateCoverage.effectiveMatchDate || effectiveRequest.date,
+          productionAvailability: false
         }
       : {
-          dataFreshnessLabel: 'Stored Supabase flight data',
-          dataFreshnessDetail: effectiveRequest.date ? `Stored Supabase flight row matches requested date ${effectiveRequest.date}; not a current provider API response.` : 'Stored Supabase flight row; no strict requested date was supplied.'
+          dataFreshnessLabel: 'Stored historical data',
+          dataFreshnessDetail: 'Stored Supabase flight row; no strict requested date was supplied. Treat this as historical stored data, not production availability.',
+          dataFreshnessRule: 'stored-historical-data' as const,
+          requestedDate: undefined,
+          matchedDate: routeMatching.dateCoverage.effectiveMatchDate,
+          productionAvailability: false
         }
     const itineraries = addProviderBadges(enrichedItineraries.length ? enrichedItineraries : supabaseItineraries, 'supabase', enriched, supabaseFreshness)
     counts.finalItineraries = itineraries.length
@@ -1001,6 +1048,7 @@ export async function GET(request: Request) {
       trueLiveDataAvailable: false,
       trueLiveDataUnavailableReason: trueLiveUnavailableReason('supabase', routeMatching),
       dataFreshnessMode: routeMatching.dateCoverage.nearestDateApplied ? 'nearest-date-testing' : 'stored-supabase',
+      dataFreshnessExplanation: freshnessExplanationsForItineraries(itineraries, routeMatching.dateCoverage.nearestDateApplied ? 'nearest-date-testing-match' : effectiveRequest.date ? 'exact-requested-date' : 'stored-historical-data'),
       safeErrors: uniqueMessages(warnings)
     })
     return NextResponse.json({
@@ -1046,7 +1094,11 @@ export async function GET(request: Request) {
     const enriched = Object.keys(enrichments).length > 0
     const itineraries = addProviderBadges(enrichedItineraries.length ? enrichedItineraries : aviationstackItineraries, 'aviationstack', enriched, {
       dataFreshnessLabel: 'Live provider API data',
-      dataFreshnessDetail: effectiveRequest.date ? `Aviationstack live provider API fallback result for requested date ${effectiveRequest.date}.` : 'Aviationstack live provider API fallback result; no strict requested date was supplied.'
+      dataFreshnessDetail: effectiveRequest.date ? `Aviationstack live provider API fallback result for requested date ${effectiveRequest.date}.` : 'Aviationstack live provider API fallback result; no strict requested date was supplied.',
+      dataFreshnessRule: 'exact-requested-date',
+      requestedDate: effectiveRequest.date,
+      matchedDate: effectiveRequest.date,
+      productionAvailability: true
     })
     counts.finalItineraries = itineraries.length
     const aviationstackFallbackStatus = `queried; ${aviationstackFlights.length} flight record${aviationstackFlights.length === 1 ? '' : 's'} returned`
@@ -1074,6 +1126,7 @@ export async function GET(request: Request) {
       trueLiveDataAvailable: true,
       trueLiveDataUnavailableReason: '',
       dataFreshnessMode: 'live-current-api',
+      dataFreshnessExplanation: freshnessExplanationsForItineraries(itineraries, 'exact-requested-date'),
       safeErrors: uniqueMessages(warnings)
     })
 
@@ -1115,7 +1168,14 @@ export async function GET(request: Request) {
       dataFreshnessLabel: seedRouteMatching.dateCoverage.nearestDateApplied ? 'Nearest-date testing data' : 'Demo fallback data',
       dataFreshnessDetail: seedRouteMatching.dateCoverage.nearestDateApplied
         ? `Requested ${seedRouteMatching.dateCoverage.requestedSearchDate}; matched static test-data date ${seedRouteMatching.dateCoverage.effectiveMatchDate}. This is nearest-date testing data, not live provider API data.`
-        : `Static MVP seed date ${mvpRouteSeedDate}; demo fallback data, not live provider API data.`
+        : `Static MVP seed date ${mvpRouteSeedDate}; demo fallback data, not live provider API data.`,
+      dataFreshnessRule: seedRouteMatching.dateCoverage.nearestDateApplied ? 'nearest-date-testing-match' : 'demo-fallback',
+      dataFreshnessWarning: seedRouteMatching.dateCoverage.nearestDateApplied
+        ? `Not production availability: requested ${seedRouteMatching.dateCoverage.requestedSearchDate}, showing nearest static test-data date ${seedRouteMatching.dateCoverage.effectiveMatchDate}.`
+        : 'Demo fallback data is not production availability.',
+      requestedDate: seedRouteMatching.dateCoverage.requestedSearchDate,
+      matchedDate: seedRouteMatching.dateCoverage.effectiveMatchDate || mvpRouteSeedDate,
+      productionAvailability: false
     })
     counts.finalItineraries = itineraries.length
     const seedMessage = seedRouteMatching.dateCoverage.nearestDateApplied
@@ -1146,6 +1206,7 @@ export async function GET(request: Request) {
       trueLiveDataAvailable: false,
       trueLiveDataUnavailableReason: trueLiveUnavailableReason('mvp-test-data'),
       dataFreshnessMode: seedRouteMatching.dateCoverage.nearestDateApplied ? 'nearest-date-testing' : 'mvp-test-data',
+      dataFreshnessExplanation: freshnessExplanationsForItineraries(itineraries, seedRouteMatching.dateCoverage.nearestDateApplied ? 'nearest-date-testing-match' : 'demo-fallback'),
       safeErrors: finalWarnings
     })
 
@@ -1194,6 +1255,7 @@ export async function GET(request: Request) {
     trueLiveDataAvailable: false,
     trueLiveDataUnavailableReason: trueLiveUnavailableReason('planning'),
     dataFreshnessMode: 'demo-fallback',
+    dataFreshnessExplanation: [freshnessRuleExplanation('demo-fallback')],
     safeErrors: finalWarnings
   })
 

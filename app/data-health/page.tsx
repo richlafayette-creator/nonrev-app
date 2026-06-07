@@ -343,7 +343,7 @@ export default function DataHealthPage() {
                 <p style={{ color: '#c084fc', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1, margin: 0 }}>Live schedule provider readiness</p>
                 <h2 style={{ margin: '6px 0', color: '#f8fafc' }}>Provider integration diagnostics</h2>
                 <p style={{ color: '#94a3b8', maxWidth: 780, margin: 0 }}>
-                  These readiness cards describe what each schedule provider can and cannot provide without exposing API keys. Stored Supabase data remains stored data, not true live current API data.
+                  These readiness cards describe what each schedule provider can and cannot provide without exposing API keys. Stored Supabase data remains stored data, not live provider API data.
                 </p>
               </div>
             </div>

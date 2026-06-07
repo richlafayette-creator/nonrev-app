@@ -584,7 +584,7 @@ export function getLiveScheduleProviderReadiness(options: ReadinessOptions = {})
       label: supabase.label,
       status: supabaseConfigured ? 'Configured' : 'Missing',
       whatItCanProvide: [...supabaseCapabilities.provides, 'stored schedule cache for itinerary search'],
-      whatItCannotProvide: [...supabaseCapabilities.cannotProvide, 'true live current API freshness by itself'],
+      whatItCannotProvide: [...supabaseCapabilities.cannotProvide, 'live provider API freshness by itself'],
       recommendedNextAction: supabaseConfigured
         ? 'Keep Supabase rows labeled as stored data and add a scheduled ingestion job only after selecting a primary live provider.'
         : 'Configure Supabase URL/key before enabling schedule ingestion or stored schedule cache reads.',

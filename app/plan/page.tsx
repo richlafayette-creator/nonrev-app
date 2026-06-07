@@ -161,6 +161,11 @@ type LiveItineraryResult = {
   providerBadges?: string[]
   dataFreshnessLabel?: string
   dataFreshnessDetail?: string
+  dataFreshnessRule?: 'exact-requested-date' | 'nearest-date-testing-match' | 'stored-historical-data' | 'demo-fallback'
+  dataFreshnessWarning?: string
+  requestedDate?: string
+  matchedDate?: string
+  productionAvailability?: boolean
 }
 
 type ProviderStatus = {
@@ -291,6 +296,7 @@ type ItineraryDebugMetadata = {
   trueLiveDataAvailable?: boolean
   trueLiveDataUnavailableReason?: string
   dataFreshnessMode?: 'live-current-api' | 'stored-supabase' | 'nearest-date-testing' | 'demo-fallback' | 'mvp-test-data'
+  dataFreshnessExplanation?: string[]
   scheduleProviderReadiness?: ScheduleProviderReadiness[]
   normalizedFlightAwareItinerarySample?: {
     provider: string
@@ -322,8 +328,8 @@ function riskColor(risk: string) {
 }
 
 function providerBadgeStyle(label: string) {
-  if (label.includes('Live provider API data') || label.includes('Freshness: Live')) return { border: '#22c55e', text: '#bbf7d0', background: 'rgba(34, 197, 94, 0.12)' }
-  if (label.includes('Stored Supabase flight data') || label.includes('Stored Supabase data') || label.includes('Freshness: Stored')) return { border: '#38bdf8', text: '#bae6fd', background: 'rgba(56, 189, 248, 0.12)' }
+  if (label.includes('Live provider API data') || label.includes('Freshness: Live') || label.includes('Exact requested date') || label.includes('Freshness: Exact')) return { border: '#22c55e', text: '#bbf7d0', background: 'rgba(34, 197, 94, 0.12)' }
+  if (label.includes('Stored Supabase flight data') || label.includes('Stored Supabase data') || label.includes('Stored historical') || label.includes('Freshness: Stored')) return { border: '#38bdf8', text: '#bae6fd', background: 'rgba(56, 189, 248, 0.12)' }
   if (label.includes('Nearest-date') || label.includes('Demo fallback') || label.includes('MVP test data') || label.includes('Freshness: Demo')) return { border: '#facc15', text: '#fef3c7', background: 'rgba(250, 204, 21, 0.12)' }
   if (label.includes('Supabase')) return { border: '#22c55e', text: '#bbf7d0', background: 'rgba(34, 197, 94, 0.12)' }
   if (label.includes('Aviationstack')) return { border: '#38bdf8', text: '#bae6fd', background: 'rgba(56, 189, 248, 0.12)' }
@@ -341,13 +347,25 @@ function sourceBadgeLabel(source?: string, sourceProvider?: string) {
   return 'Source: Unknown'
 }
 
-function freshnessBadgeLabel(label?: string, dataMode?: string) {
-  const value = `${label || ''} ${dataMode || ''}`.toLowerCase()
+function freshnessBadgeLabel(label?: string, dataMode?: string, rule?: LiveItineraryResult['dataFreshnessRule']) {
+  const value = `${label || ''} ${dataMode || ''} ${rule || ''}`.toLowerCase()
+  if (value.includes('exact requested date') || value.includes('exact-requested-date')) return 'Freshness: Exact requested date'
   if (value.includes('nearest-date')) return 'Freshness: Nearest-date testing data'
   if (value.includes('live')) return 'Freshness: Live provider API data'
+  if (value.includes('historical')) return 'Freshness: Stored historical data'
   if (value.includes('supabase') || value.includes('stored') || value.includes('cached')) return 'Freshness: Stored Supabase flight data'
   if (value.includes('mvp') || value.includes('test') || value.includes('fallback') || value.includes('demo')) return 'Freshness: Demo fallback data'
   return 'Freshness: Not provided'
+}
+
+function itineraryDateWarning(itinerary: LiveItineraryResult) {
+  if (itinerary.dataFreshnessWarning) return itinerary.dataFreshnessWarning
+  if (itinerary.requestedDate && itinerary.matchedDate && itinerary.requestedDate !== itinerary.matchedDate) {
+    return `Date mismatch: requested ${itinerary.requestedDate}, showing ${itinerary.matchedDate}. Do not treat this card as production availability.`
+  }
+  if (itinerary.productionAvailability === false && itinerary.dataFreshnessRule === 'demo-fallback') return 'Demo fallback data is not production availability.'
+  if (itinerary.productionAvailability === false && itinerary.dataFreshnessRule === 'stored-historical-data') return 'Stored historical data is not live production availability.'
+  return ''
 }
 
 function readinessBadgeStyle(status: ScheduleProviderReadinessStatus) {
@@ -762,7 +780,7 @@ function buildLiveItineraryComparison(
     successProbability,
     riskLevel,
     connections,
-    isLive: true,
+    isLive: itinerary.productionAvailability !== false,
     sourceScore: itinerary.score,
     predictionEngine,
     historicalRoute,
@@ -792,7 +810,7 @@ function buildLiveItineraryComparison(
     connections,
     totalTravelTime: totalTravelTimeFromItinerary(itinerary),
     flightNumber: itinerary.flightNumber,
-    isLive: true,
+    isLive: itinerary.productionAvailability !== false,
     providerBadges: itinerary.providerBadges?.length ? itinerary.providerBadges : [itinerary.source.includes('aviationstack') || itinerary.source.includes('flightaware') ? 'Live provider API data' : 'Stored Supabase flight data', ...(itinerary.source.includes('flightaware') ? ['FlightAware enriched'] : [])],
     dataFreshnessLabel: itinerary.dataFreshnessLabel,
     dataFreshnessDetail: itinerary.dataFreshnessDetail,
@@ -1793,7 +1811,7 @@ export default function PlanPage() {
           : 'Live provider API data')
       setItineraryDebug(data?.debug || null)
       setItineraryStatus(data?.statusMessage || (itineraries.length
-        ? `${itineraries.length} live itinerary result${itineraries.length === 1 ? '' : 's'} found for ${data?.request?.origin || 'any origin'} → ${data?.request?.destination || 'any destination'}.`
+        ? `${itineraries.length} itinerary result${itineraries.length === 1 ? '' : 's'} found for ${data?.request?.origin || 'any origin'} → ${data?.request?.destination || 'any destination'}.`
         : 'No provider flights found for this search. Showing fallback demo guidance.'
       ))
     } catch {
@@ -2450,6 +2468,14 @@ export default function PlanPage() {
                 </div>
               </div>
             ) : null}
+            {itineraryDebug?.dataFreshnessExplanation?.length ? (
+              <details style={{ marginTop: 12 }} open>
+                <summary style={{ color: '#38bdf8', cursor: 'pointer', fontWeight: 'bold' }}>Data freshness explanation</summary>
+                <ul style={{ color: '#cbd5e1', marginBottom: 0, paddingLeft: 20 }}>
+                  {itineraryDebug.dataFreshnessExplanation.map((message) => <li key={message}>{message}</li>)}
+                </ul>
+              </details>
+            ) : null}
             {itineraryDebug?.providerExplanation?.length ? (
               <details style={{ marginTop: 12 }}>
                 <summary style={{ color: '#facc15', cursor: 'pointer', fontWeight: 'bold' }}>Provider explanation</summary>
@@ -2478,7 +2504,7 @@ export default function PlanPage() {
                   </div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
                     <ProviderBadge label={sourceBadgeLabel(itinerary.source, itinerary.sourceProvider)} />
-                    <ProviderBadge label={freshnessBadgeLabel(itinerary.dataFreshnessLabel, itineraryDataMode)} />
+                    <ProviderBadge label={freshnessBadgeLabel(itinerary.dataFreshnessLabel, itineraryDataMode, itinerary.dataFreshnessRule)} />
                     {(itinerary.providerBadges?.length ? itinerary.providerBadges : [itinerary.source.includes('aviationstack') || itinerary.source.includes('flightaware') ? 'Live provider API data' : 'Stored Supabase flight data', ...(itinerary.source.includes('flightaware') ? ['FlightAware enriched'] : [])]).map((badge) => (
                       <ProviderBadge key={`${itinerary.id}-${badge}`} label={badge} />
                     ))}
@@ -2489,6 +2515,12 @@ export default function PlanPage() {
                   </div>
                   {itinerary.dataFreshnessDetail ? (
                     <p style={{ color: '#fde68a', margin: '8px 0 0' }}>{itinerary.dataFreshnessDetail}</p>
+                  ) : null}
+                  {itineraryDateWarning(itinerary) ? (
+                    <div style={{ border: '1px solid #facc15', borderRadius: 12, padding: 10, background: '#1c1917', color: '#fde68a', marginTop: 10 }}>
+                      <strong>Freshness warning</strong>
+                      <p style={{ margin: '4px 0 0' }}>{itineraryDateWarning(itinerary)}</p>
+                    </div>
                   ) : null}
                   <p style={{ color: '#38bdf8', fontSize: 18, fontWeight: 'bold' }}>{displayField(itinerary.route)}</p>
                   <p style={{ color: '#facc15', fontWeight: 'bold' }}>Provider score: {itinerary.score}/100</p>

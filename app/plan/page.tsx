@@ -295,7 +295,9 @@ type ItineraryDebugMetadata = {
   providerStatuses?: ProviderStatus[]
   trueLiveDataAvailable?: boolean
   trueLiveDataUnavailableReason?: string
-  dataFreshnessMode?: 'live-current-api' | 'stored-supabase' | 'nearest-date-testing' | 'demo-fallback' | 'mvp-test-data'
+  activeDataMode?: 'production-safe' | 'test-data'
+  testDataModeEnabled?: boolean
+  dataFreshnessMode?: 'live-current-api' | 'stored-supabase' | 'nearest-date-testing' | 'demo-fallback' | 'mvp-test-data' | 'no-current-live-data'
   dataFreshnessExplanation?: string[]
   scheduleProviderReadiness?: ScheduleProviderReadiness[]
   normalizedFlightAwareItinerarySample?: {
@@ -1776,7 +1778,7 @@ export default function PlanPage() {
     setItineraryLoading(true)
     markActivationStep('runFirstTripPlan')
     setConfidenceUpdateTrigger('itinerary-search-run')
-    setItineraryStatus('Searching FlightAware live provider API data first, then stored Supabase flight data, Aviationstack fallback, and demo last...')
+    setItineraryStatus('Searching FlightAware live provider API data first, then exact-date stored Supabase flight data, then Aviationstack fallback. Demo fallback appears only when test data mode is enabled server-side...')
     setItineraryDataMode('Searching providers')
     setItineraryWarnings([])
     setItineraryDebug(null)
@@ -1800,25 +1802,27 @@ export default function PlanPage() {
       const apiWarnings = Array.isArray(data?.warnings) ? data.warnings : []
       setItineraryWarnings(data?.errorMessage ? [...new Set([...apiWarnings, data.errorMessage])] : apiWarnings)
       setItinerarySource(data?.sourceLabel || (data?.enrichedWithFlightAware ? 'Stored Supabase flight data + FlightAware enrichment' : 'Stored Supabase flight data'))
-      setItineraryDataMode(data?.dataMode === 'nearest-date-testing'
+      setItineraryDataMode(data?.dataMode === 'no-current-live-data'
+        ? 'No current live data'
+        : data?.dataMode === 'nearest-date-testing'
         ? 'Nearest-date testing data'
         : data?.dataMode === 'stored-supabase'
           ? 'Stored Supabase flight data'
         : data?.dataMode === 'test-data'
         ? 'Demo fallback data (MVP test data)'
         : data?.dataMode === 'fallback' || itineraries.length === 0
-          ? 'Demo fallback data'
+          ? (data?.debug?.testDataModeEnabled === false ? 'No current live data' : 'Demo fallback data')
           : 'Live provider API data')
       setItineraryDebug(data?.debug || null)
       setItineraryStatus(data?.statusMessage || (itineraries.length
         ? `${itineraries.length} itinerary result${itineraries.length === 1 ? '' : 's'} found for ${data?.request?.origin || 'any origin'} → ${data?.request?.destination || 'any destination'}.`
-        : 'No provider flights found for this search. Showing fallback demo guidance.'
+        : 'No current live data found for this search.'
       ))
     } catch {
       setLiveItineraries([])
       setItineraryDebug(null)
-      setItineraryStatus('Itinerary search failed. Showing fallback demo guidance.')
-      setItineraryDataMode('Fallback demo guidance')
+      setItineraryStatus('Itinerary search failed. No current live data is shown while production-safe mode cannot be confirmed.')
+      setItineraryDataMode('No current live data')
       setItineraryWarnings(['Itinerary API request failed'])
     } finally {
       setItineraryLoading(false)
@@ -2154,7 +2158,7 @@ export default function PlanPage() {
                   onChange={(event) => setPersonalTestingMode(event.target.checked)}
                   style={{ marginTop: 4 }}
                 />
-                Personal Testing Mode: allow nearest-date matches when Supabase data is stale
+                Personal Testing Mode: request nearest-date matches when server test data mode is enabled
               </label>
               <label style={{ display: 'block', color: '#cbd5e1', marginTop: 10 }}>
                 Nearest-date tolerance days
@@ -2166,11 +2170,11 @@ export default function PlanPage() {
                 />
               </label>
               <p style={{ color: '#94a3b8', margin: '8px 0 0' }}>
-                Disable this for production-style strict date matching. Nearest-date cards are clearly labeled and should not be treated as live availability.
+                Server must have NONREVY_TEST_DATA_MODE=true for this to take effect. In production-safe mode, nearest-date and demo fallback availability cards are hidden.
               </p>
             </div>
             <p style={{ color: '#94a3b8' }}>
-              Supported today: United, Delta, Alaska Group. Alaska Group includes Alaska and Hawaiian. Search uses FlightAware live provider API data first, stored Supabase flight data second, Aviationstack fallback third, and demo fallback last.
+              Supported today: United, Delta, Alaska Group. Alaska Group includes Alaska and Hawaiian. Search uses FlightAware live provider API data first, exact-date stored Supabase flight data second, and Aviationstack fallback third. Demo fallback appears only when server test data mode is enabled.
             </p>
             <button
               type="submit"
@@ -2214,7 +2218,7 @@ export default function PlanPage() {
           <p style={{ color: itineraryLoading ? '#facc15' : '#94a3b8' }}>
             {itineraryStatus} · Source: {itinerarySource}
           </p>
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, border: `1px solid ${itineraryDataMode === 'Live provider API data' ? '#22c55e' : itineraryDataMode.includes('Fallback') || itineraryDataMode.includes('Nearest') || itineraryDataMode.includes('test') ? '#facc15' : '#334155'}`, borderRadius: 999, padding: '6px 12px', background: '#020617', color: itineraryDataMode === 'Live provider API data' ? '#bbf7d0' : itineraryDataMode.includes('Fallback') || itineraryDataMode.includes('Nearest') || itineraryDataMode.includes('test') ? '#fef3c7' : '#cbd5e1', marginBottom: 14, fontWeight: 'bold' }}>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, border: `1px solid ${itineraryDataMode === 'Live provider API data' ? '#22c55e' : itineraryDataMode.includes('Fallback') || itineraryDataMode.includes('Nearest') || itineraryDataMode.includes('test') || itineraryDataMode.includes('No current') ? '#facc15' : '#334155'}`, borderRadius: 999, padding: '6px 12px', background: '#020617', color: itineraryDataMode === 'Live provider API data' ? '#bbf7d0' : itineraryDataMode.includes('Fallback') || itineraryDataMode.includes('Nearest') || itineraryDataMode.includes('test') || itineraryDataMode.includes('No current') ? '#fef3c7' : '#cbd5e1', marginBottom: 14, fontWeight: 'bold' }}>
             Data mode: {itineraryDataMode}
           </div>
           {itineraryDebug?.dataFreshnessMode === 'nearest-date-testing' ? (
@@ -2242,6 +2246,8 @@ export default function PlanPage() {
                 ['Parsed date', itineraryDebug?.parsedDate || 'Flexible'],
                 ['Parser confidence', itineraryDebug?.parserConfidence !== undefined ? `${itineraryDebug.parserConfidence}%` : 'Pending'],
                 ['Parser fallback', itineraryDebug?.parserFallbackApplied ? 'Active' : 'Not needed'],
+                ['Active data mode', itineraryDebug?.activeDataMode === 'test-data' ? 'Test data mode' : itineraryDebug?.activeDataMode === 'production-safe' ? 'Production-safe mode' : 'Pending'],
+                ['NONREVY_TEST_DATA_MODE', itineraryDebug?.testDataModeEnabled === undefined ? 'Pending' : itineraryDebug.testDataModeEnabled ? 'true' : 'false or unset'],
                 ['Selected carrier', itineraryDebug?.selectedCarrier || carrier],
                 ['Supabase result count', itineraryDebug?.supabaseResultCount ?? 'Pending'],
                 ['Aviationstack fallback', itineraryDebug?.aviationstackFallbackStatus || 'Pending'],
@@ -2573,7 +2579,7 @@ export default function PlanPage() {
                 </article>
               ))}
             </div>
-          ) : (
+          ) : itineraryDebug?.testDataModeEnabled ? (
             <>
               <h3 style={{ color: '#facc15' }}>Fallback demo itinerary cards</h3>
               <p style={{ color: '#94a3b8' }}>
@@ -2618,6 +2624,13 @@ export default function PlanPage() {
                 ))}
               </div>
             </>
+          ) : (
+            <div style={{ border: '1px solid #facc15', borderRadius: 18, padding: 18, background: '#1c1917', color: '#fde68a' }}>
+              <h3 style={{ marginTop: 0 }}>No current live itinerary data</h3>
+              <p style={{ color: '#fef3c7', marginBottom: 0 }}>
+                Production-safe mode is active, so nearest-date testing matches and demo fallback itinerary cards are hidden. Try an exact date with available live provider data, or enable NONREVY_TEST_DATA_MODE=true only for personal testing.
+              </p>
+            </div>
           )}
         </section>
 

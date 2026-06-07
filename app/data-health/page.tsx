@@ -41,6 +41,8 @@ type LiveItineraryReadinessItem = {
 
 type LiveItineraryReadiness = {
   status: LiveReadinessStatus
+  activeDataMode: 'production-safe' | 'test-data'
+  testDataModeEnabled: boolean
   trueLiveAvailabilityMessage: string
   checklist: LiveItineraryReadinessItem[]
 }
@@ -368,6 +370,9 @@ export default function DataHealthPage() {
                 <p style={{ color: '#38bdf8', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1, margin: 0 }}>True live itinerary readiness</p>
                 <h2 style={{ margin: '6px 0', color: '#f8fafc' }}>Live data provider checklist</h2>
                 <p style={{ color: '#cbd5e1', maxWidth: 820, margin: 0 }}>{liveItineraryReadiness.trueLiveAvailabilityMessage}</p>
+                <p style={{ color: liveItineraryReadiness.testDataModeEnabled ? '#fde68a' : '#bbf7d0', maxWidth: 820, margin: '8px 0 0' }}>
+                  Active data mode: <strong>{liveItineraryReadiness.activeDataMode === 'test-data' ? 'Test data mode' : 'Production-safe mode'}</strong> · NONREVY_TEST_DATA_MODE={liveItineraryReadiness.testDataModeEnabled ? 'true' : 'false or unset'}
+                </p>
               </div>
               <span style={{ border: `1px solid ${liveReadinessColors[liveItineraryReadiness.status].border}`, borderRadius: 999, padding: '6px 12px', color: liveReadinessColors[liveItineraryReadiness.status].text, background: liveReadinessColors[liveItineraryReadiness.status].bg, whiteSpace: 'nowrap', fontSize: 13, fontWeight: 'bold' }}>
                 {liveItineraryReadiness.status}

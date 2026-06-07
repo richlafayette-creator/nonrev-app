@@ -81,7 +81,9 @@ type ItineraryDebugMetadata = {
   providerStatuses: ProviderStatus[]
   trueLiveDataAvailable: boolean
   trueLiveDataUnavailableReason: string
-  dataFreshnessMode: 'live-current-api' | 'stored-supabase' | 'nearest-date-testing' | 'demo-fallback' | 'mvp-test-data'
+  activeDataMode: 'production-safe' | 'test-data'
+  testDataModeEnabled: boolean
+  dataFreshnessMode: 'live-current-api' | 'stored-supabase' | 'nearest-date-testing' | 'demo-fallback' | 'mvp-test-data' | 'no-current-live-data'
   dataFreshnessExplanation: string[]
   scheduleProviderReadiness: ScheduleProviderReadiness[]
   safeErrors: string[]
@@ -149,6 +151,13 @@ const providerFallbackOrder = [
   '2. Stored Supabase flight data (targeted route/date query, then recent-row safety query)',
   '3. Aviationstack live provider API fallback (only when quota/account health allows usable results)',
   '4. Demo fallback cards (only if no live API or stored provider data returns itinerary data)'
+]
+
+const productionSafeProviderFallbackOrder = [
+  '1. FlightAware live schedules (route/date schedule search)',
+  '2. Stored Supabase flight data (strict exact requested-date rows only)',
+  '3. Aviationstack live provider API fallback (only when quota/account health allows usable results)',
+  '4. Demo fallback and nearest-date testing cards are disabled unless NONREVY_TEST_DATA_MODE=true'
 ]
 
 const providerTimeoutMs = 7000
@@ -387,6 +396,14 @@ function dayDistance(a?: string, b?: string) {
 function booleanParam(searchParams: URLSearchParams, key: string) {
   const value = searchParams.get(key)?.toLowerCase()
   return value === '1' || value === 'true' || value === 'yes' || value === 'on' || value === 'personal'
+}
+
+function testDataModeEnabled() {
+  return process.env.NONREVY_TEST_DATA_MODE === 'true'
+}
+
+function activeDataModeLabel(enabled: boolean) {
+  return enabled ? 'test-data' as const : 'production-safe' as const
 }
 
 function nearestDateTolerance(searchParams: URLSearchParams) {
@@ -740,6 +757,7 @@ function buildDebugMetadata({
   providerStatuses,
   trueLiveDataAvailable,
   trueLiveDataUnavailableReason,
+  testDataModeEnabled,
   dataFreshnessMode,
   dataFreshnessExplanation,
   safeErrors,
@@ -762,6 +780,7 @@ function buildDebugMetadata({
   providerStatuses: ProviderStatus[]
   trueLiveDataAvailable: boolean
   trueLiveDataUnavailableReason: string
+  testDataModeEnabled: boolean
   dataFreshnessMode: ItineraryDebugMetadata['dataFreshnessMode']
   dataFreshnessExplanation: string[]
   safeErrors: string[]
@@ -793,6 +812,8 @@ function buildDebugMetadata({
     providerStatuses: mergedProviderStatuses,
     trueLiveDataAvailable,
     trueLiveDataUnavailableReason,
+    activeDataMode: activeDataModeLabel(testDataModeEnabled),
+    testDataModeEnabled,
     dataFreshnessMode,
     dataFreshnessExplanation,
     scheduleProviderReadiness: getLiveScheduleProviderReadiness(),
@@ -804,7 +825,9 @@ function buildDebugMetadata({
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const parsedRequest = normalizeItineraryRequest(searchParams)
-  const personalTestingMode = booleanParam(searchParams, 'personalTestingMode') || booleanParam(searchParams, 'testingMode')
+  const envTestDataModeEnabled = testDataModeEnabled()
+  const personalTestingMode = envTestDataModeEnabled && (booleanParam(searchParams, 'personalTestingMode') || booleanParam(searchParams, 'testingMode'))
+  const activeProviderFallbackOrder = envTestDataModeEnabled ? providerFallbackOrder : productionSafeProviderFallbackOrder
   const personalTestingToleranceDays = nearestDateTolerance(searchParams)
   const invalidAirportCodes = [
     !isValidAirportCode(searchParams.get('origin')) ? `origin=${searchParams.get('origin')}` : undefined,
@@ -823,9 +846,14 @@ export async function GET(request: Request) {
   if (invalidAirportCodes.length) warnings.push(`Invalid airport code input ignored: ${invalidAirportCodes.join(', ')}`)
   if (unsupportedAirportCodes.length) warnings.push(...unsupportedAirportCodes)
   if (invalidDates.length) warnings.push(...invalidDates)
+  if (!envTestDataModeEnabled && (booleanParam(searchParams, 'personalTestingMode') || booleanParam(searchParams, 'testingMode'))) {
+    warnings.push('Personal Testing Mode was requested, but NONREVY_TEST_DATA_MODE is not true; production-safe strict data mode is active.')
+  }
 
   if (effectiveRequest.parserFallbackApplied) {
-    const noRouteMessage = 'Parser could not determine a complete origin and destination. Showing safe fallback demo guidance instead of running a broad provider search.'
+    const noRouteMessage = envTestDataModeEnabled
+      ? 'Parser could not determine a complete origin and destination. Showing safe fallback demo guidance instead of running a broad provider search.'
+      : 'Parser could not determine a complete origin and destination. Production-safe mode is active, so demo fallback cards are hidden until a complete route is provided.'
     const finalWarnings = uniqueMessages([...warnings, noRouteMessage])
     const supabaseQueryPath: SupabaseQueryDiagnostics = {
       attemptedPath: 'skipped; parser route incomplete',
@@ -855,13 +883,18 @@ export async function GET(request: Request) {
         providerStatus('supabase', 'skipped', 'Skipped to avoid an unrestricted stored-data search without a complete parsed route.'),
         providerStatus('aviationstack', 'skipped', 'Skipped to avoid an unrestricted fallback-provider search without a complete parsed route.'),
         providerStatus('flightaware', 'skipped', 'Skipped because the parser did not produce a complete route for live schedule search.'),
-        providerStatus('planning', 'success', 'Clearly marked demo fallback cards are active in the UI until the route is complete.')
+        providerStatus('planning', envTestDataModeEnabled ? 'success' : 'skipped', envTestDataModeEnabled
+          ? 'Clearly marked demo fallback cards are active in the UI until the route is complete.'
+          : 'Demo fallback cards are disabled because NONREVY_TEST_DATA_MODE is not true.')
       ],
-      providerFallbackOrder,
+      providerFallbackOrder: activeProviderFallbackOrder,
       trueLiveDataAvailable: false,
-      trueLiveDataUnavailableReason: trueLiveUnavailableReason('planning'),
-      dataFreshnessMode: 'demo-fallback',
-      dataFreshnessExplanation: [freshnessRuleExplanation('demo-fallback')],
+      trueLiveDataUnavailableReason: envTestDataModeEnabled ? trueLiveUnavailableReason('planning') : 'No current live data is shown because production-safe mode is active and the route is incomplete.',
+      dataFreshnessMode: envTestDataModeEnabled ? 'demo-fallback' : 'no-current-live-data',
+      dataFreshnessExplanation: envTestDataModeEnabled
+        ? [freshnessRuleExplanation('demo-fallback')]
+        : ['Production-safe mode: nearest-date testing and demo fallback cards are hidden unless NONREVY_TEST_DATA_MODE=true.'],
+      testDataModeEnabled: envTestDataModeEnabled,
       safeErrors: finalWarnings
     })
 
@@ -869,14 +902,14 @@ export async function GET(request: Request) {
       ok: true,
       request: effectiveRequest,
       source: 'parser-safe-planning-fallback',
-      sourceLabel: sourceLabel('planning', false),
-      dataMode: 'fallback',
-      source_provider: 'demo',
+      sourceLabel: envTestDataModeEnabled ? sourceLabel('planning', false) : 'No current live data',
+      dataMode: envTestDataModeEnabled ? 'fallback' : 'no-current-live-data',
+      source_provider: envTestDataModeEnabled ? 'demo' : 'none',
       source_checked_at: undefined,
       statusMessage: noRouteMessage,
       errorMessage: noRouteMessage,
       enrichedWithFlightAware: false,
-      providerBadges: [providerLabels.planning],
+      providerBadges: envTestDataModeEnabled ? [providerLabels.planning] : ['Production-safe mode'],
       warnings: finalWarnings,
       debug,
       count: 0,
@@ -922,7 +955,7 @@ export async function GET(request: Request) {
       invalidAirportCodes,
       unsupportedAirportCodes,
       invalidDates,
-      providerFallbackOrder,
+      providerFallbackOrder: activeProviderFallbackOrder,
       providerStatuses: [
         providerStatus('flightaware', 'success', `${flightAwareItineraries.length} itinerary result${flightAwareItineraries.length === 1 ? '' : 's'} found from ${flightAwareScheduleFlights.length} live FlightAware schedule row${flightAwareScheduleFlights.length === 1 ? '' : 's'}.`),
         providerStatus('supabase', 'skipped', 'Skipped because FlightAware live schedules produced itinerary results.'),
@@ -933,6 +966,7 @@ export async function GET(request: Request) {
       trueLiveDataUnavailableReason: '',
       dataFreshnessMode: 'live-current-api',
       dataFreshnessExplanation: freshnessExplanationsForItineraries(itineraries, 'exact-requested-date'),
+      testDataModeEnabled: envTestDataModeEnabled,
       safeErrors: uniqueMessages(warnings),
       normalizedFlightAwareItinerarySample: safeNormalizedItinerarySample(itineraries[0])
     })
@@ -977,7 +1011,15 @@ export async function GET(request: Request) {
 
   const supabaseItineraries = buildItinerariesFromFlights(supabaseFlights, matchingRequest)
   counts.supabaseItineraries = supabaseItineraries.length
-  if (supabaseItineraries.length > 0) {
+  const supabaseAllowedInActiveMode = envTestDataModeEnabled || Boolean(effectiveRequest.date && !routeMatching.dateCoverage.nearestDateApplied)
+  if (supabaseItineraries.length > 0 && !supabaseAllowedInActiveMode) {
+    const strictDateMessage = effectiveRequest.date
+      ? 'Stored Supabase rows were not exact requested-date matches, so production-safe mode hid them from itinerary availability.'
+      : 'Stored Supabase rows require an exact requested date in production-safe mode, so flexible-date stored results are hidden from itinerary availability.'
+    warnings.push(strictDateMessage)
+    emptyResults.push(strictDateMessage)
+  }
+  if (supabaseItineraries.length > 0 && supabaseAllowedInActiveMode) {
     const itineraryFlightIdents = new Set(supabaseItineraries.flatMap((itinerary) => itinerary.legs.map((leg) => leg.flightNumber.replace(/\s+/g, '')).filter(Boolean)))
     const supabaseFlightsToEnrich = supabaseFlights
       .filter((flight) => {
@@ -1036,7 +1078,7 @@ export async function GET(request: Request) {
       invalidAirportCodes,
       unsupportedAirportCodes,
       invalidDates,
-      providerFallbackOrder,
+      providerFallbackOrder: activeProviderFallbackOrder,
       providerStatuses: [
         providerStatus('supabase', 'success', supabaseMatchedFlights.length > 0
           ? `${supabaseItineraries.length} itinerary result${supabaseItineraries.length === 1 ? '' : 's'} found from ${supabaseMatchedFlights.length} exact matched Supabase flight record${supabaseMatchedFlights.length === 1 ? '' : 's'} via ${supabaseQueryPath.usedPath}.`
@@ -1049,6 +1091,7 @@ export async function GET(request: Request) {
       trueLiveDataUnavailableReason: trueLiveUnavailableReason('supabase', routeMatching),
       dataFreshnessMode: routeMatching.dateCoverage.nearestDateApplied ? 'nearest-date-testing' : 'stored-supabase',
       dataFreshnessExplanation: freshnessExplanationsForItineraries(itineraries, routeMatching.dateCoverage.nearestDateApplied ? 'nearest-date-testing-match' : effectiveRequest.date ? 'exact-requested-date' : 'stored-historical-data'),
+      testDataModeEnabled: envTestDataModeEnabled,
       safeErrors: uniqueMessages(warnings)
     })
     return NextResponse.json({
@@ -1105,7 +1148,7 @@ export async function GET(request: Request) {
     const debug = buildDebugMetadata({
       parsedRequest: effectiveRequest,
       supabaseResultCount: 0,
-      providerFallbackOrder,
+      providerFallbackOrder: activeProviderFallbackOrder,
       aviationstackFallbackStatus,
       flightAwareEnrichmentStatus: flightAwareStatus,
       finalItineraryCount: itineraries.length,
@@ -1127,6 +1170,7 @@ export async function GET(request: Request) {
       trueLiveDataUnavailableReason: '',
       dataFreshnessMode: 'live-current-api',
       dataFreshnessExplanation: freshnessExplanationsForItineraries(itineraries, 'exact-requested-date'),
+      testDataModeEnabled: envTestDataModeEnabled,
       safeErrors: uniqueMessages(warnings)
     })
 
@@ -1152,12 +1196,12 @@ export async function GET(request: Request) {
     ? `queried; ${aviationstackFlights.length} flight record${aviationstackFlights.length === 1 ? '' : 's'} returned but no itineraries matched`
     : aviationstackWarning ? 'queried; no usable flight records returned' : 'queried; no matching flights returned'
 
-  const seedNearestDateMatch = personalTestingMode
+  const seedNearestDateMatch = envTestDataModeEnabled && personalTestingMode
     ? nearestDateRequestForPersonalTesting(mvpRouteSeedFlightsForRequest({ ...effectiveRequest, date: undefined }), effectiveRequest, personalTestingToleranceDays)
     : { request: effectiveRequest, nearestDateApplied: false, closestAvailableDates: [] as string[] }
-  const mvpSeedFlights = mvpRouteSeedFlightsForRequest(seedNearestDateMatch.request)
-  const mvpSeedItineraries = buildItinerariesFromFlights(mvpSeedFlights, seedNearestDateMatch.request)
-  if (mvpSeedItineraries.length > 0) {
+  const mvpSeedFlights = envTestDataModeEnabled ? mvpRouteSeedFlightsForRequest(seedNearestDateMatch.request) : []
+  const mvpSeedItineraries = envTestDataModeEnabled ? buildItinerariesFromFlights(mvpSeedFlights, seedNearestDateMatch.request) : []
+  if (envTestDataModeEnabled && mvpSeedItineraries.length > 0) {
     const seedRouteMatching = summarizeRouteMatching(mvpSeedFlights, seedNearestDateMatch.request, {
       requestedDate: effectiveRequest.date,
       effectiveMatchDate: seedNearestDateMatch.request.date,
@@ -1185,7 +1229,7 @@ export async function GET(request: Request) {
     const debug = buildDebugMetadata({
       parsedRequest: effectiveRequest,
       supabaseResultCount: 0,
-      providerFallbackOrder,
+      providerFallbackOrder: activeProviderFallbackOrder,
       aviationstackFallbackStatus,
       flightAwareEnrichmentStatus: 'skipped; MVP route seed data is static test data',
       finalItineraryCount: itineraries.length,
@@ -1207,6 +1251,7 @@ export async function GET(request: Request) {
       trueLiveDataUnavailableReason: trueLiveUnavailableReason('mvp-test-data'),
       dataFreshnessMode: seedRouteMatching.dateCoverage.nearestDateApplied ? 'nearest-date-testing' : 'mvp-test-data',
       dataFreshnessExplanation: freshnessExplanationsForItineraries(itineraries, seedRouteMatching.dateCoverage.nearestDateApplied ? 'nearest-date-testing-match' : 'demo-fallback'),
+      testDataModeEnabled: envTestDataModeEnabled,
       safeErrors: finalWarnings
     })
 
@@ -1229,7 +1274,9 @@ export async function GET(request: Request) {
     })
   }
 
-  const noResultsMessage = 'No live provider API, stored Supabase, or fallback-provider flights found for this search. Showing fallback demo guidance.'
+  const noResultsMessage = envTestDataModeEnabled
+    ? 'No live provider API, stored Supabase, or fallback-provider flights found for this search. Showing fallback demo guidance.'
+    : 'No current live itinerary availability found for this search. Production-safe mode is active, so nearest-date testing and demo fallback cards are hidden.'
   const finalWarnings = uniqueMessages([...warnings, noResultsMessage])
   const debug = buildDebugMetadata({
     parsedRequest: effectiveRequest,
@@ -1249,13 +1296,18 @@ export async function GET(request: Request) {
       providerStatus('supabase', supabaseWarning ? 'warning' : 'skipped', supabaseWarning || 'No Supabase itineraries matched this request.'),
       providerStatus('aviationstack', aviationstackWarning ? 'warning' : 'skipped', aviationstackFallbackStatus),
       providerStatus('flightaware', flightAwareScheduleWarning ? 'warning' : 'skipped', `${flightAwareScheduleDetail}; no later provider returned known flight numbers to enrich.`),
-      providerStatus('planning', 'success', 'Clearly marked demo fallback cards are active in the UI for personal testing.')
+      providerStatus('planning', envTestDataModeEnabled ? 'success' : 'skipped', envTestDataModeEnabled
+        ? 'Clearly marked demo fallback cards are active in the UI for personal testing.'
+        : 'Demo fallback cards are disabled because NONREVY_TEST_DATA_MODE is not true.')
     ],
-    providerFallbackOrder,
+    providerFallbackOrder: activeProviderFallbackOrder,
     trueLiveDataAvailable: false,
-    trueLiveDataUnavailableReason: trueLiveUnavailableReason('planning'),
-    dataFreshnessMode: 'demo-fallback',
-    dataFreshnessExplanation: [freshnessRuleExplanation('demo-fallback')],
+    trueLiveDataUnavailableReason: envTestDataModeEnabled ? trueLiveUnavailableReason('planning') : 'No current live provider API or exact-date stored Supabase data was available; production-safe mode hid nearest-date testing and demo fallback availability.',
+    dataFreshnessMode: envTestDataModeEnabled ? 'demo-fallback' : 'no-current-live-data',
+    dataFreshnessExplanation: envTestDataModeEnabled
+      ? [freshnessRuleExplanation('demo-fallback')]
+      : ['Production-safe mode: no live provider API or exact requested-date stored Supabase itinerary was available, so nearest-date testing and demo fallback cards are hidden.'],
+    testDataModeEnabled: envTestDataModeEnabled,
     safeErrors: finalWarnings
   })
 
@@ -1263,14 +1315,14 @@ export async function GET(request: Request) {
     ok: true,
     request: effectiveRequest,
     source: 'planning-fallback',
-    sourceLabel: sourceLabel('planning', false),
-    dataMode: 'fallback',
-    source_provider: 'demo',
+    sourceLabel: envTestDataModeEnabled ? sourceLabel('planning', false) : 'No current live data',
+    dataMode: envTestDataModeEnabled ? 'fallback' : 'no-current-live-data',
+    source_provider: envTestDataModeEnabled ? 'demo' : 'none',
     source_checked_at: undefined,
     statusMessage: noResultsMessage,
     errorMessage: noResultsMessage,
     enrichedWithFlightAware: false,
-    providerBadges: [providerLabels.planning],
+    providerBadges: envTestDataModeEnabled ? [providerLabels.planning] : ['Production-safe mode'],
     warnings: finalWarnings,
     debug,
     count: 0,

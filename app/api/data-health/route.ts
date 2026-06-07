@@ -27,6 +27,8 @@ type LiveItineraryReadinessItem = {
 
 type LiveItineraryReadiness = {
   status: LiveReadinessStatus
+  activeDataMode: 'production-safe' | 'test-data'
+  testDataModeEnabled: boolean
   trueLiveAvailabilityMessage: string
   checklist: LiveItineraryReadinessItem[]
 }
@@ -39,6 +41,10 @@ function checkedAt() {
 
 function item(input: Omit<HealthItem, 'lastChecked'>): HealthItem {
   return { ...input, lastChecked: checkedAt() }
+}
+
+function testDataModeEnabled() {
+  return process.env.NONREVY_TEST_DATA_MODE === 'true'
 }
 
 function safeMessage(value: unknown) {
@@ -346,6 +352,7 @@ function liveStatusFromHealth(check?: HealthItem, readyWhenConnected: LiveReadin
 }
 
 function buildLiveItineraryReadiness(checks: HealthItem[]): LiveItineraryReadiness {
+  const isTestDataModeEnabled = testDataModeEnabled()
   const byKey = new Map(checks.map((check) => [check.key, check]))
   const supabase = byKey.get('supabase-flight-data')
   const freshness = byKey.get('supabase-flight-data-freshness')
@@ -360,6 +367,17 @@ function buildLiveItineraryReadiness(checks: HealthItem[]): LiveItineraryReadine
   const anyProviderReachable = providerChecks.some((check) => check.status === 'Connected' || check.status === 'Limited')
 
   const checklist: LiveItineraryReadinessItem[] = [
+    {
+      key: 'itinerary-data-mode-switch',
+      label: 'Itinerary data mode switch',
+      status: isTestDataModeEnabled ? 'Limited' : 'Ready',
+      detail: isTestDataModeEnabled
+        ? 'NONREVY_TEST_DATA_MODE=true is enabled. Nearest-date testing and demo fallback cards may appear for personal testing and are not production availability.'
+        : 'NONREVY_TEST_DATA_MODE is missing or false. Production-safe mode blocks nearest-date testing matches and demo fallback availability cards.',
+      recommendedNextAction: isTestDataModeEnabled
+        ? 'Disable NONREVY_TEST_DATA_MODE before production checks or public demos that must show only true live/exact-date availability.'
+        : 'No action needed for production-safe behavior; enable NONREVY_TEST_DATA_MODE=true only for personal testing.'
+    },
     {
       key: 'supabase-live-schedule-feed',
       label: 'Supabase live schedule feed',
@@ -442,6 +460,8 @@ function buildLiveItineraryReadiness(checks: HealthItem[]): LiveItineraryReadine
 
   return {
     status,
+    activeDataMode: isTestDataModeEnabled ? 'test-data' : 'production-safe',
+    testDataModeEnabled: isTestDataModeEnabled,
     trueLiveAvailabilityMessage: status === 'Ready'
       ? 'True live itinerary availability is ready for live provider-backed results. Stored, nearest-date testing, and demo fallback cards must still remain labeled separately.'
       : 'Current itinerary results are not guaranteed true live availability. Treat stored Supabase rows, nearest-date testing matches, and demo fallback cards as non-production availability until blocked checklist items are resolved.',

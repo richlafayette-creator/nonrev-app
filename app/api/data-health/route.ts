@@ -5,6 +5,7 @@ export const dynamic = 'force-dynamic'
 
 type HealthStatus = 'Connected' | 'Missing' | 'Limited' | 'Error'
 type ProviderReadinessRuntimeStatus = 'Configured' | 'Missing' | 'Limited'
+type LiveReadinessStatus = 'Ready' | 'Limited' | 'Blocked'
 
 type HealthItem = {
   key: string
@@ -14,6 +15,20 @@ type HealthItem = {
   safeErrorMessage: string
   recommendedFix: string
   detail: string
+}
+
+type LiveItineraryReadinessItem = {
+  key: string
+  label: string
+  status: LiveReadinessStatus
+  detail: string
+  recommendedNextAction: string
+}
+
+type LiveItineraryReadiness = {
+  status: LiveReadinessStatus
+  trueLiveAvailabilityMessage: string
+  checklist: LiveItineraryReadinessItem[]
 }
 
 const timeoutMs = 5000
@@ -323,6 +338,117 @@ function readinessStatusFromHealth(check: HealthItem): ProviderReadinessRuntimeS
   return 'Limited'
 }
 
+function liveStatusFromHealth(check?: HealthItem, readyWhenConnected: LiveReadinessStatus = 'Ready'): LiveReadinessStatus {
+  if (!check) return 'Blocked'
+  if (check.status === 'Connected') return readyWhenConnected
+  if (check.status === 'Limited') return 'Limited'
+  return 'Blocked'
+}
+
+function buildLiveItineraryReadiness(checks: HealthItem[]): LiveItineraryReadiness {
+  const byKey = new Map(checks.map((check) => [check.key, check]))
+  const supabase = byKey.get('supabase-flight-data')
+  const freshness = byKey.get('supabase-flight-data-freshness')
+  const aviationstack = byKey.get('aviationstack-fallback')
+  const flightAware = byKey.get('flightaware-enrichment')
+  const providerChecks = [aviationstack, flightAware].filter((check): check is HealthItem => Boolean(check))
+
+  const flightAwareReady = flightAware?.status === 'Connected'
+  const aviationstackReady = aviationstack?.status === 'Connected'
+  const anyLiveProviderReady = flightAwareReady || aviationstackReady
+  const anyProviderLimited = providerChecks.some((check) => check.status === 'Limited')
+  const anyProviderReachable = providerChecks.some((check) => check.status === 'Connected' || check.status === 'Limited')
+
+  const checklist: LiveItineraryReadinessItem[] = [
+    {
+      key: 'supabase-live-schedule-feed',
+      label: 'Supabase live schedule feed',
+      status: supabase?.status === 'Connected' && freshness?.status === 'Connected' ? 'Limited' : liveStatusFromHealth(supabase, 'Limited'),
+      detail: supabase?.status === 'Connected'
+        ? 'Supabase is reachable for stored schedule rows. This supports cache/readback but is not live provider API availability by itself.'
+        : supabase?.detail || 'Supabase schedule storage is unavailable.',
+      recommendedNextAction: supabase?.status === 'Connected'
+        ? 'Add a scheduled ingestion job from the selected live provider and keep stored rows labeled separately from live availability.'
+        : supabase?.recommendedFix || 'Configure Supabase URL/key and flights table access before enabling live schedule ingestion.'
+    },
+    {
+      key: 'aviationstack-future-schedule-capability',
+      label: 'Aviationstack future schedule capability',
+      status: liveStatusFromHealth(aviationstack),
+      detail: aviationstack?.status === 'Connected'
+        ? 'Aviationstack is reachable for fallback schedule search and can contribute date-scoped provider data when quota/plan allows.'
+        : aviationstack?.detail || 'Aviationstack fallback schedule search is unavailable.',
+      recommendedNextAction: aviationstack?.status === 'Connected'
+        ? 'Verify the plan supports the required future-date schedule windows before treating Aviationstack as production coverage.'
+        : aviationstack?.recommendedFix || 'Set AVIATIONSTACK_API_KEY or choose another future schedule provider.'
+    },
+    {
+      key: 'flightaware-enrichment-capability',
+      label: 'FlightAware enrichment capability',
+      status: liveStatusFromHealth(flightAware),
+      detail: flightAware?.status === 'Connected'
+        ? 'FlightAware AeroAPI is reachable for operational enrichment and the app can keep it first for live itinerary schedule results.'
+        : flightAware?.detail || 'FlightAware enrichment/live schedule capability is unavailable.',
+      recommendedNextAction: flightAware?.status === 'Connected'
+        ? 'Keep FlightAware first for live itinerary search; monitor AeroAPI quota and schedule endpoint responses.'
+        : flightAware?.recommendedFix || 'Set FLIGHTAWARE_API_KEY and verify AeroAPI entitlements.'
+    },
+    {
+      key: 'route-search-availability',
+      label: 'Route search availability',
+      status: anyLiveProviderReady ? 'Ready' : supabase?.status === 'Connected' ? 'Limited' : 'Blocked',
+      detail: anyLiveProviderReady
+        ? 'At least one live provider path is reachable for origin/destination itinerary search.'
+        : supabase?.status === 'Connected'
+          ? 'Only stored Supabase route rows are currently reachable; results may be historical, nearest-date testing, or demo fallback.'
+          : 'No live route-search provider is reachable.',
+      recommendedNextAction: anyLiveProviderReady
+        ? 'No action needed beyond monitoring provider responses.'
+        : 'Restore FlightAware or Aviationstack provider access before presenting route search as true live availability.'
+    },
+    {
+      key: 'date-freshness-coverage',
+      label: 'Date freshness coverage',
+      status: anyLiveProviderReady ? 'Ready' : liveStatusFromHealth(freshness, 'Limited'),
+      detail: anyLiveProviderReady
+        ? 'Live provider access is available for requested-date checks; stored rows still remain labeled as stored data.'
+        : freshness?.detail || 'Stored schedule freshness could not be verified.',
+      recommendedNextAction: anyLiveProviderReady
+        ? 'Keep card-level requested-date versus matched-date warnings enabled for stored and testing paths.'
+        : freshness?.recommendedFix || 'Sync current/future schedule rows or restore live provider access before claiming requested-date availability.'
+    },
+    {
+      key: 'provider-rate-limits',
+      label: 'Provider rate limits',
+      status: anyProviderLimited ? 'Limited' : anyProviderReachable ? 'Ready' : 'Blocked',
+      detail: anyProviderLimited
+        ? 'At least one live provider probe is limited, which may indicate quota, plan, entitlement, or rate-limit pressure.'
+        : anyProviderReachable
+          ? 'No live provider health probe is currently reporting rate-limit pressure.'
+          : 'No live provider is reachable, so rate-limit health cannot be confirmed.',
+      recommendedNextAction: anyProviderLimited
+        ? 'Check provider dashboards for quota/rate-limit status and add backoff/caching before production traffic.'
+        : anyProviderReachable
+          ? 'No action needed; continue monitoring provider responses.'
+          : 'Configure and verify at least one live provider before evaluating rate limits.'
+    }
+  ]
+
+  const status: LiveReadinessStatus = checklist.some((entry) => entry.status === 'Blocked')
+    ? 'Blocked'
+    : checklist.some((entry) => entry.status === 'Limited')
+      ? 'Limited'
+      : 'Ready'
+
+  return {
+    status,
+    trueLiveAvailabilityMessage: status === 'Ready'
+      ? 'True live itinerary availability is ready for live provider-backed results. Stored, nearest-date testing, and demo fallback cards must still remain labeled separately.'
+      : 'Current itinerary results are not guaranteed true live availability. Treat stored Supabase rows, nearest-date testing matches, and demo fallback cards as non-production availability until blocked checklist items are resolved.',
+    checklist
+  }
+}
+
 function providerReadinessFromChecks(checks: HealthItem[]): ScheduleProviderReadiness[] {
   const byKey = new Map(checks.map((check) => [check.key, check]))
   const overrides: Partial<Record<LiveScheduleProviderKey, { status: ProviderReadinessRuntimeStatus; detail: string; recommendedNextAction: string }>> = {}
@@ -418,6 +544,7 @@ export async function GET() {
   return NextResponse.json({
     checkedAt: checkedAt(),
     checks,
+    liveItineraryReadiness: buildLiveItineraryReadiness(checks),
     scheduleProviderReadiness: providerReadinessFromChecks(checks)
   })
 }

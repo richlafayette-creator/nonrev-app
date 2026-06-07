@@ -9,6 +9,7 @@ import { outcomeHealthDiagnostics, tripOutcomeStorageKey } from '../../lib/tripO
 
 type HealthStatus = 'Connected' | 'Missing' | 'Limited' | 'Error'
 type ScheduleProviderReadinessStatus = 'Configured' | 'Missing' | 'Limited' | 'Placeholder'
+type LiveReadinessStatus = 'Ready' | 'Limited' | 'Blocked'
 
 type HealthItem = {
   key: string
@@ -30,9 +31,24 @@ type ScheduleProviderReadiness = {
   detail: string
 }
 
+type LiveItineraryReadinessItem = {
+  key: string
+  label: string
+  status: LiveReadinessStatus
+  detail: string
+  recommendedNextAction: string
+}
+
+type LiveItineraryReadiness = {
+  status: LiveReadinessStatus
+  trueLiveAvailabilityMessage: string
+  checklist: LiveItineraryReadinessItem[]
+}
+
 type HealthResponse = {
   checkedAt: string
   checks: HealthItem[]
+  liveItineraryReadiness?: LiveItineraryReadiness
   scheduleProviderReadiness?: ScheduleProviderReadiness[]
 }
 
@@ -48,6 +64,12 @@ const readinessColors: Record<ScheduleProviderReadinessStatus, { border: string;
   Missing: { border: '#f59e0b', text: '#facc15', bg: 'rgba(245,158,11,0.12)' },
   Limited: { border: '#38bdf8', text: '#7dd3fc', bg: 'rgba(56,189,248,0.12)' },
   Placeholder: { border: '#94a3b8', text: '#cbd5e1', bg: 'rgba(148,163,184,0.12)' }
+}
+
+const liveReadinessColors: Record<LiveReadinessStatus, { border: string; text: string; bg: string }> = {
+  Ready: { border: '#22c55e', text: '#86efac', bg: 'rgba(34,197,94,0.12)' },
+  Limited: { border: '#38bdf8', text: '#7dd3fc', bg: 'rgba(56,189,248,0.12)' },
+  Blocked: { border: '#f59e0b', text: '#facc15', bg: 'rgba(245,158,11,0.12)' }
 }
 
 function formatDate(value: string) {
@@ -254,6 +276,7 @@ export default function DataHealthPage() {
   const [remoteChecks, setRemoteChecks] = useState<HealthItem[]>([])
   const [localChecks, setLocalChecks] = useState<HealthItem[]>([])
   const [scheduleProviderReadiness, setScheduleProviderReadiness] = useState<ScheduleProviderReadiness[]>([])
+  const [liveItineraryReadiness, setLiveItineraryReadiness] = useState<LiveItineraryReadiness | null>(null)
   const [pageStatus, setPageStatus] = useState('Checking data health...')
   const [loading, setLoading] = useState(true)
 
@@ -266,6 +289,7 @@ export default function DataHealthPage() {
       const data = await response.json() as HealthResponse
       if (!response.ok) throw new Error('Data health endpoint failed')
       setRemoteChecks(data.checks)
+      setLiveItineraryReadiness(data.liveItineraryReadiness || null)
       setScheduleProviderReadiness(data.scheduleProviderReadiness || [])
       setPageStatus(`Last checked ${formatDate(data.checkedAt)}`)
     } catch {
@@ -280,6 +304,7 @@ export default function DataHealthPage() {
           detail: 'External provider checks are unavailable right now.'
         }
       ])
+      setLiveItineraryReadiness(null)
       setScheduleProviderReadiness([])
       setPageStatus('Some checks could not complete.')
     } finally {
@@ -335,6 +360,43 @@ export default function DataHealthPage() {
         </div>
 
         <p style={{ color: '#cbd5e1' }}>{pageStatus}</p>
+
+        {liveItineraryReadiness ? (
+          <section style={{ border: `1px solid ${liveReadinessColors[liveItineraryReadiness.status].border}`, borderRadius: 18, padding: 18, background: '#020617', marginTop: 18 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+              <div>
+                <p style={{ color: '#38bdf8', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1, margin: 0 }}>True live itinerary readiness</p>
+                <h2 style={{ margin: '6px 0', color: '#f8fafc' }}>Live data provider checklist</h2>
+                <p style={{ color: '#cbd5e1', maxWidth: 820, margin: 0 }}>{liveItineraryReadiness.trueLiveAvailabilityMessage}</p>
+              </div>
+              <span style={{ border: `1px solid ${liveReadinessColors[liveItineraryReadiness.status].border}`, borderRadius: 999, padding: '6px 12px', color: liveReadinessColors[liveItineraryReadiness.status].text, background: liveReadinessColors[liveItineraryReadiness.status].bg, whiteSpace: 'nowrap', fontSize: 13, fontWeight: 'bold' }}>
+                {liveItineraryReadiness.status}
+              </span>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14, marginTop: 16 }}>
+              {liveItineraryReadiness.checklist.map((entry) => {
+                const colors = liveReadinessColors[entry.status]
+                return (
+                  <article key={entry.key} style={{ border: `1px solid ${colors.border}`, borderRadius: 16, padding: 14, background: '#0f172a' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'flex-start' }}>
+                      <h3 style={{ margin: 0, color: '#f8fafc' }}>{entry.label}</h3>
+                      <span style={{ border: `1px solid ${colors.border}`, borderRadius: 999, padding: '4px 9px', color: colors.text, background: colors.bg, whiteSpace: 'nowrap', fontSize: 12, fontWeight: 'bold' }}>
+                        {entry.status}
+                      </span>
+                    </div>
+                    <p style={{ color: '#cbd5e1' }}>{entry.detail}</p>
+                    <div>
+                      <p style={{ color: entry.status === 'Ready' ? '#86efac' : '#facc15', fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.8, margin: '0 0 4px' }}>
+                        {entry.status === 'Ready' ? 'Next action' : 'Recommended next action'}
+                      </p>
+                      <p style={{ color: entry.status === 'Ready' ? '#bbf7d0' : '#fde68a', margin: 0 }}>{entry.recommendedNextAction}</p>
+                    </div>
+                  </article>
+                )
+              })}
+            </div>
+          </section>
+        ) : null}
 
         {scheduleProviderReadiness.length ? (
           <section style={{ border: '1px solid #334155', borderRadius: 18, padding: 18, background: '#020617', marginTop: 18 }}>

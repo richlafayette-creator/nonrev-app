@@ -76,9 +76,9 @@ Use `scheduleResultsToFlightRecords()` to adapt normalized schedule results into
 6. Set `source` to the provider key, for example `flightaware` or `amadeus`.
 7. Feed results through `scheduleResultsToFlightRecords()` before itinerary assembly.
 8. Label provenance correctly in the API/UI:
-   - Current provider API response for requested date: `Live current API data`
-   - Persisted Supabase rows: `Stored Supabase data`
-   - Personal-testing nearest-date rows: `Nearest-date test match`
+   - Provider API response returned during the itinerary request: `Live provider API data`
+   - Persisted Supabase rows: `Stored Supabase flight data`
+   - Personal-testing nearest-date rows: `Nearest-date testing data`
    - Static/scaffold fallback cards: `Demo fallback data`
 
 ## Recommended next provider path
@@ -87,4 +87,4 @@ Use FlightAware AeroAPI as the first future primary live schedule provider. The 
 
 ## Supabase schedule ingestion
 
-Supabase ingestion is modeled as a provider placeholder so future background jobs can normalize and store schedules consistently. Ingested rows must still be labeled as stored data when later read from Supabase. Storage/caching improves performance and auditability, but it does not make those rows true live current API data.
+Supabase ingestion is modeled as a provider placeholder so future background jobs can normalize and store schedules consistently. Ingested rows must still be labeled as stored data when later read from Supabase. Storage/caching improves performance and auditability, but it does not make those rows true live provider API data.

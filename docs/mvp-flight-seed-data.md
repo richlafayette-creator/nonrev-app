@@ -64,6 +64,6 @@ When live data is ready:
 2. Remove any static MVP rows from non-production databases when no longer needed, using a deliberate audited delete by the known test status/date/flight numbers.
 3. Populate `public.flights` from the live ingestion job with provider-sourced `origin`, `destination`, `departure_time`, `arrival_time`, `carrier`, `flight_number`, `aircraft`, `status`, and scoring fields.
 4. Keep the app-level seed fallback behind the current live-first order, or remove `lib/mvpRouteSeedData.ts` once Supabase/Aviationstack coverage is reliable for these routes.
-5. Confirm `/api/itinerary/search` returns `dataMode: live` with `Live current API data` badges for current provider API results, or `dataMode: stored-supabase` with stored-data badges for persisted database rows, before considering the replacement complete.
+5. Confirm `/api/itinerary/search` returns `dataMode: live` with `Live provider API data` badges for provider API results returned during the itinerary request, or `dataMode: stored-supabase` with stored-data badges for persisted database rows, before considering the replacement complete.
 
 The important handoff rule: live provider data should replace seed rows at the data-source layer; do not mutate seed rows into production-looking rows.

@@ -137,17 +137,17 @@ const carrierIataCodes: Record<string, string[]> = {
 }
 
 const providerLabels: Record<ProviderKey, string> = {
-  supabase: 'Cached provider: Supabase',
-  aviationstack: 'Live provider fallback: Aviationstack',
-  flightaware: 'Live provider: FlightAware',
-  planning: 'Demo provider'
+  supabase: 'Stored Supabase flight data',
+  aviationstack: 'Live provider API: Aviationstack',
+  flightaware: 'Live provider API: FlightAware',
+  planning: 'Demo fallback data'
 }
 
 const providerFallbackOrder = [
   '1. FlightAware live schedules (route/date schedule search)',
-  '2. Supabase cached schedules (stored data; targeted route/date query, then recent-row safety query)',
-  '3. Aviationstack fallback (only when quota/account health allows usable results)',
-  '4. Demo fallback cards (only if no live or cached provider returns itinerary data)'
+  '2. Stored Supabase flight data (targeted route/date query, then recent-row safety query)',
+  '3. Aviationstack live provider API fallback (only when quota/account health allows usable results)',
+  '4. Demo fallback cards (only if no live API or stored provider data returns itinerary data)'
 ]
 
 const providerTimeoutMs = 7000
@@ -163,7 +163,7 @@ const fallbackProviderStatuses: ProviderStatus[] = [
     provider: 'supabase',
     label: providerLabels.supabase,
     state: 'pending',
-    detail: 'Supabase cached schedules are checked after FlightAware live schedules.'
+    detail: 'Stored Supabase flight data is checked after FlightAware live schedules.'
   },
   {
     provider: 'aviationstack',
@@ -175,7 +175,7 @@ const fallbackProviderStatuses: ProviderStatus[] = [
     provider: 'planning',
     label: providerLabels.planning,
     state: 'pending',
-    detail: 'Demo fallback cards are used only when no live or cached provider returns itinerary data.'
+    detail: 'Demo fallback cards are used only when no live API or stored provider data returns itinerary data.'
   }
 ]
 
@@ -301,11 +301,11 @@ function trueLiveUnavailableReason(source: 'flightaware' | 'supabase' | 'aviatio
   if (source === 'flightaware') return ''
   if (source === 'aviationstack') return ''
   if (source === 'supabase') {
-    if (routeMatching?.dateCoverage.nearestDateApplied) return `True live current API data was unavailable; using stored Supabase rows from nearest available date ${routeMatching.dateCoverage.effectiveMatchDate} for requested date ${routeMatching.dateCoverage.requestedSearchDate}.`
-    return 'FlightAware live schedules were unavailable or returned no usable itinerary, so cached Supabase rows produced itinerary cards; these rows are persisted database records, not a current provider API response.'
+    if (routeMatching?.dateCoverage.nearestDateApplied) return `Live provider API data was unavailable; using stored Supabase rows from nearest available date ${routeMatching.dateCoverage.effectiveMatchDate} for requested date ${routeMatching.dateCoverage.requestedSearchDate}.`
+    return 'FlightAware live schedules were unavailable or returned no usable itinerary, so stored Supabase rows produced itinerary cards; these rows are persisted database records, not a current provider API response.'
   }
-  if (source === 'mvp-test-data') return 'True live current API data was unavailable from FlightAware/Supabase/Aviationstack, so static MVP test data is being used.'
-  return 'True live current API data was unavailable from configured providers and cached schedules had no usable itinerary, so demo fallback guidance is being shown.'
+  if (source === 'mvp-test-data') return 'Live provider API data was unavailable from FlightAware/Supabase/Aviationstack, so static MVP test data is being used.'
+  return 'Live provider API data was unavailable from configured providers and stored schedules had no usable itinerary, so demo fallback guidance is being shown.'
 }
 
 function safeProviderMessage(provider: string, status: number, fallback: string) {
@@ -699,8 +699,8 @@ function normalizeAviationstackFlight(flight: AviationstackFlight): FlightRecord
 function sourceLabel(source: 'flightaware' | 'supabase' | 'aviationstack' | 'planning', enriched: boolean) {
   if (source === 'planning') return providerLabels.planning
   if (source === 'flightaware') return providerLabels.flightaware
-  if (source === 'aviationstack') return enriched ? 'Live provider fallback: Aviationstack + FlightAware enriched' : providerLabels.aviationstack
-  return enriched ? 'Cached provider: Supabase + FlightAware enriched' : providerLabels.supabase
+  if (source === 'aviationstack') return enriched ? 'Live provider API: Aviationstack + FlightAware enrichment' : providerLabels.aviationstack
+  return enriched ? 'Stored Supabase flight data + FlightAware enrichment' : providerLabels.supabase
 }
 
 function buildDebugMetadata({
@@ -875,8 +875,8 @@ export async function GET(request: Request) {
   if (flightAwareScheduleFlights.length > 0 && flightAwareItineraries.length === 0) emptyResults.push('FlightAware returned live schedule rows, but none matched itinerary assembly rules.')
   if (flightAwareItineraries.length > 0) {
     const itineraries = addProviderBadges(flightAwareItineraries, 'flightaware', false, {
-      dataFreshnessLabel: 'Live provider',
-      dataFreshnessDetail: effectiveRequest.date ? `FlightAware live schedule result checked for requested date ${effectiveRequest.date}.` : 'FlightAware live schedule result checked for the current schedule window.'
+      dataFreshnessLabel: 'Live provider API data',
+      dataFreshnessDetail: effectiveRequest.date ? `FlightAware live provider API schedule result checked for requested date ${effectiveRequest.date}.` : 'FlightAware live provider API schedule result checked for the current schedule window.'
     })
     counts.finalItineraries = itineraries.length
     const skippedSupabaseQueryPath = skippedSupabaseDiagnostics('skipped; FlightAware live schedules returned itinerary results')
@@ -966,12 +966,12 @@ export async function GET(request: Request) {
     const enriched = Object.keys(enrichments).length > 0
     const supabaseFreshness = routeMatching.dateCoverage.nearestDateApplied
       ? {
-          dataFreshnessLabel: 'Cached provider nearest-date test match',
-          dataFreshnessDetail: `Requested ${routeMatching.dateCoverage.requestedSearchDate}; matched stored Supabase date ${routeMatching.dateCoverage.effectiveMatchDate}.`
+          dataFreshnessLabel: 'Nearest-date testing data',
+          dataFreshnessDetail: `Requested ${routeMatching.dateCoverage.requestedSearchDate}; matched stored Supabase date ${routeMatching.dateCoverage.effectiveMatchDate}. This is nearest-date testing data, not live provider API data.`
         }
       : {
-          dataFreshnessLabel: effectiveRequest.date ? 'Cached provider date match' : 'Cached provider',
-          dataFreshnessDetail: effectiveRequest.date ? `Cached Supabase row matches requested date ${effectiveRequest.date}; not a current API response.` : 'Cached Supabase row; no strict requested date was supplied.'
+          dataFreshnessLabel: 'Stored Supabase flight data',
+          dataFreshnessDetail: effectiveRequest.date ? `Stored Supabase flight row matches requested date ${effectiveRequest.date}; not a current provider API response.` : 'Stored Supabase flight row; no strict requested date was supplied.'
         }
     const itineraries = addProviderBadges(enrichedItineraries.length ? enrichedItineraries : supabaseItineraries, 'supabase', enriched, supabaseFreshness)
     counts.finalItineraries = itineraries.length
@@ -995,7 +995,7 @@ export async function GET(request: Request) {
           ? `${supabaseItineraries.length} itinerary result${supabaseItineraries.length === 1 ? '' : 's'} found from ${supabaseMatchedFlights.length} exact matched Supabase flight record${supabaseMatchedFlights.length === 1 ? '' : 's'} via ${supabaseQueryPath.usedPath}.`
           : `${supabaseItineraries.length} connecting itinerary result${supabaseItineraries.length === 1 ? '' : 's'} assembled from Supabase candidate rows, but no single direct row matched the normalized route. ${routeMatching.matchExplanation}`),
         providerStatus('aviationstack', 'skipped', 'Skipped because stored Supabase data produced itinerary results.'),
-        providerStatus('flightaware', enriched ? 'success' : flightAwareScheduleWarning ? 'warning' : 'skipped', `${flightAwareScheduleDetail}; cached-result enrichment status: ${flightAwareStatus}.`),
+        providerStatus('flightaware', enriched ? 'success' : flightAwareScheduleWarning ? 'warning' : 'skipped', `${flightAwareScheduleDetail}; stored-result enrichment status: ${flightAwareStatus}.`),
         providerStatus('planning', 'skipped', 'Skipped because stored provider results are available.')
       ],
       trueLiveDataAvailable: false,
@@ -1023,7 +1023,7 @@ export async function GET(request: Request) {
     })
   }
 
-  warnings.push('No matching FlightAware live or Supabase cached flights found; trying Aviationstack fallback')
+  warnings.push('No matching FlightAware live API or stored Supabase flights found; trying Aviationstack fallback')
   const { flights: aviationstackFlights, warning: aviationstackWarning, requestCount: aviationstackRequestCount } = await fetchAviationstackFlights(effectiveRequest)
   counts.aviationstackRequests = aviationstackRequestCount
   counts.aviationstackFetched = aviationstackFlights.length
@@ -1045,8 +1045,8 @@ export async function GET(request: Request) {
     const enrichedItineraries = buildItinerariesFromFlights(aviationstackFlights, effectiveRequest, enrichments)
     const enriched = Object.keys(enrichments).length > 0
     const itineraries = addProviderBadges(enrichedItineraries.length ? enrichedItineraries : aviationstackItineraries, 'aviationstack', enriched, {
-      dataFreshnessLabel: 'Live provider fallback',
-      dataFreshnessDetail: effectiveRequest.date ? `Current provider API result for requested date ${effectiveRequest.date}.` : 'Current provider API result; no strict requested date was supplied.'
+      dataFreshnessLabel: 'Live provider API data',
+      dataFreshnessDetail: effectiveRequest.date ? `Aviationstack live provider API fallback result for requested date ${effectiveRequest.date}.` : 'Aviationstack live provider API fallback result; no strict requested date was supplied.'
     })
     counts.finalItineraries = itineraries.length
     const aviationstackFallbackStatus = `queried; ${aviationstackFlights.length} flight record${aviationstackFlights.length === 1 ? '' : 's'} returned`
@@ -1112,10 +1112,10 @@ export async function GET(request: Request) {
       nearestDateToleranceDays: personalTestingMode ? personalTestingToleranceDays : undefined
     })
     const itineraries = addProviderBadges(mvpSeedItineraries, 'supabase', false, {
-      dataFreshnessLabel: seedRouteMatching.dateCoverage.nearestDateApplied ? 'Demo provider nearest-date MVP test data' : 'Demo provider MVP test data',
+      dataFreshnessLabel: seedRouteMatching.dateCoverage.nearestDateApplied ? 'Nearest-date testing data' : 'Demo fallback data',
       dataFreshnessDetail: seedRouteMatching.dateCoverage.nearestDateApplied
-        ? `Requested ${seedRouteMatching.dateCoverage.requestedSearchDate}; matched static test-data date ${seedRouteMatching.dateCoverage.effectiveMatchDate}.`
-        : `Static MVP seed date ${mvpRouteSeedDate}; not live.`
+        ? `Requested ${seedRouteMatching.dateCoverage.requestedSearchDate}; matched static test-data date ${seedRouteMatching.dateCoverage.effectiveMatchDate}. This is nearest-date testing data, not live provider API data.`
+        : `Static MVP seed date ${mvpRouteSeedDate}; demo fallback data, not live provider API data.`
     })
     counts.finalItineraries = itineraries.length
     const seedMessage = seedRouteMatching.dateCoverage.nearestDateApplied
@@ -1168,7 +1168,7 @@ export async function GET(request: Request) {
     })
   }
 
-  const noResultsMessage = 'No live, cached, or fallback-provider flights found for this search. Showing fallback demo guidance.'
+  const noResultsMessage = 'No live provider API, stored Supabase, or fallback-provider flights found for this search. Showing fallback demo guidance.'
   const finalWarnings = uniqueMessages([...warnings, noResultsMessage])
   const debug = buildDebugMetadata({
     parsedRequest: effectiveRequest,

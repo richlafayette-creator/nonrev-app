@@ -164,8 +164,8 @@ Nearest-date matching can apply to:
 It rewrites the effective match date to the closest available date within tolerance, but preserves diagnostics showing the requested date, effective match date, closest dates, and a warning. The API marks this as:
 
 - `dataMode: 'nearest-date-testing'`
-- `dataFreshnessLabel: 'Cached provider nearest-date test match'` for Supabase
-- `dataFreshnessLabel: 'Demo provider nearest-date MVP test data'` for static seed data
+- `dataFreshnessLabel: 'Nearest-date testing data'` for Supabase nearest-date matches
+- `dataFreshnessLabel: 'Nearest-date testing data'` for static seed nearest-date matches
 - `trueLiveDataAvailable: false`
 
 This path is for testing UI and itinerary assembly only. It should not be presented as strict-date live availability.

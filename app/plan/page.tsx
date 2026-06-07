@@ -322,10 +322,32 @@ function riskColor(risk: string) {
 }
 
 function providerBadgeStyle(label: string) {
+  if (label.includes('Live provider API data') || label.includes('Freshness: Live')) return { border: '#22c55e', text: '#bbf7d0', background: 'rgba(34, 197, 94, 0.12)' }
+  if (label.includes('Stored Supabase flight data') || label.includes('Stored Supabase data') || label.includes('Freshness: Stored')) return { border: '#38bdf8', text: '#bae6fd', background: 'rgba(56, 189, 248, 0.12)' }
+  if (label.includes('Nearest-date') || label.includes('Demo fallback') || label.includes('MVP test data') || label.includes('Freshness: Demo')) return { border: '#facc15', text: '#fef3c7', background: 'rgba(250, 204, 21, 0.12)' }
   if (label.includes('Supabase')) return { border: '#22c55e', text: '#bbf7d0', background: 'rgba(34, 197, 94, 0.12)' }
   if (label.includes('Aviationstack')) return { border: '#38bdf8', text: '#bae6fd', background: 'rgba(56, 189, 248, 0.12)' }
   if (label.includes('FlightAware')) return { border: '#c084fc', text: '#e9d5ff', background: 'rgba(192, 132, 252, 0.12)' }
   return { border: '#facc15', text: '#fef3c7', background: 'rgba(250, 204, 21, 0.12)' }
+}
+
+function sourceBadgeLabel(source?: string, sourceProvider?: string) {
+  const value = `${sourceProvider || ''} ${source || ''}`.toLowerCase()
+  if (value.includes('flightaware')) return 'Source: FlightAware live API'
+  if (value.includes('aviationstack')) return 'Source: Aviationstack live API'
+  if (value.includes('supabase')) return 'Source: Stored Supabase'
+  if (value.includes('mvp') || value.includes('test-data')) return 'Source: MVP test data'
+  if (value.includes('demo') || value.includes('planning')) return 'Source: Demo fallback'
+  return 'Source: Unknown'
+}
+
+function freshnessBadgeLabel(label?: string, dataMode?: string) {
+  const value = `${label || ''} ${dataMode || ''}`.toLowerCase()
+  if (value.includes('nearest-date')) return 'Freshness: Nearest-date testing data'
+  if (value.includes('live')) return 'Freshness: Live provider API data'
+  if (value.includes('supabase') || value.includes('stored') || value.includes('cached')) return 'Freshness: Stored Supabase flight data'
+  if (value.includes('mvp') || value.includes('test') || value.includes('fallback') || value.includes('demo')) return 'Freshness: Demo fallback data'
+  return 'Freshness: Not provided'
 }
 
 function readinessBadgeStyle(status: ScheduleProviderReadinessStatus) {
@@ -771,7 +793,7 @@ function buildLiveItineraryComparison(
     totalTravelTime: totalTravelTimeFromItinerary(itinerary),
     flightNumber: itinerary.flightNumber,
     isLive: true,
-    providerBadges: itinerary.providerBadges?.length ? itinerary.providerBadges : [itinerary.source.includes('aviationstack') ? 'Live current API data' : 'Stored Supabase data', ...(itinerary.source.includes('flightaware') ? ['FlightAware enriched'] : [])],
+    providerBadges: itinerary.providerBadges?.length ? itinerary.providerBadges : [itinerary.source.includes('aviationstack') || itinerary.source.includes('flightaware') ? 'Live provider API data' : 'Stored Supabase flight data', ...(itinerary.source.includes('flightaware') ? ['FlightAware enriched'] : [])],
     dataFreshnessLabel: itinerary.dataFreshnessLabel,
     dataFreshnessDetail: itinerary.dataFreshnessDetail,
     disruption,
@@ -1736,7 +1758,7 @@ export default function PlanPage() {
     setItineraryLoading(true)
     markActivationStep('runFirstTripPlan')
     setConfidenceUpdateTrigger('itinerary-search-run')
-    setItineraryStatus('Searching FlightAware live schedules first, then Supabase cached schedules, Aviationstack fallback, and demo last...')
+    setItineraryStatus('Searching FlightAware live provider API data first, then stored Supabase flight data, Aviationstack fallback, and demo last...')
     setItineraryDataMode('Searching providers')
     setItineraryWarnings([])
     setItineraryDebug(null)
@@ -1759,16 +1781,16 @@ export default function PlanPage() {
       setLiveItineraries(itineraries)
       const apiWarnings = Array.isArray(data?.warnings) ? data.warnings : []
       setItineraryWarnings(data?.errorMessage ? [...new Set([...apiWarnings, data.errorMessage])] : apiWarnings)
-      setItinerarySource(data?.sourceLabel || (data?.enrichedWithFlightAware ? 'Cached provider: Supabase + FlightAware enrichment' : 'Cached provider: Supabase'))
+      setItinerarySource(data?.sourceLabel || (data?.enrichedWithFlightAware ? 'Stored Supabase flight data + FlightAware enrichment' : 'Stored Supabase flight data'))
       setItineraryDataMode(data?.dataMode === 'nearest-date-testing'
-        ? 'Nearest-date test match — not production strict'
+        ? 'Nearest-date testing data'
         : data?.dataMode === 'stored-supabase'
-          ? 'Stored Supabase data'
+          ? 'Stored Supabase flight data'
         : data?.dataMode === 'test-data'
-        ? 'MVP test data — not live'
+        ? 'Demo fallback data (MVP test data)'
         : data?.dataMode === 'fallback' || itineraries.length === 0
-          ? 'Fallback demo guidance'
-          : 'Live current API data')
+          ? 'Demo fallback data'
+          : 'Live provider API data')
       setItineraryDebug(data?.debug || null)
       setItineraryStatus(data?.statusMessage || (itineraries.length
         ? `${itineraries.length} live itinerary result${itineraries.length === 1 ? '' : 's'} found for ${data?.request?.origin || 'any origin'} → ${data?.request?.destination || 'any destination'}.`
@@ -2130,7 +2152,7 @@ export default function PlanPage() {
               </p>
             </div>
             <p style={{ color: '#94a3b8' }}>
-              Supported today: United, Delta, Alaska Group. Alaska Group includes Alaska and Hawaiian. Search uses FlightAware live schedules first, Supabase cached schedules second, Aviationstack fallback third, and demo fallback last.
+              Supported today: United, Delta, Alaska Group. Alaska Group includes Alaska and Hawaiian. Search uses FlightAware live provider API data first, stored Supabase flight data second, Aviationstack fallback third, and demo fallback last.
             </p>
             <button
               type="submit"
@@ -2174,14 +2196,14 @@ export default function PlanPage() {
           <p style={{ color: itineraryLoading ? '#facc15' : '#94a3b8' }}>
             {itineraryStatus} · Source: {itinerarySource}
           </p>
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, border: `1px solid ${itineraryDataMode === 'Live current API data' ? '#22c55e' : itineraryDataMode.includes('Fallback') || itineraryDataMode.includes('Nearest') || itineraryDataMode.includes('test') ? '#facc15' : '#334155'}`, borderRadius: 999, padding: '6px 12px', background: '#020617', color: itineraryDataMode === 'Live current API data' ? '#bbf7d0' : itineraryDataMode.includes('Fallback') || itineraryDataMode.includes('Nearest') || itineraryDataMode.includes('test') ? '#fef3c7' : '#cbd5e1', marginBottom: 14, fontWeight: 'bold' }}>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, border: `1px solid ${itineraryDataMode === 'Live provider API data' ? '#22c55e' : itineraryDataMode.includes('Fallback') || itineraryDataMode.includes('Nearest') || itineraryDataMode.includes('test') ? '#facc15' : '#334155'}`, borderRadius: 999, padding: '6px 12px', background: '#020617', color: itineraryDataMode === 'Live provider API data' ? '#bbf7d0' : itineraryDataMode.includes('Fallback') || itineraryDataMode.includes('Nearest') || itineraryDataMode.includes('test') ? '#fef3c7' : '#cbd5e1', marginBottom: 14, fontWeight: 'bold' }}>
             Data mode: {itineraryDataMode}
           </div>
           {itineraryDebug?.dataFreshnessMode === 'nearest-date-testing' ? (
             <div style={{ border: '1px solid #facc15', borderRadius: 14, padding: 14, background: '#1c1917', color: '#fde68a', marginBottom: 14 }}>
               <strong>Nearest-date testing mode is active</strong>
               <p style={{ margin: '6px 0 0' }}>
-                These itinerary cards are matched to {itineraryDebug.routeMatching?.dateCoverage.effectiveMatchDate || 'a nearest available stored date'} instead of requested date {itineraryDebug.routeMatching?.dateCoverage.requestedSearchDate || 'unknown'}. Do not treat them as live/current availability.
+                These itinerary cards are nearest-date testing data matched to {itineraryDebug.routeMatching?.dateCoverage.effectiveMatchDate || 'a nearest available stored date'} instead of requested date {itineraryDebug.routeMatching?.dateCoverage.requestedSearchDate || 'unknown'}. Do not treat them as live provider API availability.
               </p>
             </div>
           ) : null}
@@ -2221,7 +2243,7 @@ export default function PlanPage() {
             ) : null}
             {itineraryDebug ? (
               <div style={{ border: `1px solid ${itineraryDebug.trueLiveDataAvailable ? '#22c55e' : '#facc15'}`, borderRadius: 12, padding: 12, background: '#0f172a', marginTop: 12 }}>
-                <strong style={{ color: itineraryDebug.trueLiveDataAvailable ? '#22c55e' : '#facc15' }}>True live current API status</strong>
+                <strong style={{ color: itineraryDebug.trueLiveDataAvailable ? '#22c55e' : '#facc15' }}>Live provider API status</strong>
                 <p style={{ color: '#cbd5e1', margin: '6px 0 0' }}>
                   {itineraryDebug.trueLiveDataAvailable
                     ? 'Current provider API data is available for this result set.'
@@ -2233,7 +2255,7 @@ export default function PlanPage() {
               <div style={{ marginTop: 12 }}>
                 <strong style={{ color: '#c084fc' }}>Live schedule provider readiness</strong>
                 <p style={{ color: '#94a3b8', margin: '6px 0 0' }}>
-                  Readiness is diagnostic only. Itinerary search checks FlightAware first, then Supabase cached schedules, Aviationstack fallback, and demo fallback.
+                  Readiness is diagnostic only. Itinerary search checks FlightAware live provider API data first, then stored Supabase flight data, Aviationstack fallback, and demo fallback.
                 </p>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))', gap: 10, marginTop: 10 }}>
                   {itineraryDebug.scheduleProviderReadiness.map((provider) => {
@@ -2455,7 +2477,9 @@ export default function PlanPage() {
                     <span style={{ color: riskColor(itinerary.risk), fontWeight: 'bold' }}>{itinerary.risk}</span>
                   </div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
-                    {(itinerary.providerBadges?.length ? itinerary.providerBadges : [itinerary.source.includes('aviationstack') ? 'Live current API data' : 'Stored Supabase data', ...(itinerary.source.includes('flightaware') ? ['FlightAware enriched'] : [])]).map((badge) => (
+                    <ProviderBadge label={sourceBadgeLabel(itinerary.source, itinerary.sourceProvider)} />
+                    <ProviderBadge label={freshnessBadgeLabel(itinerary.dataFreshnessLabel, itineraryDataMode)} />
+                    {(itinerary.providerBadges?.length ? itinerary.providerBadges : [itinerary.source.includes('aviationstack') || itinerary.source.includes('flightaware') ? 'Live provider API data' : 'Stored Supabase flight data', ...(itinerary.source.includes('flightaware') ? ['FlightAware enriched'] : [])]).map((badge) => (
                       <ProviderBadge key={`${itinerary.id}-${badge}`} label={badge} />
                     ))}
                     {itinerary.dataFreshnessLabel && !itinerary.providerBadges?.includes(itinerary.dataFreshnessLabel) ? (
@@ -2521,7 +2545,7 @@ export default function PlanPage() {
             <>
               <h3 style={{ color: '#facc15' }}>Fallback demo itinerary cards</h3>
               <p style={{ color: '#94a3b8' }}>
-                No provider flights found for this search. These clearly marked demo cards keep search, scoring, probability, watchlist, and outcome capture testable without current API data.
+                No provider flights found for this search. These clearly marked demo fallback cards keep search, scoring, probability, watchlist, and outcome capture testable without live provider API data.
               </p>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 260px), 1fr))', gap: 16 }}>
                 {fallbackDemoItineraries.map((itinerary) => (
@@ -2531,6 +2555,8 @@ export default function PlanPage() {
                   <span style={{ color: confidenceColor(itinerary.confidence), fontWeight: 'bold' }}>{itinerary.confidence}</span>
                 </div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
+                  <ProviderBadge label="Source: Demo fallback" />
+                  <ProviderBadge label="Freshness: Demo fallback data" />
                   <ProviderBadge label="Planning fallback" />
                   <WeatherRiskBadge weatherRisk={getRouteWeatherRisk(itinerary.route)} />
                 </div>

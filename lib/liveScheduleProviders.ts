@@ -1,3 +1,5 @@
+import { createProviderResultRepository } from './providerResultRepository'
+
 export type LiveScheduleProviderKey =
   | 'aviationstack'
   | 'flightaware'
@@ -368,6 +370,8 @@ export function createFlightAwareScheduleProvider(apiKey = process.env.FLIGHTAWA
           .map((flight: FlightAwareSchedule) => normalizeFlightAwareScheduleResult(flight, sourceCheckedAt))
           .filter((result: NormalizedScheduleResult) => carrierMatchesSchedule(result, request.carrier))
           .slice(0, limit))
+
+        await createProviderResultRepository().storeNormalizedResults(results)
 
         return {
           provider: 'flightaware',

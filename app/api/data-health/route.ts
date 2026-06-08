@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getLiveScheduleProviderReadiness, type LiveScheduleProviderKey, type ScheduleProviderReadiness } from '../../../lib/liveScheduleProviders'
+import { providerResultTableName } from '../../../lib/providerResultRepository'
 
 export const dynamic = 'force-dynamic'
 
@@ -47,6 +48,10 @@ function testDataModeEnabled() {
   return process.env.NONREVY_TEST_DATA_MODE === 'true'
 }
 
+function providerResultPersistenceEnabled() {
+  return process.env.NONREVY_STORE_PROVIDER_RESULTS === 'true'
+}
+
 function safeMessage(value: unknown) {
   if (!value) return ''
   const raw = typeof value === 'string' ? value : value instanceof Error ? value.message : 'Request failed'
@@ -74,6 +79,43 @@ async function fetchJsonWithTimeout(url: string, init: RequestInit = {}) {
   } finally {
     clearTimeout(timeout)
   }
+}
+
+function checkProviderResultPersistence(): HealthItem {
+  const enabled = providerResultPersistenceEnabled()
+  const hasSupabaseUrl = Boolean(process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL)
+  const hasServiceRoleKey = Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY)
+
+  if (!enabled) {
+    return item({
+      key: 'provider-result-persistence',
+      label: 'Provider result persistence',
+      status: 'Limited',
+      safeErrorMessage: '',
+      recommendedFix: 'No action needed unless provider result storage should be enabled; set NONREVY_STORE_PROVIDER_RESULTS=true server-side when ready.',
+      detail: `Persistence is off/no-op by default. FlightAware schedule results will not be written to ${providerResultTableName}.`
+    })
+  }
+
+  if (!hasSupabaseUrl || !hasServiceRoleKey) {
+    return item({
+      key: 'provider-result-persistence',
+      label: 'Provider result persistence',
+      status: 'Missing',
+      safeErrorMessage: 'NONREVY_STORE_PROVIDER_RESULTS=true is enabled, but server-only Supabase URL or service-role key configuration is missing.',
+      recommendedFix: 'Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY server-side, then manually apply docs/provider-results-table.sql when ready.',
+      detail: `Persistence is enabled, but writes will use local/no-op fallback until ${providerResultTableName} can be reached with server credentials.`
+    })
+  }
+
+  return item({
+    key: 'provider-result-persistence',
+    label: 'Provider result persistence',
+    status: 'Connected',
+    safeErrorMessage: '',
+    recommendedFix: `Verify docs/provider-results-table.sql has been applied manually; the repository will fall back safely if ${providerResultTableName} is unavailable.`,
+    detail: `NONREVY_STORE_PROVIDER_RESULTS=true is enabled. FlightAware schedule results can be written server-side to ${providerResultTableName}; service-role key values are not exposed.`
+  })
 }
 
 async function checkSupabaseFlights(): Promise<HealthItem> {
@@ -558,7 +600,8 @@ export async function GET() {
     checkSupabaseFlightFreshness(),
     checkAviationstack(),
     checkFlightAware(),
-    checkMapbox()
+    checkMapbox(),
+    Promise.resolve(checkProviderResultPersistence())
   ])
 
   return NextResponse.json({

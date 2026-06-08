@@ -27,7 +27,7 @@ export type ProviderResultRepository = {
 
 type ProviderResultRepositoryEnv = Record<string, string | undefined>
 
-const providerResultTableName = 'provider_live_itinerary_results'
+export const providerResultTableName = 'provider_itinerary_results'
 const defaultStoreTimeoutMs = 2500
 
 function storeProviderResultsEnabled(env: ProviderResultRepositoryEnv) {
@@ -84,7 +84,7 @@ export function createProviderResultRepository(env: ProviderResultRepositoryEnv 
           attempted: false,
           stored: 0,
           status: 'fallback-noop',
-          detail: 'Provider result persistence requested, but Supabase URL or server-only service role key is unavailable; using no-op fallback.'
+          detail: 'Provider result persistence requested, but Supabase URL or server-only service role key is unavailable; using local/no-op fallback.'
         }
       }
     }
@@ -126,7 +126,7 @@ export function createProviderResultRepository(env: ProviderResultRepositoryEnv 
             attempted: true,
             stored: 0,
             status: 'fallback-noop',
-            detail: `Provider result persistence table unavailable or rejected insert (${response.status}); using no-op fallback.`
+            detail: `Provider result persistence table unavailable or rejected insert (${response.status}); using local/no-op fallback.`
           }
         }
 
@@ -143,7 +143,7 @@ export function createProviderResultRepository(env: ProviderResultRepositoryEnv 
           attempted: true,
           stored: 0,
           status: 'fallback-noop',
-          detail: 'Provider result persistence failed or timed out; using no-op fallback.'
+          detail: 'Provider result persistence failed or timed out; using local/no-op fallback.'
         }
       } finally {
         clearTimeout(timeout)

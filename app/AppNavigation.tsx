@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { usePathname } from 'next/navigation'
 
 const navItems = [
   ['Home', '/'],
@@ -27,6 +28,7 @@ const navItems = [
 
 export default function AppNavigation() {
   const [open, setOpen] = useState(false)
+  const pathname = usePathname()
 
   return (
     <aside className="app-menu" aria-label="Main navigation">
@@ -37,13 +39,17 @@ export default function AppNavigation() {
         aria-controls="app-menu-links"
         onClick={() => setOpen((value) => !value)}
       >
-        <span>Menu</span>
+        <span className="app-menu__brand">NONREVY</span>
+        <span className="app-menu__route">Menu</span>
       </button>
       {open && (
         <nav id="app-menu-links" className="app-menu__links">
-          {navItems.map(([label, href]) => (
-            <a key={href} href={href}>{label}</a>
-          ))}
+          {navItems.map(([label, href]) => {
+            const active = href === '/' ? pathname === href : pathname?.startsWith(href)
+            return (
+              <a key={href} href={href} aria-current={active ? 'page' : undefined}>{label}</a>
+            )
+          })}
         </nav>
       )}
     </aside>

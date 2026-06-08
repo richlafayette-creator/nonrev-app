@@ -465,3 +465,94 @@ main > nav {
 .app-menu .app-menu__links {
   display: flex;
 }
+
+/* NONREVY visual refresh: premium airline/travel intelligence surface */
+:root {
+  --background: #020617;
+  --foreground: #f8fafc;
+  --nonrevy-sky: #38bdf8;
+  --nonrevy-aqua: #67e8f9;
+  --nonrevy-violet: #a78bfa;
+  --nonrevy-line: rgba(148, 163, 184, 0.24);
+}
+
+html { color-scheme: dark; }
+
+body {
+  font-family: var(--font-geist-sans), Inter, ui-sans-serif, system-ui, sans-serif !important;
+  letter-spacing: -0.012em;
+  background: radial-gradient(circle at 14% 0%, rgba(56, 189, 248, 0.22), transparent 28rem), radial-gradient(circle at 86% 10%, rgba(167, 139, 250, 0.18), transparent 24rem), linear-gradient(135deg, #020617 0%, #06111f 48%, #0f172a 100%) !important;
+}
+
+main,
+.app-shell {
+  padding: clamp(24px, 4vw, 56px) !important;
+  padding-top: clamp(84px, 9vw, 112px) !important;
+  font-family: var(--font-geist-sans), Inter, ui-sans-serif, system-ui, sans-serif !important;
+}
+
+main:has(> nav) { padding-left: clamp(24px, 4vw, 56px) !important; }
+main > section, .app-shell > section { width: min(1180px, 100%); margin-inline: auto !important; }
+
+h1, h2, h3 { letter-spacing: -0.045em; text-wrap: balance; }
+h1 { font-size: clamp(2.25rem, 7vw, 5.1rem) !important; line-height: 0.95 !important; }
+h2 { font-size: clamp(1.45rem, 3vw, 2.3rem) !important; line-height: 1.06 !important; }
+p, li, small, label { line-height: 1.6; }
+
+main article,
+.mini-card,
+.flight-card,
+.filter-panel,
+.mapbox-card,
+.account-menu,
+.app-menu {
+  background: linear-gradient(145deg, rgba(15, 23, 42, 0.94), rgba(15, 23, 42, 0.68)) !important;
+  border-color: var(--nonrevy-line) !important;
+  box-shadow: 0 20px 60px rgba(2, 6, 23, 0.34), inset 0 1px 0 rgba(255,255,255,0.05) !important;
+}
+
+main article,
+.mini-card,
+.flight-card { transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease; }
+main article:hover,
+.mini-card:hover,
+.flight-card:hover { border-color: rgba(56, 189, 248, 0.38) !important; transform: translateY(-2px); }
+
+a { color: var(--nonrevy-aqua); text-underline-offset: 4px; }
+button { min-height: 42px; border-radius: 999px !important; font-weight: 800 !important; }
+button:not(.app-menu__summary) { background: linear-gradient(135deg, #67e8f9, #38bdf8 55%, #a78bfa) !important; color: #020617 !important; border: 0 !important; box-shadow: 0 14px 38px rgba(56, 189, 248, 0.23) !important; }
+
+input, textarea, select {
+  min-height: 46px;
+  border-radius: 16px !important;
+  background: rgba(2, 6, 23, 0.72) !important;
+  border: 1px solid rgba(148, 163, 184, 0.30) !important;
+  outline: none;
+}
+input:focus, textarea:focus, select:focus { border-color: var(--nonrevy-sky) !important; box-shadow: 0 0 0 4px rgba(56, 189, 248, 0.14) !important; }
+
+.nonrevy-logo,
+img[alt="NONREVY"] { filter: drop-shadow(0 24px 60px rgba(56, 189, 248, 0.28)); }
+
+.app-menu,
+.account-menu { top: 20px; background: rgba(2, 6, 23, 0.82) !important; backdrop-filter: blur(22px); }
+.app-menu__summary { justify-content: space-between; min-height: 44px; }
+.app-menu__brand { font-family: var(--font-brooklyn-display), Impact, sans-serif; font-size: 1.04rem; letter-spacing: 0.06em; color: #f8fafc; }
+.app-menu__route { color: #94a3b8; font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.14em; }
+.app-menu__links, .account-menu__links { max-height: min(72vh, 620px); overflow-y: auto; scrollbar-width: thin; }
+.app-menu__links a[aria-current="page"] { color: #020617 !important; background: linear-gradient(135deg, #67e8f9, #38bdf8) !important; border-color: transparent !important; font-weight: 900; }
+
+.hero-grid, .filter-grid { gap: clamp(14px, 2.4vw, 24px) !important; }
+
+@media (prefers-color-scheme: light) { :root { --background: #020617; --foreground: #f8fafc; } }
+@media (max-width: 960px) {
+  main, .app-shell { padding-top: 24px !important; }
+  .app-menu, .account-menu { position: static; width: auto; margin: 12px 16px 0; }
+}
+@media (max-width: 720px) {
+  main, .app-shell { padding: 18px !important; padding-top: 20px !important; }
+  main > section, .app-shell > section { max-width: 100% !important; }
+  h1 { font-size: clamp(2rem, 13vw, 3.4rem) !important; }
+  h2 { font-size: clamp(1.35rem, 8vw, 2rem) !important; }
+  input, textarea, select, button { font-size: 16px !important; }
+}

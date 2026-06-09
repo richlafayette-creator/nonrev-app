@@ -11,6 +11,7 @@ const navItems = [
   ['Historical Routes', '/historical-routes'],
   ['Intelligence', '/intelligence'],
   ['Watchlist', '/watchlist'],
+  ['Saved Searches', '/saved-searches'],
   ['Credits', '/credits'],
   ['Trust', '/reputation'],
   ['Load Reports', '/load-reports'],

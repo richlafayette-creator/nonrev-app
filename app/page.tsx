@@ -6,6 +6,7 @@ import { parseTripPlannerPrompt } from '../lib/aiTripPlanner'
 import { defaultTravelerProfile } from '../lib/travelerProfile'
 import { useVoiceInput } from '../lib/useVoiceInput'
 import { markActivationStep } from '../lib/onboardingActivation'
+import { saveSavedSearch } from '../lib/savedSearches'
 import ActivationProgressCard from './ActivationProgressCard'
 
 export default function Home() {
@@ -36,6 +37,16 @@ export default function Home() {
     voiceInput.start()
   }
 
+  function saveRouteSearch() {
+    const saved = saveSavedSearch({ query: search, kind: 'route-search', carrier })
+    setMessage(saved ? `Saved “${saved.label}” for quick reruns.` : 'Add a destination, route, or flight number before saving.')
+  }
+
+  function saveAiTripSearch() {
+    const saved = saveSavedSearch({ query: aiTripPrompt, kind: 'ai-trip' })
+    setMessage(saved ? `Saved “${saved.label}” for quick AI reruns.` : 'Add an AI trip prompt before saving.')
+  }
+
   const aiTripPreview = useMemo(
     () => parseTripPlannerPrompt(aiTripPrompt, defaultTravelerProfile),
     [aiTripPrompt]
@@ -59,6 +70,7 @@ export default function Home() {
         <a href="/plan" style={{ marginRight: 16, color: '#fb7185' }}>Plan</a>
         <a href="/best-routes" style={{ marginRight: 16, color: '#fb7185' }}>Best Routes</a>
         <a href="/watchlist" style={{ marginRight: 16, color: '#facc15' }}>Watchlist</a>
+        <a href="/saved-searches" style={{ marginRight: 16, color: '#67e8f9' }}>Saved Searches</a>
         <a href="/onboarding" style={{ marginRight: 16, color: '#38bdf8' }}>Onboarding</a>
         <a href="/credits" style={{ marginRight: 16, color: '#fbbf24' }}>Credits</a>
         <a href="/reputation" style={{ marginRight: 16, color: '#34d399' }}>Trust</a>
@@ -103,9 +115,14 @@ export default function Home() {
                 {voiceInput.isListening ? '●' : '🎙️'}
               </button>
             </div>
-            <button type="submit" style={{ marginTop: 18, padding: '14px 24px', borderRadius: 999, border: 'none', background: '#38bdf8', color: '#020617', fontWeight: 'bold' }}>
-              Search flights and plan
-            </button>
+            <div style={{ display: 'flex', justifyContent: 'center', gap: 10, flexWrap: 'wrap', marginTop: 18 }}>
+              <button type="submit" style={{ padding: '14px 24px', borderRadius: 999, border: 'none', background: '#38bdf8', color: '#020617', fontWeight: 'bold' }}>
+                Search flights and plan
+              </button>
+              <button type="button" onClick={saveRouteSearch} style={{ padding: '14px 20px', borderRadius: 999, border: '1px solid #67e8f9', background: '#020617', color: '#a5f3fc', fontWeight: 'bold' }}>
+                Save search
+              </button>
+            </div>
             <label htmlFor="homepage-carrier" style={{ display: 'block', color: '#cbd5e1', marginTop: 16 }}>
               Carrier scope scaffold
             </label>
@@ -151,9 +168,14 @@ export default function Home() {
                   </div>
                 ))}
               </div>
-              <button type="submit" style={{ padding: '14px 20px', borderRadius: 999, border: 'none', background: '#c084fc', color: '#020617', fontWeight: 'bold' }}>
-                Plan with AI scaffold
-              </button>
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                <button type="submit" style={{ padding: '14px 20px', borderRadius: 999, border: 'none', background: '#c084fc', color: '#020617', fontWeight: 'bold' }}>
+                  Plan with AI scaffold
+                </button>
+                <button type="button" onClick={saveAiTripSearch} style={{ padding: '14px 20px', borderRadius: 999, border: '1px solid #c084fc', background: '#020617', color: '#e9d5ff', fontWeight: 'bold' }}>
+                  Save AI prompt
+                </button>
+              </div>
             </form>
           </section>
 

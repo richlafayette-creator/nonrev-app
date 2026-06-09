@@ -69,6 +69,14 @@ Never expose `SUPABASE_SERVICE_ROLE_KEY` to client code, `NEXT_PUBLIC_*` variabl
 
 If a future UI needs provider result data, prefer a server API route that returns reviewed and/or aggregated fields. Do not expose raw provider rows to browser clients without reviewing provider licensing, retention, privacy, and abuse implications.
 
-## Data Health indicator
+## Data Health diagnostics
 
-The Data Health API includes a provider result persistence indicator. It reports whether `NONREVY_STORE_PROVIDER_RESULTS=true` is enabled and whether server-side Supabase URL/service-role configuration is present, without exposing any secret values.
+The Data Health API includes a server-side provider result persistence diagnostics section. It reports:
+
+- whether `NONREVY_STORE_PROVIDER_RESULTS=true` is enabled or disabled
+- whether `provider_itinerary_results` is reachable from the server
+- total stored provider records count
+- newest stored provider record timestamp
+- provider coverage grouped by `source_provider`
+
+If persistence is disabled, the dashboard explains that FlightAware schedule results remain no-op/off because `NONREVY_STORE_PROVIDER_RESULTS` is not set to `true`. Diagnostics use server-side Supabase requests only and never return Supabase credentials.

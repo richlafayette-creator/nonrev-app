@@ -47,11 +47,28 @@ type LiveItineraryReadiness = {
   checklist: LiveItineraryReadinessItem[]
 }
 
+type ProviderSourceCoverage = {
+  sourceProvider: string
+  count: number
+}
+
+type ProviderPersistenceDiagnostics = {
+  enabled: boolean
+  status: 'disabled' | 'ready' | 'missing-config' | 'unreachable'
+  tableReachable: boolean
+  totalStoredRecords: number | null
+  newestStoredProviderRecordTimestamp: string | null
+  coverageBySourceProvider: ProviderSourceCoverage[]
+  detail: string
+  recommendedNextAction: string
+}
+
 type HealthResponse = {
   checkedAt: string
   checks: HealthItem[]
   liveItineraryReadiness?: LiveItineraryReadiness
   scheduleProviderReadiness?: ScheduleProviderReadiness[]
+  providerPersistence?: ProviderPersistenceDiagnostics
 }
 
 const statusColors: Record<HealthStatus, { border: string; text: string; bg: string }> = {
@@ -274,11 +291,32 @@ function statusRank(status: HealthStatus) {
   return { Connected: 0, Limited: 1, Missing: 2, Error: 3 }[status]
 }
 
+function providerPersistenceStatusLabel(status: ProviderPersistenceDiagnostics['status']) {
+  return {
+    disabled: 'Disabled',
+    ready: 'Ready',
+    'missing-config': 'Missing config',
+    unreachable: 'Unreachable'
+  }[status]
+}
+
+function providerPersistenceColor(status: ProviderPersistenceDiagnostics['status']) {
+  if (status === 'ready') return statusColors.Connected
+  if (status === 'disabled') return statusColors.Limited
+  if (status === 'missing-config') return statusColors.Missing
+  return statusColors.Error
+}
+
+function formatCount(value: number | null) {
+  return typeof value === 'number' ? value.toLocaleString() : 'Not available'
+}
+
 export default function DataHealthPage() {
   const [remoteChecks, setRemoteChecks] = useState<HealthItem[]>([])
   const [localChecks, setLocalChecks] = useState<HealthItem[]>([])
   const [scheduleProviderReadiness, setScheduleProviderReadiness] = useState<ScheduleProviderReadiness[]>([])
   const [liveItineraryReadiness, setLiveItineraryReadiness] = useState<LiveItineraryReadiness | null>(null)
+  const [providerPersistence, setProviderPersistence] = useState<ProviderPersistenceDiagnostics | null>(null)
   const [pageStatus, setPageStatus] = useState('Checking data health...')
   const [loading, setLoading] = useState(true)
 
@@ -293,6 +331,7 @@ export default function DataHealthPage() {
       setRemoteChecks(data.checks)
       setLiveItineraryReadiness(data.liveItineraryReadiness || null)
       setScheduleProviderReadiness(data.scheduleProviderReadiness || [])
+      setProviderPersistence(data.providerPersistence || null)
       setPageStatus(`Last checked ${formatDate(data.checkedAt)}`)
     } catch {
       setRemoteChecks([
@@ -308,6 +347,7 @@ export default function DataHealthPage() {
       ])
       setLiveItineraryReadiness(null)
       setScheduleProviderReadiness([])
+      setProviderPersistence(null)
       setPageStatus('Some checks could not complete.')
     } finally {
       setLoading(false)
@@ -362,6 +402,56 @@ export default function DataHealthPage() {
         </div>
 
         <p style={{ color: '#cbd5e1' }}>{pageStatus}</p>
+
+        {providerPersistence ? (
+          <section style={{ border: `1px solid ${providerPersistenceColor(providerPersistence.status).border}`, borderRadius: 18, padding: 18, background: '#020617', marginTop: 18 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+              <div>
+                <p style={{ color: '#67e8f9', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1, margin: 0 }}>Provider result persistence diagnostics</p>
+                <h2 style={{ margin: '6px 0', color: '#f8fafc' }}>FlightAware result storage</h2>
+                <p style={{ color: '#cbd5e1', maxWidth: 820, margin: 0 }}>{providerPersistence.detail}</p>
+              </div>
+              <span style={{ border: `1px solid ${providerPersistenceColor(providerPersistence.status).border}`, borderRadius: 999, padding: '6px 12px', color: providerPersistenceColor(providerPersistence.status).text, background: providerPersistenceColor(providerPersistence.status).bg, whiteSpace: 'nowrap', fontSize: 13, fontWeight: 'bold' }}>
+                {providerPersistenceStatusLabel(providerPersistence.status)}
+              </span>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginTop: 16 }}>
+              {[
+                ['Persistence flag', providerPersistence.enabled ? 'Enabled' : 'Disabled'],
+                ['Results table', providerPersistence.tableReachable ? 'Reachable' : 'Unreachable'],
+                ['Stored records', formatCount(providerPersistence.totalStoredRecords)],
+                ['Newest record', providerPersistence.newestStoredProviderRecordTimestamp ? formatDate(providerPersistence.newestStoredProviderRecordTimestamp) : 'Not available']
+              ].map(([label, value]) => (
+                <article key={label} style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#0f172a' }}>
+                  <small style={{ color: '#94a3b8' }}>{label}</small>
+                  <p style={{ color: '#f8fafc', margin: '5px 0 0', fontWeight: 'bold' }}>{value}</p>
+                </article>
+              ))}
+            </div>
+
+            <div style={{ marginTop: 16 }}>
+              <p style={{ color: '#facc15', fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.8, margin: '0 0 8px' }}>Recommended next action</p>
+              <p style={{ color: '#fde68a', margin: 0 }}>{providerPersistence.recommendedNextAction}</p>
+            </div>
+
+            <div style={{ marginTop: 16 }}>
+              <p style={{ color: '#94a3b8', fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.8, margin: '0 0 8px' }}>Coverage by source provider</p>
+              {providerPersistence.coverageBySourceProvider.length ? (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10 }}>
+                  {providerPersistence.coverageBySourceProvider.map((entry) => (
+                    <article key={entry.sourceProvider} style={{ border: '1px solid #334155', borderRadius: 14, padding: 12, background: '#0f172a' }}>
+                      <strong style={{ color: '#e2e8f0' }}>{entry.sourceProvider}</strong>
+                      <p style={{ color: '#67e8f9', margin: '4px 0 0', fontWeight: 'bold' }}>{entry.count.toLocaleString()} record{entry.count === 1 ? '' : 's'}</p>
+                    </article>
+                  ))}
+                </div>
+              ) : (
+                <p style={{ color: '#cbd5e1', margin: 0 }}>No source-provider coverage rows are available yet.</p>
+              )}
+            </div>
+          </section>
+        ) : null}
 
         {liveItineraryReadiness ? (
           <section style={{ border: `1px solid ${liveReadinessColors[liveItineraryReadiness.status].border}`, borderRadius: 18, padding: 18, background: '#020617', marginTop: 18 }}>

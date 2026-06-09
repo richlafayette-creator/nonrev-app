@@ -34,6 +34,22 @@ type LiveItineraryReadiness = {
   checklist: LiveItineraryReadinessItem[]
 }
 
+type ProviderSourceCoverage = {
+  sourceProvider: string
+  count: number
+}
+
+type ProviderPersistenceDiagnostics = {
+  enabled: boolean
+  status: 'disabled' | 'ready' | 'missing-config' | 'unreachable'
+  tableReachable: boolean
+  totalStoredRecords: number | null
+  newestStoredProviderRecordTimestamp: string | null
+  coverageBySourceProvider: ProviderSourceCoverage[]
+  detail: string
+  recommendedNextAction: string
+}
+
 const timeoutMs = 5000
 
 function checkedAt() {
@@ -78,6 +94,170 @@ async function fetchJsonWithTimeout(url: string, init: RequestInit = {}) {
     return { response, data }
   } finally {
     clearTimeout(timeout)
+  }
+}
+
+function providerResultSupabaseConfig() {
+  return {
+    supabaseUrl: process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+    serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+  }
+}
+
+function parseExactCount(response: Response, fallback = 0) {
+  const contentRange = response.headers.get('content-range')
+  const total = contentRange?.split('/').at(-1)
+  if (!total || total === '*') return fallback
+  const parsed = Number(total)
+  return Number.isFinite(parsed) ? parsed : fallback
+}
+
+function providerResultHeaders(serviceRoleKey: string, extra: HeadersInit = {}): HeadersInit {
+  return {
+    apikey: serviceRoleKey,
+    Authorization: `Bearer ${serviceRoleKey}`,
+    ...extra
+  }
+}
+
+async function providerPersistenceDiagnostics(): Promise<ProviderPersistenceDiagnostics> {
+  const enabled = providerResultPersistenceEnabled()
+  const { supabaseUrl, serviceRoleKey } = providerResultSupabaseConfig()
+
+  if (!enabled && (!supabaseUrl || !serviceRoleKey)) {
+    return {
+      enabled,
+      status: 'disabled',
+      tableReachable: false,
+      totalStoredRecords: null,
+      newestStoredProviderRecordTimestamp: null,
+      coverageBySourceProvider: [],
+      detail: 'Provider result persistence is disabled because NONREVY_STORE_PROVIDER_RESULTS is not set to true. No Supabase provider result query was attempted because server-side Supabase persistence credentials are not configured.',
+      recommendedNextAction: 'No action needed unless storage should be enabled. To enable it later, set NONREVY_STORE_PROVIDER_RESULTS=true server-side, keep SUPABASE_SERVICE_ROLE_KEY server-only, and apply docs/provider-results-table.sql manually.'
+    }
+  }
+
+  if (!supabaseUrl || !serviceRoleKey) {
+    return {
+      enabled,
+      status: 'missing-config',
+      tableReachable: false,
+      totalStoredRecords: null,
+      newestStoredProviderRecordTimestamp: null,
+      coverageBySourceProvider: [],
+      detail: enabled
+        ? 'Provider result persistence is enabled, but server-side Supabase URL or service-role key configuration is missing. Writes and diagnostics will use local/no-op fallback.'
+        : 'Provider result persistence is disabled because NONREVY_STORE_PROVIDER_RESULTS is not set to true, and provider result table reachability cannot be checked without server-side Supabase credentials.',
+      recommendedNextAction: enabled
+        ? 'Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY server-side, then apply docs/provider-results-table.sql manually.'
+        : 'No action needed unless storage should be enabled.'
+    }
+  }
+
+  const baseUrl = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/${providerResultTableName}`
+
+  try {
+    const countResult = await fetchJsonWithTimeout(`${baseUrl}?select=id`, {
+      method: 'GET',
+      headers: providerResultHeaders(serviceRoleKey, {
+        Prefer: 'count=exact',
+        Range: '0-0'
+      })
+    })
+
+    if (!countResult.response.ok) {
+      const message = typeof countResult.data === 'object' && countResult.data && 'message' in countResult.data
+        ? String(countResult.data.message)
+        : `Supabase returned ${countResult.response.status}`
+      return {
+        enabled,
+        status: 'unreachable',
+        tableReachable: false,
+        totalStoredRecords: null,
+        newestStoredProviderRecordTimestamp: null,
+        coverageBySourceProvider: [],
+        detail: `Provider results table ${providerResultTableName} is unreachable or rejected the diagnostics query. ${safeMessage(message)}`,
+        recommendedNextAction: 'Apply docs/provider-results-table.sql manually and verify service-role REST access. Existing itinerary functionality remains unaffected.'
+      }
+    }
+
+    const totalStoredRecords = parseExactCount(countResult.response, Array.isArray(countResult.data) ? countResult.data.length : 0)
+
+    const newestResult = await fetchJsonWithTimeout(`${baseUrl}?select=source_checked_at,created_at&order=source_checked_at.desc.nullslast&limit=1`, {
+      headers: providerResultHeaders(serviceRoleKey)
+    })
+
+    if (!newestResult.response.ok) {
+      return {
+        enabled,
+        status: 'unreachable',
+        tableReachable: false,
+        totalStoredRecords,
+        newestStoredProviderRecordTimestamp: null,
+        coverageBySourceProvider: [],
+        detail: `Provider results table ${providerResultTableName} responded to count but rejected newest-record diagnostics (${newestResult.response.status}).`,
+        recommendedNextAction: 'Verify provider result table columns match docs/provider-results-table.sql.'
+      }
+    }
+
+    const newestRows = Array.isArray(newestResult.data)
+      ? newestResult.data as Array<{ source_checked_at?: string; created_at?: string }>
+      : []
+    const newestStoredProviderRecordTimestamp = newestRows[0]?.source_checked_at || newestRows[0]?.created_at || null
+
+    const coverageResult = await fetchJsonWithTimeout(`${baseUrl}?select=source_provider&limit=10000`, {
+      headers: providerResultHeaders(serviceRoleKey)
+    })
+
+    if (!coverageResult.response.ok) {
+      return {
+        enabled,
+        status: 'unreachable',
+        tableReachable: false,
+        totalStoredRecords,
+        newestStoredProviderRecordTimestamp,
+        coverageBySourceProvider: [],
+        detail: `Provider results table ${providerResultTableName} responded to count but rejected source-provider coverage diagnostics (${coverageResult.response.status}).`,
+        recommendedNextAction: 'Verify provider result table columns match docs/provider-results-table.sql.'
+      }
+    }
+
+    const coverageRows = Array.isArray(coverageResult.data)
+      ? coverageResult.data as Array<{ source_provider?: string | null }>
+      : []
+    const coverageMap = new Map<string, number>()
+    for (const row of coverageRows) {
+      const sourceProvider = row.source_provider?.trim() || 'Not provided'
+      coverageMap.set(sourceProvider, (coverageMap.get(sourceProvider) || 0) + 1)
+    }
+
+    return {
+      enabled,
+      status: enabled ? 'ready' : 'disabled',
+      tableReachable: true,
+      totalStoredRecords,
+      newestStoredProviderRecordTimestamp,
+      coverageBySourceProvider: [...coverageMap.entries()]
+        .map(([sourceProvider, count]) => ({ sourceProvider, count }))
+        .sort((left, right) => right.count - left.count || left.sourceProvider.localeCompare(right.sourceProvider)),
+      detail: enabled
+        ? `Provider result persistence is enabled and ${providerResultTableName} is reachable for server-side diagnostics.`
+        : `Provider result persistence is disabled because NONREVY_STORE_PROVIDER_RESULTS is not set to true. ${providerResultTableName} is reachable, but FlightAware schedule results will not be stored until the flag is enabled.`,
+      recommendedNextAction: enabled
+        ? 'Monitor stored record counts and source-provider coverage after FlightAware schedule searches.'
+        : 'No action needed unless storage should be enabled; set NONREVY_STORE_PROVIDER_RESULTS=true server-side when ready.'
+    }
+  } catch (error) {
+    return {
+      enabled,
+      status: 'unreachable',
+      tableReachable: false,
+      totalStoredRecords: null,
+      newestStoredProviderRecordTimestamp: null,
+      coverageBySourceProvider: [],
+      detail: `Provider results diagnostics could not complete. ${safeMessage(error)}`,
+      recommendedNextAction: 'Check Supabase REST access and apply docs/provider-results-table.sql manually if the table is missing. Existing itinerary functionality remains unaffected.'
+    }
   }
 }
 
@@ -604,10 +784,13 @@ export async function GET() {
     Promise.resolve(checkProviderResultPersistence())
   ])
 
+  const providerPersistence = await providerPersistenceDiagnostics()
+
   return NextResponse.json({
     checkedAt: checkedAt(),
     checks,
     liveItineraryReadiness: buildLiveItineraryReadiness(checks),
-    scheduleProviderReadiness: providerReadinessFromChecks(checks)
+    scheduleProviderReadiness: providerReadinessFromChecks(checks),
+    providerPersistence
   })
 }

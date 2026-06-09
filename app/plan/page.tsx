@@ -1348,6 +1348,194 @@ function RouteAirportDetails({ route }: { route: string }) {
   )
 }
 
+type RouteIntelligenceBadge = 'Recommended' | 'Lowest Risk' | 'Best Premium Cabin' | 'Most Backup Options' | 'Fastest'
+
+type RouteIntelligenceInsight = {
+  key: string
+  badge: RouteIntelligenceBadge
+  title: string
+  route: string
+  comparisonId: string
+  summary: string
+  color: string
+}
+
+const premiumCabinAirportHints = new Set(['HND', 'NRT', 'LHR', 'CDG', 'FRA', 'MUC', 'AMS', 'ZRH', 'BRU', 'MAD', 'BCN', 'FCO', 'MXP', 'DUB', 'SNN', 'GRU', 'EZE', 'SCL', 'SYD', 'MEL', 'AKL', 'ICN', 'PVG', 'PEK', 'SIN', 'HKG'])
+const backupAvailabilityWeights: Record<string, number> = { excellent: 5, strong: 4, good: 3, moderate: 2, limited: 1, low: 1, pending: 0, unknown: 0 }
+
+function routeIntelligenceColor(badge: RouteIntelligenceBadge) {
+  if (badge === 'Recommended') return '#22c55e'
+  if (badge === 'Lowest Risk') return '#67e8f9'
+  if (badge === 'Best Premium Cabin') return '#c084fc'
+  if (badge === 'Most Backup Options') return '#facc15'
+  return '#fb7185'
+}
+
+function routeIntelligenceBadgeStyle(badge: RouteIntelligenceBadge) {
+  const color = routeIntelligenceColor(badge)
+  return { color, border: color, background: `${color}22` }
+}
+
+function routeDurationMinutes(value: string) {
+  const text = value.toLowerCase()
+  const hourMatch = text.match(/(\d+(?:\.\d+)?)\s*h/)
+  const minuteMatch = text.match(/(\d+)\s*m/)
+  if (hourMatch || minuteMatch) {
+    return Math.round((hourMatch ? Number(hourMatch[1]) * 60 : 0) + (minuteMatch ? Number(minuteMatch[1]) : 0))
+  }
+  const compact = text.match(/^(\d{1,2}):(\d{2})$/)
+  if (compact) return Number(compact[1]) * 60 + Number(compact[2])
+  return Number.POSITIVE_INFINITY
+}
+
+function backupAvailabilityScore(comparison: ItineraryComparison) {
+  const text = comparison.airportIntelligence.backupFlightAvailability.toLowerCase()
+  const matched = Object.entries(backupAvailabilityWeights).find(([label]) => text.includes(label))
+  const base = matched ? matched[1] : 1
+  const connectionPenalty = Math.max(0, comparison.connections - 1)
+  return base * 20 + comparison.successProbability / 5 - connectionPenalty * 4
+}
+
+function premiumCabinScore(comparison: ItineraryComparison) {
+  const airports = comparison.airportIntelligence.airports.map((airport) => airport.code)
+  const longHaulHint = airports.some((code) => premiumCabinAirportHints.has(code))
+  const carrierText = comparison.carrier.toLowerCase()
+  const routeText = comparison.route.toLowerCase()
+  const polarisHint = carrierText.includes('united') || routeText.includes('ua') || comparison.flightNumber.toLowerCase().includes('ua')
+  return (longHaulHint ? 45 : 0) + (polarisHint ? 28 : 0) + comparison.score / 5 + comparison.routeConfidence.score / 5 - comparison.connections * 4
+}
+
+function routeRiskRank(comparison: ItineraryComparison) {
+  return comparison.successProbability + comparison.routeConfidence.score - comparison.airportIntelligence.connectionRiskScore - comparison.weatherRisk.scoreImpact - comparison.disruption.disruptionImpactScore / 2 - comparison.connections * 6
+}
+
+function bestAirportForBackupRouting(comparison: ItineraryComparison) {
+  const airport = [...comparison.airportIntelligence.airports]
+    .sort((a, b) => a.connectionRiskScore - b.connectionRiskScore)[0]
+  return airport ? airport.code : comparison.route
+}
+
+function buildRouteIntelligenceInsights(comparisons: ItineraryComparison[]): RouteIntelligenceInsight[] {
+  if (!comparisons.length) return []
+
+  const recommended = comparisons[0]
+  const lowestRisk = [...comparisons].sort((a, b) => routeRiskRank(b) - routeRiskRank(a))[0]
+  const fastest = [...comparisons].sort((a, b) => routeDurationMinutes(a.totalTravelTime) - routeDurationMinutes(b.totalTravelTime) || b.score - a.score)[0]
+  const mostBackup = [...comparisons].sort((a, b) => backupAvailabilityScore(b) - backupAvailabilityScore(a))[0]
+  const bestPremium = [...comparisons].sort((a, b) => premiumCabinScore(b) - premiumCabinScore(a))[0]
+  const bestRecovery = [...comparisons].sort((a, b) => backupAvailabilityScore(b) + b.successProbability - b.connections * 5 - (backupAvailabilityScore(a) + a.successProbability - a.connections * 5))[0]
+  const overnightFallback = [...comparisons].sort((a, b) => backupAvailabilityScore(b) + b.airportIntelligence.connectionRiskScore / 4 - (backupAvailabilityScore(a) + a.airportIntelligence.connectionRiskScore / 4))[0]
+
+  return ([
+    {
+      key: 'recommended',
+      badge: 'Recommended',
+      title: 'Start here',
+      route: recommended.route,
+      comparisonId: recommended.id,
+      summary: `${recommended.route} has the strongest overall blend of score, confidence, and traveler-friendly risk.`,
+      color: routeIntelligenceColor('Recommended')
+    },
+    {
+      key: 'lowest-risk',
+      badge: 'Lowest Risk',
+      title: 'Lowest risk option',
+      route: lowestRisk.route,
+      comparisonId: lowestRisk.id,
+      summary: `${lowestRisk.route} keeps the risk profile cleanest with ${lowestRisk.successProbability}% success probability and ${lowestRisk.connections === 0 ? 'no connections' : `${lowestRisk.connections} connection${lowestRisk.connections === 1 ? '' : 's'}`}.`,
+      color: routeIntelligenceColor('Lowest Risk')
+    },
+    {
+      key: 'premium-cabin',
+      badge: 'Best Premium Cabin',
+      title: premiumCabinScore(bestPremium) >= 70 ? 'Best Polaris opportunity' : 'Best premium cabin opportunity',
+      route: bestPremium.route,
+      comparisonId: bestPremium.id,
+      summary: `${bestPremium.route} is the best cabin-upside play based on carrier, long-haul airport signals, and route score.`,
+      color: routeIntelligenceColor('Best Premium Cabin')
+    },
+    {
+      key: 'backup-options',
+      badge: 'Most Backup Options',
+      title: 'Most backup flights available',
+      route: mostBackup.route,
+      comparisonId: mostBackup.id,
+      summary: `${mostBackup.route} gives you the best recovery cushion. Backup routing looks strongest through ${bestAirportForBackupRouting(mostBackup)}.`,
+      color: routeIntelligenceColor('Most Backup Options')
+    },
+    {
+      key: 'fastest',
+      badge: 'Fastest',
+      title: 'Fastest arrival',
+      route: fastest.route,
+      comparisonId: fastest.id,
+      summary: `${fastest.route} is the quickest listed option at ${fastest.totalTravelTime || 'the shortest available travel time'}.`,
+      color: routeIntelligenceColor('Fastest')
+    },
+    {
+      key: 'same-day-recovery',
+      badge: 'Most Backup Options',
+      title: 'Best same-day recovery options',
+      route: bestRecovery.route,
+      comparisonId: bestRecovery.id,
+      summary: `${bestRecovery.route} has the best same-day recovery mix of backup availability, confidence, and connection simplicity.`,
+      color: routeIntelligenceColor('Most Backup Options')
+    },
+    {
+      key: 'overnight-fallback',
+      badge: 'Lowest Risk',
+      title: 'Best overnight fallback',
+      route: overnightFallback.route,
+      comparisonId: overnightFallback.id,
+      summary: `${overnightFallback.route} is the safest place to keep as an overnight fallback if the day tightens up.`,
+      color: routeIntelligenceColor('Lowest Risk')
+    }
+  ] satisfies RouteIntelligenceInsight[]).slice(0, 7)
+}
+
+function routeIntelligenceBadgesFor(comparison: ItineraryComparison, insights: RouteIntelligenceInsight[]) {
+  return insights
+    .filter((insight) => insight.comparisonId === comparison.id)
+    .map((insight) => insight.badge)
+    .filter((badge, index, badges) => badges.indexOf(badge) === index)
+}
+
+function RouteIntelligenceSection({ insights }: { insights: RouteIntelligenceInsight[] }) {
+  if (!insights.length) return null
+
+  const primary = insights[0]
+  return (
+    <section style={{ border: '1px solid #7dd3fc', borderRadius: 22, padding: 'clamp(14px, 3vw, 18px)', background: 'linear-gradient(135deg, rgba(14, 116, 144, 0.22), rgba(49, 46, 129, 0.34), rgba(15, 23, 42, 0.96))', marginTop: 16 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+        <div>
+          <strong style={{ color: '#67e8f9', textTransform: 'uppercase', letterSpacing: 1 }}>Route Intelligence</strong>
+          <h3 style={{ fontSize: 26, margin: '8px 0' }}>Strategy picks for this search</h3>
+          <p style={{ color: '#cbd5e1', margin: 0 }}>Simple traveler-focused recommendations from the current itinerary scores, confidence, airport backup data, and route risk signals.</p>
+        </div>
+        <span style={{ border: `1px solid ${primary.color}`, borderRadius: 999, color: primary.color, padding: '8px 12px', fontWeight: 'bold' }}>
+          {primary.badge}: {primary.route}
+        </span>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))', gap: 12, marginTop: 14 }}>
+        {insights.map((insight) => {
+          const badgeStyle = routeIntelligenceBadgeStyle(insight.badge)
+          return (
+            <article key={insight.key} style={{ border: `1px solid ${insight.color}`, borderRadius: 16, padding: 14, background: 'rgba(2, 6, 23, 0.72)' }}>
+              <span style={{ display: 'inline-flex', border: `1px solid ${badgeStyle.border}`, borderRadius: 999, padding: '4px 9px', color: badgeStyle.color, background: badgeStyle.background, fontSize: 12, fontWeight: 'bold' }}>
+                {insight.badge}
+              </span>
+              <h4 style={{ color: '#f8fafc', margin: '10px 0 6px', fontSize: 18 }}>{insight.title}</h4>
+              <p style={{ color: '#38bdf8', margin: '0 0 8px', fontWeight: 'bold' }}>{insight.route}</p>
+              <p style={{ color: '#cbd5e1', margin: 0 }}>{insight.summary}</p>
+            </article>
+          )
+        })}
+      </div>
+    </section>
+  )
+}
+
 function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: ItineraryComparison[]; travelDate: string }) {
   const [watchStatus, setWatchStatus] = useState('')
   const [compareStatus, setCompareStatus] = useState('')
@@ -1432,6 +1620,7 @@ function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: It
 
   const best = comparisons[0]
   const backup = comparisons[1]
+  const routeInsights = buildRouteIntelligenceInsights(comparisons)
 
   return (
     <section style={{ border: '1px solid #38bdf8', borderRadius: 24, padding: 'clamp(16px, 4vw, 22px)', background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.96), rgba(30, 41, 59, 0.9))', marginBottom: 18 }}>
@@ -1454,11 +1643,14 @@ function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: It
       {watchStatus && <p style={{ color: '#22c55e', fontWeight: 'bold' }}>{watchStatus} <a href="/watchlist" style={{ color: '#38bdf8' }}>Open watchlist</a></p>}
       {compareStatus && <p style={{ color: '#c084fc', fontWeight: 'bold' }}>{compareStatus}</p>}
 
+      <RouteIntelligenceSection insights={routeInsights} />
+
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 285px), 1fr))', gap: 14, marginTop: 16 }}>
         {comparisons.map((comparison, index) => {
           const isBest = index === 0
           const isBackup = index === 1
           const nextBackup = comparisons[index + 1] || comparisons.find((item) => item.id !== comparison.id)
+          const intelligenceBadges = routeIntelligenceBadgesFor(comparison, routeInsights)
           return (
             <article
               key={comparison.id}
@@ -1480,6 +1672,18 @@ function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: It
                 #{index + 1} · {comparison.dataFreshnessLabel || (comparison.isLive ? 'Provider option' : 'Planning scaffold')}
               </small>
               <h4 style={{ color: '#f8fafc', fontSize: 24, margin: '8px 0' }}>{comparison.route}</h4>
+              {intelligenceBadges.length ? (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, marginBottom: 10 }}>
+                  {intelligenceBadges.map((badge) => {
+                    const badgeStyle = routeIntelligenceBadgeStyle(badge)
+                    return (
+                      <span key={`${comparison.id}-${badge}`} style={{ border: `1px solid ${badgeStyle.border}`, borderRadius: 999, padding: '4px 9px', color: badgeStyle.color, background: badgeStyle.background, fontSize: 12, fontWeight: 'bold' }}>
+                        {badge}
+                      </span>
+                    )
+                  })}
+                </div>
+              ) : null}
               <p style={{ color: '#cbd5e1', margin: '0 0 10px' }}>
                 {comparison.carrier} · {comparison.flightNumber} · {comparison.connections === 0 ? 'Nonstop' : `${comparison.connections} connection${comparison.connections === 1 ? '' : 's'}`}
               </p>

@@ -1031,7 +1031,7 @@ function ScoringExplanationDetails({ comparison, backup }: { comparison: Itinera
   ] as const
 
   return (
-    <details open style={{ marginTop: 14, border: '1px solid #334155', borderRadius: 14, padding: 12, background: '#020617' }}>
+    <details style={{ marginTop: 14, border: '1px solid #334155', borderRadius: 14, padding: 12, background: '#020617' }}>
       <summary style={{ color: '#facc15', cursor: 'pointer', fontWeight: 'bold' }}>Why this route?</summary>
       <div style={{ display: 'grid', gap: 10, marginTop: 12 }}>
         {sections.map(([label, reasons]) => (
@@ -1108,7 +1108,7 @@ function DisruptionIntelligenceSection({ comparisons }: { comparisons: Itinerary
         </article>
       </div>
 
-      <details open style={{ border: '1px solid #334155', borderRadius: 16, padding: 14, background: '#020617', marginTop: 14 }}>
+      <details style={{ border: '1px solid #334155', borderRadius: 16, padding: 14, background: '#020617', marginTop: 14 }}>
         <summary style={{ color: '#facc15', cursor: 'pointer', fontWeight: 'bold' }}>Disruption explanation</summary>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))', gap: 12, marginTop: 12 }}>
           {comparisons.map((comparison) => (
@@ -1163,7 +1163,7 @@ function WeatherIntelligenceSection({ comparisons }: { comparisons: ItineraryCom
         ))}
       </div>
 
-      <details open style={{ border: '1px solid #334155', borderRadius: 16, padding: 14, background: '#020617', marginTop: 14 }}>
+      <details style={{ border: '1px solid #334155', borderRadius: 16, padding: 14, background: '#020617', marginTop: 14 }}>
         <summary style={{ color: '#22c55e', cursor: 'pointer', fontWeight: 'bold' }}>Weather diagnostics</summary>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))', gap: 12, marginTop: 12 }}>
           {comparisons.map((comparison) => (
@@ -1226,7 +1226,7 @@ function RouteConfidenceSection({ comparisons }: { comparisons: ItineraryCompari
         ))}
       </div>
 
-      <details open style={{ border: '1px solid #334155', borderRadius: 16, padding: 14, background: '#020617', marginTop: 14 }}>
+      <details style={{ border: '1px solid #334155', borderRadius: 16, padding: 14, background: '#020617', marginTop: 14 }}>
         <summary style={{ color: '#38bdf8', cursor: 'pointer', fontWeight: 'bold' }}>Confidence explanation</summary>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))', gap: 12, marginTop: 12 }}>
           {comparisons.map((comparison) => (
@@ -1288,7 +1288,7 @@ function AirportIntelligenceSection({ comparisons }: { comparisons: ItineraryCom
         ))}
       </div>
 
-      <details open style={{ border: '1px solid #334155', borderRadius: 16, padding: 14, background: '#020617', marginTop: 14 }}>
+      <details style={{ border: '1px solid #334155', borderRadius: 16, padding: 14, background: '#020617', marginTop: 14 }}>
         <summary style={{ color: '#facc15', cursor: 'pointer', fontWeight: 'bold' }}>Airport intelligence details</summary>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 270px), 1fr))', gap: 12, marginTop: 12 }}>
           {comparisons.map((comparison) => (
@@ -1391,7 +1391,6 @@ function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: It
     }
   }
 
-
   function saveForComparison(comparison: ItineraryComparison) {
     const saved = saveItineraryComparison({
       route: comparison.route,
@@ -1417,6 +1416,10 @@ function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: It
     }
   }
 
+  function requestLoad(comparison: ItineraryComparison) {
+    window.location.href = `/load-reports?route=${encodeURIComponent(comparison.route)}&carrier=${encodeURIComponent(comparison.carrier)}&date=${encodeURIComponent(travelDate.trim() || 'Flexible')}`
+  }
+
   function removeComparison(id: string) {
     setSavedComparisons(removeSavedItineraryComparison(id))
     setCompareStatus('Removed saved itinerary option.')
@@ -1427,83 +1430,73 @@ function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: It
     setCompareStatus('Cleared saved itinerary comparisons.')
   }
 
+  const best = comparisons[0]
+  const backup = comparisons[1]
+
   return (
-    <section style={{ border: '1px solid #38bdf8', borderRadius: 24, padding: 20, background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.96), rgba(30, 41, 59, 0.9))', marginBottom: 18 }}>
+    <section style={{ border: '1px solid #38bdf8', borderRadius: 24, padding: 'clamp(16px, 4vw, 22px)', background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.96), rgba(30, 41, 59, 0.9))', marginBottom: 18 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', alignItems: 'flex-start' }}>
         <div>
-          <strong style={{ color: '#38bdf8', textTransform: 'uppercase', letterSpacing: 1 }}>Itinerary comparison engine</strong>
-          <h3 style={{ fontSize: 28, margin: '8px 0' }}>Recommended itineraries</h3>
+          <strong style={{ color: '#38bdf8', textTransform: 'uppercase', letterSpacing: 1 }}>Recommended itinerary cards</strong>
+          <h3 style={{ fontSize: 28, margin: '8px 0' }}>Best routes for this search</h3>
           <p style={{ color: '#94a3b8', marginTop: 0 }}>
-            Ranked with traveler profile, route intelligence, historical routes, community load reports, saved outcomes, disruption intelligence, weather impact, and the route confidence engine.
+            Ranked with provider results, score, confidence, traveler profile, community load reports, saved outcomes, disruption, weather, and route intelligence. Details stay tucked away until you need them.
           </p>
         </div>
-        {comparisons[0] && (
-          <span style={{ border: '1px solid #22c55e', borderRadius: 999, color: '#22c55e', padding: '8px 12px', fontWeight: 'bold' }}>
-            Best: {comparisons[0].route}
-          </span>
+        {best && (
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <span style={{ border: '1px solid #22c55e', borderRadius: 999, color: '#22c55e', padding: '8px 12px', fontWeight: 'bold' }}>Best option: {best.route}</span>
+            {backup && <span style={{ border: '1px solid #facc15', borderRadius: 999, color: '#facc15', padding: '8px 12px', fontWeight: 'bold' }}>Backup: {backup.route}</span>}
+          </div>
         )}
       </div>
 
       {watchStatus && <p style={{ color: '#22c55e', fontWeight: 'bold' }}>{watchStatus} <a href="/watchlist" style={{ color: '#38bdf8' }}>Open watchlist</a></p>}
       {compareStatus && <p style={{ color: '#c084fc', fontWeight: 'bold' }}>{compareStatus}</p>}
 
-      <WeatherIntelligenceSection comparisons={comparisons} />
-      <RouteConfidenceSection comparisons={comparisons} />
-      <AirportIntelligenceSection comparisons={comparisons} />
-      <DisruptionIntelligenceSection comparisons={comparisons} />
-
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))', gap: 14, marginTop: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 285px), 1fr))', gap: 14, marginTop: 16 }}>
         {comparisons.map((comparison, index) => {
           const isBest = index === 0
+          const isBackup = index === 1
+          const nextBackup = comparisons[index + 1] || comparisons.find((item) => item.id !== comparison.id)
           return (
             <article
               key={comparison.id}
               className="flight-card"
               style={{
-                border: isBest ? '2px solid #22c55e' : '1px solid #334155',
+                border: isBest ? '2px solid #22c55e' : isBackup ? '2px solid #facc15' : '1px solid #334155',
                 borderRadius: 20,
                 padding: 18,
                 background: isBest ? 'linear-gradient(135deg, rgba(20, 83, 45, 0.42), #0f172a)' : '#0f172a',
                 position: 'relative'
               }}
             >
-              {isBest && (
-                <div style={{ position: 'absolute', top: -12, right: 16, borderRadius: 999, background: '#22c55e', color: '#020617', padding: '5px 10px', fontWeight: 'bold', fontSize: 12 }}>
-                  Best Recommendation
+              {(isBest || isBackup) && (
+                <div style={{ position: 'absolute', top: -12, right: 16, borderRadius: 999, background: isBest ? '#22c55e' : '#facc15', color: '#020617', padding: '5px 10px', fontWeight: 'bold', fontSize: 12 }}>
+                  {isBest ? 'Best option' : 'Backup option'}
                 </div>
               )}
               <small style={{ color: isBest ? '#86efac' : '#94a3b8', textTransform: 'uppercase', fontWeight: 800, letterSpacing: 1 }}>
                 #{index + 1} · {comparison.dataFreshnessLabel || (comparison.isLive ? 'Provider option' : 'Planning scaffold')}
               </small>
-              <h4 style={{ color: '#f8fafc', fontSize: 22, margin: '8px 0' }}>{comparison.route}</h4>
+              <h4 style={{ color: '#f8fafc', fontSize: 24, margin: '8px 0' }}>{comparison.route}</h4>
+              <p style={{ color: '#cbd5e1', margin: '0 0 10px' }}>
+                {comparison.carrier} · {comparison.flightNumber} · {comparison.connections === 0 ? 'Nonstop' : `${comparison.connections} connection${comparison.connections === 1 ? '' : 's'}`}
+              </p>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
-                {comparison.providerBadges.map((badge) => (
+                {comparison.providerBadges.slice(0, 3).map((badge) => (
                   <ProviderBadge key={`${comparison.id}-${badge}`} label={badge} />
                 ))}
                 <WeatherRiskBadge weatherRisk={comparison.weatherRisk} />
               </div>
-              {comparison.dataFreshnessDetail ? (
-                <p style={{ color: '#fde68a', margin: '0 0 12px' }}>{comparison.dataFreshnessDetail}</p>
-              ) : null}
-              <p style={{ color: '#cbd5e1', margin: '0 0 12px' }}>
-                Carrier: {comparison.carrier} · {comparison.flightNumber}
-              </p>
+              {comparison.dataFreshnessDetail ? <p style={{ color: '#fde68a', margin: '0 0 12px' }}>{comparison.dataFreshnessDetail}</p> : null}
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 10 }}>
                 {[
                   ['Score', comparison.score, comparisonMetricColor(comparison.score)],
-                  ['Success Probability', `${comparison.successProbability}%`, comparisonMetricColor(comparison.successProbability)],
-                  ['Route Confidence', `${comparison.routeConfidence.score}/100 · ${comparison.routeConfidence.badge}`, confidenceBadgeColor(comparison.routeConfidence.badge)],
-                  ['Confidence Trend', comparison.routeConfidence.trend, confidenceTrendColor(comparison.routeConfidence.trend)],
-                  ['Last Confidence Update', new Date(comparison.routeConfidence.lastUpdated).toLocaleString(), '#94a3b8'],
-                  ['Weather Risk', `${comparison.weatherRisk.category} · ${comparison.weatherRisk.scoreImpact}/40`, weatherRiskColor(comparison.weatherRisk.category)],
-                  ['Connection Risk', `${comparison.airportIntelligence.connectionRiskScore}/100`, connectionRiskColor(comparison.airportIntelligence.connectionRiskScore)],
-                  ['Airport Backup', comparison.airportIntelligence.backupFlightAvailability, '#38bdf8'],
-                  ['Risk Level', comparison.riskLevel, riskColor(comparison.riskLevel)],
-                  ['Route Health', comparison.disruption.routeHealth, routeHealthColor(comparison.disruption.routeHealth)],
-                  ['Disruption Impact', `${comparison.disruption.disruptionImpactScore}/99`, routeHealthColor(comparison.disruption.routeHealth)],
-                  ['Connections', comparison.connections, comparison.connections === 0 ? '#22c55e' : '#facc15'],
-                  ['Total Travel Time', comparison.totalTravelTime, '#38bdf8']
+                  ['Confidence', `${comparison.routeConfidence.score}/100`, confidenceBadgeColor(comparison.routeConfidence.badge)],
+                  ['Success', `${comparison.successProbability}%`, comparisonMetricColor(comparison.successProbability)],
+                  ['Risk', comparison.riskLevel, riskColor(comparison.riskLevel)]
                 ].map(([label, value, color]) => (
                   <div key={`${comparison.id}-${label}`} style={{ border: '1px solid #334155', borderRadius: 12, padding: 10, background: '#020617' }}>
                     <small style={{ color: '#94a3b8' }}>{label}</small>
@@ -1511,75 +1504,84 @@ function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: It
                   </div>
                 ))}
               </div>
-              <p style={{ color: '#cbd5e1', margin: '12px 0 0' }}>{comparison.routeConfidence.updateExplanation}</p>
 
               <section style={{ border: '1px solid #334155', borderRadius: 14, padding: 12, background: '#020617', marginTop: 12 }}>
-                <strong style={{ color: '#facc15' }}>Community load reports</strong>
-                <p style={{ color: '#94a3b8', margin: '6px 0 0' }}>{comparison.communityReportSummary}</p>
-                {comparison.communityReports.length ? (
-                  <div style={{ display: 'grid', gap: 8, marginTop: 10 }}>
-                    {comparison.communityReports.slice(0, 3).map((report) => (
-                      <article key={`${comparison.id}-${report.id}`} style={{ border: '1px solid #1e293b', borderRadius: 12, padding: 10, background: '#0f172a' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
-                          <strong style={{ color: '#f8fafc' }}>{report.airline || report.carrier} {report.flightNumber}</strong>
-                          <span style={{ color: '#fde68a' }}>{report.reportTrustScore}/100 trust · {report.recencyWeight}x recency</span>
-                        </div>
-                        <p style={{ color: '#cbd5e1', margin: '6px 0 0' }}>{loadReportSummary(report)}</p>
-                      </article>
-                    ))}
-                  </div>
-                ) : (
-                  <p style={{ color: '#64748b', margin: '8px 0 0' }}>Submit a matching report in Load Reports to influence ranking.</p>
-                )}
+                <strong style={{ color: '#facc15' }}>Why this route</strong>
+                <ul style={{ color: '#cbd5e1', paddingLeft: 20, margin: '8px 0 0' }}>
+                  {comparison.explanation.whyRankedHere.slice(0, 2).map((reason) => <li key={reason}>{reason}</li>)}
+                </ul>
               </section>
 
-              <RouteAirportDetails route={comparison.route} />
-              <ScoringExplanationDetails comparison={comparison} backup={comparisons[index + 1] || comparisons.find((item) => item.id !== comparison.id)} />
-              <OutcomeCapture
-                subjectType="route-recommendation"
-                subjectId={`comparison-${comparison.id}`}
-                title={`Planner recommendation ${comparison.route}`}
-                route={comparison.route}
-              />
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 130px), 1fr))', gap: 10, marginTop: 14 }}>
-                <button
-                  type="button"
-                  onClick={() => watchRoute(comparison)}
-                  style={{ padding: 12, borderRadius: 12, border: 'none', background: isBest ? '#22c55e' : '#facc15', color: '#020617', fontWeight: 'bold' }}
-                >
-                  Watch Route
-                </button>
-                <button
-                  type="button"
-                  onClick={() => saveForComparison(comparison)}
-                  style={{ padding: 12, borderRadius: 12, border: '1px solid #c084fc', background: '#1e1b4b', color: '#f5d0fe', fontWeight: 'bold' }}
-                >
-                  Save to Compare
-                </button>
+              {nextBackup ? (
+                <section style={{ border: '1px solid #334155', borderRadius: 14, padding: 12, background: '#020617', marginTop: 12 }}>
+                  <strong style={{ color: '#38bdf8' }}>Backup option</strong>
+                  <p style={{ color: '#cbd5e1', margin: '6px 0 0' }}>{nextBackup.route} · score {nextBackup.score}/100 · {nextBackup.successProbability}% success</p>
+                </section>
+              ) : null}
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 135px), 1fr))', gap: 10, marginTop: 14 }}>
+                <button type="button" onClick={() => requestLoad(comparison)} style={{ padding: 12, borderRadius: 12, border: 'none', background: '#38bdf8', color: '#020617', fontWeight: 'bold' }}>Request load</button>
+                <button type="button" onClick={() => saveForComparison(comparison)} style={{ padding: 12, borderRadius: 12, border: '1px solid #c084fc', background: '#1e1b4b', color: '#f5d0fe', fontWeight: 'bold' }}>Star / save itinerary</button>
+                <button type="button" onClick={() => watchRoute(comparison)} style={{ padding: 12, borderRadius: 12, border: 'none', background: isBest ? '#22c55e' : '#facc15', color: '#020617', fontWeight: 'bold' }}>Add to watchlist</button>
               </div>
+
+              <details style={{ marginTop: 14, border: '1px solid #334155', borderRadius: 14, padding: 12, background: '#020617' }}>
+                <summary style={{ color: '#67e8f9', cursor: 'pointer', fontWeight: 'bold' }}>Flesh out details</summary>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 160px), 1fr))', gap: 10, marginTop: 12 }}>
+                  {[
+                    ['Flight details', comparison.flightNumber],
+                    ['Airport details', comparison.airportIntelligence.airports.map((airport) => airport.code).join(' · ') || 'Pending'],
+                    ['Aircraft type', 'Open provider flight details when available'],
+                    ['Duration', comparison.totalTravelTime],
+                    ['Connection notes', comparison.connections === 0 ? 'No connection risk' : `${comparison.connections} connection${comparison.connections === 1 ? '' : 's'} · risk ${comparison.airportIntelligence.connectionRiskScore}/100`],
+                    ['Data freshness/source', comparison.dataFreshnessDetail || comparison.dataFreshnessLabel || comparison.providerBadges.join(' · ')]
+                  ].map(([label, value]) => (
+                    <div key={`${comparison.id}-detail-${label}`} style={{ border: '1px solid #334155', borderRadius: 12, padding: 10, background: '#0f172a' }}>
+                      <small style={{ color: '#94a3b8' }}>{label}</small>
+                      <p style={{ margin: '4px 0 0', color: '#f8fafc', overflowWrap: 'anywhere' }}>{value}</p>
+                    </div>
+                  ))}
+                </div>
+                <RouteAirportDetails route={comparison.route} />
+                <ScoringExplanationDetails comparison={comparison} backup={nextBackup} />
+                <section style={{ border: '1px solid #334155', borderRadius: 14, padding: 12, background: '#020617', marginTop: 12 }}>
+                  <strong style={{ color: '#facc15' }}>Community load reports</strong>
+                  <p style={{ color: '#94a3b8', margin: '6px 0 0' }}>{comparison.communityReportSummary}</p>
+                  {comparison.communityReports.length ? (
+                    <div style={{ display: 'grid', gap: 8, marginTop: 10 }}>
+                      {comparison.communityReports.slice(0, 3).map((report) => (
+                        <article key={`${comparison.id}-${report.id}`} style={{ border: '1px solid #1e293b', borderRadius: 12, padding: 10, background: '#0f172a' }}>
+                          <strong style={{ color: '#f8fafc' }}>{report.airline || report.carrier} {report.flightNumber}</strong>
+                          <p style={{ color: '#cbd5e1', margin: '6px 0 0' }}>{loadReportSummary(report)}</p>
+                        </article>
+                      ))}
+                    </div>
+                  ) : <p style={{ color: '#64748b', margin: '8px 0 0' }}>Submit a matching report in Load Reports to influence ranking.</p>}
+                </section>
+                <OutcomeCapture subjectType="route-recommendation" subjectId={`comparison-${comparison.id}`} title={`Planner recommendation ${comparison.route}`} route={comparison.route} />
+              </details>
             </article>
           )
         })}
       </div>
 
-      <section style={{ border: '1px solid #334155', borderRadius: 20, padding: 18, background: '#020617', marginTop: 18 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
-          <div>
-            <strong style={{ color: '#c084fc', textTransform: 'uppercase', letterSpacing: 1 }}>Saved itinerary comparison</strong>
-            <p style={{ color: '#94a3b8', margin: '6px 0 0' }}>
-              Save multiple options from /plan and compare them side by side. Stored locally in this browser for now.
-            </p>
-          </div>
-          {savedComparisons.length > 0 && (
-            <button type="button" onClick={clearComparisons} style={{ padding: '10px 12px', borderRadius: 10, border: '1px solid #475569', background: '#0f172a', color: '#f8fafc', fontWeight: 'bold' }}>
-              Clear saved comparisons
-            </button>
-          )}
-        </div>
+      <details style={{ marginTop: 18, border: '1px solid #334155', borderRadius: 18, padding: 14, background: '#020617' }}>
+        <summary style={{ color: '#c084fc', cursor: 'pointer', fontWeight: 'bold' }}>Advanced recommendation engines and provider diagnostics</summary>
+        <WeatherIntelligenceSection comparisons={comparisons} />
+        <RouteConfidenceSection comparisons={comparisons} />
+        <AirportIntelligenceSection comparisons={comparisons} />
+        <DisruptionIntelligenceSection comparisons={comparisons} />
+      </details>
 
+      <details style={{ border: '1px solid #334155', borderRadius: 20, padding: 18, background: '#020617', marginTop: 18 }}>
+        <summary style={{ color: '#c084fc', cursor: 'pointer', fontWeight: 'bold' }}>Saved itinerary comparison</summary>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'center', marginTop: 12 }}>
+          <p style={{ color: '#94a3b8', margin: 0 }}>Saved locally in this browser for side-by-side planning.</p>
+          {savedComparisons.length > 0 && <button type="button" onClick={clearComparisons} style={{ padding: '10px 12px', borderRadius: 10, border: '1px solid #475569', background: '#0f172a', color: '#f8fafc', fontWeight: 'bold' }}>Clear saved comparisons</button>}
+        </div>
         {savedComparisons.length === 0 ? (
           <article style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#0f172a', marginTop: 14 }}>
-            <p style={{ color: '#cbd5e1', margin: 0 }}>No saved itinerary options yet. Use “Save to Compare” on any recommendation above.</p>
+            <p style={{ color: '#cbd5e1', margin: 0 }}>No saved itinerary options yet. Use “Star / save itinerary” on any recommendation above.</p>
           </article>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 260px), 1fr))', gap: 14, marginTop: 14 }}>
@@ -1591,39 +1593,14 @@ function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: It
                     <h4 style={{ color: '#f8fafc', margin: '6px 0', fontSize: 22 }}>{item.route}</h4>
                     <p style={{ color: '#94a3b8', margin: 0 }}>{item.carrier} · Saved {new Date(item.savedAt).toLocaleString()}</p>
                   </div>
-                  <button type="button" onClick={() => removeComparison(item.id)} style={{ padding: '8px 10px', borderRadius: 10, border: '1px solid #f87171', background: '#1f2937', color: '#fecaca', fontWeight: 'bold' }}>
-                    Remove
-                  </button>
+                  <button type="button" onClick={() => removeComparison(item.id)} style={{ padding: '8px 10px', borderRadius: 10, border: '1px solid #f87171', background: '#1f2937', color: '#fecaca', fontWeight: 'bold' }}>Remove</button>
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 10, marginTop: 12 }}>
-                  {[
-                    ['Score', item.score, comparisonMetricColor(item.score)],
-                    ['Success Probability', `${item.successProbability}%`, comparisonMetricColor(item.successProbability)],
-                    ['Route Confidence', item.routeConfidenceScore ? `${item.routeConfidenceScore}/100 · ${item.confidenceBadge || 'Fair'}` : 'Pending confidence', item.routeConfidenceScore ? comparisonMetricColor(item.routeConfidenceScore) : '#94a3b8'],
-                    ['Confidence Trend', savedConfidenceTrend(item.confidenceTrend) || 'Pending', savedConfidenceTrendColor(item.confidenceTrend)],
-                    ['Last Confidence Update', item.lastConfidenceUpdate ? new Date(item.lastConfidenceUpdate).toLocaleString() : 'Pending', '#94a3b8'],
-                    ['Risk', item.riskLevel, riskColor(item.riskLevel)],
-                    ['Connections', item.connections, item.connections === 0 ? '#22c55e' : '#facc15'],
-                    ['Total Travel Time', item.totalTravelTime, '#38bdf8']
-                  ].map(([label, value, color]) => (
-                    <div key={`${item.id}-${label}`} style={{ border: '1px solid #334155', borderRadius: 12, padding: 10, background: '#020617' }}>
-                      <small style={{ color: '#94a3b8' }}>{label}</small>
-                      <p style={{ margin: '4px 0 0', color: String(color), fontWeight: 'bold' }}>{value}</p>
-                    </div>
-                ))}
-                </div>
-                {item.confidenceUpdateExplanation && <p style={{ color: '#cbd5e1', margin: '12px 0 0' }}>{item.confidenceUpdateExplanation}</p>}
-                <details style={{ marginTop: 12 }}>
-                  <summary style={{ color: '#facc15', cursor: 'pointer', fontWeight: 'bold' }}>Why this route?</summary>
-                  <ul style={{ color: '#cbd5e1', paddingLeft: 20, marginBottom: 0 }}>
-                    {item.why.map((reason) => <li key={reason}>{reason}</li>)}
-                  </ul>
-                </details>
+                <p style={{ color: '#cbd5e1', margin: '10px 0 0' }}>Score {item.score}/100 · Success {item.successProbability}% · Risk {item.riskLevel} · {item.totalTravelTime}</p>
               </article>
             ))}
           </div>
         )}
-      </section>
+      </details>
     </section>
   )
 }
@@ -2002,14 +1979,14 @@ export default function PlanPage() {
           Plan your nonrevy route.
         </h1>
         <p style={{ color: '#94a3b8', maxWidth: 720, fontSize: 18 }}>
-          Flight results, itinerary results, and searchable flight data live here so the homepage can stay focused on search.
+          Ranked itinerary cards appear first. Flight rows, scoring internals, and diagnostics stay available behind progressive details.
         </p>
-        <div style={{ border: '1px solid #334155', borderRadius: 18, padding: 16, background: '#0f172a', color: '#cbd5e1' }}>
-          <strong style={{ color: '#38bdf8' }}>Passenger flight coverage scaffold</strong>
-          <ul style={{ marginBottom: 0 }}>
+        <details style={{ border: '1px solid #334155', borderRadius: 18, padding: 16, background: '#0f172a', color: '#cbd5e1' }}>
+          <summary style={{ color: '#38bdf8', cursor: 'pointer', fontWeight: 'bold' }}>Passenger flight coverage details</summary>
+          <ul style={{ marginBottom: 0, marginTop: 10 }}>
             {passengerFlightCoverageNotes.map((note) => <li key={note}>{note}</li>)}
           </ul>
-        </div>
+        </details>
 
         <section style={{ border: '1px solid #c084fc', borderRadius: 24, padding: 'clamp(16px, 4vw, 22px)', background: 'linear-gradient(135deg, rgba(49, 46, 129, 0.66), rgba(15, 23, 42, 0.96))', marginTop: 24, overflow: 'hidden' }}>
           <p style={{ color: '#c084fc', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1, marginTop: 0 }}>AI Trip Planner scaffold</p>
@@ -2059,7 +2036,7 @@ export default function PlanPage() {
                   <p style={{ margin: '4px 0 0', color: riskColor(aiTripPlan.riskLevel), fontWeight: 'bold' }}>{aiTripPlan.riskLevel}</p>
                 </div>
               </div>
-              <details open style={{ marginTop: 12 }}>
+              <details style={{ marginTop: 12 }}>
                 <summary style={{ color: '#facc15', cursor: 'pointer', fontWeight: 'bold' }}>Why this route?</summary>
                 <ul style={{ color: '#cbd5e1', paddingLeft: 20, marginBottom: 0 }}>
                   {aiTripPlan.whyThisRoute.map((reason) => <li key={reason}>{reason}</li>)}
@@ -2069,7 +2046,9 @@ export default function PlanPage() {
           </div>
         </section>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))', gap: 18, marginTop: 28 }}>
+        <details style={{ border: '1px solid #334155', borderRadius: 20, padding: 16, background: '#0f172a', marginTop: 18 }}>
+          <summary style={{ color: '#67e8f9', cursor: 'pointer', fontWeight: 'bold' }}>Refine search settings, carrier scope, and voice input</summary>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))', gap: 18, marginTop: 16 }}>
           <form
             onSubmit={submitPlanRequest}
             style={{ border: '1px solid #334155', borderRadius: 22, padding: 22, background: '#0f172a' }}
@@ -2211,7 +2190,8 @@ export default function PlanPage() {
               </p>
             </div>
           </aside>
-        </div>
+          </div>
+        </details>
 
         <section style={{ marginTop: 30 }}>
           <h2 style={{ fontSize: 30 }}>Itinerary results</h2>
@@ -2237,8 +2217,8 @@ export default function PlanPage() {
               </ul>
             </div>
           )}
-          <div style={{ border: '1px solid #334155', borderRadius: 16, padding: 14, background: '#020617', marginBottom: 16 }}>
-            <strong style={{ color: '#38bdf8' }}>Developer Diagnostics</strong>
+          <details style={{ border: '1px solid #334155', borderRadius: 16, padding: 14, background: '#020617', marginBottom: 16 }}>
+            <summary style={{ color: '#38bdf8', cursor: 'pointer', fontWeight: 'bold' }}>Advanced / Developer Details</summary>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 170px), 1fr))', gap: 10, marginTop: 12 }}>
               {[
                 ['Parsed origin', itineraryDebug?.parsedOrigin || 'Not parsed'],
@@ -2475,7 +2455,7 @@ export default function PlanPage() {
               </div>
             ) : null}
             {itineraryDebug?.dataFreshnessExplanation?.length ? (
-              <details style={{ marginTop: 12 }} open>
+              <details style={{ marginTop: 12 }}>
                 <summary style={{ color: '#38bdf8', cursor: 'pointer', fontWeight: 'bold' }}>Data freshness explanation</summary>
                 <ul style={{ color: '#cbd5e1', marginBottom: 0, paddingLeft: 20 }}>
                   {itineraryDebug.dataFreshnessExplanation.map((message) => <li key={message}>{message}</li>)}
@@ -2498,10 +2478,12 @@ export default function PlanPage() {
                 </ul>
               </div>
             ) : null}
-          </div>
+          </details>
           <ItineraryComparisonPanel comparisons={itineraryComparisons} travelDate={travelWindow} />
           {liveItineraries.length > 0 ? (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))', gap: 16 }}>
+            <details style={{ border: '1px solid #334155', borderRadius: 18, padding: 14, background: '#020617', marginTop: 16 }}>
+              <summary style={{ color: '#67e8f9', cursor: 'pointer', fontWeight: 'bold' }}>Flight details, airport details, aircraft, duration, connection notes, and provider diagnostics</summary>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))', gap: 16, marginTop: 14 }}>
               {liveItineraries.map((itinerary) => (
                 <article key={itinerary.id} style={{ border: '1px solid #334155', borderRadius: 20, padding: 18, background: '#0f172a' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
@@ -2578,7 +2560,8 @@ export default function PlanPage() {
                   />
                 </article>
               ))}
-            </div>
+              </div>
+            </details>
           ) : itineraryDebug?.testDataModeEnabled ? (
             <>
               <h3 style={{ color: '#facc15' }}>Fallback demo itinerary cards</h3>
@@ -2876,9 +2859,9 @@ export default function PlanPage() {
           </section>
         </section>
 
-        <section style={{ marginTop: 30 }}>
-          <h2 style={{ fontSize: 30 }}>Flight results</h2>
-          <p style={{ color: '#94a3b8' }}>
+        <details style={{ marginTop: 30, border: '1px solid #334155', borderRadius: 18, padding: 16, background: '#020617' }}>
+          <summary style={{ color: '#67e8f9', cursor: 'pointer', fontWeight: 'bold' }}>Flight results and raw flight data</summary>
+          <p style={{ color: '#94a3b8', marginTop: 12 }}>
             {flightResultsLabel} · Last refresh {lastUpdated || 'pending'}
           </p>
           {(visibleFlights).map((flight) => {
@@ -2920,7 +2903,7 @@ export default function PlanPage() {
               </article>
             )
           })}
-        </section>
+        </details>
 
 
       </section>

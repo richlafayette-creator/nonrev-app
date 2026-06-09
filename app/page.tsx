@@ -41,7 +41,7 @@ export default function Home() {
 
   return (
     <main className="app-shell nonrevy-home" style={{ minHeight: '100vh', color: 'white' }}>
-      <nav className="top-nav" style={{ marginBottom: 24, justifyContent: 'center' }}>
+      <nav className="top-nav nonrevy-home__nav" style={{ marginBottom: 24, justifyContent: 'center' }}>
         <a href="/plan" style={{ marginRight: 16, color: '#fb7185' }}>Plan</a>
         <a href="/saved-searches" style={{ marginRight: 16, color: '#67e8f9' }}>Saved Searches</a>
         <a href="/watchlist" style={{ marginRight: 16, color: '#facc15' }}>Watchlist</a>
@@ -61,16 +61,16 @@ export default function Home() {
 
         <div className="nonrevy-home__content">
           <header className="nonrevy-home__header">
-            <div className="nonrevy-home__brand-row">
+            <div className="nonrevy-home__brand-row" aria-label="NONREVY">
               <span className="nonrevy-home__mark" aria-hidden="true">✈</span>
               <span className="nonrevy-home__wordmark">NONREVY</span>
             </div>
             <p className="nonrevy-home__eyebrow">AI nonrev planner</p>
           </header>
 
-          <h1 className="nonrevy-home__headline">Search like you text your travel buddy.</h1>
+          <h1 className="nonrevy-home__headline">Tell us where. We’ll rank the way.</h1>
           <p className="nonrevy-home__subhead">
-            Ask for a destination, cabin, airport, or weekend idea. NONREVY turns it into ranked itinerary cards with confidence, backup options, and freshness badges.
+            Search in plain English. Get concise itinerary cards with route intelligence, recovery strategy, cabin upside, and load-request actions.
           </p>
 
           <form onSubmit={submitSearch} className="nonrevy-home__search-card">
@@ -101,6 +101,12 @@ export default function Home() {
             <div className="nonrevy-home__actions">
               <button type="submit" className="nonrevy-home__primary">Search with AI</button>
               <button type="button" onClick={saveAiSearch} className="nonrevy-home__secondary">Star / save search</button>
+            </div>
+
+            <div className="nonrevy-home__proof" aria-label="Planner capabilities">
+              <span>Route intelligence</span>
+              <span>Recovery plans</span>
+              <span>Watchlist-ready</span>
             </div>
 
             <div className="nonrevy-home__chips" aria-label="Search examples">

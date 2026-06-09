@@ -1,6 +1,6 @@
 'use client'
 
-import { type FormEvent, useEffect, useMemo, useState } from 'react'
+import { type CSSProperties, type FormEvent, useEffect, useMemo, useState } from 'react'
 import { flightMatchesSearch } from '../../lib/flightSearch'
 import { delayRiskScore, rankItinerary } from '../../lib/intelligence'
 import { allFlightFields, fieldValue, passengerFlightCoverageNotes, richFlightFieldLabels } from '../../lib/flightDataScaffold'
@@ -1031,7 +1031,7 @@ function ScoringExplanationDetails({ comparison, backup }: { comparison: Itinera
   ] as const
 
   return (
-    <details style={{ marginTop: 14, border: '1px solid #334155', borderRadius: 14, padding: 12, background: '#020617' }}>
+    <details className="nonrevy-premium-details" style={{ marginTop: 14, border: '1px solid #334155', borderRadius: 14, padding: 12, background: '#020617' }}>
       <summary style={{ color: '#facc15', cursor: 'pointer', fontWeight: 'bold' }}>Why this route?</summary>
       <div style={{ display: 'grid', gap: 10, marginTop: 12 }}>
         {sections.map(([label, reasons]) => (
@@ -1505,7 +1505,7 @@ function RouteIntelligenceSection({ insights }: { insights: RouteIntelligenceIns
 
   const primary = insights[0]
   return (
-    <section style={{ border: '1px solid #7dd3fc', borderRadius: 22, padding: 'clamp(14px, 3vw, 18px)', background: 'linear-gradient(135deg, rgba(14, 116, 144, 0.22), rgba(49, 46, 129, 0.34), rgba(15, 23, 42, 0.96))', marginTop: 16 }}>
+    <section className="nonrevy-route-intel" style={{ border: '1px solid #7dd3fc', borderRadius: 22, padding: 'clamp(14px, 3vw, 18px)', background: 'linear-gradient(135deg, rgba(14, 116, 144, 0.22), rgba(49, 46, 129, 0.34), rgba(15, 23, 42, 0.96))', marginTop: 16 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap', alignItems: 'flex-start' }}>
         <div>
           <strong style={{ color: '#67e8f9', textTransform: 'uppercase', letterSpacing: 1 }}>Route Intelligence</strong>
@@ -1521,7 +1521,7 @@ function RouteIntelligenceSection({ insights }: { insights: RouteIntelligenceIns
         {insights.map((insight) => {
           const badgeStyle = routeIntelligenceBadgeStyle(insight.badge)
           return (
-            <article key={insight.key} style={{ border: `1px solid ${insight.color}`, borderRadius: 16, padding: 14, background: 'rgba(2, 6, 23, 0.72)' }}>
+            <article key={insight.key} className="nonrevy-intel-card" style={{ border: `1px solid ${insight.color}`, borderRadius: 16, padding: 14, background: 'rgba(2, 6, 23, 0.72)' }}>
               <span style={{ display: 'inline-flex', border: `1px solid ${badgeStyle.border}`, borderRadius: 999, padding: '4px 9px', color: badgeStyle.color, background: badgeStyle.background, fontSize: 12, fontWeight: 'bold' }}>
                 {insight.badge}
               </span>
@@ -1578,6 +1578,58 @@ function routeEndpoints(route: string) {
 function routeGateways(route: string) {
   const { airports } = routeEndpoints(route)
   return airports.length > 2 ? airports.slice(1, -1) : []
+}
+
+function ItineraryRouteMap({ route, compact = false }: { route: string; compact?: boolean }) {
+  const airports = airportCodesFromRoute(route)
+  if (!airports.length) return null
+
+  return (
+    <div className={`nonrevy-route-map ${compact ? 'nonrevy-route-map--compact' : ''}`} aria-label={`Route map for ${route}`}>
+      <div className="nonrevy-route-map__line" aria-hidden="true" />
+      {airports.map((airport, index) => (
+        <div key={`${route}-${airport}-${index}`} className="nonrevy-route-map__stop">
+          <span className={`nonrevy-route-map__dot ${index === 0 || index === airports.length - 1 ? 'nonrevy-route-map__dot--terminal' : ''}`} />
+          <strong>{airport}</strong>
+          <small>{index === 0 ? 'Origin' : index === airports.length - 1 ? 'Arrive' : 'Connect'}</small>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function SuccessScoreDial({ score, label = 'Success' }: { score: number; label?: string }) {
+  const safeScore = clampScore(score)
+  return (
+    <div className="nonrevy-score-dial" style={{ '--score': `${safeScore * 3.6}deg` } as CSSProperties} aria-label={`${label} score ${safeScore} percent`}>
+      <div className="nonrevy-score-dial__ring">
+        <span>{safeScore}%</span>
+      </div>
+      <div>
+        <small>{label}</small>
+        <strong>{safeScore >= 78 ? 'Strong shot' : safeScore >= 62 ? 'Workable' : 'Needs backup'}</strong>
+      </div>
+    </div>
+  )
+}
+
+function PlannerSkeletonLoaders() {
+  return (
+    <section className="nonrevy-skeleton-wrap" aria-live="polite" aria-label="Loading itinerary recommendations">
+      {[0, 1, 2].map((item) => (
+        <article key={item} className="nonrevy-skeleton-card">
+          <div className="nonrevy-skeleton nonrevy-skeleton--pill" />
+          <div className="nonrevy-skeleton nonrevy-skeleton--title" />
+          <div className="nonrevy-skeleton-map">
+            <span /><span /><span />
+          </div>
+          <div className="nonrevy-skeleton-grid">
+            <div /><div /><div /><div />
+          </div>
+        </article>
+      ))}
+    </section>
+  )
 }
 
 function isElevatedRecoveryRisk(comparison: ItineraryComparison) {
@@ -1659,7 +1711,7 @@ function RecoveryStrategySection({ comparison, comparisons }: { comparison: Itin
   const color = recoveryBadgeColor(recovery.badge)
 
   return (
-    <details style={{ marginTop: 14, border: `1px solid ${color}`, borderRadius: 14, padding: 12, background: '#020617' }}>
+    <details className="nonrevy-premium-details nonrevy-recovery-details" style={{ marginTop: 14, border: `1px solid ${color}`, borderRadius: 14, padding: 12, background: '#020617' }}>
       <summary style={{ color, cursor: 'pointer', fontWeight: 'bold' }}>
         Recovery Strategy · {recovery.badge}
       </summary>
@@ -1839,7 +1891,7 @@ function CopilotPanel({
   )
 
   return (
-    <section style={{ border: '1px solid #7dd3fc', borderRadius: 24, padding: 'clamp(16px, 4vw, 22px)', background: 'linear-gradient(135deg, rgba(8, 47, 73, 0.72), rgba(49, 46, 129, 0.46), rgba(15, 23, 42, 0.96))', marginTop: 24 }}>
+    <section className="nonrevy-copilot-panel" style={{ border: '1px solid #7dd3fc', borderRadius: 24, padding: 'clamp(16px, 4vw, 22px)', background: 'linear-gradient(135deg, rgba(8, 47, 73, 0.72), rgba(49, 46, 129, 0.46), rgba(15, 23, 42, 0.96))', marginTop: 24 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', alignItems: 'flex-start' }}>
         <div>
           <p style={{ color: '#67e8f9', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1, marginTop: 0 }}>NONREVY Copilot</p>
@@ -1989,7 +2041,7 @@ function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: It
   const routeInsights = buildRouteIntelligenceInsights(comparisons)
 
   return (
-    <section style={{ border: '1px solid #38bdf8', borderRadius: 24, padding: 'clamp(16px, 4vw, 22px)', background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.96), rgba(30, 41, 59, 0.9))', marginBottom: 18 }}>
+    <section className="nonrevy-results-shell" style={{ border: '1px solid #38bdf8', borderRadius: 24, padding: 'clamp(16px, 4vw, 22px)', background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.96), rgba(30, 41, 59, 0.9))', marginBottom: 18 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', alignItems: 'flex-start' }}>
         <div>
           <strong style={{ color: '#38bdf8', textTransform: 'uppercase', letterSpacing: 1 }}>Recommended itinerary cards</strong>
@@ -2011,7 +2063,7 @@ function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: It
 
       <RouteIntelligenceSection insights={routeInsights} />
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 285px), 1fr))', gap: 14, marginTop: 16 }}>
+      <div className="nonrevy-itinerary-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 285px), 1fr))', gap: 14, marginTop: 16 }}>
         {comparisons.map((comparison, index) => {
           const isBest = index === 0
           const isBackup = index === 1
@@ -2020,7 +2072,7 @@ function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: It
           return (
             <article
               key={comparison.id}
-              className="flight-card"
+              className="flight-card nonrevy-itinerary-card"
               style={{
                 border: isBest ? '2px solid #22c55e' : isBackup ? '2px solid #facc15' : '1px solid #334155',
                 borderRadius: 20,
@@ -2038,6 +2090,7 @@ function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: It
                 #{index + 1} · {comparison.dataFreshnessLabel || (comparison.isLive ? 'Provider option' : 'Planning scaffold')}
               </small>
               <h4 style={{ color: '#f8fafc', fontSize: 24, margin: '8px 0' }}>{comparison.route}</h4>
+              <ItineraryRouteMap route={comparison.route} />
               {intelligenceBadges.length ? (
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, marginBottom: 10 }}>
                   {intelligenceBadges.map((badge) => {
@@ -2061,7 +2114,9 @@ function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: It
               </div>
               {comparison.dataFreshnessDetail ? <p style={{ color: '#fde68a', margin: '0 0 12px' }}>{comparison.dataFreshnessDetail}</p> : null}
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 10 }}>
+              <SuccessScoreDial score={comparison.successProbability} />
+
+              <div className="nonrevy-metric-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 10 }}>
                 {[
                   ['Score', comparison.score, comparisonMetricColor(comparison.score)],
                   ['Confidence', `${comparison.routeConfidence.score}/100`, confidenceBadgeColor(comparison.routeConfidence.badge)],
@@ -2137,7 +2192,7 @@ function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: It
         })}
       </div>
 
-      <details style={{ marginTop: 18, border: '1px solid #334155', borderRadius: 18, padding: 14, background: '#020617' }}>
+      <details className="nonrevy-premium-details" style={{ marginTop: 18, border: '1px solid #334155', borderRadius: 18, padding: 14, background: '#020617' }}>
         <summary style={{ color: '#c084fc', cursor: 'pointer', fontWeight: 'bold' }}>Advanced recommendation engines and provider diagnostics</summary>
         <WeatherIntelligenceSection comparisons={comparisons} />
         <RouteConfidenceSection comparisons={comparisons} />
@@ -2145,7 +2200,7 @@ function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: It
         <DisruptionIntelligenceSection comparisons={comparisons} />
       </details>
 
-      <details style={{ border: '1px solid #334155', borderRadius: 20, padding: 18, background: '#020617', marginTop: 18 }}>
+      <details className="nonrevy-premium-details" style={{ border: '1px solid #334155', borderRadius: 20, padding: 18, background: '#020617', marginTop: 18 }}>
         <summary style={{ color: '#c084fc', cursor: 'pointer', fontWeight: 'bold' }}>Saved itinerary comparison</summary>
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'center', marginTop: 12 }}>
           <p style={{ color: '#94a3b8', margin: 0 }}>Saved locally in this browser for side-by-side planning.</p>
@@ -2555,7 +2610,7 @@ export default function PlanPage() {
     : 'Optional. Use the calendar picker where available, or type YYYY-MM-DD, e.g. 2026-06-06. Blank searches stay flexible.')
 
   return (
-    <main className="app-shell" style={{ minHeight: '100vh', background: '#020617', color: 'white', padding: 'clamp(16px, 4vw, 32px)', fontFamily: 'Arial', overflowX: 'hidden' }}>
+    <main className="app-shell nonrevy-plan-shell" style={{ minHeight: '100vh', background: '#020617', color: 'white', padding: 'clamp(16px, 4vw, 32px)', fontFamily: 'Arial', overflowX: 'hidden' }}>
       <nav className="top-nav" style={{ marginBottom: 24 }}>
         <a href="/" style={{ marginRight: 16, color: '#38bdf8' }}>Home</a>
         <a href="/plan" style={{ marginRight: 16, color: '#fb7185' }}>Plan</a>
@@ -2585,7 +2640,7 @@ export default function PlanPage() {
           </ul>
         </details>
 
-        <section style={{ border: '1px solid #c084fc', borderRadius: 24, padding: 'clamp(16px, 4vw, 22px)', background: 'linear-gradient(135deg, rgba(49, 46, 129, 0.66), rgba(15, 23, 42, 0.96))', marginTop: 24, overflow: 'hidden' }}>
+        <section className="nonrevy-planner-card" style={{ border: '1px solid #c084fc', borderRadius: 24, padding: 'clamp(16px, 4vw, 22px)', background: 'linear-gradient(135deg, rgba(49, 46, 129, 0.66), rgba(15, 23, 42, 0.96))', marginTop: 24, overflow: 'hidden' }}>
           <p style={{ color: '#c084fc', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1, marginTop: 0 }}>AI Trip Planner scaffold</p>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 320px), 1fr))', gap: 18, alignItems: 'start', width: '100%' }}>
             <form onSubmit={submitAiTripPlanner} style={{ minWidth: 0 }}>
@@ -3086,6 +3141,7 @@ export default function PlanPage() {
               </div>
             ) : null}
           </details>
+          {itineraryLoading ? <PlannerSkeletonLoaders /> : null}
           <ItineraryComparisonPanel comparisons={itineraryComparisons} travelDate={travelWindow} />
           {liveItineraries.length > 0 ? (
             <details style={{ border: '1px solid #334155', borderRadius: 18, padding: 14, background: '#020617', marginTop: 16 }}>

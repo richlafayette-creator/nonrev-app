@@ -8,9 +8,9 @@ import ActivationProgressCard from './ActivationProgressCard'
 
 const searchExamples = [
   'LAX to HND tomorrow',
-  'open flights out of SBP today',
-  'where can I get Polaris',
-  'best Hawaii route from LAX this weekend'
+  'Open flights out of SBP today',
+  'Where can I get Polaris?',
+  'Best Hawaii route this weekend'
 ]
 
 export default function Home() {
@@ -26,7 +26,7 @@ export default function Home() {
     event.preventDefault()
     const query = search.trim()
     if (!query) {
-      setMessage('Try something like “LAX to HND tomorrow” or “open flights out of SBP today.”')
+      setMessage('Try “LAX to HND tomorrow” or “Open flights out of SBP today.”')
       return
     }
 
@@ -40,7 +40,7 @@ export default function Home() {
   }
 
   return (
-    <main className="app-shell" style={{ minHeight: '100vh', background: '#020617', color: 'white', padding: 32, fontFamily: 'Arial' }}>
+    <main className="app-shell nonrevy-home" style={{ minHeight: '100vh', color: 'white' }}>
       <nav className="top-nav" style={{ marginBottom: 24, justifyContent: 'center' }}>
         <a href="/plan" style={{ marginRight: 16, color: '#fb7185' }}>Plan</a>
         <a href="/saved-searches" style={{ marginRight: 16, color: '#67e8f9' }}>Saved Searches</a>
@@ -49,64 +49,67 @@ export default function Home() {
         <a href="/my-requests" style={{ marginRight: 16, color: '#facc15' }}>My Requests</a>
       </nav>
 
-      <section style={{ minHeight: '78vh', display: 'grid', placeItems: 'center' }}>
-        <div style={{ width: '100%', maxWidth: 820, textAlign: 'center' }}>
-          <img
-            src="/brand/nonrevy-logo.png"
-            alt="NONREVY"
-            style={{ width: 250, maxWidth: '76%', margin: '0 0 34px' }}
-          />
+      <section className="nonrevy-home__hero">
+        <div className="nonrevy-home__ambient nonrevy-home__ambient--left" aria-hidden="true" />
+        <div className="nonrevy-home__ambient nonrevy-home__ambient--right" aria-hidden="true" />
+        <div className="nonrevy-home__wing" aria-hidden="true">
+          <svg viewBox="0 0 192 192" role="img">
+            <path d="M49 92 131 51c7-3 14 4 10 11l-18 31 31 19c7 4 4 15-4 15H107l-24 40c-4 7-15 4-15-4v-36H42c-10 0-14-13-5-18l12-7Z" />
+            <path d="M72 101h42L96 132H72v-31Z" />
+          </svg>
+        </div>
 
-          <p style={{ color: '#67e8f9', fontWeight: 800, letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 10 }}>
-            AI nonrev planner
-          </p>
-          <h1 style={{ margin: '0 0 14px', fontSize: 'clamp(36px, 8vw, 72px)', lineHeight: 0.95 }}>
-            Ask for the route you want.
-          </h1>
-          <p style={{ color: '#cbd5e1', fontSize: 18, maxWidth: 640, margin: '0 auto 26px' }}>
-            NONREVY turns plain-English travel intent into ranked itinerary cards with confidence, backup options, source freshness, and details only when you ask for them.
+        <div className="nonrevy-home__content">
+          <header className="nonrevy-home__header">
+            <div className="nonrevy-home__brand-row">
+              <span className="nonrevy-home__mark" aria-hidden="true">✈</span>
+              <span className="nonrevy-home__wordmark">NONREVY</span>
+            </div>
+            <p className="nonrevy-home__eyebrow">AI nonrev planner</p>
+          </header>
+
+          <h1 className="nonrevy-home__headline">Search like you text your travel buddy.</h1>
+          <p className="nonrevy-home__subhead">
+            Ask for a destination, cabin, airport, or weekend idea. NONREVY turns it into ranked itinerary cards with confidence, backup options, and freshness badges.
           </p>
 
-          <form onSubmit={submitSearch} style={{ border: '1px solid #334155', borderRadius: 28, padding: 'clamp(14px, 4vw, 22px)', background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.96), rgba(30, 41, 59, 0.82))', boxShadow: '0 24px 80px rgba(2, 6, 23, 0.34)' }}>
-            <label htmlFor="homepage-ai-search" style={{ display: 'block', textAlign: 'left', color: '#f8fafc', fontWeight: 800, marginBottom: 10 }}>
+          <form onSubmit={submitSearch} className="nonrevy-home__search-card">
+            <label htmlFor="homepage-ai-search" className="nonrevy-home__search-label">
               Where can we get you?
             </label>
-            <div style={{ position: 'relative' }}>
+            <div className="nonrevy-home__search-row">
+              <span className="nonrevy-home__search-icon" aria-hidden="true">⌕</span>
               <input
                 id="homepage-ai-search"
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder="LAX to HND tomorrow"
                 autoComplete="off"
-                style={{ boxSizing: 'border-box', width: '100%', padding: '18px 58px 18px 20px', borderRadius: 999, border: '1px solid #334155', background: '#020617', color: 'white', fontSize: 17 }}
+                className="nonrevy-home__input"
               />
               <button
                 type="button"
                 aria-label={voiceInput.isListening ? 'Stop listening' : 'Start voice input'}
                 onClick={() => voiceInput.start()}
                 title={voiceInput.isSupported ? 'Speak a route, airport, cabin, or trip idea' : 'Voice capture is not supported in this browser'}
-                style={{ position: 'absolute', right: 9, top: '50%', transform: 'translateY(-50%)', width: 42, height: 42, borderRadius: 999, border: `1px solid ${voiceInput.isListening ? '#fb7185' : '#475569'}`, background: voiceInput.isListening ? '#fb7185' : '#020617', color: voiceInput.isListening ? 'white' : '#f472b6', fontSize: 18 }}
+                className={`nonrevy-home__voice ${voiceInput.isListening ? 'nonrevy-home__voice--listening' : ''}`}
               >
                 {voiceInput.isListening ? '●' : '🎙️'}
               </button>
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'center', gap: 10, flexWrap: 'wrap', marginTop: 16 }}>
-              <button type="submit" style={{ padding: '14px 24px', borderRadius: 999, border: 'none', background: '#38bdf8', color: '#020617', fontWeight: 'bold' }}>
-                Search with AI
-              </button>
-              <button type="button" onClick={saveAiSearch} style={{ padding: '14px 20px', borderRadius: 999, border: '1px solid #67e8f9', background: '#020617', color: '#a5f3fc', fontWeight: 'bold' }}>
-                Star / save search
-              </button>
+            <div className="nonrevy-home__actions">
+              <button type="submit" className="nonrevy-home__primary">Search with AI</button>
+              <button type="button" onClick={saveAiSearch} className="nonrevy-home__secondary">Star / save search</button>
             </div>
 
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center', marginTop: 18 }}>
+            <div className="nonrevy-home__chips" aria-label="Search examples">
               {searchExamples.map((example) => (
                 <button
                   key={example}
                   type="button"
                   onClick={() => setSearch(example)}
-                  style={{ padding: '8px 12px', borderRadius: 999, border: '1px solid #334155', background: '#0f172a', color: '#cbd5e1', fontWeight: 700 }}
+                  className="nonrevy-home__chip"
                 >
                   {example}
                 </button>
@@ -114,10 +117,10 @@ export default function Home() {
             </div>
           </form>
 
-          {message && <p style={{ color: '#38bdf8', marginTop: 18, fontWeight: 700 }}>{message}</p>}
+          {message && <p className="nonrevy-home__message">{message}</p>}
 
-          <details style={{ margin: '24px auto 0', maxWidth: 620, textAlign: 'left', border: '1px solid #334155', borderRadius: 18, padding: 14, background: 'rgba(15, 23, 42, 0.72)' }}>
-            <summary style={{ color: '#94a3b8', cursor: 'pointer', fontWeight: 800 }}>Setup and activation details</summary>
+          <details className="nonrevy-home__setup">
+            <summary>Setup and activation details</summary>
             <div style={{ marginTop: 14 }}>
               <ActivationProgressCard />
             </div>

@@ -1697,6 +1697,211 @@ function RecoveryStrategySection({ comparison, comparisons }: { comparison: Itin
   )
 }
 
+type CopilotResponse = {
+  recommendedAction: string
+  bestRoute: string
+  backupRoute: string
+  recoveryStrategy: string
+  why: string[]
+}
+
+const copilotExamples = [
+  'Get me to Tokyo tomorrow.',
+  'Best Polaris route this weekend.',
+  'Open flights from SBP today.',
+  'Get me to London with the lowest risk.',
+  'Find me the best backup route to HND.'
+]
+
+function copilotIntent(prompt: string) {
+  const normalized = prompt.toLowerCase()
+  if (normalized.includes('backup') || normalized.includes('recover')) return 'backup'
+  if (normalized.includes('polaris') || normalized.includes('premium') || normalized.includes('business')) return 'premium'
+  if (normalized.includes('risk') || normalized.includes('safe')) return 'lowest-risk'
+  if (normalized.includes('fast') || normalized.includes('quick')) return 'fastest'
+  return 'recommended'
+}
+
+function chooseCopilotComparison(prompt: string, comparisons: ItineraryComparison[]) {
+  if (!comparisons.length) return null
+  const insights = buildRouteIntelligenceInsights(comparisons)
+  const intent = copilotIntent(prompt)
+  const insight = insights.find((item) => {
+    if (intent === 'backup') return item.badge === 'Most Backup Options'
+    if (intent === 'premium') return item.badge === 'Best Premium Cabin'
+    if (intent === 'lowest-risk') return item.badge === 'Lowest Risk'
+    if (intent === 'fastest') return item.badge === 'Fastest'
+    return item.badge === 'Recommended'
+  })
+  return comparisons.find((comparison) => comparison.id === insight?.comparisonId) || comparisons[0]
+}
+
+function matchingWatchlistNote(route: string, watches: ReturnType<typeof loadSavedTripWatchlist>) {
+  const routeAirports = airportCodesFromRoute(route)
+  const destination = routeAirports[routeAirports.length - 1]
+  const match = watches.find((watch) => watch.selectedItinerary === route || (destination && watch.destination === destination))
+  if (!match) return ''
+  return `Watchlist has ${match.origin} → ${match.destination} for ${match.travelDate || 'flexible dates'}, so keep that monitored while planning.`
+}
+
+function buildCopilotResponse({
+  prompt,
+  comparisons,
+  travelerProfile,
+  watches
+}: {
+  prompt: string
+  comparisons: ItineraryComparison[]
+  travelerProfile: TravelerProfileScaffold
+  watches: ReturnType<typeof loadSavedTripWatchlist>
+}): CopilotResponse {
+  const selected = chooseCopilotComparison(prompt, comparisons)
+  if (!selected) {
+    const preview = parseTripPlannerPrompt(prompt || 'Get me somewhere', travelerProfile)
+    return {
+      recommendedAction: prompt.trim() ? 'Run this as a planner search.' : 'Ask Copilot for a route, cabin, airport, or risk preference.',
+      bestRoute: `${preview.origin} → ${preview.destination}`,
+      backupRoute: 'Pending itinerary results',
+      recoveryStrategy: 'Recovery strategy appears after the itinerary engine returns route options.',
+      why: [
+        `I parsed this as ${preview.origin} to ${preview.destination} for ${preview.dateRange}.`,
+        `Traveler profile starts from ${travelerProfile.homeAirport || 'your saved home airport'} with ${travelerProfile.travelerType} assumptions.`,
+        'Submit the Copilot search to use the existing itinerary, route intelligence, and recovery engines.'
+      ]
+    }
+  }
+
+  const alternatives = alternativeRecoveryOptions(selected, comparisons)
+  const backup = alternatives[0] || comparisons.find((comparison) => comparison.id !== selected.id)
+  const recovery = buildRecoveryStrategy(selected, comparisons)
+  const watchlistNote = matchingWatchlistNote(selected.route, watches)
+  const intent = copilotIntent(prompt)
+  const action = intent === 'backup'
+    ? 'Use the strongest backup-routing option first.'
+    : intent === 'premium'
+      ? 'Prioritize cabin upside, then protect it with a backup route.'
+    : intent === 'lowest-risk'
+      ? 'Choose the lowest-risk path and keep same-day recovery ready.'
+    : intent === 'fastest'
+      ? 'Take the fastest viable arrival if the load picture holds.'
+    : 'Start with the recommended route and keep the backup warm.'
+
+  return {
+    recommendedAction: action,
+    bestRoute: selected.route,
+    backupRoute: backup?.route || 'No alternate itinerary in current results',
+    recoveryStrategy: `${recovery.badge} · ${recovery.sameDayRecoveryPossible ? 'same-day recovery is possible from current options' : 'same-day recovery is limited in current options'}.`,
+    why: [
+      `${selected.route} scores ${selected.score}/100 with ${selected.successProbability}% success probability and ${selected.routeConfidence.score}/100 confidence.`,
+      selected.connections === 0 ? 'Nonstop routing keeps transfer risk low.' : `${selected.connections} connection${selected.connections === 1 ? '' : 's'} adds risk, so Copilot is pairing it with recovery options.`,
+      `${recovery.alternativeDepartures} alternate departure option${recovery.alternativeDepartures === 1 ? '' : 's'} and ${recovery.alternativeGateways} alternate gateway${recovery.alternativeGateways === 1 ? '' : 's'} are visible in current itinerary results.`,
+      watchlistNote || `Traveler profile preference starts from ${travelerProfile.homeAirport || 'your saved home airport'} with ${travelerProfile.preferredAirports.join(', ') || 'no preferred airports set'}.`
+    ]
+  }
+}
+
+function CopilotPanel({
+  prompt,
+  setPrompt,
+  status,
+  loading,
+  comparisons,
+  travelerProfile,
+  onSubmit
+}: {
+  prompt: string
+  setPrompt: (value: string) => void
+  status: string
+  loading: boolean
+  comparisons: ItineraryComparison[]
+  travelerProfile: TravelerProfileScaffold
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void
+}) {
+  const [watches, setWatches] = useState<ReturnType<typeof loadSavedTripWatchlist>>([])
+
+  useEffect(() => {
+    function refreshWatches() {
+      setWatches(loadSavedTripWatchlist())
+    }
+
+    refreshWatches()
+    window.addEventListener('nonrevy-watchlist-updated', refreshWatches)
+    window.addEventListener('storage', refreshWatches)
+    return () => {
+      window.removeEventListener('nonrevy-watchlist-updated', refreshWatches)
+      window.removeEventListener('storage', refreshWatches)
+    }
+  }, [])
+
+  const response = useMemo(
+    () => buildCopilotResponse({ prompt, comparisons, travelerProfile, watches }),
+    [prompt, comparisons, travelerProfile, watches]
+  )
+
+  return (
+    <section style={{ border: '1px solid #7dd3fc', borderRadius: 24, padding: 'clamp(16px, 4vw, 22px)', background: 'linear-gradient(135deg, rgba(8, 47, 73, 0.72), rgba(49, 46, 129, 0.46), rgba(15, 23, 42, 0.96))', marginTop: 24 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+        <div>
+          <p style={{ color: '#67e8f9', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1, marginTop: 0 }}>NONREVY Copilot</p>
+          <h2 style={{ margin: '0 0 8px' }}>Tell Copilot what matters most.</h2>
+          <p style={{ color: '#cbd5e1', margin: 0 }}>Copilot turns plain English into planner searches, then summarizes route intelligence, recovery, profile, and watchlist signals.</p>
+        </div>
+        <span style={{ border: '1px solid #22c55e', borderRadius: 999, color: '#bbf7d0', padding: '8px 12px', fontWeight: 'bold' }}>
+          Existing planner engine
+        </span>
+      </div>
+
+      <form onSubmit={onSubmit} style={{ marginTop: 16 }}>
+        <label htmlFor="nonrevy-copilot-prompt" style={{ display: 'block', color: '#f8fafc', fontWeight: 'bold', marginBottom: 8 }}>
+          Ask Copilot
+        </label>
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 10 }}>
+          <input
+            id="nonrevy-copilot-prompt"
+            value={prompt}
+            onChange={(event) => setPrompt(event.target.value)}
+            placeholder="Get me to Tokyo tomorrow."
+            style={{ boxSizing: 'border-box', width: '100%', padding: 14, borderRadius: 16, border: '1px solid #475569', background: '#020617', color: 'white' }}
+          />
+          <button type="submit" disabled={loading} style={{ padding: '12px 18px', borderRadius: 14, border: 'none', background: loading ? '#475569' : '#67e8f9', color: '#020617', fontWeight: 'bold', cursor: loading ? 'not-allowed' : 'pointer' }}>
+            {loading ? 'Searching…' : 'Ask'}
+          </button>
+        </div>
+      </form>
+
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
+        {copilotExamples.map((example) => (
+          <button key={example} type="button" onClick={() => setPrompt(example)} style={{ padding: '8px 12px', borderRadius: 999, border: '1px solid #334155', background: '#020617', color: '#cbd5e1', fontWeight: 'bold' }}>
+            {example}
+          </button>
+        ))}
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))', gap: 12, marginTop: 16 }}>
+        {[
+          ['Recommended action', response.recommendedAction, '#67e8f9'],
+          ['Best route', response.bestRoute, '#22c55e'],
+          ['Backup route', response.backupRoute, '#facc15'],
+          ['Recovery strategy', response.recoveryStrategy, '#c084fc']
+        ].map(([label, value, color]) => (
+          <article key={label} style={{ border: '1px solid #334155', borderRadius: 16, padding: 14, background: '#020617' }}>
+            <small style={{ color: '#94a3b8' }}>{label}</small>
+            <p style={{ margin: '6px 0 0', color: String(color), fontWeight: 'bold' }}>{value}</p>
+          </article>
+        ))}
+      </div>
+
+      <section style={{ border: '1px solid #334155', borderRadius: 16, padding: 14, background: '#020617', marginTop: 14 }}>
+        <strong style={{ color: '#f8fafc' }}>Why this recommendation</strong>
+        <ul style={{ color: '#cbd5e1', paddingLeft: 20, marginBottom: 0 }}>
+          {response.why.map((reason) => <li key={reason}>{reason}</li>)}
+        </ul>
+      </section>
+      {status ? <p style={{ color: '#67e8f9', fontWeight: 'bold', marginBottom: 0 }}>{status}</p> : null}
+    </section>
+  )
+}
+
 function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: ItineraryComparison[]; travelDate: string }) {
   const [watchStatus, setWatchStatus] = useState('')
   const [compareStatus, setCompareStatus] = useState('')
@@ -2001,6 +2206,8 @@ export default function PlanPage() {
   const [confidenceUpdateTrigger, setConfidenceUpdateTrigger] = useState<ConfidenceUpdateTrigger>('local-signal-refresh')
   const [aiTripPrompt, setAiTripPrompt] = useState('get me to Maui this weekend')
   const [aiPlannerStatus, setAiPlannerStatus] = useState('AI planner scaffold ready for natural language trip requests.')
+  const [copilotPrompt, setCopilotPrompt] = useState('Get me to Tokyo tomorrow.')
+  const [copilotStatus, setCopilotStatus] = useState('Copilot ready. Ask for a route, cabin, risk preference, or backup strategy.')
   const voiceInput = useVoiceInput({
     onTranscript: (transcript) => {
       setTripGoal(transcript)
@@ -2017,11 +2224,15 @@ export default function PlanPage() {
     setQuery(initialQuery || initialAiTrip)
     if (initialAiTrip) {
       setAiTripPrompt(initialAiTrip)
+      setCopilotPrompt(initialAiTrip)
       setTripGoal(initialAiTrip)
       setAiPlannerStatus('AI trip planner scaffold parsed your homepage request.')
+      setCopilotStatus('Copilot parsed your homepage request and refreshed planner recommendations.')
       runItinerarySearch(initialAiTrip)
     } else if (initialQuery) {
       setTripGoal(initialQuery)
+      setCopilotPrompt(initialQuery)
+      setCopilotStatus('Copilot loaded your search into the planner.')
       runItinerarySearch(initialQuery)
     }
   }, [])
@@ -2231,8 +2442,27 @@ export default function PlanPage() {
 
     setTripGoal(prompt)
     setQuery(prompt)
+    setCopilotPrompt(prompt)
     setSubmitted(true)
     setAiPlannerStatus('AI planner scaffold generated route guidance and refreshed itinerary results.')
+    setCopilotStatus('Copilot is using the refreshed itinerary, route intelligence, and recovery results.')
+    window.history.replaceState(null, '', `/plan?aiTrip=${encodeURIComponent(prompt)}`)
+    await runItinerarySearch(prompt)
+  }
+
+  async function submitCopilotPrompt(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const prompt = copilotPrompt.trim()
+    if (!prompt) {
+      setCopilotStatus('Ask Copilot for a destination, cabin, risk preference, open flights, or backup route.')
+      return
+    }
+
+    setTripGoal(prompt)
+    setQuery(prompt)
+    setAiTripPrompt(prompt)
+    setSubmitted(true)
+    setCopilotStatus('Copilot translated your request into a planner search.')
     window.history.replaceState(null, '', `/plan?aiTrip=${encodeURIComponent(prompt)}`)
     await runItinerarySearch(prompt)
   }
@@ -2412,6 +2642,16 @@ export default function PlanPage() {
             </aside>
           </div>
         </section>
+
+        <CopilotPanel
+          prompt={copilotPrompt}
+          setPrompt={setCopilotPrompt}
+          status={copilotStatus}
+          loading={itineraryLoading}
+          comparisons={itineraryComparisons}
+          travelerProfile={travelerProfile}
+          onSubmit={submitCopilotPrompt}
+        />
 
         <details style={{ border: '1px solid #334155', borderRadius: 20, padding: 16, background: '#0f172a', marginTop: 18 }}>
           <summary style={{ color: '#67e8f9', cursor: 'pointer', fontWeight: 'bold' }}>Refine search settings, carrier scope, and voice input</summary>

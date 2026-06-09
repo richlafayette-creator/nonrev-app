@@ -1536,6 +1536,167 @@ function RouteIntelligenceSection({ insights }: { insights: RouteIntelligenceIns
   )
 }
 
+type RecoveryStrength = 'Strong Recovery' | 'Moderate Recovery' | 'Limited Recovery'
+
+type RecoveryPlanStep = {
+  label: 'Primary Plan' | 'Backup Plan A' | 'Backup Plan B'
+  route: string
+  summary: string
+}
+
+type RecoveryStrategy = {
+  score: number
+  badge: RecoveryStrength
+  alternativeDepartures: number
+  alternativeGateways: number
+  sameDayRecoveryPossible: boolean
+  elevatedRisk: boolean
+  plans: RecoveryPlanStep[]
+}
+
+function recoveryBadgeColor(badge: RecoveryStrength) {
+  if (badge === 'Strong Recovery') return '#22c55e'
+  if (badge === 'Moderate Recovery') return '#facc15'
+  return '#f87171'
+}
+
+function recoveryBadgeFor(score: number): RecoveryStrength {
+  if (score >= 72) return 'Strong Recovery'
+  if (score >= 45) return 'Moderate Recovery'
+  return 'Limited Recovery'
+}
+
+function routeEndpoints(route: string) {
+  const airports = airportCodesFromRoute(route)
+  return {
+    airports,
+    origin: airports[0] || '',
+    destination: airports[airports.length - 1] || ''
+  }
+}
+
+function routeGateways(route: string) {
+  const { airports } = routeEndpoints(route)
+  return airports.length > 2 ? airports.slice(1, -1) : []
+}
+
+function isElevatedRecoveryRisk(comparison: ItineraryComparison) {
+  const risk = comparison.riskLevel.toLowerCase()
+  return comparison.successProbability < 74 || comparison.routeConfidence.score < 70 || comparison.connections > 0 || risk.includes('high') || comparison.weatherRisk.scoreImpact >= 18 || comparison.disruption.disruptionImpactScore >= 22 || comparison.airportIntelligence.connectionRiskScore >= 55
+}
+
+function alternativeRecoveryOptions(current: ItineraryComparison, comparisons: ItineraryComparison[]) {
+  const currentEndpoints = routeEndpoints(current.route)
+  return comparisons
+    .filter((option) => option.id !== current.id)
+    .sort((a, b) => {
+      const aEndpoints = routeEndpoints(a.route)
+      const bEndpoints = routeEndpoints(b.route)
+      const aDestinationMatch = aEndpoints.destination && aEndpoints.destination === currentEndpoints.destination ? 18 : 0
+      const bDestinationMatch = bEndpoints.destination && bEndpoints.destination === currentEndpoints.destination ? 18 : 0
+      return (b.score + b.successProbability + backupAvailabilityScore(b) + bDestinationMatch) - (a.score + a.successProbability + backupAvailabilityScore(a) + aDestinationMatch)
+    })
+}
+
+function recoveryPlanSummary(current: ItineraryComparison, option?: ItineraryComparison, fallbackLabel?: string) {
+  if (!option) return `${fallbackLabel || 'Backup'} is not available in the current result set. Broaden the search or add another carrier/date before relying on a recovery path.`
+  const currentEndpoints = routeEndpoints(current.route)
+  const optionEndpoints = routeEndpoints(option.route)
+  const destinationMatch = currentEndpoints.destination && optionEndpoints.destination === currentEndpoints.destination
+  if (destinationMatch) return `If ${current.route} fails, try ${option.route}. It is already in this result set and keeps the same destination target.`
+  return `If ${current.route} fails, consider ${option.route}. This is an alternate gateway/path from the current recommendations, not guaranteed availability.`
+}
+
+function buildRecoveryStrategy(current: ItineraryComparison, comparisons: ItineraryComparison[]): RecoveryStrategy {
+  const alternatives = alternativeRecoveryOptions(current, comparisons)
+  const gateways = Array.from(new Set(alternatives.flatMap((option) => routeGateways(option.route))))
+  const alternativeDepartures = alternatives.length
+  const alternativeGateways = gateways.length
+  const sameDayRecoveryPossible = alternatives.some((option) => option.successProbability >= 62 && option.routeConfidence.score >= 58 && option.disruption.routeHealth !== 'Red')
+  const availabilityScore = backupAvailabilityScore(current)
+  const score = clampScore(
+    current.successProbability * 0.24 +
+    current.routeConfidence.score * 0.18 +
+    Math.min(30, alternativeDepartures * 10) +
+    Math.min(18, alternativeGateways * 6) +
+    Math.min(18, availabilityScore / 4) -
+    current.connections * 4 -
+    Math.max(0, current.weatherRisk.scoreImpact - 12) / 2 -
+    Math.max(0, current.disruption.disruptionImpactScore - 18) / 3
+  )
+  const backupA = alternatives[0]
+  const backupB = alternatives[1]
+
+  return {
+    score,
+    badge: recoveryBadgeFor(score),
+    alternativeDepartures,
+    alternativeGateways,
+    sameDayRecoveryPossible,
+    elevatedRisk: isElevatedRecoveryRisk(current),
+    plans: [
+      {
+        label: 'Primary Plan',
+        route: current.route,
+        summary: `${current.route} remains the primary plan with ${current.successProbability}% success probability and ${current.routeConfidence.score}/100 confidence.`
+      },
+      {
+        label: 'Backup Plan A',
+        route: backupA?.route || 'No current alternate itinerary',
+        summary: recoveryPlanSummary(current, backupA, 'Backup Plan A')
+      },
+      {
+        label: 'Backup Plan B',
+        route: backupB?.route || 'No second alternate itinerary',
+        summary: recoveryPlanSummary(current, backupB, 'Backup Plan B')
+      }
+    ]
+  }
+}
+
+function RecoveryStrategySection({ comparison, comparisons }: { comparison: ItineraryComparison; comparisons: ItineraryComparison[] }) {
+  const recovery = buildRecoveryStrategy(comparison, comparisons)
+  const color = recoveryBadgeColor(recovery.badge)
+
+  return (
+    <details style={{ marginTop: 14, border: `1px solid ${color}`, borderRadius: 14, padding: 12, background: '#020617' }}>
+      <summary style={{ color, cursor: 'pointer', fontWeight: 'bold' }}>
+        Recovery Strategy · {recovery.badge}
+      </summary>
+      <p style={{ color: '#cbd5e1', margin: '10px 0 0' }}>
+        {recovery.elevatedRisk
+          ? 'This itinerary has elevated risk signals, so keep these recovery moves ready before you commit.'
+          : 'Risk is currently manageable, but these are the available recovery moves from the current result set.'}
+      </p>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 150px), 1fr))', gap: 10, marginTop: 12 }}>
+        {[
+          ['Recovery Score', `${recovery.score}/100`, color],
+          ['Alternative departures', recovery.alternativeDepartures, '#38bdf8'],
+          ['Alternative gateways', recovery.alternativeGateways, '#c084fc'],
+          ['Same-day recovery', recovery.sameDayRecoveryPossible ? 'Yes' : 'No', recovery.sameDayRecoveryPossible ? '#22c55e' : '#f87171']
+        ].map(([label, value, metricColor]) => (
+          <div key={`${comparison.id}-recovery-${label}`} style={{ border: '1px solid #334155', borderRadius: 12, padding: 10, background: '#0f172a' }}>
+            <small style={{ color: '#94a3b8' }}>{label}</small>
+            <p style={{ margin: '4px 0 0', color: String(metricColor), fontWeight: 'bold' }}>{value}</p>
+          </div>
+        ))}
+      </div>
+      <div style={{ display: 'grid', gap: 10, marginTop: 12 }}>
+        {recovery.plans.map((plan) => (
+          <article key={`${comparison.id}-${plan.label}`} style={{ border: '1px solid #334155', borderRadius: 12, padding: 12, background: '#0f172a' }}>
+            <strong style={{ color: '#f8fafc' }}>{plan.label}</strong>
+            <p style={{ color: '#38bdf8', margin: '6px 0', fontWeight: 'bold' }}>{plan.route}</p>
+            <p style={{ color: '#cbd5e1', margin: 0 }}>{plan.summary}</p>
+          </article>
+        ))}
+      </div>
+      <p style={{ color: '#94a3b8', margin: '10px 0 0' }}>
+        Recovery uses only the current itinerary recommendations, airport backup-routing signals, and existing route scoring. It does not create or imply seat availability.
+      </p>
+    </details>
+  )
+}
+
 function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: ItineraryComparison[]; travelDate: string }) {
   const [watchStatus, setWatchStatus] = useState('')
   const [compareStatus, setCompareStatus] = useState('')
@@ -1728,6 +1889,8 @@ function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: It
                 <button type="button" onClick={() => saveForComparison(comparison)} style={{ padding: 12, borderRadius: 12, border: '1px solid #c084fc', background: '#1e1b4b', color: '#f5d0fe', fontWeight: 'bold' }}>Star / save itinerary</button>
                 <button type="button" onClick={() => watchRoute(comparison)} style={{ padding: 12, borderRadius: 12, border: 'none', background: isBest ? '#22c55e' : '#facc15', color: '#020617', fontWeight: 'bold' }}>Add to watchlist</button>
               </div>
+
+              <RecoveryStrategySection comparison={comparison} comparisons={comparisons} />
 
               <details style={{ marginTop: 14, border: '1px solid #334155', borderRadius: 14, padding: 12, background: '#020617' }}>
                 <summary style={{ color: '#67e8f9', cursor: 'pointer', fontWeight: 'bold' }}>Flesh out details</summary>

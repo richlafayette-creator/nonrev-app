@@ -40,6 +40,36 @@ export const airportMapScaffolds: Record<string, AirportMapScaffold> = {
     loungePlaceholder: 'Lounge availability pending provider data',
     navigationPlaceholder: 'Airport navigation placeholder'
   },
+  HND: {
+    code: 'HND',
+    name: 'Tokyo Haneda Airport',
+    latitude: 35.5494,
+    longitude: 139.7798,
+    terminalPlaceholder: 'Terminal data pending provider connection',
+    gatePlaceholder: 'Gate-level data pending provider connection',
+    loungePlaceholder: 'Premium cabin/lounge guidance pending provider data',
+    navigationPlaceholder: 'Tokyo Haneda terminal navigation placeholder'
+  },
+  NRT: {
+    code: 'NRT',
+    name: 'Tokyo Narita International Airport',
+    latitude: 35.7719,
+    longitude: 140.3929,
+    terminalPlaceholder: 'Terminal data pending provider connection',
+    gatePlaceholder: 'Gate-level data pending provider connection',
+    loungePlaceholder: 'Premium cabin/lounge guidance pending provider data',
+    navigationPlaceholder: 'Tokyo Narita terminal navigation placeholder'
+  },
+  SBP: {
+    code: 'SBP',
+    name: 'San Luis Obispo County Regional Airport',
+    latitude: 35.2368,
+    longitude: -120.6421,
+    terminalPlaceholder: 'Small-airport terminal data pending provider connection',
+    gatePlaceholder: 'Gate-level data pending provider connection',
+    loungePlaceholder: 'Lounge availability limited; verify airport amenities before travel',
+    navigationPlaceholder: 'San Luis Obispo airport navigation placeholder'
+  },
   JFK: {
     code: 'JFK',
     name: 'John F. Kennedy International Airport',

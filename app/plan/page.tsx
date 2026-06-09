@@ -4,7 +4,7 @@ import { type CSSProperties, type FormEvent, useEffect, useMemo, useState } from
 import { flightMatchesSearch } from '../../lib/flightSearch'
 import { delayRiskScore, rankItinerary } from '../../lib/intelligence'
 import { allFlightFields, fieldValue, passengerFlightCoverageNotes, richFlightFieldLabels } from '../../lib/flightDataScaffold'
-import { airportCodesFromRoute } from '../../lib/airportMapScaffold'
+import { airportCodesFromRoute, airportMapScaffolds } from '../../lib/airportMapScaffold'
 import { buildRouteAirportIntelligence, connectionRiskColor, type RouteAirportIntelligence } from '../../lib/airportIntelligence'
 import { generateAiTripPlan, parseTripPlannerPrompt } from '../../lib/aiTripPlanner'
 import { carrierScoringProfiles, getCarrierScoringScaffold, normalizeCarrierFamily, supportedCarrierOptions } from '../../lib/carrierScope'
@@ -1632,6 +1632,265 @@ function PlannerSkeletonLoaders() {
   )
 }
 
+
+type UniversalSearchCategory = 'Airport' | 'Route' | 'Itinerary' | 'Flight opportunity' | 'Premium cabin opportunity'
+
+type UniversalSearchResult = {
+  category: UniversalSearchCategory
+  title: string
+  summary: string
+  actionQuery: string
+  badge?: string
+}
+
+type UniversalSearchModel = {
+  bestInterpretation: string
+  alternateQueries: string[]
+  results: UniversalSearchResult[]
+}
+
+const universalAirportAliases: Record<string, string[]> = {
+  LAX: ['los angeles', 'la airport'],
+  HND: ['tokyo', 'haneda', 'tokyo haneda'],
+  NRT: ['tokyo', 'narita', 'tokyo narita'],
+  SBP: ['san luis obispo', 'slo', 'obispo', 'san luis'],
+  SEA: ['seattle', 'seatac', 'sea tac'],
+  SFO: ['san francisco', 'bay area'],
+  HNL: ['honolulu', 'oahu', 'hawaii'],
+  OGG: ['maui', 'kahului'],
+  JFK: ['new york', 'nyc'],
+  LHR: ['london', 'heathrow'],
+  CDG: ['paris', 'charles de gaulle']
+}
+
+const premiumCabinAliases: Record<string, string[]> = {
+  Polaris: ['polaris', 'united polaris'],
+  'Delta One': ['delta one', 'd1'],
+  'lie-flat': ['lie flat', 'lie-flat', 'flat bed', 'premium cabin', 'business class']
+}
+
+function normalizedSearchText(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
+}
+
+function compactSearchText(value: string) {
+  return normalizedSearchText(value).replace(/\s+/g, '')
+}
+
+function airportDirectory() {
+  return Object.values(airportMapScaffolds).map((airport) => ({
+    ...airport,
+    aliases: universalAirportAliases[airport.code] || []
+  }))
+}
+
+function airportMatchesUniversalQuery(query: string) {
+  const normalized = normalizedSearchText(query)
+  const compact = compactSearchText(query)
+  const codes: string[] = query.toUpperCase().match(/\b[A-Z]{3}\b/g) || []
+  return airportDirectory().filter((airport) => {
+    const fields = [airport.code, airport.name, ...(airport.aliases || [])]
+    return codes.includes(airport.code) || fields.some((field) => {
+      const normalizedField = normalizedSearchText(field)
+      const compactField = compactSearchText(field)
+      return normalizedField.includes(normalized) || normalized.includes(normalizedField) || compactField.includes(compact) || compact.includes(compactField)
+    })
+  }).slice(0, 4)
+}
+
+function universalFlightNumber(query: string) {
+  return query.toUpperCase().match(/\b(?:UA|DL|AS|HA|AA|WN|B6|NK|F9|BA|JL|NH)\s?\d{1,4}\b/)?.[0].replace(/\s+/g, '')
+}
+
+function universalCabinProduct(query: string) {
+  const normalized = normalizedSearchText(query)
+  return Object.entries(premiumCabinAliases).find(([, aliases]) => aliases.some((alias) => normalized.includes(alias)))?.[0]
+}
+
+function comparisonTouchesAirport(comparison: ItineraryComparison, code: string) {
+  return airportCodesFromRoute(comparison.route).includes(code)
+}
+
+function bestInterpretationForUniversalSearch(query: string, parsed: ReturnType<typeof parseItineraryPrompt>, airportMatches: ReturnType<typeof airportMatchesUniversalQuery>, flightNumber?: string, cabinProduct?: string) {
+  if (flightNumber) return `Flight search for ${flightNumber}`
+  if (cabinProduct) return `Premium cabin opportunity search for ${cabinProduct}`
+  if (parsed.origin && parsed.destination) return `Route search: ${parsed.origin} → ${parsed.destination}`
+  if (parsed.origin && /\b(out of|from|depart|leaving)\b/i.test(query)) return `Open-flight search from ${parsed.origin}`
+  if (parsed.destination) return `Destination search to ${parsed.destination}`
+  if (airportMatches.length === 1) return `Airport search: ${airportMatches[0].code} · ${airportMatches[0].name}`
+  if (airportMatches.length > 1) return `Ambiguous airport search; best match ${airportMatches[0].code}`
+  return 'Open-ended nonrev opportunity search'
+}
+
+function alternateQueriesForUniversalSearch(query: string, parsed: ReturnType<typeof parseItineraryPrompt>, airports: ReturnType<typeof airportMatchesUniversalQuery>, travelerProfile: TravelerProfileScaffold) {
+  const alternates = new Set<string>()
+  const home = travelerProfile.homeAirport || 'LAX'
+  airports.forEach((airport) => {
+    alternates.add(`${home} to ${airport.code}`)
+    alternates.add(`open flights out of ${airport.code} today`)
+  })
+  if (parsed.origin && !parsed.destination) {
+    alternates.add(`${parsed.origin} to SEA`)
+    alternates.add(`${parsed.origin} to LAX`)
+  }
+  if (parsed.destination && !parsed.origin) alternates.add(`${home} to ${parsed.destination}`)
+  const cabin = universalCabinProduct(query)
+  if (cabin) {
+    alternates.add(`where can I get ${cabin} from ${home}`)
+    alternates.add(`${home} to HND Polaris`)
+  }
+  if (!alternates.size) {
+    alternates.add('LAX to HND')
+    alternates.add('open flights out of SBP today')
+    alternates.add('where can I get Polaris')
+  }
+  return [...alternates].filter((alternate) => alternate.toLowerCase() !== query.trim().toLowerCase()).slice(0, 4)
+}
+
+function buildUniversalSearchModel({
+  query,
+  comparisons,
+  flights,
+  travelerProfile
+}: {
+  query: string
+  comparisons: ItineraryComparison[]
+  flights: any[]
+  travelerProfile: TravelerProfileScaffold
+}): UniversalSearchModel | null {
+  const trimmed = query.trim()
+  if (!trimmed) return null
+  const parsed = parseItineraryPrompt(trimmed)
+  const airports = airportMatchesUniversalQuery(trimmed)
+  const flightNumber = universalFlightNumber(trimmed)
+  const cabinProduct = universalCabinProduct(trimmed)
+  const results: UniversalSearchResult[] = []
+
+  airports.forEach((airport) => {
+    results.push({
+      category: 'Airport',
+      title: `${airport.code} · ${airport.name}`,
+      summary: `Use ${airport.code} as an origin, destination, or backup gateway in the planner.`,
+      actionQuery: `${travelerProfile.homeAirport || 'LAX'} to ${airport.code}`,
+      badge: 'Airport'
+    })
+  })
+
+  const routeComparisons = comparisons.filter((comparison) => {
+    if (parsed.origin && parsed.destination) return comparison.route.includes(parsed.origin) && comparison.route.includes(parsed.destination)
+    if (parsed.origin) return comparisonTouchesAirport(comparison, parsed.origin)
+    if (parsed.destination) return comparisonTouchesAirport(comparison, parsed.destination)
+    return airports.some((airport) => comparisonTouchesAirport(comparison, airport.code))
+  })
+
+  routeComparisons.slice(0, 3).forEach((comparison, index) => {
+    results.push({
+      category: index === 0 ? 'Itinerary' : 'Route',
+      title: comparison.route,
+      summary: `${comparison.carrier} · ${comparison.flightNumber} · score ${comparison.score}/100 · confidence ${comparison.routeConfidence.score}/100.`,
+      actionQuery: comparison.route.replace(/ → /g, ' to '),
+      badge: index === 0 ? 'Top itinerary' : 'Route match'
+    })
+  })
+
+  const exactFlightRows = flights.filter((flight) => flightNumber && String(flight.flight_number || flight.ident || '').replace(/\s+/g, '').toUpperCase() === flightNumber).slice(0, 3)
+  if (flightNumber && exactFlightRows.length === 0) {
+    results.push({
+      category: 'Flight opportunity',
+      title: flightNumber,
+      summary: 'Flight-number search detected. Use Expand Details or Request load after a route search to verify current standby context; this does not imply seat availability.',
+      actionQuery: flightNumber,
+      badge: 'Flight search'
+    })
+  }
+  exactFlightRows.forEach((flight) => {
+    const route = `${flight.origin || 'TBD'} → ${flight.destination || 'TBD'}`
+    results.push({
+      category: 'Flight opportunity',
+      title: `${flight.flight_number || flight.ident} · ${route}`,
+      summary: `${flight.aircraft || 'Aircraft pending'} · ${flight.status || 'Status pending'} · score ${flight.score ?? 'pending'}.`,
+      actionQuery: `${flight.flight_number || flight.ident}`,
+      badge: 'Flight match'
+    })
+  })
+
+  const premiumMatches = (cabinProduct ? comparisons : comparisons.filter((comparison) => premiumCabinScore(comparison) >= 150))
+    .filter((comparison) => cabinProduct || /polaris|delta|united|lie|widebody|777|787|a330|a350/i.test(`${comparison.carrier} ${comparison.flightNumber} ${comparison.route}`))
+    .slice(0, 3)
+  premiumMatches.forEach((comparison) => {
+    results.push({
+      category: 'Premium cabin opportunity',
+      title: `${cabinProduct || 'Premium cabin'} · ${comparison.route}`,
+      summary: `${comparison.carrier} signal with long-haul/premium-airport routing. Verify aircraft and loads before acting.`,
+      actionQuery: `${comparison.route.replace(/ → /g, ' to ')} ${cabinProduct || 'premium cabin'}`,
+      badge: cabinProduct || 'Premium'
+    })
+  })
+
+  const deduped = results.filter((result, index, all) => all.findIndex((item) => `${item.category}-${item.title}` === `${result.category}-${result.title}`) === index).slice(0, 8)
+  return {
+    bestInterpretation: bestInterpretationForUniversalSearch(trimmed, parsed, airports, flightNumber, cabinProduct),
+    alternateQueries: alternateQueriesForUniversalSearch(trimmed, parsed, airports, travelerProfile),
+    results: deduped.length ? deduped : [{
+      category: 'Route',
+      title: trimmed,
+      summary: 'Open-ended search detected. Run it through the planner to turn this into ranked itinerary recommendations and recovery options.',
+      actionQuery: trimmed,
+      badge: 'Open search'
+    }]
+  }
+}
+
+function UniversalSearchPanel({
+  query,
+  comparisons,
+  flights,
+  travelerProfile,
+  onChoose
+}: {
+  query: string
+  comparisons: ItineraryComparison[]
+  flights: any[]
+  travelerProfile: TravelerProfileScaffold
+  onChoose: (query: string) => void
+}) {
+  const model = useMemo(() => buildUniversalSearchModel({ query, comparisons, flights, travelerProfile }), [query, comparisons, flights, travelerProfile])
+  if (!model) return null
+
+  return (
+    <section className="nonrevy-results-shell" style={{ border: '1px solid #334155', borderRadius: 22, padding: 'clamp(14px, 3vw, 18px)', background: 'rgba(15, 23, 42, 0.82)', marginTop: 18 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+        <div>
+          <p style={{ color: '#67e8f9', fontWeight: 900, letterSpacing: 1, textTransform: 'uppercase', margin: 0 }}>Universal search</p>
+          <h2 style={{ margin: '6px 0', fontSize: 24 }}>Best interpretation: {model.bestInterpretation}</h2>
+          <p style={{ color: '#94a3b8', margin: 0 }}>Search matches airports, routes, itineraries, flight numbers, and premium cabin opportunities without exposing technical diagnostics.</p>
+        </div>
+        {model.alternateQueries.length ? (
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', maxWidth: 520 }}>
+            {model.alternateQueries.map((alternate) => (
+              <button key={alternate} type="button" onClick={() => onChoose(alternate)} style={{ border: '1px solid #475569', borderRadius: 999, background: '#020617', color: '#cbd5e1', padding: '8px 10px', fontWeight: 700 }}>
+                {alternate}
+              </button>
+            ))}
+          </div>
+        ) : null}
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 230px), 1fr))', gap: 12, marginTop: 14 }}>
+        {model.results.map((result) => (
+          <article key={`${result.category}-${result.title}`} style={{ border: '1px solid #1e293b', borderRadius: 16, padding: 14, background: '#020617' }}>
+            <small style={{ color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 1, fontWeight: 900 }}>{result.category}</small>
+            <h3 style={{ color: '#f8fafc', margin: '6px 0', fontSize: 18 }}>{result.title}</h3>
+            <p style={{ color: '#cbd5e1', margin: '0 0 10px' }}>{result.summary}</p>
+            <button type="button" onClick={() => onChoose(result.actionQuery)} style={{ border: '1px solid #38bdf8', borderRadius: 999, background: '#082f49', color: '#cffafe', padding: '8px 10px', fontWeight: 800 }}>
+              Search this
+            </button>
+          </article>
+        ))}
+      </div>
+    </section>
+  )
+}
+
 function recommendationLabel(index: number) {
   if (index === 0) return 'Best Option'
   if (index === 1) return 'Backup Option'
@@ -2560,6 +2819,21 @@ export default function PlanPage() {
     await runItinerarySearch(prompt)
   }
 
+
+  function runUniversalSearchChoice(nextQuery: string) {
+    const prompt = nextQuery.trim()
+    if (!prompt) return
+    setTripGoal(prompt)
+    setQuery(prompt)
+    setAiTripPrompt(prompt)
+    setCopilotPrompt(prompt)
+    setSubmitted(true)
+    setAiPlannerStatus('Universal search interpreted your airport, route, flight, cabin, or open-ended request.')
+    setCopilotStatus('Copilot is using the universal search interpretation with current route intelligence and recovery signals.')
+    window.history.replaceState(null, '', `/plan?aiTrip=${encodeURIComponent(prompt)}`)
+    void runItinerarySearch(prompt)
+  }
+
   const matchingFlights = useMemo(
     () => flights.filter((flight) => flightMatchesSearch(flight, query || tripGoal)),
     [flights, query, tripGoal]
@@ -2679,18 +2953,18 @@ export default function PlanPage() {
         </details>
 
         <section className="nonrevy-planner-card" style={{ border: '1px solid #c084fc', borderRadius: 24, padding: 'clamp(16px, 4vw, 22px)', background: 'linear-gradient(135deg, rgba(49, 46, 129, 0.66), rgba(15, 23, 42, 0.96))', marginTop: 24, overflow: 'hidden' }}>
-          <p style={{ color: '#c084fc', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1, marginTop: 0 }}>AI Trip Planner scaffold</p>
+          <p style={{ color: '#c084fc', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1, marginTop: 0 }}>Universal AI search</p>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 320px), 1fr))', gap: 18, alignItems: 'start', width: '100%' }}>
             <form onSubmit={submitAiTripPlanner} style={{ minWidth: 0 }}>
-              <h2 style={{ fontSize: 30, margin: '0 0 10px' }}>Ask in natural language.</h2>
+              <h2 style={{ fontSize: 30, margin: '0 0 10px' }}>Search airports, routes, flights, cabins, or trip ideas.</h2>
               <p style={{ color: '#cbd5e1' }}>
-                Examples: “get me to Maui this weekend”, “best Hawaii trip from LAX tomorrow”, “cheapest nonrev path to Tokyo”.
+                Examples: “LAX to HND”, “UA39”, “San Luis Obispo”, “open flights out of SBP today”, “where can I get Polaris”.
               </p>
               <textarea
                 value={aiTripPrompt}
                 onChange={(event) => setAiTripPrompt(event.target.value)}
                 rows={4}
-                placeholder="cheapest nonrev path to Tokyo"
+                placeholder="LAX to HND, UA39, Tokyo Haneda, Polaris, open flights out of SBP today..."
                 style={{ boxSizing: 'border-box', width: '100%', padding: 14, borderRadius: 16, border: '1px solid #475569', background: '#020617', color: 'white' }}
               />
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 150px), 1fr))', gap: 10, marginTop: 12 }}>
@@ -2707,7 +2981,7 @@ export default function PlanPage() {
                 ))}
               </div>
               <button type="submit" style={{ marginTop: 14, padding: '14px 18px', borderRadius: 12, border: 'none', background: '#c084fc', color: '#020617', fontWeight: 'bold' }}>
-                Generate AI trip plan
+                Search with AI
               </button>
               <p style={{ color: '#d8b4fe', marginBottom: 0 }}>{aiPlannerStatus}</p>
             </form>
@@ -2744,6 +3018,14 @@ export default function PlanPage() {
           comparisons={itineraryComparisons}
           travelerProfile={travelerProfile}
           onSubmit={submitCopilotPrompt}
+        />
+
+        <UniversalSearchPanel
+          query={query || tripGoal || aiTripPrompt || copilotPrompt}
+          comparisons={itineraryComparisons}
+          flights={flights}
+          travelerProfile={travelerProfile}
+          onChoose={runUniversalSearchChoice}
         />
 
         <details style={{ border: '1px solid #334155', borderRadius: 20, padding: 16, background: '#0f172a', marginTop: 18 }}>

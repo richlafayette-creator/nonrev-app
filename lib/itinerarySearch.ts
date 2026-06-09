@@ -174,7 +174,12 @@ const airportAliases: Record<string, string> = {
   hnl: 'HNL',
   ogg: 'OGG',
   hnd: 'HND',
-  nrt: 'NRT'
+  nrt: 'NRT',
+  sbp: 'SBP',
+  sanluisobispo: 'SBP',
+  obispo: 'SBP',
+  slo: 'SBP',
+  sanluis: 'SBP'
 }
 
 const fillerRouteWords = new Set(['get', 'me', 'the', 'to', 'for', 'via', 'and', 'non', 'rev', 'nonrev', 'path', 'cheapest'])

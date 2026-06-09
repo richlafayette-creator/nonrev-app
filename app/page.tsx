@@ -70,7 +70,7 @@ export default function Home() {
 
           <h1 className="nonrevy-home__headline">Tell us where. We’ll rank the way.</h1>
           <p className="nonrevy-home__subhead">
-            Search in plain English. Get concise itinerary cards with route intelligence, recovery strategy, cabin upside, and load-request actions.
+            Search airports, routes, flight numbers, cabins, or open-ended trip ideas. Get concise itinerary cards with route intelligence, recovery strategy, cabin upside, and load-request actions.
           </p>
 
           <form onSubmit={submitSearch} className="nonrevy-home__search-card">
@@ -83,7 +83,7 @@ export default function Home() {
                 id="homepage-ai-search"
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder="LAX to HND tomorrow"
+                placeholder="LAX, Tokyo Haneda, UA39, Polaris, or SBP to SEA"
                 autoComplete="off"
                 className="nonrevy-home__input"
               />
@@ -104,6 +104,7 @@ export default function Home() {
             </div>
 
             <div className="nonrevy-home__proof" aria-label="Planner capabilities">
+              <span>Universal search</span>
               <span>Route intelligence</span>
               <span>Recovery plans</span>
               <span>Watchlist-ready</span>

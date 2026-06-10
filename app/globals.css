@@ -1361,3 +1361,51 @@ body {
   padding-left: clamp(16px, 4vw, 32px) !important;
   padding-right: clamp(16px, 4vw, 32px) !important;
 }
+
+.nonrevy-itinerary-row__summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1.35fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.nonrevy-itinerary-row__score {
+  text-align: right;
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .nonrevy-results-shell {
+    padding: 10px !important;
+  }
+
+  .nonrevy-itinerary-row {
+    padding: 8px !important;
+  }
+
+  .nonrevy-itinerary-row__summary {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 6px 8px;
+  }
+
+  .nonrevy-itinerary-row__carrier,
+  .nonrevy-itinerary-row__route {
+    grid-column: 1;
+  }
+
+  .nonrevy-itinerary-row__score {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    align-self: center;
+  }
+
+  .nonrevy-itinerary-row__meta {
+    gap: 4px !important;
+    margin-top: 6px !important;
+  }
+
+  .nonrevy-itinerary-row__meta span {
+    padding: 3px 7px !important;
+    font-size: 11px !important;
+  }
+}

@@ -2461,25 +2461,28 @@ function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: It
         {compactItineraries.map((comparison, index) => {
           const nextBackup = compactItineraries[index + 1] || compactItineraries.find((item) => item.id !== comparison.id)
           const scoreColor = successScoreColor(comparison.successPrediction.probability)
+          const legCount = comparison.connections + 1
           return (
             <article key={comparison.id} className="flight-card nonrevy-itinerary-row" style={{ border: '1px solid #1e293b', borderLeft: `5px solid ${scoreColor}`, borderRadius: 14, padding: 10, background: '#0f172a' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.15fr) minmax(0, 1.2fr) auto', gap: 8, alignItems: 'center' }}>
-                <div style={{ minWidth: 0 }}>
+              <div className="nonrevy-itinerary-row__summary">
+                <div className="nonrevy-itinerary-row__carrier" style={{ minWidth: 0 }}>
                   <strong style={{ color: '#f8fafc', display: 'block', overflowWrap: 'anywhere' }}>{comparison.carrier}</strong>
                   <small style={{ color: '#94a3b8', display: 'block', overflowWrap: 'anywhere' }}>{comparison.flightNumber}</small>
                 </div>
-                <div style={{ minWidth: 0 }}>
+                <div className="nonrevy-itinerary-row__route" style={{ minWidth: 0 }}>
                   <strong style={{ color: '#e0f2fe', display: 'block', overflowWrap: 'anywhere' }}>{comparison.route}</strong>
-                  <small style={{ color: '#cbd5e1' }}>{formatItineraryDateTime(comparison.departureDateTime)} → {formatItineraryDateTime(comparison.arrivalDateTime)}</small>
+                  <small style={{ color: '#cbd5e1', display: 'block' }}>Dep {formatItineraryDateTime(comparison.departureDateTime)}</small>
+                  <small style={{ color: '#cbd5e1', display: 'block' }}>Arr {formatItineraryDateTime(comparison.arrivalDateTime)}</small>
                 </div>
-                <div style={{ textAlign: 'right' }}>
+                <div className="nonrevy-itinerary-row__score">
                   <strong style={{ color: scoreColor, fontSize: 22 }}>{comparison.successPrediction.probability}%</strong>
-                  <small style={{ color: '#94a3b8', display: 'block' }}>{comparison.totalTravelTime}</small>
+                  <small style={{ color: '#94a3b8', display: 'block' }}>Success</small>
                 </div>
               </div>
 
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', marginTop: 8 }}>
-                <span style={{ border: '1px solid #334155', borderRadius: 999, padding: '4px 8px', color: '#cbd5e1', background: '#020617', fontSize: 12, fontWeight: 800 }}>{compactLegLabel(comparison.connections)} · {comparison.connections + 1} leg{comparison.connections === 0 ? '' : 's'}</span>
+              <div className="nonrevy-itinerary-row__meta" style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', marginTop: 8 }}>
+                <span style={{ border: '1px solid #334155', borderRadius: 999, padding: '4px 8px', color: '#cbd5e1', background: '#020617', fontSize: 12, fontWeight: 800 }}>{comparison.totalTravelTime}</span>
+                <span style={{ border: '1px solid #334155', borderRadius: 999, padding: '4px 8px', color: '#cbd5e1', background: '#020617', fontSize: 12, fontWeight: 800 }}>{compactLegLabel(comparison.connections)} · {legCount} leg{legCount === 1 ? '' : 's'}</span>
                 <span style={{ border: `1px solid ${scoreColor}`, borderRadius: 999, padding: '4px 8px', color: scoreColor, background: '#020617', fontSize: 12, fontWeight: 900 }}>{comparison.successPrediction.badge}</span>
                 <span style={{ border: '1px solid #334155', borderRadius: 999, padding: '4px 8px', color: '#bae6fd', background: '#082f49', fontSize: 12, fontWeight: 800 }}>Confidence {comparison.successPrediction.confidenceLevel}</span>
                 <span style={{ border: '1px solid #334155', borderRadius: 999, padding: '4px 8px', color: '#fecaca', background: '#450a0a', fontSize: 12, fontWeight: 800 }}>Risk {comparison.successPrediction.riskLevel}</span>
@@ -3222,7 +3225,7 @@ export default function PlanPage() {
         </details>
 
         <section style={{ marginTop: 30 }}>
-          <h2 style={{ fontSize: 30 }}>Top recommendations</h2>
+          <h2 style={{ fontSize: 26, marginBottom: 10 }}>Feasible itineraries</h2>
           {itineraryLoading ? (
             <p style={{ color: '#facc15' }}>{itineraryStatus}</p>
           ) : null}
@@ -3234,6 +3237,8 @@ export default function PlanPage() {
               </p>
             </div>
           ) : null}
+          {itineraryLoading ? <PlannerSkeletonLoaders /> : null}
+          <ItineraryComparisonPanel comparisons={itineraryComparisons} travelDate={travelWindow} />
           <details className="nonrevy-premium-details" style={{ border: '1px solid #334155', borderRadius: 16, padding: 14, background: '#020617', marginBottom: 16 }}>
             <summary style={{ color: '#38bdf8', cursor: 'pointer', fontWeight: 'bold' }}>Developer Diagnostics</summary>
             <p style={{ color: '#94a3b8', marginTop: 12 }}>{itineraryStatus} · Source: {itinerarySource}</p>
@@ -3508,8 +3513,6 @@ export default function PlanPage() {
               </div>
             ) : null}
           </details>
-          {itineraryLoading ? <PlannerSkeletonLoaders /> : null}
-          <ItineraryComparisonPanel comparisons={itineraryComparisons} travelDate={travelWindow} />
           {liveItineraries.length > 0 ? (
             <details className="nonrevy-premium-details" style={{ border: '1px solid #334155', borderRadius: 18, padding: 14, background: '#020617', marginTop: 16 }}>
               <summary style={{ color: '#67e8f9', cursor: 'pointer', fontWeight: 'bold' }}>Developer Diagnostics: flight details, airport details, aircraft, duration, connection notes, and provider data</summary>

@@ -14,6 +14,7 @@ import { effectiveLoadReportWeight, loadLoadReports, loadReportSignal, loadRepor
 import { calculatePredictionEngine } from '../../lib/predictionEngine'
 import { buildDisruptionIntelligence, routeHealthColor, type DisruptionIntelligence } from '../../lib/disruptionIntelligence'
 import { calculateRouteConfidence, confidenceBadgeColor, confidenceTrendColor, confidenceUpdateTriggerLabel, type ConfidenceTrend, type ConfidenceUpdateTrigger, type RouteConfidence } from '../../lib/routeConfidence'
+import { calculateSuccessPrediction, successPredictionBadgeColor, type CarrierCoverage, type RecoveryStrength as PredictionRecoveryStrength, type ScheduleDensity, type SuccessPrediction } from '../../lib/successPredictionEngine'
 import { getRouteWeatherRisk, weatherRiskColor, type WeatherRisk } from '../../lib/weatherIntelligence'
 import { defaultTravelerProfile, loadTravelerProfileFromStorage, travelerProfileAssumptions, type TravelerProfileScaffold } from '../../lib/travelerProfile'
 import { useVoiceInput } from '../../lib/useVoiceInput'
@@ -425,6 +426,7 @@ type ItineraryComparison = {
   dataFreshnessDetail?: string
   disruption: DisruptionIntelligence
   routeConfidence: RouteConfidence
+  successPrediction: SuccessPrediction
   weatherRisk: WeatherRisk
   airportIntelligence: RouteAirportIntelligence
   communityReports: LoadReport[]
@@ -719,6 +721,26 @@ function buildFallbackDemoItineraries({
     .sort((a, b) => b.ranking.score - a.ranking.score)
 }
 
+
+function carrierCoverageForComparison(carrier: string, providerBadges: string[] = []): CarrierCoverage {
+  const normalized = carrier.toLowerCase()
+  if (providerBadges.length >= 2 || normalized.includes('united') || normalized.includes('delta') || normalized.includes('alaska')) return 'Strong'
+  if (providerBadges.length === 1) return 'Moderate'
+  return 'Limited'
+}
+
+function scheduleDensityForComparison(connections: number, backupAvailability: string, totalTravelTime: string): ScheduleDensity {
+  if ((backupAvailability === 'Excellent' || backupAvailability === 'Good') && connections <= 1) return 'High'
+  if (totalTravelTime.includes('Pending') || connections > 2 || backupAvailability === 'Limited') return 'Low'
+  return 'Medium'
+}
+
+function recoveryStrengthForComparison(backupAvailability: string, disruption: DisruptionIntelligence): PredictionRecoveryStrength {
+  if ((backupAvailability === 'Excellent' || backupAvailability === 'Good') && disruption.routeHealth !== 'Red') return 'Strong'
+  if (backupAvailability === 'Fair' || disruption.routeHealth === 'Yellow') return 'Moderate'
+  return 'Limited'
+}
+
 function buildLiveItineraryComparison(
   itinerary: LiveItineraryResult,
   predictionEngine: ReturnType<typeof calculatePredictionEngine>,
@@ -775,12 +797,27 @@ function buildLiveItineraryComparison(
     weatherRisk,
     updateTrigger
   })
+  const totalTravelTime = totalTravelTimeFromItinerary(itinerary)
+  const successPrediction = calculateSuccessPrediction({
+    route: itinerary.route,
+    baseSuccessProbability: successProbability,
+    routeConfidenceScore: routeConfidence.score,
+    connectionCount: connections,
+    totalTravelTime,
+    backupAvailability: airportIntelligence.backupFlightAvailability,
+    carrierCoverage: carrierCoverageForComparison(itinerary.carrier, itinerary.providerBadges),
+    scheduleDensity: scheduleDensityForComparison(connections, airportIntelligence.backupFlightAvailability, totalTravelTime),
+    recoveryStrength: recoveryStrengthForComparison(airportIntelligence.backupFlightAvailability, disruption),
+    routeRisk: riskLevel,
+    travelerProfile,
+    historicalLoadSignal: loadAdjustment
+  })
   const explanation = buildScoringExplanation({
     route: itinerary.route,
     carrier: itinerary.carrier,
     score,
-    successProbability,
-    riskLevel,
+    successProbability: successPrediction.probability,
+    riskLevel: successPrediction.riskLevel,
     connections,
     isLive: itinerary.productionAvailability !== false,
     sourceScore: itinerary.score,
@@ -807,10 +844,10 @@ function buildLiveItineraryComparison(
     route: itinerary.route,
     carrier: itinerary.carrier,
     score,
-    successProbability,
-    riskLevel,
+    successProbability: successPrediction.probability,
+    riskLevel: successPrediction.riskLevel,
     connections,
-    totalTravelTime: totalTravelTimeFromItinerary(itinerary),
+    totalTravelTime,
     flightNumber: itinerary.flightNumber,
     isLive: itinerary.productionAvailability !== false,
     providerBadges: itinerary.providerBadges?.length ? itinerary.providerBadges : [itinerary.source.includes('aviationstack') || itinerary.source.includes('flightaware') ? 'Live provider API data' : 'Stored Supabase flight data', ...(itinerary.source.includes('flightaware') ? ['FlightAware enriched'] : [])],
@@ -818,6 +855,7 @@ function buildLiveItineraryComparison(
     dataFreshnessDetail: itinerary.dataFreshnessDetail,
     disruption,
     routeConfidence,
+    successPrediction,
     weatherRisk,
     airportIntelligence,
     communityReports: routeReports,
@@ -898,12 +936,27 @@ function buildFallbackItineraryComparison(
     weatherRisk,
     updateTrigger
   })
+  const totalTravelTime = fallbackTravelTimeEstimate(itinerary)
+  const successPrediction = calculateSuccessPrediction({
+    route: itinerary.route,
+    baseSuccessProbability: successProbability,
+    routeConfidenceScore: routeConfidence.score,
+    connectionCount: connections,
+    totalTravelTime,
+    backupAvailability: airportIntelligence.backupFlightAvailability,
+    carrierCoverage: carrierCoverageForComparison(carrierLabel, ['Planning fallback']),
+    scheduleDensity: scheduleDensityForComparison(connections, airportIntelligence.backupFlightAvailability, totalTravelTime),
+    recoveryStrength: recoveryStrengthForComparison(airportIntelligence.backupFlightAvailability, disruption),
+    routeRisk: riskLevel,
+    travelerProfile,
+    historicalLoadSignal: loadAdjustment
+  })
   const explanation = buildScoringExplanation({
     route: itinerary.route,
     carrier: carrierLabel,
     score,
-    successProbability,
-    riskLevel,
+    successProbability: successPrediction.probability,
+    riskLevel: successPrediction.riskLevel,
     connections,
     isLive: false,
     sourceScore: itinerary.ranking.score,
@@ -930,15 +983,16 @@ function buildFallbackItineraryComparison(
     route: itinerary.route,
     carrier: carrierLabel,
     score,
-    successProbability,
-    riskLevel,
+    successProbability: successPrediction.probability,
+    riskLevel: successPrediction.riskLevel,
     connections,
-    totalTravelTime: fallbackTravelTimeEstimate(itinerary),
+    totalTravelTime,
     flightNumber: itinerary.title,
     isLive: false,
     providerBadges: ['Planning fallback'],
     disruption,
     routeConfidence,
+    successPrediction,
     weatherRisk,
     airportIntelligence,
     communityReports: routeReports,
@@ -2404,6 +2458,24 @@ function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: It
                 {carrierFlightSummary(comparison)}
               </p>
 
+              <section style={{ border: `1px solid ${successPredictionBadgeColor(comparison.successPrediction.badge)}`, borderRadius: 18, padding: 14, background: 'rgba(2, 6, 23, 0.88)', margin: '12px 0' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <div>
+                    <small style={{ color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 1, fontWeight: 900 }}>Success Prediction</small>
+                    <p style={{ margin: '5px 0 0', color: successPredictionBadgeColor(comparison.successPrediction.badge), fontWeight: 950, fontSize: 28 }}>{comparison.successPrediction.probability}% <span style={{ fontSize: 16 }}>{comparison.successPrediction.label}</span></p>
+                  </div>
+                  <span style={{ border: `1px solid ${successPredictionBadgeColor(comparison.successPrediction.badge)}`, borderRadius: 999, padding: '7px 10px', color: successPredictionBadgeColor(comparison.successPrediction.badge), fontWeight: 900 }}>{comparison.successPrediction.badge}</span>
+                </div>
+                <p style={{ color: '#cbd5e1', fontWeight: 800, margin: '10px 0 6px' }}>Reasoning:</p>
+                <ul style={{ color: '#cbd5e1', margin: 0, paddingLeft: 18 }}>
+                  {comparison.successPrediction.reasoning.map((reason) => <li key={`${comparison.id}-${reason}`}>{reason}</li>)}
+                </ul>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
+                  <span style={{ border: '1px solid #334155', borderRadius: 999, padding: '5px 8px', color: '#bae6fd', background: '#082f49', fontSize: 12, fontWeight: 800 }}>Confidence: {comparison.successPrediction.confidenceLevel}</span>
+                  <span style={{ border: '1px solid #334155', borderRadius: 999, padding: '5px 8px', color: '#fecaca', background: '#450a0a', fontSize: 12, fontWeight: 800 }}>Risk: {comparison.successPrediction.riskLevel}</span>
+                </div>
+              </section>
+
               <div className="nonrevy-decision-score" style={{ border: `1px solid ${recommendationAccent(index)}`, borderRadius: 16, padding: 12, background: '#020617', marginBottom: 12 }}>
                 <small style={{ color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 1, fontWeight: 900 }}>Score / confidence</small>
                 <p style={{ margin: '5px 0 0', color: recommendationAccent(index), fontWeight: 950, fontSize: 22 }}>{comparison.score}/100 · {comparison.routeConfidence.score}/100 confidence</p>
@@ -2448,7 +2520,7 @@ function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: It
                   <WeatherRiskBadge weatherRisk={comparison.weatherRisk} />
                 </div>
                 {comparison.dataFreshnessDetail ? <p style={{ color: '#fde68a', margin: '0 0 12px' }}>{comparison.dataFreshnessDetail}</p> : null}
-                <SuccessScoreDial score={comparison.successProbability} />
+                <SuccessScoreDial score={comparison.successPrediction.probability} />
                 <RecoveryStrategySection comparison={comparison} comparisons={comparisons} />
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 160px), 1fr))', gap: 10, marginTop: 12 }}>
                   {[

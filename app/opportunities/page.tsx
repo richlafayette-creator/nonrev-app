@@ -7,6 +7,7 @@ import { buildDisruptionIntelligence } from '../../lib/disruptionIntelligence'
 import { airportCodesFromRoute } from '../../lib/airportMapScaffold'
 import { historicalRoutes } from '../../lib/historicalRoutes'
 import { calculateRouteConfidence } from '../../lib/routeConfidence'
+import { calculateSuccessPrediction, successPredictionBadgeColor, type SuccessPrediction } from '../../lib/successPredictionEngine'
 import { saveSavedSearch } from '../../lib/savedSearches'
 import { loadTravelerProfileFromStorage, type TravelerProfileScaffold } from '../../lib/travelerProfile'
 import { loadSavedTripWatchlist, saveTripWatch } from '../../lib/watchlist'
@@ -38,6 +39,7 @@ type OpportunitySeed = {
 
 type OpportunityCard = OpportunitySeed & {
   successScore: number
+  successPrediction: SuccessPrediction
   confidenceBadge: string
   confidenceScore: number
   routeIntelligence: string
@@ -205,6 +207,23 @@ function routeRegionTags(route: string) {
   return international ? ['International' as const] : ['Domestic' as const]
 }
 
+
+function opportunityScheduleDensity(seed: OpportunitySeed) {
+  if (seed.sameDay || seed.tags.includes('Highest Success')) return 'High' as const
+  if (seed.tags.includes('International') && seed.tags.includes('Premium Cabin')) return 'Medium' as const
+  return 'Medium' as const
+}
+
+function opportunityCarrierCoverage(carrier: OpportunitySeed['carrier']) {
+  return carrier === 'Alaska Group' ? 'Moderate' as const : 'Strong' as const
+}
+
+function opportunityRecoveryStrength(backupAvailability: string, routeHealth: string) {
+  if ((backupAvailability === 'Excellent' || backupAvailability === 'Good') && routeHealth !== 'Red') return 'Strong' as const
+  if (backupAvailability === 'Fair' || routeHealth === 'Yellow') return 'Moderate' as const
+  return 'Limited' as const
+}
+
 function buildOpportunity(seed: OpportunitySeed, travelerProfile: TravelerProfileScaffold): OpportunityCard {
   const airportIntelligence = buildRouteAirportIntelligence(seed.route)
   const disruption = buildDisruptionIntelligence({ route: seed.route })
@@ -223,12 +242,26 @@ function buildOpportunity(seed: OpportunitySeed, travelerProfile: TravelerProfil
   const scaffold = getCarrierScoringScaffold(carrierValue, travelerProfile)
   const profileBoost = travelerProfile.employeeAirline === seed.carrier ? 3 : seed.route.includes(travelerProfile.homeAirport) ? 2 : 0
   const successScore = clampScore(seed.baseScore * 0.48 + confidence.score * 0.28 + scaffold.successProbability.probability * 0.18 - airportIntelligence.connectionRiskScore * 0.04 - disruption.disruptionImpactScore * 0.02 + profileBoost)
+  const successPrediction = calculateSuccessPrediction({
+    route: seed.route,
+    baseSuccessProbability: successScore,
+    routeConfidenceScore: confidence.score,
+    connectionCount: Math.max(0, airportCodesFromRoute(seed.route).length - 2),
+    totalTravelTime: seed.tags.includes('International') ? 'Long-haul window' : 'Same-day candidate',
+    backupAvailability: airportIntelligence.backupFlightAvailability,
+    carrierCoverage: opportunityCarrierCoverage(seed.carrier),
+    scheduleDensity: opportunityScheduleDensity(seed),
+    recoveryStrength: opportunityRecoveryStrength(airportIntelligence.backupFlightAvailability, disruption.routeHealth),
+    routeRisk: scaffold.successProbability.riskCategory,
+    travelerProfile
+  })
   const tags = [...new Set([...seed.tags, carrierFilter(seed.carrier), ...routeRegionTags(seed.route), ...(seed.cabinSignal.toLowerCase().includes('premium') || seed.cabinSignal.toLowerCase().includes('polaris') || seed.cabinSignal.toLowerCase().includes('delta one') ? ['Premium Cabin' as const] : [])])]
 
   return {
     ...seed,
     tags,
     successScore,
+    successPrediction,
     confidenceBadge: confidence.badge,
     confidenceScore: confidence.score,
     routeIntelligence: `${airportIntelligence.backupFlightAvailability} backup depth · ${airportIntelligence.overallConnectionDifficulty.toLowerCase()} connection profile · ${carrierScoringProfiles[carrierValue].routeIntelligence['Best Hub']} hub signal`,
@@ -251,7 +284,7 @@ function filterOpportunities(opportunities: OpportunityCard[], filters: Opportun
   })
 
   return filterSet.has('Highest Success')
-    ? [...filtered].sort((a, b) => b.successScore - a.successScore)
+    ? [...filtered].sort((a, b) => b.successPrediction.probability - a.successPrediction.probability)
     : filtered
 }
 
@@ -276,9 +309,9 @@ function OpportunityCardView({ opportunity, onSave, onWatchlist }: { opportunity
           <h2 style={{ fontSize: 25, lineHeight: 1.05, margin: '8px 0 6px' }}>{opportunity.route}</h2>
           <p style={{ color: '#cbd5e1', margin: 0 }}>{opportunity.carrier} · {opportunity.cabinSignal}</p>
         </div>
-        <div style={{ minWidth: 82, textAlign: 'center', border: `1px solid ${accent}`, borderRadius: 18, padding: '10px 8px', background: 'rgba(2, 6, 23, 0.78)' }}>
-          <strong style={{ color: accent, display: 'block', fontSize: 28 }}>{opportunity.successScore}</strong>
-          <small style={{ color: '#94a3b8', fontWeight: 800 }}>Success</small>
+        <div style={{ minWidth: 92, textAlign: 'center', border: `1px solid ${successPredictionBadgeColor(opportunity.successPrediction.badge)}`, borderRadius: 18, padding: '10px 8px', background: 'rgba(2, 6, 23, 0.78)' }}>
+          <strong style={{ color: successPredictionBadgeColor(opportunity.successPrediction.badge), display: 'block', fontSize: 28 }}>{opportunity.successPrediction.probability}%</strong>
+          <small style={{ color: '#94a3b8', fontWeight: 800 }}>Prediction</small>
         </div>
       </div>
 
@@ -288,6 +321,18 @@ function OpportunityCardView({ opportunity, onSave, onWatchlist }: { opportunity
         ))}
         <span style={{ border: '1px solid #334155', borderRadius: 999, padding: '6px 9px', color: '#d8b4fe', background: '#1e1b4b', fontSize: 12, fontWeight: 800 }}>{opportunity.confidenceBadge} confidence · {opportunity.confidenceScore}</span>
       </div>
+
+      <section style={{ border: `1px solid ${successPredictionBadgeColor(opportunity.successPrediction.badge)}`, borderRadius: 16, padding: 12, background: 'rgba(2, 6, 23, 0.72)', marginBottom: 10 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          <strong style={{ color: successPredictionBadgeColor(opportunity.successPrediction.badge) }}>Success Prediction {opportunity.successPrediction.probability}% {opportunity.successPrediction.label}</strong>
+          <span style={{ border: `1px solid ${successPredictionBadgeColor(opportunity.successPrediction.badge)}`, borderRadius: 999, padding: '5px 8px', color: successPredictionBadgeColor(opportunity.successPrediction.badge), fontSize: 12, fontWeight: 900 }}>{opportunity.successPrediction.badge}</span>
+        </div>
+        <p style={{ color: '#cbd5e1', margin: '8px 0 4px', fontWeight: 800 }}>Reasoning:</p>
+        <ul style={{ color: '#cbd5e1', margin: 0, paddingLeft: 18 }}>
+          {opportunity.successPrediction.reasoning.map((reason) => <li key={`${opportunity.id}-${reason}`}>{reason}</li>)}
+        </ul>
+        <p style={{ color: '#94a3b8', margin: '8px 0 0' }}>Confidence: {opportunity.successPrediction.confidenceLevel} · Risk: {opportunity.successPrediction.riskLevel}</p>
+      </section>
 
       <section style={{ display: 'grid', gap: 10 }}>
         <div style={{ border: '1px solid #1e293b', borderRadius: 16, padding: 12, background: 'rgba(2, 6, 23, 0.62)' }}>
@@ -322,7 +367,7 @@ export default function OpportunitiesPage() {
 
   const opportunities = useMemo(() => opportunitySeeds.map((seed) => buildOpportunity(seed, travelerProfile)), [travelerProfile])
   const visibleOpportunities = useMemo(() => filterOpportunities(opportunities, activeFilters), [opportunities, activeFilters])
-  const topOpportunities = useMemo(() => [...opportunities].sort((a, b) => b.successScore - a.successScore).slice(0, 3), [opportunities])
+  const topOpportunities = useMemo(() => [...opportunities].sort((a, b) => b.successPrediction.probability - a.successPrediction.probability).slice(0, 3), [opportunities])
 
   function toggleFilter(filter: OpportunityFilter) {
     setActiveFilters((current) => current.includes(filter) ? current.filter((item) => item !== filter) : [...current, filter])
@@ -339,10 +384,10 @@ export default function OpportunitiesPage() {
       travelDate: 'today',
       carrier: opportunity.carrier,
       score: opportunity.successScore,
-      successProbability: opportunity.successScore,
+      successProbability: opportunity.successPrediction.probability,
       routeConfidenceScore: opportunity.confidenceScore,
       confidenceBadge: opportunity.confidenceBadge,
-      riskLevel: opportunity.confidenceScore >= 78 ? 'Low' : opportunity.confidenceScore >= 64 ? 'Medium' : 'High',
+      riskLevel: opportunity.successPrediction.riskLevel,
       connections: Math.max(0, airportCodesFromRoute(opportunity.route).length - 2),
       totalTravelTime: opportunity.tags.includes('International') ? 'Long-haul window' : 'Same-day candidate'
     })
@@ -379,7 +424,7 @@ export default function OpportunitiesPage() {
             <a key={opportunity.id} href={`/plan?aiTrip=${encodeURIComponent(opportunity.plannerQuery)}`} style={{ textDecoration: 'none', color: 'inherit', border: '1px solid rgba(148, 163, 184, 0.28)', borderRadius: 18, padding: 14, background: 'rgba(15, 23, 42, 0.7)' }}>
               <small style={{ color: '#94a3b8', fontWeight: 900 }}>Today’s Best Opportunities</small>
               <h2 style={{ margin: '6px 0', fontSize: 18 }}>{opportunity.route}</h2>
-              <p style={{ margin: 0, color: '#67e8f9', fontWeight: 900 }}>{opportunity.successScore}/100 success · open planner</p>
+              <p style={{ margin: 0, color: '#67e8f9', fontWeight: 900 }}>{opportunity.successPrediction.probability}% prediction · open planner</p>
             </a>
           ))}
         </section>

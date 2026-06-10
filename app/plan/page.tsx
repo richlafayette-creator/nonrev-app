@@ -2926,6 +2926,7 @@ export default function PlanPage() {
       <nav className="top-nav" style={{ marginBottom: 24 }}>
         <a href="/" style={{ marginRight: 16, color: '#38bdf8' }}>Home</a>
         <a href="/plan" style={{ marginRight: 16, color: '#fb7185' }}>Plan</a>
+        <a href="/opportunities" style={{ marginRight: 16, color: '#67e8f9' }}>Opportunities</a>
         <a href="/requests" style={{ marginRight: 16, color: '#c084fc' }}>Open Requests</a>
         <a href="/my-requests" style={{ marginRight: 16, color: '#facc15' }}>My Requests</a>
         <a href="/historical-routes" style={{ marginRight: 16, color: '#facc15' }}>Historical Routes</a>

@@ -43,6 +43,7 @@ export default function Home() {
     <main className="app-shell nonrevy-home" style={{ minHeight: '100vh', color: 'white' }}>
       <nav className="top-nav nonrevy-home__nav" style={{ marginBottom: 24, justifyContent: 'center' }}>
         <a href="/plan" style={{ marginRight: 16, color: '#fb7185' }}>Plan</a>
+        <a href="/opportunities" style={{ marginRight: 16, color: '#67e8f9' }}>Opportunities</a>
         <a href="/saved-searches" style={{ marginRight: 16, color: '#67e8f9' }}>Saved Searches</a>
         <a href="/watchlist" style={{ marginRight: 16, color: '#facc15' }}>Watchlist</a>
         <a href="/requests" style={{ marginRight: 16, color: '#c084fc' }}>Open Requests</a>
@@ -125,6 +126,16 @@ export default function Home() {
           </form>
 
           {message && <p className="nonrevy-home__message">{message}</p>}
+
+          <section className="nonrevy-home__setup" style={{ marginTop: 18 }} aria-label="Today's Best Opportunities">
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+              <div>
+                <p style={{ color: '#67e8f9', fontWeight: 900, letterSpacing: 1, textTransform: 'uppercase', margin: 0 }}>Today’s Best Opportunities</p>
+                <p style={{ color: '#cbd5e1', margin: '6px 0 0' }}>Discover Polaris, Delta One, Hawaii, Europe, Asia, same-day, and hidden-gem nonrev ideas.</p>
+              </div>
+              <a href="/opportunities" style={{ color: '#020617', background: '#67e8f9', borderRadius: 999, padding: '10px 14px', fontWeight: 900, textDecoration: 'none' }}>Open feed</a>
+            </div>
+          </section>
 
           <details className="nonrevy-home__setup">
             <summary>Setup and activation details</summary>

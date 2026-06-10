@@ -14,7 +14,7 @@ import { effectiveLoadReportWeight, loadLoadReports, loadReportSignal, loadRepor
 import { calculatePredictionEngine } from '../../lib/predictionEngine'
 import { buildDisruptionIntelligence, routeHealthColor, type DisruptionIntelligence } from '../../lib/disruptionIntelligence'
 import { calculateRouteConfidence, confidenceBadgeColor, confidenceTrendColor, confidenceUpdateTriggerLabel, type ConfidenceTrend, type ConfidenceUpdateTrigger, type RouteConfidence } from '../../lib/routeConfidence'
-import { calculateSuccessPrediction, successPredictionBadgeColor, type CarrierCoverage, type RecoveryStrength as PredictionRecoveryStrength, type ScheduleDensity, type SuccessPrediction } from '../../lib/successPredictionEngine'
+import { calculateSuccessPrediction, type CarrierCoverage, type RecoveryStrength as PredictionRecoveryStrength, type ScheduleDensity, type SuccessPrediction, type SuccessPredictionInput } from '../../lib/successPredictionEngine'
 import { getRouteWeatherRisk, weatherRiskColor, type WeatherRisk } from '../../lib/weatherIntelligence'
 import { defaultTravelerProfile, loadTravelerProfileFromStorage, travelerProfileAssumptions, type TravelerProfileScaffold } from '../../lib/travelerProfile'
 import { useVoiceInput } from '../../lib/useVoiceInput'
@@ -440,6 +440,7 @@ type ItineraryComparison = {
   disruption: DisruptionIntelligence
   routeConfidence: RouteConfidence
   successPrediction: SuccessPrediction
+  loadSupport: NonNullable<SuccessPredictionInput['loadData']>
   weatherRisk: WeatherRisk
   airportIntelligence: RouteAirportIntelligence
   communityReports: LoadReport[]
@@ -536,6 +537,55 @@ function loadReportAdjustment(reports: LoadReport[]) {
   return reports.reduce((total, report) => total + loadReportSignal(report), 0)
 }
 
+function loadSupportFromReports(reports: LoadReport[]): NonNullable<SuccessPredictionInput['loadData']> {
+  if (!reports.length) {
+    return {
+      status: 'missing',
+      detail: 'This is route confidence, not verified seat availability. Request a fresh load to show success probability.'
+    }
+  }
+
+  const structuredReports = reports
+    .filter((report) => typeof report.seatsAvailableEstimate === 'number' && typeof report.standbysClearedEstimate === 'number')
+    .sort((a, b) => (b.reportTrustScore * effectiveLoadReportWeight(b)) - (a.reportTrustScore * effectiveLoadReportWeight(a)))
+  const bestStructured = structuredReports[0]
+  if (!bestStructured) {
+    return {
+      status: 'weak',
+      detail: 'Matching load reports do not include both available-seat and standby-demand counts. Needs Load before showing success probability.'
+    }
+  }
+
+  const effectiveWeight = effectiveLoadReportWeight(bestStructured)
+  const trusted = bestStructured.verified !== false && bestStructured.reportTrustScore >= 70 && bestStructured.confidenceLevel !== 'Low'
+  if (effectiveWeight < 0.36) {
+    return {
+      status: 'stale',
+      seatsAvailable: bestStructured.seatsAvailableEstimate ?? undefined,
+      standbyCount: bestStructured.standbysClearedEstimate ?? undefined,
+      source: loadReportSummary(bestStructured),
+      detail: `Matching load report is stale or low-recency (${effectiveWeight}x effective weight). Needs a fresh load before showing success probability.`
+    }
+  }
+  if (!trusted) {
+    return {
+      status: 'weak',
+      seatsAvailable: bestStructured.seatsAvailableEstimate ?? undefined,
+      standbyCount: bestStructured.standbysClearedEstimate ?? undefined,
+      source: loadReportSummary(bestStructured),
+      detail: `Matching load report is not trusted enough for success probability (trust ${bestStructured.reportTrustScore}/100, confidence ${bestStructured.confidenceLevel}). Needs Load.`
+    }
+  }
+
+  return {
+    status: bestStructured.verified ? 'verified' : 'trusted',
+    seatsAvailable: bestStructured.seatsAvailableEstimate ?? undefined,
+    standbyCount: bestStructured.standbysClearedEstimate ?? undefined,
+    source: loadReportSummary(bestStructured),
+    detail: loadReportSummary(bestStructured)
+  }
+}
+
 function reportTrustAndRecencySummary(reports: LoadReport[]) {
   if (!reports.length) return 'No community report trust/recency signal yet.'
   const averageTrust = Math.round(reports.reduce((total, report) => total + report.reportTrustScore, 0) / reports.length)
@@ -568,7 +618,7 @@ function buildScoringExplanation(input: ScoringExplanationInput): ScoringExplana
 
   return {
     whyRankedHere: [
-      `Rank is driven by composite score ${input.score}/100 and success probability ${input.successProbability}%, then sorted against the other itinerary recommendations.`,
+      `Rank is driven by composite score ${input.score}/100 and displayed load-aware score ${input.successProbability}%, then sorted against the other itinerary recommendations.`,
       input.isLive
         ? `Provider itinerary score ${input.sourceScore}/100 receives extra weight because it reflects the current result source for ${input.route}.`
         : `Planning scaffold rank ${input.sourceScore}/100 is used when no provider matching itinerary is available.`,
@@ -579,7 +629,7 @@ function buildScoringExplanation(input: ScoringExplanationInput): ScoringExplana
     ],
     probabilityFactors: [
       `Probability engine baseline starts at ${input.predictionEngine.successProbability}% with ${input.predictionEngine.confidencePercent}% confidence.`,
-      `Current formula blends baseline probability, source route score, historical success ${input.historicalSuccess}%, historical score ${input.historicalScore}, community load adjustment ${input.loadAdjustment >= 0 ? '+' : ''}${input.loadAdjustment.toFixed(1)}, outcome calibration, and connection penalty.`,
+      `Current formula blends route-planning probability, source route score, historical success ${input.historicalSuccess}%, historical score ${input.historicalScore}, community load adjustment ${input.loadAdjustment >= 0 ? '+' : ''}${input.loadAdjustment.toFixed(1)}, outcome calibration, connection penalty, and a conservative load-data gate.`,
       `Prediction summary: carrier base ${input.predictionEngine.inputSummary.carrierDefaultProbability}%, route risk ${input.predictionEngine.inputSummary.routeRisk}, community report count ${input.predictionEngine.inputSummary.communityReportCount}, outcome success ${input.predictionEngine.inputSummary.outcomeSuccessRate}%.`
     ],
     carrierFactors: [
@@ -609,7 +659,7 @@ function buildScoringExplanation(input: ScoringExplanationInput): ScoringExplana
     ],
     disruptionFactors: [
       `Route health is ${input.disruption.routeHealth} with disruption impact score ${input.disruption.disruptionImpactScore}/99.`,
-      `Disruption adjustment: ${input.disruption.successProbabilityImpact} points to success probability and ${input.disruption.routeRankingImpact} points to route ranking.`,
+      `Disruption adjustment: ${input.disruption.successProbabilityImpact} points to planning confidence and ${input.disruption.routeRankingImpact} points to route ranking.`,
       ...input.disruption.explanation
     ],
     confidenceFactors: [
@@ -619,7 +669,7 @@ function buildScoringExplanation(input: ScoringExplanationInput): ScoringExplana
     ],
     weatherFactors: [
       `Weather risk is ${input.weatherRisk.category} with ${input.weatherRisk.scoreImpact}/40 placeholder impact.`,
-      `Weather adjustment: ${input.weatherRisk.successProbabilityImpact} points to success probability and ${input.weatherRisk.routeRankingImpact} points to route ranking.`,
+      `Weather adjustment: ${input.weatherRisk.successProbabilityImpact} points to planning confidence and ${input.weatherRisk.routeRankingImpact} points to route ranking.`,
       `Weather source: ${input.weatherRisk.source}; status: ${input.weatherRisk.status}.`,
       ...input.weatherRisk.details,
       ...input.weatherRisk.diagnostics
@@ -632,12 +682,12 @@ function buildScoringExplanation(input: ScoringExplanationInput): ScoringExplana
     ],
     placeholderWeights: [
       'Live/source route score: about 24–52% depending on data source.',
-      'Probability engine baseline: about 34–36% of success probability.',
+      'Probability engine baseline: about 34–36% of planning score before the load-data gate.',
       'Historical success and score: about 34% combined before adjustments.',
       'Community load reports: seats/standbys, confidence, contributor trust, and recency are weighted, then capped between -8 and +8 points.',
       'Flight disruption intelligence: delays, cancellations, diversions, and airport alerts can reduce probability and ranking after the base score.',
-      'Weather intelligence layer: weather risk can reduce success probability and route ranking through live or placeholder provider signals.',
-      'Route confidence engine: success probability, historical route data, community reports, traveler profile, disruption, and weather are blended into a 0–100 confidence score.',
+      'Weather intelligence layer: weather risk can reduce planning confidence and route ranking through live or placeholder provider signals.',
+      'Route confidence engine: historical route data, community reports, traveler profile, disruption, weather, and capped planning score are blended into a 0–100 confidence score.',
       'Airport intelligence layer: static terminal, connection, walking, hub-strength, and backup availability data produce a connection risk score.',
       'Connections: -4 points per connection in the recommendation comparison.'
     ]
@@ -768,6 +818,7 @@ function buildLiveItineraryComparison(
 ): ItineraryComparison {
   const historicalRoute = matchingHistoricalRoute(itinerary.route, historicalRoutes)
   const routeReports = matchingRouteLoadReports(itinerary.route, loadReports)
+  const loadSupport = loadSupportFromReports(routeReports)
   const routeOutcomes = matchingRouteOutcomes(itinerary.route, outcomes)
   const outcomeRate = outcomeSuccessRate(routeOutcomes)
   const connections = Math.max(0, itinerary.legs.length - 1)
@@ -823,7 +874,8 @@ function buildLiveItineraryComparison(
     recoveryStrength: recoveryStrengthForComparison(airportIntelligence.backupFlightAvailability, disruption),
     routeRisk: riskLevel,
     travelerProfile,
-    historicalLoadSignal: loadAdjustment
+    historicalLoadSignal: loadAdjustment,
+    loadData: loadSupport
   })
   const explanation = buildScoringExplanation({
     route: itinerary.route,
@@ -874,6 +926,7 @@ function buildLiveItineraryComparison(
     disruption,
     routeConfidence,
     successPrediction,
+    loadSupport,
     weatherRisk,
     airportIntelligence,
     communityReports: routeReports,
@@ -881,7 +934,7 @@ function buildLiveItineraryComparison(
     why: [
       `Blends provider itinerary score ${itinerary.score}/100 with probability engine baseline ${predictionEngine.successProbability}%.`,
       `Route confidence engine scores this option ${routeConfidence.score}/100 (${routeConfidence.badge}) with a ${routeConfidence.trend} trend.`,
-      `Weather intelligence labels this route ${weatherRisk.category} and adjusts success probability by ${weatherRisk.successProbabilityImpact} point${weatherRisk.successProbabilityImpact === 1 || weatherRisk.successProbabilityImpact === -1 ? '' : 's'}.`,
+      `Weather intelligence labels this route ${weatherRisk.category} and adjusts planning confidence by ${weatherRisk.successProbabilityImpact} point${weatherRisk.successProbabilityImpact === 1 || weatherRisk.successProbabilityImpact === -1 ? '' : 's'}.`,
       `Airport intelligence gives this route a ${airportIntelligence.connectionRiskScore}/100 connection risk score and ${airportIntelligence.backupFlightAvailability} backup flight availability.`,
       `Disruption intelligence adjusts this option by ${disruption.successProbabilityImpact} probability points and ${disruption.routeRankingImpact} ranking points; route health is ${disruption.routeHealth}.`,
       historicalRoute
@@ -913,6 +966,7 @@ function buildFallbackItineraryComparison(
 ): ItineraryComparison {
   const historicalRoute = matchingHistoricalRoute(itinerary.route, historicalRoutes)
   const routeReports = matchingRouteLoadReports(itinerary.route, loadReports)
+  const loadSupport = loadSupportFromReports(routeReports)
   const routeOutcomes = matchingRouteOutcomes(itinerary.route, outcomes)
   const outcomeRate = outcomeSuccessRate(routeOutcomes)
   const airportCount = itinerary.route.split('→').length
@@ -967,7 +1021,8 @@ function buildFallbackItineraryComparison(
     recoveryStrength: recoveryStrengthForComparison(airportIntelligence.backupFlightAvailability, disruption),
     routeRisk: riskLevel,
     travelerProfile,
-    historicalLoadSignal: loadAdjustment
+    historicalLoadSignal: loadAdjustment,
+    loadData: loadSupport
   })
   const explanation = buildScoringExplanation({
     route: itinerary.route,
@@ -1015,6 +1070,7 @@ function buildFallbackItineraryComparison(
     disruption,
     routeConfidence,
     successPrediction,
+    loadSupport,
     weatherRisk,
     airportIntelligence,
     communityReports: routeReports,
@@ -1022,7 +1078,7 @@ function buildFallbackItineraryComparison(
     why: [
       `Combines fallback ranking ${itinerary.ranking.score}/100 with probability engine baseline ${predictionEngine.successProbability}%.`,
       `Route confidence engine scores this option ${routeConfidence.score}/100 (${routeConfidence.badge}) with a ${routeConfidence.trend} trend.`,
-      `Weather intelligence labels this route ${weatherRisk.category} and adjusts success probability by ${weatherRisk.successProbabilityImpact} point${weatherRisk.successProbabilityImpact === 1 || weatherRisk.successProbabilityImpact === -1 ? '' : 's'}.`,
+      `Weather intelligence labels this route ${weatherRisk.category} and adjusts planning confidence by ${weatherRisk.successProbabilityImpact} point${weatherRisk.successProbabilityImpact === 1 || weatherRisk.successProbabilityImpact === -1 ? '' : 's'}.`,
       `Airport intelligence gives this route a ${airportIntelligence.connectionRiskScore}/100 connection risk score and ${airportIntelligence.backupFlightAvailability} backup flight availability.`,
       `Disruption intelligence adjusts this option by ${disruption.successProbabilityImpact} probability points and ${disruption.routeRankingImpact} ranking points; route health is ${disruption.routeHealth}.`,
       historicalRoute
@@ -1041,10 +1097,15 @@ function buildFallbackItineraryComparison(
 }
 
 
-function successScoreColor(value: number) {
-  if (value >= 75) return '#22c55e'
-  if (value >= 60) return '#facc15'
+function successScoreColor(value: number, isLoadSupported = false) {
+  if (isLoadSupported && value >= 72) return '#22c55e'
+  if (value >= 55) return '#facc15'
   return '#f87171'
+}
+
+function loadAwareScorePhrase(comparison: ItineraryComparison) {
+  if (comparison.successPrediction.scoreLabel === 'Needs Load') return 'Needs Load before success probability'
+  return `${comparison.successPrediction.displayValue} ${comparison.successPrediction.scoreLabel.toLowerCase()}`
 }
 
 function formatItineraryDateTime(value: string) {
@@ -1158,7 +1219,7 @@ function backupRouteReasoning(comparison: ItineraryComparison, backup?: Itinerar
 
   const scoreGap = comparison.score - backup.score
   return [
-    `${backup.route} is the current backup because it ranks next after ${comparison.route} with score ${backup.score}/100 and ${backup.successProbability}% success probability.`,
+    `${backup.route} is the current backup because it ranks next after ${comparison.route} with score ${backup.score}/100 and ${loadAwareScorePhrase(backup)}.`,
     scoreGap >= 0
       ? `Primary route leads by ${scoreGap} point${scoreGap === 1 ? '' : 's'}, so the backup should be monitored if loads tighten or delays appear.`
       : `Backup currently scores higher on one signal, but this card remains ordered by the blended recommendation sort.`,
@@ -1596,7 +1657,7 @@ function buildRouteIntelligenceInsights(comparisons: ItineraryComparison[]): Rou
       title: 'Lowest risk option',
       route: lowestRisk.route,
       comparisonId: lowestRisk.id,
-      summary: `${lowestRisk.route} keeps the risk profile cleanest with ${lowestRisk.successProbability}% success probability and ${lowestRisk.connections === 0 ? 'no connections' : `${lowestRisk.connections} connection${lowestRisk.connections === 1 ? '' : 's'}`}.`,
+      summary: `${lowestRisk.route} keeps the risk profile cleanest with ${loadAwareScorePhrase(lowestRisk)} and ${lowestRisk.connections === 0 ? 'no connections' : `${lowestRisk.connections} connection${lowestRisk.connections === 1 ? '' : 's'}`}.`,
       color: routeIntelligenceColor('Lowest Risk')
     },
     {
@@ -2138,7 +2199,7 @@ function buildRecoveryStrategy(current: ItineraryComparison, comparisons: Itiner
       {
         label: 'Primary Plan',
         route: current.route,
-        summary: `${current.route} remains the primary plan with ${current.successProbability}% success probability and ${current.routeConfidence.score}/100 confidence.`
+        summary: `${current.route} remains the primary plan with ${loadAwareScorePhrase(current)} and ${current.routeConfidence.score}/100 route confidence.`
       },
       {
         label: 'Backup Plan A',
@@ -2292,7 +2353,7 @@ function buildCopilotResponse({
     backupRoute: backup?.route || 'No alternate itinerary in current results',
     recoveryStrategy: `${recovery.badge} · ${recovery.sameDayRecoveryPossible ? 'same-day recovery is possible from current options' : 'same-day recovery is limited in current options'}.`,
     why: [
-      `${selected.route} scores ${selected.score}/100 with ${selected.successProbability}% success probability and ${selected.routeConfidence.score}/100 confidence.`,
+      `${selected.route} scores ${selected.score}/100 with ${loadAwareScorePhrase(selected)} and ${selected.routeConfidence.score}/100 route confidence.`,
       selected.connections === 0 ? 'Nonstop routing keeps transfer risk low.' : `${selected.connections} connection${selected.connections === 1 ? '' : 's'} adds risk, so Copilot is pairing it with recovery options.`,
       `${recovery.alternativeDepartures} alternate departure option${recovery.alternativeDepartures === 1 ? '' : 's'} and ${recovery.alternativeGateways} alternate gateway${recovery.alternativeGateways === 1 ? '' : 's'} are visible in current itinerary results.`,
       watchlistNote || `Traveler profile preference starts from ${travelerProfile.homeAirport || 'your saved home airport'} with ${travelerProfile.preferredAirports.join(', ') || 'no preferred airports set'}.`
@@ -2516,7 +2577,7 @@ function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: It
       <div style={{ display: 'grid', gap: 8 }}>
         {compactItineraries.map((comparison, index) => {
           const nextBackup = compactItineraries[index + 1] || compactItineraries.find((item) => item.id !== comparison.id)
-          const scoreColor = successScoreColor(comparison.successPrediction.probability)
+          const scoreColor = successScoreColor(comparison.successPrediction.probability, comparison.successPrediction.isLoadSupported)
           const routeAirports = airportCodesFromComparisonRoute(comparison.route)
           const legCount = comparison.connections + 1
           return (
@@ -2532,8 +2593,8 @@ function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: It
                   <small style={{ color: '#cbd5e1', display: 'block' }}>Arr {formatItineraryAirportDateTime(comparison.arrivalDateTime, routeAirports[routeAirports.length - 1])}</small>
                 </div>
                 <div className="nonrevy-itinerary-row__score">
-                  <strong style={{ color: scoreColor, fontSize: 22 }}>{comparison.successPrediction.probability}%</strong>
-                  <small style={{ color: '#94a3b8', display: 'block' }}>Success</small>
+                  <strong style={{ color: scoreColor, fontSize: 22 }}>{comparison.successPrediction.displayValue}</strong>
+                  <small style={{ color: '#94a3b8', display: 'block' }}>{comparison.successPrediction.scoreLabel}</small>
                 </div>
               </div>
 
@@ -2542,11 +2603,12 @@ function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: It
                 <span style={{ border: '1px solid #334155', borderRadius: 999, padding: '4px 8px', color: '#cbd5e1', background: '#020617', fontSize: 12, fontWeight: 800 }}>{compactLegLabel(comparison.connections)} · {legCount} leg{legCount === 1 ? '' : 's'}</span>
                 <span style={{ border: `1px solid ${scoreColor}`, borderRadius: 999, padding: '4px 8px', color: scoreColor, background: '#020617', fontSize: 12, fontWeight: 900 }}>{comparison.successPrediction.badge}</span>
                 <span style={{ border: '1px solid #334155', borderRadius: 999, padding: '4px 8px', color: '#bae6fd', background: '#082f49', fontSize: 12, fontWeight: 800 }}>Confidence {comparison.successPrediction.confidenceLevel}</span>
+                {!comparison.successPrediction.isLoadSupported ? <span style={{ border: '1px solid #facc15', borderRadius: 999, padding: '4px 8px', color: '#fde68a', background: '#422006', fontSize: 12, fontWeight: 900 }}>Route confidence only</span> : null}
                 <span style={{ border: '1px solid #334155', borderRadius: 999, padding: '4px 8px', color: '#fecaca', background: '#450a0a', fontSize: 12, fontWeight: 800 }}>Risk {comparison.successPrediction.riskLevel}</span>
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 6, marginTop: 8 }}>
-                <button type="button" onClick={() => requestLoad(comparison)} style={{ padding: '8px 6px', borderRadius: 10, border: 'none', background: '#38bdf8', color: '#020617', fontWeight: 'bold', fontSize: 12 }}>Request load</button>
+                <button type="button" onClick={() => requestLoad(comparison)} style={{ padding: '8px 6px', borderRadius: 10, border: 'none', background: comparison.successPrediction.needsLoad ? '#facc15' : '#38bdf8', color: '#020617', fontWeight: 'bold', fontSize: 12 }}>{comparison.successPrediction.needsLoad ? 'Request load first' : 'Request load'}</button>
                 <button type="button" onClick={() => saveForComparison(comparison)} style={{ padding: '8px 6px', borderRadius: 10, border: '1px solid #c084fc', background: '#1e1b4b', color: '#f5d0fe', fontWeight: 'bold', fontSize: 12 }}>Save/star</button>
                 <button type="button" onClick={() => watchRoute(comparison)} style={{ padding: '8px 6px', borderRadius: 10, border: '1px solid #facc15', background: '#422006', color: '#fef3c7', fontWeight: 'bold', fontSize: 12 }}>Watchlist</button>
               </div>
@@ -2556,6 +2618,8 @@ function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: It
                 <div style={{ display: 'grid', gap: 10, marginTop: 10 }}>
                   <section style={{ border: '1px solid #1e293b', borderRadius: 12, padding: 10, background: '#0f172a' }}>
                     <strong style={{ color: '#f8fafc' }}>Why this score?</strong>
+                    <p style={{ color: '#fde68a', margin: '6px 0 0', fontWeight: 'bold' }}>{comparison.successPrediction.loadExplanation}</p>
+                    {comparison.loadSupport.source ? <p style={{ color: '#bae6fd', margin: '4px 0 0' }}>Load source: {comparison.loadSupport.source}</p> : null}
                     <p style={{ color: '#cbd5e1', margin: '6px 0 0' }}>{plainEnglishRationale(comparison, index)}</p>
                     <ul style={{ color: '#cbd5e1', margin: '6px 0 0', paddingLeft: 18 }}>
                       {comparison.successPrediction.reasoning.map((reason) => <li key={`${comparison.id}-${reason}`}>{reason}</li>)}
@@ -2625,7 +2689,7 @@ function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: It
             {savedComparisons.map((item) => (
               <article key={item.id} style={{ border: '1px solid #334155', borderRadius: 12, padding: 10, background: '#0f172a' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center' }}>
-                  <p style={{ color: '#cbd5e1', margin: 0 }}>{item.carrier} · {item.route} · Success {item.successProbability}% · {item.totalTravelTime}</p>
+                  <p style={{ color: '#cbd5e1', margin: 0 }}>{item.carrier} · {item.route} · Saved score {item.successProbability}% · {item.totalTravelTime}</p>
                   <button type="button" onClick={() => removeComparison(item.id)} style={{ padding: '7px 9px', borderRadius: 10, border: '1px solid #f87171', background: '#1f2937', color: '#fecaca', fontWeight: 'bold' }}>Remove</button>
                 </div>
               </article>

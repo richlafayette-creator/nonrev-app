@@ -310,8 +310,8 @@ function OpportunityCardView({ opportunity, onSave, onWatchlist }: { opportunity
           <p style={{ color: '#cbd5e1', margin: 0 }}>{opportunity.carrier} · {opportunity.cabinSignal}</p>
         </div>
         <div style={{ minWidth: 92, textAlign: 'center', border: `1px solid ${successPredictionBadgeColor(opportunity.successPrediction.badge)}`, borderRadius: 18, padding: '10px 8px', background: 'rgba(2, 6, 23, 0.78)' }}>
-          <strong style={{ color: successPredictionBadgeColor(opportunity.successPrediction.badge), display: 'block', fontSize: 28 }}>{opportunity.successPrediction.probability}%</strong>
-          <small style={{ color: '#94a3b8', fontWeight: 800 }}>Prediction</small>
+          <strong style={{ color: successPredictionBadgeColor(opportunity.successPrediction.badge), display: 'block', fontSize: 28 }}>{opportunity.successPrediction.displayValue}</strong>
+          <small style={{ color: '#94a3b8', fontWeight: 800 }}>{opportunity.successPrediction.scoreLabel}</small>
         </div>
       </div>
 
@@ -324,7 +324,7 @@ function OpportunityCardView({ opportunity, onSave, onWatchlist }: { opportunity
 
       <section style={{ border: `1px solid ${successPredictionBadgeColor(opportunity.successPrediction.badge)}`, borderRadius: 16, padding: 12, background: 'rgba(2, 6, 23, 0.72)', marginBottom: 10 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-          <strong style={{ color: successPredictionBadgeColor(opportunity.successPrediction.badge) }}>Success Prediction {opportunity.successPrediction.probability}% {opportunity.successPrediction.label}</strong>
+          <strong style={{ color: successPredictionBadgeColor(opportunity.successPrediction.badge) }}>{opportunity.successPrediction.scoreLabel} {opportunity.successPrediction.displayValue} {opportunity.successPrediction.label}</strong>
           <span style={{ border: `1px solid ${successPredictionBadgeColor(opportunity.successPrediction.badge)}`, borderRadius: 999, padding: '5px 8px', color: successPredictionBadgeColor(opportunity.successPrediction.badge), fontSize: 12, fontWeight: 900 }}>{opportunity.successPrediction.badge}</span>
         </div>
         <p style={{ color: '#cbd5e1', margin: '8px 0 4px', fontWeight: 800 }}>Reasoning:</p>

@@ -123,6 +123,8 @@ type LiveItineraryLeg = {
   destination: string
   carrier: string
   flightNumber: string
+  operatingFlightNumber?: string
+  marketingFlightNumbers?: string[]
   departureTime: string
   arrivalTime: string
   duration?: string
@@ -139,6 +141,7 @@ type LiveItineraryLeg = {
   source: string
   sourceProvider?: string
   sourceCheckedAt?: string
+  duplicateCount?: number
 }
 
 type LiveItineraryResult = {
@@ -147,6 +150,8 @@ type LiveItineraryResult = {
   legs: LiveItineraryLeg[]
   carrier: string
   flightNumber: string
+  operatingFlightNumber?: string
+  marketingFlightNumbers?: string[]
   departureTime: string
   arrivalTime: string
   duration?: string
@@ -167,6 +172,7 @@ type LiveItineraryResult = {
   requestedDate?: string
   matchedDate?: string
   productionAvailability?: boolean
+  duplicateCount?: number
 }
 
 type ProviderStatus = {
@@ -314,6 +320,8 @@ type ItineraryDebugMetadata = {
     aircraft: string
     status: string
   }
+  deduplicationNotes?: string[]
+  deduplicatedRowsRemoved?: number
   safeErrors: string[]
 }
 
@@ -424,6 +432,7 @@ type ItineraryComparison = {
   aircraftDetails: string
   sourceDetails: string
   flightNumber: string
+  marketingFlightNumbers?: string[]
   isLive: boolean
   providerBadges: string[]
   dataFreshnessLabel?: string
@@ -855,8 +864,9 @@ function buildLiveItineraryComparison(
     departureDateTime: itinerary.legs[0]?.departureTime || itinerary.departureTime || 'Pending',
     arrivalDateTime: itinerary.legs[itinerary.legs.length - 1]?.arrivalTime || itinerary.arrivalTime || 'Pending',
     aircraftDetails: itinerary.legs.map((leg) => [leg.flightNumber, leg.aircraft, leg.status].filter(Boolean).join(' · ')).join(' | ') || itinerary.aircraft || 'Pending provider details',
-    sourceDetails: itinerary.dataFreshnessDetail || itinerary.dataFreshnessLabel || itinerary.providerBadges?.join(' · ') || itinerary.sourceProvider || itinerary.source || 'Provider data',
-    flightNumber: itinerary.flightNumber,
+    sourceDetails: [itinerary.dataFreshnessDetail || itinerary.dataFreshnessLabel || itinerary.providerBadges?.join(' · ') || itinerary.sourceProvider || itinerary.source || 'Provider data', itinerary.marketingFlightNumbers?.length ? `Codeshares shown in details only: ${itinerary.marketingFlightNumbers.join(', ')}` : ''].filter(Boolean).join(' · '),
+    flightNumber: itinerary.operatingFlightNumber || itinerary.flightNumber,
+    marketingFlightNumbers: itinerary.marketingFlightNumbers,
     isLive: itinerary.productionAvailability !== false,
     providerBadges: itinerary.providerBadges?.length ? itinerary.providerBadges : [itinerary.source.includes('aviationstack') || itinerary.source.includes('flightaware') ? 'Live provider API data' : 'Stored Supabase flight data', ...(itinerary.source.includes('flightaware') ? ['FlightAware enriched'] : [])],
     dataFreshnessLabel: itinerary.dataFreshnessLabel,
@@ -1041,6 +1051,52 @@ function formatItineraryDateTime(value: string) {
   const parsed = parseScheduleTime(value)
   if (!parsed) return displayField(value)
   return new Date(parsed).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+}
+
+
+const airportTimeZones: Record<string, string> = {
+  LAX: 'America/Los_Angeles',
+  HND: 'Asia/Tokyo',
+  NRT: 'Asia/Tokyo',
+  HNL: 'Pacific/Honolulu',
+  OGG: 'Pacific/Honolulu',
+  SFO: 'America/Los_Angeles',
+  SEA: 'America/Los_Angeles',
+  JFK: 'America/New_York',
+  EWR: 'America/New_York',
+  LGA: 'America/New_York',
+  ORD: 'America/Chicago',
+  DEN: 'America/Denver',
+  IAH: 'America/Chicago',
+  ATL: 'America/New_York',
+  SBP: 'America/Los_Angeles'
+}
+
+function airportCodesFromComparisonRoute(route: string) {
+  return route.split('→').map((part) => part.trim().match(/[A-Z]{3}/)?.[0]).filter((code): code is string => Boolean(code))
+}
+
+function formatItineraryAirportDateTime(value: string, airportCode?: string) {
+  const timeZone = airportCode ? airportTimeZones[airportCode] : undefined
+  const localIsoMatch = value.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::\d{2})?$/)
+  if (localIsoMatch) {
+    const [, year, month, day, hour, minute] = localIsoMatch
+    const localDate = new Date(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute))
+    const zoneName = timeZone
+      ? new Intl.DateTimeFormat([], { timeZone, timeZoneName: 'short' }).formatToParts(localDate).find((part) => part.type === 'timeZoneName')?.value
+      : undefined
+    return `${localDate.toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}${zoneName ? ` ${zoneName}` : ''}`
+  }
+  const parsed = parseScheduleTime(value)
+  if (!parsed) return displayField(value)
+  return new Date(parsed).toLocaleString([], {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    timeZone,
+    timeZoneName: 'short'
+  })
 }
 
 function itineraryDepartureSortValue(comparison: ItineraryComparison) {
@@ -2461,6 +2517,7 @@ function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: It
         {compactItineraries.map((comparison, index) => {
           const nextBackup = compactItineraries[index + 1] || compactItineraries.find((item) => item.id !== comparison.id)
           const scoreColor = successScoreColor(comparison.successPrediction.probability)
+          const routeAirports = airportCodesFromComparisonRoute(comparison.route)
           const legCount = comparison.connections + 1
           return (
             <article key={comparison.id} className="flight-card nonrevy-itinerary-row" style={{ border: '1px solid #1e293b', borderLeft: `5px solid ${scoreColor}`, borderRadius: 14, padding: 10, background: '#0f172a' }}>
@@ -2471,8 +2528,8 @@ function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: It
                 </div>
                 <div className="nonrevy-itinerary-row__route" style={{ minWidth: 0 }}>
                   <strong style={{ color: '#e0f2fe', display: 'block', overflowWrap: 'anywhere' }}>{comparison.route}</strong>
-                  <small style={{ color: '#cbd5e1', display: 'block' }}>Dep {formatItineraryDateTime(comparison.departureDateTime)}</small>
-                  <small style={{ color: '#cbd5e1', display: 'block' }}>Arr {formatItineraryDateTime(comparison.arrivalDateTime)}</small>
+                  <small style={{ color: '#cbd5e1', display: 'block' }}>Dep {formatItineraryAirportDateTime(comparison.departureDateTime, routeAirports[0])}</small>
+                  <small style={{ color: '#cbd5e1', display: 'block' }}>Arr {formatItineraryAirportDateTime(comparison.arrivalDateTime, routeAirports[routeAirports.length - 1])}</small>
                 </div>
                 <div className="nonrevy-itinerary-row__score">
                   <strong style={{ color: scoreColor, fontSize: 22 }}>{comparison.successPrediction.probability}%</strong>
@@ -2523,6 +2580,7 @@ function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: It
                   <section style={{ border: '1px solid #1e293b', borderRadius: 12, padding: 10, background: '#0f172a' }}>
                     <strong style={{ color: '#f8fafc' }}>Source/data freshness</strong>
                     <p style={{ color: '#cbd5e1', margin: '6px 0 0', overflowWrap: 'anywhere' }}>{comparison.sourceDetails}</p>
+                    {comparison.marketingFlightNumbers?.length ? <p style={{ color: '#bae6fd', margin: '6px 0 0' }}><strong>Marketing/codeshare numbers:</strong> {comparison.marketingFlightNumbers.join(', ')}</p> : null}
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
                       {comparison.providerBadges.slice(0, 4).map((badge) => <ProviderBadge key={`${comparison.id}-${badge}`} label={badge} />)}
                       <WeatherRiskBadge weatherRisk={comparison.weatherRisk} />
@@ -2992,7 +3050,7 @@ export default function PlanPage() {
           Plan your nonrevy route.
         </h1>
         <p style={{ color: '#94a3b8', maxWidth: 720, fontSize: 18 }}>
-          Ranked itinerary cards appear first. Flight rows, scoring internals, and diagnostics stay available behind progressive details.
+          Compact feasible itinerary rows appear first. Settings, scoring internals, recovery, route intelligence, and diagnostics stay below or behind details.
         </p>
         <details style={{ border: '1px solid #334155', borderRadius: 18, padding: 16, background: '#0f172a', color: '#cbd5e1' }}>
           <summary style={{ color: '#38bdf8', cursor: 'pointer', fontWeight: 'bold' }}>Passenger flight coverage details</summary>
@@ -3000,6 +3058,7 @@ export default function PlanPage() {
             {passengerFlightCoverageNotes.map((note) => <li key={note}>{note}</li>)}
           </ul>
         </details>
+
 
         <section className="nonrevy-planner-card" style={{ border: '1px solid #c084fc', borderRadius: 24, padding: 'clamp(16px, 4vw, 22px)', background: 'linear-gradient(135deg, rgba(49, 46, 129, 0.66), rgba(15, 23, 42, 0.96))', marginTop: 24, overflow: 'hidden' }}>
           <p style={{ color: '#c084fc', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1, marginTop: 0 }}>Universal AI search</p>
@@ -3036,8 +3095,9 @@ export default function PlanPage() {
             </form>
 
             <aside style={{ border: '1px solid #334155', borderRadius: 18, padding: 18, background: '#020617', minWidth: 0, overflowWrap: 'anywhere' }}>
-              <strong style={{ color: '#22c55e' }}>Recommended plan</strong>
-              <h3 style={{ color: '#f8fafc', margin: '8px 0' }}>{aiTripPlan.bestRoute}</h3>
+              <details>
+                <summary style={{ color: '#22c55e', cursor: 'pointer', fontWeight: 'bold' }}>AI recommendation preview</summary>
+                <h3 style={{ color: '#f8fafc', margin: '8px 0' }}>{aiTripPlan.bestRoute}</h3>
               <p style={{ color: '#38bdf8', fontWeight: 'bold' }}>Backup: {aiTripPlan.backupRoute}</p>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 150px), 1fr))', gap: 10 }}>
                 <div style={{ border: '1px solid #334155', borderRadius: 12, padding: 10, background: '#0f172a' }}>
@@ -3055,8 +3115,26 @@ export default function PlanPage() {
                   {aiTripPlan.whyThisRoute.map((reason) => <li key={reason}>{reason}</li>)}
                 </ul>
               </details>
+              </details>
             </aside>
           </div>
+        </section>
+
+        <section style={{ marginTop: 18 }}>
+          <h2 style={{ fontSize: 26, marginBottom: 10 }}>Feasible itineraries</h2>
+          {itineraryLoading ? (
+            <p style={{ color: '#facc15' }}>{itineraryStatus}</p>
+          ) : null}
+          {itineraryDebug?.dataFreshnessMode === 'nearest-date-testing' ? (
+            <div style={{ border: '1px solid #facc15', borderRadius: 14, padding: 14, background: '#1c1917', color: '#fde68a', marginBottom: 14 }}>
+              <strong>Nearest-date testing mode is active</strong>
+              <p style={{ margin: '6px 0 0' }}>
+                These itinerary rows are nearest-date testing data matched to {itineraryDebug.routeMatching?.dateCoverage.effectiveMatchDate || 'a nearest available stored date'} instead of requested date {itineraryDebug.routeMatching?.dateCoverage.requestedSearchDate || 'unknown'}. Do not treat them as live provider API availability.
+              </p>
+            </div>
+          ) : null}
+          {itineraryLoading ? <PlannerSkeletonLoaders /> : null}
+          <ItineraryComparisonPanel comparisons={itineraryComparisons} travelDate={travelWindow} />
         </section>
 
         <CopilotPanel
@@ -3225,20 +3303,7 @@ export default function PlanPage() {
         </details>
 
         <section style={{ marginTop: 30 }}>
-          <h2 style={{ fontSize: 26, marginBottom: 10 }}>Feasible itineraries</h2>
-          {itineraryLoading ? (
-            <p style={{ color: '#facc15' }}>{itineraryStatus}</p>
-          ) : null}
-          {itineraryDebug?.dataFreshnessMode === 'nearest-date-testing' ? (
-            <div style={{ border: '1px solid #facc15', borderRadius: 14, padding: 14, background: '#1c1917', color: '#fde68a', marginBottom: 14 }}>
-              <strong>Nearest-date testing mode is active</strong>
-              <p style={{ margin: '6px 0 0' }}>
-                These itinerary cards are nearest-date testing data matched to {itineraryDebug.routeMatching?.dateCoverage.effectiveMatchDate || 'a nearest available stored date'} instead of requested date {itineraryDebug.routeMatching?.dateCoverage.requestedSearchDate || 'unknown'}. Do not treat them as live provider API availability.
-              </p>
-            </div>
-          ) : null}
-          {itineraryLoading ? <PlannerSkeletonLoaders /> : null}
-          <ItineraryComparisonPanel comparisons={itineraryComparisons} travelDate={travelWindow} />
+          <h2 style={{ fontSize: 24, marginBottom: 10 }}>Additional provider details</h2>
           <details className="nonrevy-premium-details" style={{ border: '1px solid #334155', borderRadius: 16, padding: 14, background: '#020617', marginBottom: 16 }}>
             <summary style={{ color: '#38bdf8', cursor: 'pointer', fontWeight: 'bold' }}>Developer Diagnostics</summary>
             <p style={{ color: '#94a3b8', marginTop: 12 }}>{itineraryStatus} · Source: {itinerarySource}</p>
@@ -3253,6 +3318,15 @@ export default function PlanPage() {
                 </ul>
               </div>
             )}
+            {itineraryDebug?.deduplicationNotes?.length ? (
+              <div style={{ border: '1px solid #38bdf8', borderRadius: 14, padding: 14, background: '#082f49', color: '#bae6fd', marginBottom: 14 }}>
+                <strong>Deduplication diagnostics</strong>
+                <p style={{ margin: '6px 0 0' }}>Removed rows: {itineraryDebug.deduplicatedRowsRemoved || 0}</p>
+                <ul style={{ marginBottom: 0 }}>
+                  {itineraryDebug.deduplicationNotes.map((note) => <li key={note}>{note}</li>)}
+                </ul>
+              </div>
+            ) : null}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 170px), 1fr))', gap: 10, marginTop: 12 }}>
               {[
                 ['Parsed origin', itineraryDebug?.parsedOrigin || 'Not parsed'],

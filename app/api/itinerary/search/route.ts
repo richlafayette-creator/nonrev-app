@@ -87,6 +87,8 @@ type ItineraryDebugMetadata = {
   dataFreshnessExplanation: string[]
   scheduleProviderReadiness: ScheduleProviderReadiness[]
   safeErrors: string[]
+  deduplicationNotes: string[]
+  deduplicatedRowsRemoved: number
   normalizedFlightAwareItinerarySample?: SafeNormalizedItinerarySample
 }
 
@@ -312,6 +314,17 @@ function addProviderBadges(itineraries: ItineraryResult[], source: 'flightaware'
       ...(freshness.dataFreshnessLabel ? [freshness.dataFreshnessLabel] : [])
     ]
   }))
+}
+
+
+function deduplicationSummary(itineraries: ItineraryResult[], providerLabel: string) {
+  const removed = itineraries.reduce((total, itinerary) => total + (itinerary.duplicateCount || 0), 0)
+  const codeshares = itineraries.flatMap((itinerary) => itinerary.marketingFlightNumbers || [])
+  const notes = removed > 0
+    ? [`Deduplication removed ${removed} duplicate/codeshare ${providerLabel} row${removed === 1 ? '' : 's'} by operating flight, route, departure time, and arrival time.`]
+    : []
+  if (codeshares.length) notes.push(`Codeshare/marketing flight number${codeshares.length === 1 ? '' : 's'} kept in expanded details: ${[...new Set(codeshares)].join(', ')}.`)
+  return { removed, notes }
 }
 
 function freshnessRuleExplanation(rule: NonNullable<ItineraryResult['dataFreshnessRule']>) {
@@ -749,6 +762,7 @@ function buildDebugMetadata({
   apiResponseCounts,
   routeMatching,
   supabaseQueryPath,
+  providerFallbackOrder,
   emptyResults,
   rateLimits,
   invalidAirportCodes,
@@ -761,6 +775,8 @@ function buildDebugMetadata({
   dataFreshnessMode,
   dataFreshnessExplanation,
   safeErrors,
+  deduplicationNotes = [],
+  deduplicatedRowsRemoved = 0,
   normalizedFlightAwareItinerarySample
 }: {
   parsedRequest: ReturnType<typeof normalizeItineraryRequest>
@@ -784,6 +800,8 @@ function buildDebugMetadata({
   dataFreshnessMode: ItineraryDebugMetadata['dataFreshnessMode']
   dataFreshnessExplanation: string[]
   safeErrors: string[]
+  deduplicationNotes?: string[]
+  deduplicatedRowsRemoved?: number
   normalizedFlightAwareItinerarySample?: SafeNormalizedItinerarySample
 }): ItineraryDebugMetadata {
   const mergedProviderStatuses = mergeProviderStatuses(providerStatuses)
@@ -818,6 +836,8 @@ function buildDebugMetadata({
     dataFreshnessExplanation,
     scheduleProviderReadiness: getLiveScheduleProviderReadiness(),
     safeErrors,
+    deduplicationNotes,
+    deduplicatedRowsRemoved,
     normalizedFlightAwareItinerarySample
   }
 }
@@ -940,6 +960,8 @@ export async function GET(request: Request) {
       productionAvailability: true
     })
     counts.finalItineraries = itineraries.length
+    const flightAwareDeduplication = deduplicationSummary(itineraries, 'FlightAware')
+    if (flightAwareDeduplication.notes.length) warnings.push(...flightAwareDeduplication.notes)
     const skippedSupabaseQueryPath = skippedSupabaseDiagnostics('skipped; FlightAware live schedules returned itinerary results')
     const debug = buildDebugMetadata({
       parsedRequest: effectiveRequest,
@@ -968,6 +990,8 @@ export async function GET(request: Request) {
       dataFreshnessExplanation: freshnessExplanationsForItineraries(itineraries, 'exact-requested-date'),
       testDataModeEnabled: envTestDataModeEnabled,
       safeErrors: uniqueMessages(warnings),
+      deduplicationNotes: flightAwareDeduplication.notes,
+      deduplicatedRowsRemoved: flightAwareDeduplication.removed,
       normalizedFlightAwareItinerarySample: safeNormalizedItinerarySample(itineraries[0])
     })
 
@@ -1064,6 +1088,8 @@ export async function GET(request: Request) {
         }
     const itineraries = addProviderBadges(enrichedItineraries.length ? enrichedItineraries : supabaseItineraries, 'supabase', enriched, supabaseFreshness)
     counts.finalItineraries = itineraries.length
+    const supabaseDeduplication = deduplicationSummary(itineraries, 'Supabase')
+    if (supabaseDeduplication.notes.length) warnings.push(...supabaseDeduplication.notes)
     const debug = buildDebugMetadata({
       parsedRequest: effectiveRequest,
       supabaseResultCount: supabaseItineraries.length,
@@ -1092,7 +1118,9 @@ export async function GET(request: Request) {
       dataFreshnessMode: routeMatching.dateCoverage.nearestDateApplied ? 'nearest-date-testing' : 'stored-supabase',
       dataFreshnessExplanation: freshnessExplanationsForItineraries(itineraries, routeMatching.dateCoverage.nearestDateApplied ? 'nearest-date-testing-match' : effectiveRequest.date ? 'exact-requested-date' : 'stored-historical-data'),
       testDataModeEnabled: envTestDataModeEnabled,
-      safeErrors: uniqueMessages(warnings)
+      safeErrors: uniqueMessages(warnings),
+      deduplicationNotes: supabaseDeduplication.notes,
+      deduplicatedRowsRemoved: supabaseDeduplication.removed
     })
     return NextResponse.json({
       ok: true,
@@ -1144,6 +1172,8 @@ export async function GET(request: Request) {
       productionAvailability: true
     })
     counts.finalItineraries = itineraries.length
+    const aviationstackDeduplication = deduplicationSummary(itineraries, 'Aviationstack')
+    if (aviationstackDeduplication.notes.length) warnings.push(...aviationstackDeduplication.notes)
     const aviationstackFallbackStatus = `queried; ${aviationstackFlights.length} flight record${aviationstackFlights.length === 1 ? '' : 's'} returned`
     const debug = buildDebugMetadata({
       parsedRequest: effectiveRequest,
@@ -1171,7 +1201,9 @@ export async function GET(request: Request) {
       dataFreshnessMode: 'live-current-api',
       dataFreshnessExplanation: freshnessExplanationsForItineraries(itineraries, 'exact-requested-date'),
       testDataModeEnabled: envTestDataModeEnabled,
-      safeErrors: uniqueMessages(warnings)
+      safeErrors: uniqueMessages(warnings),
+      deduplicationNotes: aviationstackDeduplication.notes,
+      deduplicatedRowsRemoved: aviationstackDeduplication.removed
     })
 
     return NextResponse.json({

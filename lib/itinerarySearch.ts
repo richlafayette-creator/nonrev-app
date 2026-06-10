@@ -17,6 +17,8 @@ export type ItineraryLeg = {
   destination: string
   carrier: string
   flightNumber: string
+  operatingFlightNumber?: string
+  marketingFlightNumbers?: string[]
   departureTime: string
   arrivalTime: string
   duration?: string
@@ -33,6 +35,7 @@ export type ItineraryLeg = {
   source: string
   sourceProvider?: string
   sourceCheckedAt?: string
+  duplicateCount?: number
 }
 
 export type ItineraryResult = {
@@ -41,6 +44,8 @@ export type ItineraryResult = {
   legs: ItineraryLeg[]
   carrier: string
   flightNumber: string
+  operatingFlightNumber?: string
+  marketingFlightNumbers?: string[]
   departureTime: string
   arrivalTime: string
   duration?: string
@@ -61,6 +66,7 @@ export type ItineraryResult = {
   requestedDate?: string
   matchedDate?: string
   productionAvailability?: boolean
+  duplicateCount?: number
 }
 
 export type FlightRouteNormalization = {
@@ -703,6 +709,68 @@ export function flightMatchesRequest(flight: Record<string, unknown>, request: P
   return routeMatchDiagnosticsForFlight(flight, request).matched
 }
 
+
+function stringArrayFrom(value: unknown): string[] {
+  if (Array.isArray(value)) return value.map((item) => String(item).trim()).filter(Boolean)
+  if (typeof value === 'string') return value.split(/[,/]/).map((item) => item.trim()).filter(Boolean)
+  return []
+}
+
+function canonicalFlightNumber(value?: string) {
+  return String(value || '').replace(/\s+/g, '').toUpperCase()
+}
+
+function normalizedScheduleInstant(value?: string) {
+  const parsed = value ? Date.parse(value) : NaN
+  return Number.isFinite(parsed) ? new Date(parsed).toISOString() : String(value || '')
+}
+
+function itineraryDedupeKey(legs: ItineraryLeg[]) {
+  return legs.map((leg) => [
+    canonicalFlightNumber(leg.operatingFlightNumber || leg.flightNumber),
+    leg.origin,
+    leg.destination,
+    normalizedScheduleInstant(leg.departureTime),
+    normalizedScheduleInstant(leg.arrivalTime)
+  ].join('|')).join('||')
+}
+
+function minutesUntilConnection(firstLeg: ItineraryLeg, secondLeg: ItineraryLeg) {
+  const firstArrival = Date.parse(firstLeg.arrivalTime)
+  const secondDeparture = Date.parse(secondLeg.departureTime)
+  if (!Number.isFinite(firstArrival) || !Number.isFinite(secondDeparture)) return null
+  return Math.round((secondDeparture - firstArrival) / 60000)
+}
+
+function isFeasibleConnection(firstLeg: ItineraryLeg, secondLeg: ItineraryLeg) {
+  const connectionMinutes = minutesUntilConnection(firstLeg, secondLeg)
+  if (connectionMinutes === null) return false
+  return connectionMinutes >= 35 && connectionMinutes <= 8 * 60
+}
+
+function dedupeItineraries(itineraries: ItineraryResult[]) {
+  const merged = new Map<string, ItineraryResult>()
+  itineraries.forEach((itinerary, index) => {
+    const key = itineraryDedupeKey(itinerary.legs) || `itinerary-${index}`
+    const existing = merged.get(key)
+    if (!existing) {
+      merged.set(key, itinerary)
+      return
+    }
+    const marketingFlightNumbers = [...new Set([
+      ...(existing.marketingFlightNumbers || []),
+      ...(itinerary.marketingFlightNumbers || []),
+      itinerary.flightNumber
+    ].map(canonicalFlightNumber).filter((number) => number && number !== canonicalFlightNumber(existing.operatingFlightNumber || existing.flightNumber)))]
+    merged.set(key, {
+      ...existing,
+      marketingFlightNumbers,
+      duplicateCount: (existing.duplicateCount || 0) + 1 + (itinerary.duplicateCount || 0)
+    })
+  })
+  return [...merged.values()]
+}
+
 export function normalizeFlightLeg(flight: Record<string, unknown>, enrichment?: Record<string, unknown>): ItineraryLeg {
   const origin = airportCode(valueFrom(flight, originFieldKeys) || valueFrom(enrichment || {}, ['origin', 'origin_airport', 'origin.code_iata'])) || 'TBD'
   const destination = airportCode(valueFrom(flight, destinationFieldKeys) || valueFrom(enrichment || {}, ['destination', 'destination_airport', 'destination.code_iata'])) || 'TBD'
@@ -739,7 +807,9 @@ export function normalizeFlightLeg(flight: Record<string, unknown>, enrichment?:
     origin,
     destination,
     carrier: fieldValue(carrierFromFlight(flight)),
-    flightNumber: fieldValue(valueFrom(flight, ['flight_number', 'ident', 'fa_flight_id'])),
+    flightNumber: fieldValue(valueFrom(flight, ['operating_flight_number', 'flight_number', 'ident', 'fa_flight_id'])),
+    operatingFlightNumber: fieldValue(valueFrom(flight, ['operating_flight_number', 'flight_number', 'ident', 'fa_flight_id'])),
+    marketingFlightNumbers: stringArrayFrom(valueFrom(flight, ['marketing_flight_numbers'])),
     departureTime,
     arrivalTime,
     duration: fieldValue(valueFrom(flight, ['duration']) || durationLabel(minutesBetween(arrivalTime, departureTime))),
@@ -755,7 +825,8 @@ export function normalizeFlightLeg(flight: Record<string, unknown>, enrichment?:
     risk: riskFromScore(score, status),
     source: enrichment ? `${sourceProvider}+flightaware` : sourceProvider,
     sourceProvider,
-    sourceCheckedAt
+    sourceCheckedAt,
+    duplicateCount: numberFrom(flight, ['duplicate_count'], 0)
   }
 }
 
@@ -770,7 +841,7 @@ export function buildItinerariesFromFlights(flights: Record<string, unknown>[], 
 
   const directItineraries = directLegs.map((leg) => itineraryFromLegs([leg]))
 
-  if (request.maxLegs < 2 || !request.origin || !request.destination) return directItineraries
+  if (request.maxLegs < 2 || !request.origin || !request.destination) return dedupeItineraries(directItineraries)
 
   const candidateLegs = flights
     .filter((flight) => flightMatchesCarrier(flight, request.carrier) && flightMatchesDate(flight, request.date))
@@ -779,12 +850,12 @@ export function buildItinerariesFromFlights(flights: Record<string, unknown>[], 
   const secondLegs = candidateLegs.filter((leg) => leg.destination === request.destination && leg.origin !== request.origin)
   const connectionItineraries = firstLegs
     .flatMap((firstLeg) => secondLegs
-      .filter((secondLeg) => secondLeg.origin === firstLeg.destination)
+      .filter((secondLeg) => secondLeg.origin === firstLeg.destination && isFeasibleConnection(firstLeg, secondLeg))
       .map((secondLeg) => itineraryFromLegs([firstLeg, secondLeg]))
     )
 
-  return [...directItineraries, ...connectionItineraries]
-    .sort((a, b) => b.score - a.score)
+  return dedupeItineraries([...directItineraries, ...connectionItineraries])
+    .sort((a, b) => a.legs.length - b.legs.length || (Date.parse(a.departureTime) || Number.MAX_SAFE_INTEGER) - (Date.parse(b.departureTime) || Number.MAX_SAFE_INTEGER) || b.score - a.score)
     .slice(0, 12)
 }
 
@@ -798,7 +869,9 @@ function itineraryFromLegs(legs: ItineraryLeg[]): ItineraryResult {
     route,
     legs,
     carrier: [...new Set(legs.map((leg) => leg.carrier))].join(' + '),
-    flightNumber: legs.map((leg) => leg.flightNumber).join(' / '),
+    flightNumber: legs.map((leg) => leg.operatingFlightNumber || leg.flightNumber).join(' / '),
+    operatingFlightNumber: legs.map((leg) => leg.operatingFlightNumber || leg.flightNumber).join(' / '),
+    marketingFlightNumbers: [...new Set(legs.flatMap((leg) => leg.marketingFlightNumbers || []))],
     departureTime: legs[0].departureTime,
     arrivalTime: legs[legs.length - 1].arrivalTime,
     duration: legs.map((leg) => leg.duration).filter(Boolean).join(' + ') || notProvidedLabel,
@@ -812,7 +885,8 @@ function itineraryFromLegs(legs: ItineraryLeg[]): ItineraryResult {
       ? `${legs[0].source.replace('+flightaware', '')}+flightaware`
       : legs[0].source,
     sourceProvider: legs[0].sourceProvider,
-    sourceCheckedAt: legs.map((leg) => leg.sourceCheckedAt).filter(Boolean).sort().slice(-1)[0]
+    sourceCheckedAt: legs.map((leg) => leg.sourceCheckedAt).filter(Boolean).sort().slice(-1)[0],
+    duplicateCount: legs.reduce((total, leg) => total + (leg.duplicateCount || 0), 0)
   }
 }
 

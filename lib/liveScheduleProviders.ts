@@ -19,6 +19,10 @@ export type NormalizedScheduleResult = {
   status: string
   source: LiveScheduleProviderKey | string
   sourceCheckedAt?: string
+  operatingCarrier?: string
+  operatingFlightNumber?: string
+  marketingFlightNumbers?: string[]
+  duplicateCount?: number
 }
 
 export type LiveScheduleSearchRequest = {
@@ -223,14 +227,52 @@ async function fetchJsonWithTimeout(url: string, init: RequestInit = {}, timeout
   }
 }
 
+
+function normalizedInstant(value?: string) {
+  const parsed = value ? Date.parse(value) : NaN
+  return Number.isFinite(parsed) ? new Date(parsed).toISOString() : (value || '')
+}
+
+function uniqueMarketingFlights(values: Array<string | undefined>) {
+  return [...new Set(values
+    .map((value) => String(value || '').replace(/\s+/g, '').trim())
+    .filter(Boolean))]
+}
+
 function uniqueScheduleResults(results: NormalizedScheduleResult[]) {
-  const seen = new Set<string>()
-  return results.filter((result, index) => {
-    const key = [result.source, result.flightNumber, result.origin, result.destination, result.departureTime].filter(Boolean).join('|') || `schedule-${index}`
-    if (seen.has(key)) return false
-    seen.add(key)
-    return true
+  const merged = new Map<string, NormalizedScheduleResult>()
+  results.forEach((result, index) => {
+    const operatingFlight = result.operatingFlightNumber || result.flightNumber
+    const key = [
+      result.source,
+      operatingFlight,
+      result.origin,
+      result.destination,
+      normalizedInstant(result.departureTime),
+      normalizedInstant(result.arrivalTime)
+    ].filter(Boolean).join('|') || `schedule-${index}`
+    const existing = merged.get(key)
+    if (!existing) {
+      merged.set(key, {
+        ...result,
+        flightNumber: operatingFlight,
+        marketingFlightNumbers: uniqueMarketingFlights([...(result.marketingFlightNumbers || []), result.flightNumber]).filter((flightNumber) => flightNumber !== operatingFlight),
+        duplicateCount: 0
+      })
+      return
+    }
+    const marketingFlightNumbers = uniqueMarketingFlights([
+      ...(existing.marketingFlightNumbers || []),
+      ...(result.marketingFlightNumbers || []),
+      result.flightNumber
+    ]).filter((flightNumber) => flightNumber !== (existing.operatingFlightNumber || existing.flightNumber))
+    merged.set(key, {
+      ...existing,
+      marketingFlightNumbers,
+      duplicateCount: (existing.duplicateCount || 0) + 1
+    })
   })
+  return [...merged.values()]
 }
 
 export function normalizeAviationstackScheduleResult(flight: AviationstackFlight): NormalizedScheduleResult {
@@ -254,7 +296,9 @@ export function normalizeAviationstackScheduleResult(flight: AviationstackFlight
 }
 
 export function normalizeFlightAwareScheduleResult(flight: FlightAwareSchedule, sourceCheckedAt = new Date().toISOString()): NormalizedScheduleResult {
-  const flightNumber = flight.ident_iata || flight.actual_ident_iata || flight.ident || flight.actual_ident || flight.fa_flight_id
+  const marketingFlightNumber = flight.ident_iata || flight.ident
+  const operatingFlightNumber = flight.actual_ident_iata || flight.actual_ident || (flight.operator_iata && flight.flight_number ? `${flight.operator_iata}${flight.flight_number}` : undefined) || marketingFlightNumber || flight.fa_flight_id
+  const flightNumber = operatingFlightNumber
   const origin = flight.origin_iata || flight.origin_lid || flight.origin_icao || flight.origin
   const destination = flight.destination_iata || flight.destination_lid || flight.destination_icao || flight.destination
   const carrier = flight.operator_iata || flight.operator_icao || flight.operator || String(flightNumber || '').match(/^[A-Z]+/)?.[0]
@@ -273,7 +317,11 @@ export function normalizeFlightAwareScheduleResult(flight: FlightAwareSchedule, 
     aircraft: provided(flight.aircraft_type),
     status: provided(status),
     source: 'flightaware',
-    sourceCheckedAt
+    sourceCheckedAt,
+    operatingCarrier: provided(carrier),
+    operatingFlightNumber: provided(operatingFlightNumber),
+    marketingFlightNumbers: uniqueMarketingFlights([marketingFlightNumber]).filter((number) => number !== provided(operatingFlightNumber)),
+    duplicateCount: 0
   }
 }
 
@@ -292,7 +340,11 @@ export function scheduleResultsToFlightRecords(results: NormalizedScheduleResult
     duration: result.duration || 'Not provided',
     aircraft: result.aircraft,
     status: result.status,
-    score: result.status.toLowerCase().includes('cancel') ? 35 : 68
+    score: result.status.toLowerCase().includes('cancel') ? 35 : 68,
+    operating_carrier: result.operatingCarrier || result.carrier,
+    operating_flight_number: result.operatingFlightNumber || result.flightNumber,
+    marketing_flight_numbers: result.marketingFlightNumbers || [],
+    duplicate_count: result.duplicateCount || 0
   }))
 }
 

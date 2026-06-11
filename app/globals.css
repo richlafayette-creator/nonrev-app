@@ -2026,3 +2026,232 @@ body {
     font-size: 0.68rem;
   }
 }
+
+/* Airline-style compact flight board default */
+.nonrevy-flight-board {
+  container-type: inline-size;
+}
+
+.nonrevy-flight-board__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 5px;
+}
+
+.nonrevy-flight-board__header strong {
+  color: #38bdf8;
+  font-size: clamp(0.7rem, 2.7vw, 0.82rem);
+  font-weight: 950;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.nonrevy-flight-board__header span {
+  color: #94a3b8;
+  font-size: clamp(0.66rem, 2.45vw, 0.76rem);
+  font-weight: 760;
+  text-align: right;
+}
+
+.nonrevy-flight-board__pinned,
+.nonrevy-flight-board__list {
+  display: grid;
+  gap: 4px;
+}
+
+.nonrevy-flight-board__pinned {
+  margin-bottom: 6px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(51, 65, 85, 0.72);
+}
+
+.nonrevy-flight-board-row {
+  --score-color: #facc15;
+  border: 1px solid rgba(51, 65, 85, 0.86);
+  border-left: 3px solid var(--score-color);
+  border-radius: 9px;
+  padding: 5px 6px;
+  background:
+    linear-gradient(135deg, rgba(255,255,255,0.045), rgba(255,255,255,0.01)),
+    rgba(15, 23, 42, 0.88);
+  box-shadow: 0 6px 18px rgba(2, 6, 23, 0.22), inset 0 1px 0 rgba(255,255,255,0.03);
+  cursor: pointer;
+}
+
+.nonrevy-flight-board-row--pinned {
+  border-color: rgba(103, 232, 249, 0.26);
+  background:
+    linear-gradient(135deg, rgba(103, 232, 249, 0.09), rgba(192, 132, 252, 0.04)),
+    rgba(2, 6, 23, 0.88);
+}
+
+.nonrevy-flight-board-row--selected,
+.nonrevy-flight-board-row:hover {
+  border-color: rgba(103, 232, 249, 0.48);
+  background:
+    linear-gradient(135deg, rgba(103, 232, 249, 0.11), rgba(251, 113, 133, 0.035)),
+    rgba(15, 23, 42, 0.95);
+}
+
+.nonrevy-flight-board-row__main {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.nonrevy-flight-board-row__line {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 3px 5px;
+  min-width: 0;
+  color: #cbd5e1;
+  font-size: clamp(0.66rem, 2.55vw, 0.82rem);
+  font-weight: 800;
+  line-height: 1.18;
+}
+
+.nonrevy-flight-board-row__line > * {
+  min-width: 0;
+}
+
+.nonrevy-flight-board-row__line > *:not(:last-child)::after {
+  content: "|";
+  margin-left: 5px;
+  color: #475569;
+  font-weight: 700;
+}
+
+.nonrevy-flight-board-row__line strong {
+  max-width: min(30vw, 180px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #f8fafc;
+  font-size: clamp(0.7rem, 2.75vw, 0.88rem);
+  font-weight: 950;
+}
+
+.nonrevy-flight-board-row__carrier,
+.nonrevy-flight-board-row__rank {
+  flex: 0 0 auto;
+  border-radius: 7px;
+  padding: 2px 5px;
+  font-size: 0.64rem;
+  line-height: 1.1;
+  font-weight: 950;
+  letter-spacing: 0.04em;
+}
+
+.nonrevy-flight-board-row__carrier {
+  border: 1px solid rgba(103, 232, 249, 0.28);
+  background: rgba(8, 47, 73, 0.58);
+  color: #bae6fd;
+}
+
+.nonrevy-flight-board-row__rank {
+  border: 1px solid rgba(192, 132, 252, 0.38);
+  background: rgba(49, 46, 129, 0.54);
+  color: #e9d5ff;
+}
+
+.nonrevy-flight-board-row__score {
+  flex: 0 0 auto;
+  border: 1px solid var(--score-color);
+  border-radius: 999px;
+  padding: 2px 6px;
+  background: rgba(2, 6, 23, 0.72);
+  color: var(--score-color);
+  font-size: 0.68rem;
+  font-weight: 950;
+  letter-spacing: -0.01em;
+}
+
+.nonrevy-flight-board-row__score::after,
+.nonrevy-flight-board-row__carrier::after,
+.nonrevy-flight-board-row__rank::after {
+  display: none;
+}
+
+.nonrevy-flight-board-row__actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.nonrevy-flight-board-row__actions button {
+  min-height: 22px;
+  padding: 3px 7px;
+  border: 1px solid rgba(125, 211, 252, 0.24);
+  border-radius: 999px;
+  background: rgba(2, 6, 23, 0.64);
+  color: #bae6fd;
+  font-size: clamp(0.62rem, 2.4vw, 0.72rem);
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.nonrevy-flight-board-row__actions button:hover {
+  border-color: rgba(103, 232, 249, 0.56);
+  background: rgba(8, 47, 73, 0.72);
+}
+
+.nonrevy-flight-board-row__details {
+  margin-top: 5px;
+  border: 1px solid rgba(51, 65, 85, 0.9);
+  border-radius: 8px;
+  padding: 6px;
+  background: rgba(2, 6, 23, 0.84);
+  cursor: default;
+}
+
+.nonrevy-flight-board-row__details > summary {
+  color: #67e8f9;
+  cursor: pointer;
+  font-size: 0.74rem;
+  font-weight: 950;
+}
+
+@media (max-width: 430px) {
+  .nonrevy-flight-board__header {
+    align-items: flex-start;
+    margin-bottom: 4px;
+  }
+
+  .nonrevy-flight-board__header span {
+    max-width: 54%;
+    line-height: 1.15;
+  }
+
+  .nonrevy-flight-board-row {
+    padding: 4px 5px;
+    border-radius: 8px;
+  }
+
+  .nonrevy-flight-board-row__line {
+    gap: 2px 4px;
+  }
+
+  .nonrevy-flight-board-row__line > *:not(:last-child)::after {
+    margin-left: 4px;
+  }
+
+  .nonrevy-flight-board-row__actions {
+    justify-content: flex-start;
+    gap: 3px;
+  }
+
+  .nonrevy-flight-board-row__actions button {
+    min-height: 20px;
+    padding: 2px 6px;
+  }
+}
+
+@container (min-width: 680px) {
+  .nonrevy-flight-board__list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

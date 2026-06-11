@@ -1126,7 +1126,14 @@ function compactCarrierCode(carrier: string) {
 
 function compactScoreLabel(comparison: ItineraryComparison) {
   if (comparison.successPrediction.scoreLabel === 'Needs Load') return 'Load?'
-  return comparison.successPrediction.displayValue
+  return comparison.successPrediction.displayValue.replace(/\s+/g, '')
+}
+
+function compactScoreIcon(comparison: ItineraryComparison) {
+  const color = successScoreColor(comparison.successPrediction.probability, comparison.successPrediction.isLoadSupported)
+  if (color === '#22c55e') return '🟢'
+  if (color === '#f87171') return '🔴'
+  return '🟡'
 }
 
 function formatItineraryDateTime(value: string) {
@@ -1179,6 +1186,32 @@ function formatItineraryAirportDateTime(value: string, airportCode?: string) {
     timeZone,
     timeZoneName: 'short'
   })
+}
+
+function compactFlightBoardDateTime(value: string, airportCode?: string, referenceValue?: string) {
+  const timeZone = airportCode ? airportTimeZones[airportCode] : undefined
+  const parsed = parseScheduleTime(value)
+  const referenceParsed = referenceValue ? parseScheduleTime(referenceValue) : null
+  const localIsoMatch = value.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::\d{2})?$/)
+  const referenceIsoMatch = referenceValue?.match(/^(\d{4})-(\d{2})-(\d{2})T/)
+
+  if (localIsoMatch) {
+    const [, year, month, day, hour, minute] = localIsoMatch
+    const localDate = new Date(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute))
+    const referenceDate = referenceIsoMatch ? new Date(Number(referenceIsoMatch[1]), Number(referenceIsoMatch[2]) - 1, Number(referenceIsoMatch[3])) : null
+    const dayOffset = referenceDate ? Math.round((new Date(Number(year), Number(month) - 1, Number(day)).getTime() - referenceDate.getTime()) / 86400000) : 0
+    const time = localDate.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }).replace(/\s/g, '').replace('AM', 'a').replace('PM', 'p')
+    const date = localDate.toLocaleDateString([], { month: 'short', day: 'numeric' })
+    return `${date} ${time}${dayOffset > 0 ? `+${dayOffset}` : ''}`
+  }
+
+  if (!parsed) return displayField(value)
+  const date = new Date(parsed)
+  const referenceDate = referenceParsed ? new Date(referenceParsed) : null
+  const day = date.toLocaleDateString([], { month: 'short', day: 'numeric', timeZone })
+  const time = date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', timeZone }).replace(/\s/g, '').replace('AM', 'a').replace('PM', 'p')
+  const dayOffset = referenceDate ? Math.round((Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()) - Date.UTC(referenceDate.getUTCFullYear(), referenceDate.getUTCMonth(), referenceDate.getUTCDate())) / 86400000) : 0
+  return `${day} ${time}${dayOffset > 0 ? `+${dayOffset}` : ''}`
 }
 
 function itineraryDepartureSortValue(comparison: ItineraryComparison) {
@@ -2524,7 +2557,10 @@ function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: It
       totalTravelTime: comparison.totalTravelTime
     })
 
-    if (saved) setWatchStatus(`Watching ${saved.origin} → ${saved.destination} for ${saved.travelDate}.`)
+    if (saved) {
+      setSelectedComparisonId(comparison.id)
+      setWatchStatus(`Watching ${saved.origin} → ${saved.destination} for ${saved.travelDate}.`)
+    }
   }
 
   function saveForComparison(comparison: ItineraryComparison) {
@@ -2547,6 +2583,7 @@ function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: It
     })
 
     if (saved) {
+      setSelectedComparisonId(comparison.id)
       setSavedComparisons(loadSavedItineraryComparisons())
       setCompareStatus(`Saved ${saved.route} for side-by-side comparison.`)
     }
@@ -2574,141 +2611,128 @@ function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: It
     })
   }
 
-  function selectItinerary(comparison: ItineraryComparison) {
-    setSelectedComparisonId(comparison.id)
-  }
-
   function openDetails(comparison: ItineraryComparison) {
-    selectItinerary(comparison)
+    setSelectedComparisonId(comparison.id)
     setDetailsOpen(comparison.id, true)
   }
 
   const compactItineraries = sortCompactItineraries(comparisons)
   const routeInsights = buildRouteIntelligenceInsights(compactItineraries)
   const topRecommendations = [...comparisons].sort((a, b) => b.successPrediction.probability - a.successPrediction.probability || b.score - a.score).slice(0, 3)
-  const selectedComparison = compactItineraries.find((comparison) => comparison.id === selectedComparisonId)
+
+  function renderFlightBoardRow(comparison: ItineraryComparison, options?: { pinned?: boolean; recommendationIndex?: number }) {
+    const index = compactItineraries.findIndex((item) => item.id === comparison.id)
+    const nextBackup = compactItineraries[index + 1] || compactItineraries.find((item) => item.id !== comparison.id)
+    const scoreColor = successScoreColor(comparison.successPrediction.probability, comparison.successPrediction.isLoadSupported)
+    const routeAirports = airportCodesFromComparisonRoute(comparison.route)
+    const legCount = comparison.connections + 1
+    const isSelected = selectedComparisonId === comparison.id
+    const isExpanded = expandedDetailIds.includes(comparison.id)
+    const depTime = compactFlightBoardDateTime(comparison.departureDateTime, routeAirports[0])
+    const arrTime = compactFlightBoardDateTime(comparison.arrivalDateTime, routeAirports[routeAirports.length - 1], comparison.departureDateTime)
+
+    return (
+      <article
+        key={`${options?.pinned ? 'pin' : 'row'}-${comparison.id}`}
+        className={`nonrevy-flight-board-row ${options?.pinned ? 'nonrevy-flight-board-row--pinned' : ''} ${isSelected ? 'nonrevy-flight-board-row--selected' : ''}`}
+        style={{ '--score-color': scoreColor } as CSSProperties}
+        onClick={() => openDetails(comparison)}
+      >
+        <div className="nonrevy-flight-board-row__main">
+          <div className="nonrevy-flight-board-row__line">
+            {options?.pinned ? <span className="nonrevy-flight-board-row__rank">#{(options.recommendationIndex ?? 0) + 1}</span> : null}
+            <span className="nonrevy-flight-board-row__carrier">{compactCarrierCode(comparison.carrier)}</span>
+            <strong>{comparison.flightNumber}</strong>
+            <span>{comparison.route}</span>
+            <span>{depTime}→{arrTime}</span>
+            <span>{comparison.totalTravelTime}</span>
+            <span>{compactAircraftLabel(comparison)}</span>
+            <span>{compactLegLabel(comparison.connections)}</span>
+            <span className="nonrevy-flight-board-row__score">{compactScoreIcon(comparison)}{compactScoreLabel(comparison)}</span>
+          </div>
+          <div className="nonrevy-flight-board-row__actions" onClick={(event) => event.stopPropagation()}>
+            <button type="button" onClick={() => requestLoad(comparison)}>↻ Load</button>
+            <button type="button" onClick={() => saveForComparison(comparison)}>☆ Save</button>
+            <button type="button" onClick={() => watchRoute(comparison)}>👁 Watch</button>
+            <button type="button" onClick={() => openDetails(comparison)}>{isExpanded ? '▴ Hide' : '▾ Details'}</button>
+          </div>
+        </div>
+
+        <details open={isExpanded} onToggle={(event) => setDetailsOpen(comparison.id, event.currentTarget.open)} className="nonrevy-flight-board-row__details" onClick={(event) => event.stopPropagation()}>
+          <summary>{options?.pinned ? 'Recommendation rationale and details' : 'Details'}</summary>
+          <div className="nonrevy-flight-row__detail-grid">
+            {options?.pinned ? (
+              <section>
+                <strong>{recommendationLabel(options.recommendationIndex ?? 0)}</strong>
+                <p>{plainEnglishRationale(comparison, options.recommendationIndex ?? 0)}</p>
+              </section>
+            ) : null}
+            <section>
+              <strong>Score details</strong>
+              <p>{comparison.successPrediction.loadExplanation}</p>
+              {comparison.loadSupport.source ? <p>Load source: {comparison.loadSupport.source}</p> : null}
+              <ul>
+                {comparison.successPrediction.reasoning.map((reason) => <li key={`${comparison.id}-${reason}`}>{reason}</li>)}
+              </ul>
+              <ScoringExplanationDetails comparison={comparison} backup={nextBackup} />
+            </section>
+
+            <section>
+              <strong>Recovery plan</strong>
+              <p>{keyRiskNote(comparison)}</p>
+              <RecoveryStrategySection comparison={comparison} comparisons={compactItineraries} />
+            </section>
+
+            <section>
+              <strong>Aircraft/details</strong>
+              <p>{comparison.aircraftDetails}</p>
+              <p>Duration {comparison.totalTravelTime} · {comparison.connections + 1} leg{comparison.connections === 0 ? '' : 's'} · {comparison.airportIntelligence.connectionRiskScore}/100 connection risk</p>
+              <ItineraryRouteMap route={comparison.route} />
+              <RouteAirportDetails route={comparison.route} />
+            </section>
+
+            <section>
+              <strong>Source/data freshness</strong>
+              <p>{comparison.sourceDetails}</p>
+              {comparison.marketingFlightNumbers?.length ? <p><strong>Marketing/codeshare numbers:</strong> {comparison.marketingFlightNumbers.join(', ')}</p> : null}
+              <div className="nonrevy-flight-row__badges">
+                {comparison.providerBadges.slice(0, 4).map((badge) => <ProviderBadge key={`${comparison.id}-${badge}`} label={badge} />)}
+                <WeatherRiskBadge weatherRisk={comparison.weatherRisk} />
+              </div>
+              <p>{comparison.communityReportSummary}</p>
+              <OutcomeCapture subjectType="route-recommendation" subjectId={`comparison-${comparison.id}`} title={`Planner recommendation ${comparison.route}`} route={comparison.route} />
+            </section>
+          </div>
+        </details>
+      </article>
+    )
+  }
 
   return (
-    <section className="nonrevy-results-shell nonrevy-compact-results" style={{ border: '1px solid rgba(56, 189, 248, 0.35)', borderRadius: 16, padding: 'clamp(8px, 2.4vw, 12px)', background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.96), rgba(30, 41, 59, 0.86))', marginBottom: selectedComparison ? 86 : 18 }}>
-      <div className="nonrevy-compact-results__header">
-        <div>
-          <strong>Flight options</strong>
-          <span>{compactItineraries.length} shown · tap a row for details</span>
-        </div>
+    <section className="nonrevy-results-shell nonrevy-compact-results nonrevy-flight-board" style={{ border: '1px solid rgba(56, 189, 248, 0.35)', borderRadius: 14, padding: 'clamp(6px, 2vw, 10px)', background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.96), rgba(30, 41, 59, 0.86))', marginBottom: 16 }}>
+      <div className="nonrevy-flight-board__header">
+        <strong>Flight board</strong>
+        <span>Direct first · then 1-stop · 2-stop · chronological</span>
       </div>
 
       {watchStatus && <p className="nonrevy-compact-results__status nonrevy-compact-results__status--watch">{watchStatus} <a href="/watchlist">Open watchlist</a></p>}
       {compareStatus && <p className="nonrevy-compact-results__status nonrevy-compact-results__status--save">{compareStatus}</p>}
 
-      <div className="nonrevy-flight-list">
-        {compactItineraries.map((comparison, index) => {
-          const nextBackup = compactItineraries[index + 1] || compactItineraries.find((item) => item.id !== comparison.id)
-          const scoreColor = successScoreColor(comparison.successPrediction.probability, comparison.successPrediction.isLoadSupported)
-          const routeAirports = airportCodesFromComparisonRoute(comparison.route)
-          const legCount = comparison.connections + 1
-          const isSelected = selectedComparisonId === comparison.id
-          const isExpanded = expandedDetailIds.includes(comparison.id)
-          return (
-            <article
-              key={comparison.id}
-              className={`nonrevy-flight-row ${isSelected ? 'nonrevy-flight-row--selected' : ''}`}
-              style={{ '--score-color': scoreColor } as CSSProperties}
-              onClick={() => openDetails(comparison)}
-            >
-              <div className="nonrevy-flight-row__summary">
-                <div className="nonrevy-flight-row__carrier" aria-label={comparison.carrier}>
-                  <span>{compactCarrierCode(comparison.carrier)}</span>
-                </div>
-
-                <div className="nonrevy-flight-row__main">
-                  <div className="nonrevy-flight-row__topline">
-                    <strong>{comparison.flightNumber}</strong>
-                    <span>{comparison.route}</span>
-                  </div>
-                  <div className="nonrevy-flight-row__times">
-                    <span>Dep {formatItineraryAirportDateTime(comparison.departureDateTime, routeAirports[0])}</span>
-                    <span>Arr {formatItineraryAirportDateTime(comparison.arrivalDateTime, routeAirports[routeAirports.length - 1])}</span>
-                  </div>
-                  <div className="nonrevy-flight-row__meta" aria-label="Itinerary facts">
-                    <span>{comparison.totalTravelTime}</span>
-                    <span>{compactAircraftLabel(comparison)}</span>
-                    <span>{legCount} leg{legCount === 1 ? '' : 's'}</span>
-                  </div>
-                </div>
-
-                <div className="nonrevy-flight-row__score" aria-label={`${comparison.successPrediction.scoreLabel} ${comparison.successPrediction.displayValue}`}>
-                  <strong>{compactScoreLabel(comparison)}</strong>
-                  <small>{comparison.successPrediction.isLoadSupported ? comparison.successPrediction.scoreLabel : 'Needs Load'}</small>
-                </div>
-              </div>
-
-              <div className="nonrevy-flight-row__actions" onClick={(event) => event.stopPropagation()}>
-                <button type="button" onClick={() => openDetails(comparison)}>{isExpanded ? '▴ Details' : '▾ Details'}</button>
-                <button type="button" onClick={() => selectItinerary(comparison)}>{isSelected ? '✓ Selected' : '＋ Select'}</button>
-              </div>
-
-              <details open={isExpanded} onToggle={(event) => setDetailsOpen(comparison.id, event.currentTarget.open)} className="nonrevy-flight-row__details" onClick={(event) => event.stopPropagation()}>
-                <summary>Details</summary>
-                <div className="nonrevy-flight-row__detail-grid">
-                  <section>
-                    <strong>Score details</strong>
-                    <p>{comparison.successPrediction.loadExplanation}</p>
-                    {comparison.loadSupport.source ? <p>Load source: {comparison.loadSupport.source}</p> : null}
-                    <ul>
-                      {comparison.successPrediction.reasoning.map((reason) => <li key={`${comparison.id}-${reason}`}>{reason}</li>)}
-                    </ul>
-                    <ScoringExplanationDetails comparison={comparison} backup={nextBackup} />
-                  </section>
-
-                  <section>
-                    <strong>Recovery plan</strong>
-                    <p>{keyRiskNote(comparison)}</p>
-                    <RecoveryStrategySection comparison={comparison} comparisons={compactItineraries} />
-                  </section>
-
-                  <section>
-                    <strong>Aircraft/details</strong>
-                    <p>{comparison.aircraftDetails}</p>
-                    <p>Duration {comparison.totalTravelTime} · {comparison.connections + 1} leg{comparison.connections === 0 ? '' : 's'} · {comparison.airportIntelligence.connectionRiskScore}/100 connection risk</p>
-                    <ItineraryRouteMap route={comparison.route} />
-                    <RouteAirportDetails route={comparison.route} />
-                  </section>
-
-                  <section>
-                    <strong>Source/data freshness</strong>
-                    <p>{comparison.sourceDetails}</p>
-                    {comparison.marketingFlightNumbers?.length ? <p><strong>Marketing/codeshare numbers:</strong> {comparison.marketingFlightNumbers.join(', ')}</p> : null}
-                    <div className="nonrevy-flight-row__badges">
-                      {comparison.providerBadges.slice(0, 4).map((badge) => <ProviderBadge key={`${comparison.id}-${badge}`} label={badge} />)}
-                      <WeatherRiskBadge weatherRisk={comparison.weatherRisk} />
-                    </div>
-                    <p>{comparison.communityReportSummary}</p>
-                    <OutcomeCapture subjectType="route-recommendation" subjectId={`comparison-${comparison.id}`} title={`Planner recommendation ${comparison.route}`} route={comparison.route} />
-                  </section>
-                </div>
-              </details>
-            </article>
-          )
-        })}
-      </div>
-
-      {selectedComparison ? (
-        <div className="nonrevy-selected-actions" aria-label={`Actions for selected itinerary ${selectedComparison.route}`}>
-          <div>
-            <strong>{selectedComparison.flightNumber}</strong>
-            <span>{selectedComparison.route}</span>
-          </div>
-          <button type="button" onClick={() => requestLoad(selectedComparison)}>↻ Request load</button>
-          <button type="button" onClick={() => saveForComparison(selectedComparison)}>☆ Save</button>
-          <button type="button" onClick={() => watchRoute(selectedComparison)}>👁 Watchlist</button>
+      {topRecommendations.length > 0 ? (
+        <div className="nonrevy-flight-board__pinned" aria-label="Top 3 recommendations">
+          {topRecommendations.map((comparison, index) => renderFlightBoardRow(comparison, { pinned: true, recommendationIndex: index }))}
         </div>
       ) : null}
 
-      <details className="nonrevy-premium-details" style={{ marginTop: 10, border: '1px solid #334155', borderRadius: 12, padding: 10, background: '#020617' }}>
-        <summary style={{ color: '#c084fc', cursor: 'pointer', fontWeight: 'bold' }}>Top recommendations, route intelligence, recovery, diagnostics, and provider details</summary>
+      <div className="nonrevy-flight-board__list" aria-label="All feasible itineraries">
+        {compactItineraries.map((comparison) => renderFlightBoardRow(comparison))}
+      </div>
+
+      <details className="nonrevy-premium-details" style={{ marginTop: 8, border: '1px solid #334155', borderRadius: 10, padding: 8, background: '#020617' }}>
+        <summary style={{ color: '#c084fc', cursor: 'pointer', fontWeight: 'bold' }}>Route intelligence, recovery, recommendations, and provider details</summary>
         <section style={{ display: 'grid', gap: 8, marginTop: 10 }}>
           {topRecommendations.map((item, index) => (
-            <article key={`top-${item.id}`} style={{ border: '1px solid #1e293b', borderRadius: 12, padding: 10, background: '#0f172a' }}>
+            <article key={`top-${item.id}`} style={{ border: '1px solid #1e293b', borderRadius: 10, padding: 8, background: '#0f172a' }}>
               <strong style={{ color: recommendationAccent(index) }}>{recommendationLabel(index)} · {item.route}</strong>
               <p style={{ color: '#cbd5e1', margin: '6px 0 0' }}>{plainEnglishRationale(item, index)}</p>
             </article>
@@ -2721,21 +2745,21 @@ function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: It
         <DisruptionIntelligenceSection comparisons={compactItineraries} />
       </details>
 
-      <details className="nonrevy-premium-details" style={{ border: '1px solid #334155', borderRadius: 12, padding: 10, background: '#020617', marginTop: 10 }}>
+      <details className="nonrevy-premium-details" style={{ border: '1px solid #334155', borderRadius: 10, padding: 8, background: '#020617', marginTop: 8 }}>
         <summary style={{ color: '#c084fc', cursor: 'pointer', fontWeight: 'bold' }}>Saved itinerary comparison</summary>
-        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'center', marginTop: 12 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'center', marginTop: 10 }}>
           <p style={{ color: '#94a3b8', margin: 0 }}>Saved locally in this browser for side-by-side planning.</p>
-          {savedComparisons.length > 0 && <button type="button" onClick={clearComparisons} style={{ padding: '8px 10px', borderRadius: 10, border: '1px solid #475569', background: '#0f172a', color: '#f8fafc', fontWeight: 'bold' }}>Clear saved comparisons</button>}
+          {savedComparisons.length > 0 && <button type="button" onClick={clearComparisons} style={{ padding: '7px 9px', borderRadius: 9, border: '1px solid #475569', background: '#0f172a', color: '#f8fafc', fontWeight: 'bold' }}>Clear saved comparisons</button>}
         </div>
         {savedComparisons.length === 0 ? (
-          <p style={{ color: '#cbd5e1' }}>No saved itinerary options yet. Use Save on any selected row.</p>
+          <p style={{ color: '#cbd5e1' }}>No saved itinerary options yet. Use Save on any row.</p>
         ) : (
           <div style={{ display: 'grid', gap: 8, marginTop: 10 }}>
             {savedComparisons.map((item) => (
-              <article key={item.id} style={{ border: '1px solid #334155', borderRadius: 12, padding: 10, background: '#0f172a' }}>
+              <article key={item.id} style={{ border: '1px solid #334155', borderRadius: 10, padding: 8, background: '#0f172a' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center' }}>
                   <p style={{ color: '#cbd5e1', margin: 0 }}>{item.carrier} · {item.route} · Saved score {item.successProbability}% · {item.totalTravelTime}</p>
-                  <button type="button" onClick={() => removeComparison(item.id)} style={{ padding: '7px 9px', borderRadius: 10, border: '1px solid #f87171', background: '#1f2937', color: '#fecaca', fontWeight: 'bold' }}>Remove</button>
+                  <button type="button" onClick={() => removeComparison(item.id)} style={{ padding: '6px 8px', borderRadius: 9, border: '1px solid #f87171', background: '#1f2937', color: '#fecaca', fontWeight: 'bold' }}>Remove</button>
                 </div>
               </article>
             ))}

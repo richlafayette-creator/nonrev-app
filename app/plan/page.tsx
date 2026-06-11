@@ -2640,27 +2640,49 @@ function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: It
       >
         <div className="nonrevy-flight-board-row__main">
           <div className="nonrevy-flight-board-row__line">
-            {options?.pinned ? <span className="nonrevy-flight-board-row__rank">#{(options.recommendationIndex ?? 0) + 1}</span> : null}
-            <span className="nonrevy-flight-board-row__carrier">{compactCarrierCode(comparison.carrier)}</span>
-            <strong className="nonrevy-flight-board-row__flight-number">{comparison.flightNumber}</strong>
-            <span className="nonrevy-flight-board-row__route">{comparison.route}</span>
-            <span className="nonrevy-flight-board-row__times">{depTime}→{arrTime}</span>
-            <span className="nonrevy-flight-board-row__duration">{comparison.totalTravelTime}</span>
-            <span className="nonrevy-flight-board-row__aircraft">{compactAircraftLabel(comparison)}</span>
-            <span className="nonrevy-flight-board-row__legs">{compactLegLabel(comparison.connections)}</span>
-            <span className="nonrevy-flight-board-row__score">{compactScoreIcon(comparison)}{compactScoreLabel(comparison)}</span>
+            <div className="nonrevy-flight-board-row__left">
+              <div className="nonrevy-flight-board-row__carrier-line">
+                {options?.pinned ? <span className="nonrevy-flight-board-row__rank">#{(options.recommendationIndex ?? 0) + 1}</span> : null}
+                <span className="nonrevy-flight-board-row__carrier">{compactCarrierCode(comparison.carrier)}</span>
+                <strong className="nonrevy-flight-board-row__flight-number">{comparison.flightNumber}</strong>
+              </div>
+              <span className="nonrevy-flight-board-row__date">{depTime.split(' ')[0]} {depTime.split(' ')[1] ? depTime.split(' ')[1].replace(/\+\d+$/, '') : ''}</span>
+              <span className="nonrevy-flight-board-row__carrier-name">{comparison.carrier}</span>
+            </div>
+            <div className="nonrevy-flight-board-row__right">
+              <div className="nonrevy-flight-board-row__time-line">
+                <span className="nonrevy-flight-board-row__times">{depTime.split(' ').slice(-1)[0]}→{arrTime.split(' ').slice(-1)[0]}</span>
+                <span className="nonrevy-flight-board-row__score">{compactScoreIcon(comparison)}{compactScoreLabel(comparison)}</span>
+              </div>
+              <span className="nonrevy-flight-board-row__route">{comparison.route}</span>
+              <span className="nonrevy-flight-board-row__meta-line">
+                <span className="nonrevy-flight-board-row__duration">{comparison.totalTravelTime}</span>
+                <span className="nonrevy-flight-board-row__aircraft">{compactAircraftLabel(comparison)}</span>
+                <span className="nonrevy-flight-board-row__legs">{compactLegLabel(comparison.connections)}</span>
+              </span>
+            </div>
           </div>
-          <div className="nonrevy-flight-board-row__actions" onClick={(event) => event.stopPropagation()}>
-            <button type="button" onClick={() => requestLoad(comparison)}>↻ Load</button>
-            <button type="button" onClick={() => saveForComparison(comparison)}>☆ Save</button>
-            <button type="button" onClick={() => watchRoute(comparison)}>👁 Watch</button>
-            <button type="button" onClick={() => openDetails(comparison)}>{isExpanded ? '▴ Hide' : '▾ Details'}</button>
-          </div>
+          {(isSelected || isExpanded) ? (
+            <div className="nonrevy-flight-board-row__actions" onClick={(event) => event.stopPropagation()}>
+              <button type="button" onClick={() => requestLoad(comparison)}>↻ Request Load</button>
+              <button type="button" onClick={() => saveForComparison(comparison)}>☆ Save</button>
+              <button type="button" onClick={() => watchRoute(comparison)}>👁 Watchlist</button>
+              <button type="button" onClick={() => openDetails(comparison)}>{isExpanded ? '▴ Hide' : '▾ Details'}</button>
+            </div>
+          ) : null}
         </div>
 
         <details open={isExpanded} onToggle={(event) => setDetailsOpen(comparison.id, event.currentTarget.open)} className="nonrevy-flight-board-row__details" onClick={(event) => event.stopPropagation()}>
           <summary>{options?.pinned ? 'Recommendation rationale and details' : 'Details'}</summary>
           <div className="nonrevy-flight-row__detail-grid">
+            <section className="nonrevy-flight-board-row__detail-actions">
+              <strong>Actions</strong>
+              <div className="nonrevy-flight-board-row__actions nonrevy-flight-board-row__actions--details">
+                <button type="button" onClick={() => requestLoad(comparison)}>↻ Request Load</button>
+                <button type="button" onClick={() => saveForComparison(comparison)}>☆ Save</button>
+                <button type="button" onClick={() => watchRoute(comparison)}>👁 Watchlist</button>
+              </div>
+            </section>
             {options?.pinned ? (
               <section>
                 <strong>{recommendationLabel(options.recommendationIndex ?? 0)}</strong>

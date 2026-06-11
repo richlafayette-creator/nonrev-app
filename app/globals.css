@@ -2893,3 +2893,32 @@ body {
     display: none;
   }
 }
+
+/* Trust-first confidence badges on compact flight rows */
+.nonrevy-flight-board-row__confidence {
+  flex: 0 0 auto;
+  padding: 1px 5px;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 999px;
+  background: rgba(2, 6, 23, 0.58);
+  color: #cbd5e1;
+  font-size: clamp(0.62rem, 2.25vw, 0.72rem);
+  font-weight: 900;
+  line-height: 1.05;
+}
+
+.nonrevy-flight-board-row__score {
+  margin-left: auto;
+}
+
+.nonrevy-flight-board-row__confidence::after {
+  display: none;
+  content: none !important;
+}
+
+@media (max-width: 430px) {
+  .nonrevy-flight-board-row__confidence {
+    padding: 1px 4px;
+    font-size: 0.62rem;
+  }
+}

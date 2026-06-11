@@ -1125,7 +1125,7 @@ function compactCarrierCode(carrier: string) {
 }
 
 function compactScoreLabel(comparison: ItineraryComparison) {
-  if (comparison.successPrediction.scoreLabel === 'Needs Load') return 'Load?'
+  if (comparison.successPrediction.scoreLabel === 'Needs Load') return 'LoadReq'
   return comparison.successPrediction.displayValue.replace(/\s+/g, '')
 }
 
@@ -2648,6 +2648,7 @@ function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: It
             <span className="nonrevy-flight-board-row__duration">{comparison.totalTravelTime}</span>
             <span className="nonrevy-flight-board-row__aircraft">{compactAircraftLabel(comparison)}</span>
             <span className="nonrevy-flight-board-row__score">{compactScoreIcon(comparison)}{compactScoreLabel(comparison)}</span>
+            <span className="nonrevy-flight-board-row__confidence">{comparison.successPrediction.confidenceBadge.replace(' Confidence', '')}</span>
           </div>
           {isExpanded ? (
             <div className="nonrevy-flight-board-row__actions" onClick={(event) => event.stopPropagation()}>
@@ -2677,11 +2678,13 @@ function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: It
               </section>
             ) : null}
             <section>
-              <strong>Score details</strong>
+              <strong>Trust-first score details</strong>
+              <p><strong>Success:</strong> {comparison.successPrediction.displayValue} · <strong>Confidence:</strong> {comparison.successPrediction.confidenceBadge} ({comparison.successPrediction.confidenceScore}/100)</p>
               <p>{comparison.successPrediction.loadExplanation}</p>
+              <p>{comparison.successPrediction.confidenceExplanation}</p>
               {comparison.loadSupport.source ? <p>Load source: {comparison.loadSupport.source}</p> : null}
               <ul>
-                {comparison.successPrediction.reasoning.map((reason) => <li key={`${comparison.id}-${reason}`}>{reason}</li>)}
+                {[...comparison.successPrediction.reasoning, ...comparison.successPrediction.confidenceReasoning].map((reason) => <li key={`${comparison.id}-${reason}`}>{reason}</li>)}
               </ul>
               <ScoringExplanationDetails comparison={comparison} backup={nextBackup} />
             </section>

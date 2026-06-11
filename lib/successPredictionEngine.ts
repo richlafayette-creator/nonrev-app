@@ -33,7 +33,11 @@ export type SuccessPredictionInput = {
 
 export type SuccessPrediction = {
   probability: number
+  confidenceScore: number
   confidenceLevel: SuccessPredictionConfidenceLevel
+  confidenceBadge: '🟢 High Confidence' | '🟡 Medium Confidence' | '🔴 Low Confidence'
+  confidenceExplanation: string
+  confidenceReasoning: string[]
   riskLevel: SuccessPredictionRiskLevel
   badge: SuccessPredictionBadge
   label: 'Likely Success' | 'Good Chance' | 'Planning Confidence' | 'Worth Watching' | 'Needs Load' | 'High Risk'
@@ -128,20 +132,108 @@ function riskFor(probability: number, connectionCount: number, isLoadSupported =
   return 'High'
 }
 
-function confidenceFor(input: SuccessPredictionInput): SuccessPredictionConfidenceLevel {
-  const signals = [
-    input.routeConfidenceScore >= 70,
-    input.backupAvailability === 'Excellent' || input.backupAvailability === 'Good',
-    input.carrierCoverage !== 'Limited',
-    input.scheduleDensity !== 'Low',
-    input.recoveryStrength !== 'Limited',
-    Number.isFinite(input.historicalLoadSignal),
-    input.loadData?.status === 'verified' || input.loadData?.status === 'trusted'
-  ].filter(Boolean).length
-  if (input.loadData?.status === 'weak' || input.loadData?.status === 'stale') return 'Low'
-  if (signals >= 6) return 'High'
-  if (signals >= 3) return 'Medium'
+function confidenceEvidence(input: SuccessPredictionInput) {
+  const status = input.loadData?.status || 'missing'
+  const seats = input.loadData?.seatsAvailable
+  const standby = input.loadData?.standbyCount
+  const hasStructuredLoad = typeof seats === 'number' && typeof standby === 'number'
+  const reasons: string[] = []
+  let score = 35
+
+  if (status === 'verified') {
+    score += 34
+    reasons.push('Fresh verified load data is present')
+  } else if (status === 'trusted') {
+    score += 26
+    reasons.push('Trusted load data is present')
+  } else if (status === 'weak') {
+    score -= 18
+    reasons.push('Load observation is weak or incomplete')
+  } else if (status === 'stale') {
+    score -= 26
+    reasons.push('Load observation is stale')
+  } else {
+    score -= 32
+    reasons.push('No load data is available')
+  }
+
+  if (hasStructuredLoad) {
+    const margin = seats - standby
+    const pressureRatio = seats <= 0 ? Number.POSITIVE_INFINITY : standby / seats
+    if (margin >= 10 || pressureRatio <= 0.45) {
+      score += 12
+      reasons.push('Available-seat margin is comfortably above standby demand')
+    } else if (margin >= 4 || pressureRatio <= 0.7) {
+      score += 5
+      reasons.push('Available-seat margin is usable but should still be monitored')
+    } else if (margin > 0) {
+      score -= 14
+      reasons.push('Standby demand is approaching available seats')
+    } else {
+      score -= 24
+      reasons.push('Standby demand meets or exceeds available seats')
+    }
+  } else {
+    score -= 12
+    reasons.push('Missing structured available-seat and standby counts')
+  }
+
+  if (Number.isFinite(input.historicalLoadSignal)) {
+    const historicalSignal = input.historicalLoadSignal || 0
+    if (historicalSignal >= 6) {
+      score += 10
+      reasons.push('Historical/community observations are consistently favorable')
+    } else if (historicalSignal >= 0) {
+      score += 5
+      reasons.push('Historical/community observations provide some support')
+    } else {
+      score -= 6
+      reasons.push('Historical/community observations are unfavorable')
+    }
+  } else {
+    score -= 5
+    reasons.push('No historical load signal is available')
+  }
+
+  if (input.carrierCoverage === 'Strong') {
+    score += 7
+    reasons.push('Carrier/source coverage is strong')
+  } else if (input.carrierCoverage === 'Limited') {
+    score -= 8
+    reasons.push('Carrier/source coverage is limited')
+  } else {
+    score += 2
+    reasons.push('Carrier/source coverage is moderate')
+  }
+
+  if (input.scheduleDensity === 'High') {
+    score += 5
+    reasons.push('Schedule density gives corroborating route context')
+  } else if (input.scheduleDensity === 'Low') {
+    score -= 5
+    reasons.push('Schedule-only context is sparse')
+  }
+
+  if (input.routeConfidenceScore >= 76) score += 6
+  else if (input.routeConfidenceScore < 55) score -= 8
+
+  return { score: clamp(score, 1, 99), reasons: [...new Set(reasons)].slice(0, 5) }
+}
+
+function confidenceLevelFor(score: number): SuccessPredictionConfidenceLevel {
+  if (score >= 76) return 'High'
+  if (score >= 48) return 'Medium'
   return 'Low'
+}
+
+function confidenceBadgeFor(level: SuccessPredictionConfidenceLevel): SuccessPrediction['confidenceBadge'] {
+  if (level === 'High') return '🟢 High Confidence'
+  if (level === 'Medium') return '🟡 Medium Confidence'
+  return '🔴 Low Confidence'
+}
+
+function confidenceExplanationFor(level: SuccessPredictionConfidenceLevel, score: number, reasons: string[]) {
+  return `Confidence is ${level} (${score}/100) because ${reasons.join('; ')}.`
 }
 
 function loadProbability(input: SuccessPredictionInput) {
@@ -205,24 +297,33 @@ export function calculateSuccessPrediction(input: SuccessPredictionInput): Succe
   const isLoadSupported = loadStatus === 'verified' || loadStatus === 'trusted'
   const needsLoad = loadStatus === 'weak' || loadStatus === 'stale'
   const loadBasedProbability = isLoadSupported ? loadProbability(input) : null
-  const probability = loadBasedProbability === null
+  const confidence = confidenceEvidence(input)
+  const confidenceLevel = confidenceLevelFor(confidence.score)
+  const rawProbability = loadBasedProbability === null
     ? clamp(routePlanningProbability, 1, 65)
     : clamp(Math.min(loadBasedProbability + (routePlanningProbability >= 76 ? 3 : 0), 94))
-  const scoreLabel = isLoadSupported ? 'Success Probability' : needsLoad ? 'Needs Load' : 'Planning Confidence'
+  const confidenceCap = confidenceLevel === 'High' ? 94 : confidenceLevel === 'Medium' ? 74 : 54
+  const probability = clamp(Math.min(rawProbability, confidenceCap))
+  const trustNeedsLoad = !isLoadSupported || confidenceLevel === 'Low'
+  const scoreLabel = isLoadSupported && confidenceLevel !== 'Low' ? 'Success Probability' : needsLoad || trustNeedsLoad ? 'Needs Load' : 'Planning Confidence'
 
   return {
     probability,
-    confidenceLevel: confidenceFor(input),
-    riskLevel: riskFor(probability, input.connectionCount, isLoadSupported),
-    badge: badgeFor(probability, isLoadSupported),
-    label: labelFor(probability, isLoadSupported, needsLoad),
+    confidenceScore: confidence.score,
+    confidenceLevel,
+    confidenceBadge: confidenceBadgeFor(confidenceLevel),
+    confidenceExplanation: confidenceExplanationFor(confidenceLevel, confidence.score, confidence.reasons),
+    confidenceReasoning: confidence.reasons,
+    riskLevel: riskFor(probability, input.connectionCount, isLoadSupported && confidenceLevel !== 'Low'),
+    badge: badgeFor(probability, isLoadSupported && confidenceLevel !== 'Low'),
+    label: labelFor(probability, isLoadSupported && confidenceLevel !== 'Low', trustNeedsLoad),
     scoreLabel,
-    displayValue: needsLoad ? 'Needs Load' : `${probability}%`,
-    isLoadSupported,
-    needsLoad: needsLoad || !isLoadSupported,
+    displayValue: trustNeedsLoad ? 'Needs Load' : `${probability}%`,
+    isLoadSupported: isLoadSupported && confidenceLevel !== 'Low',
+    needsLoad: trustNeedsLoad,
     loadDataStatus: loadStatus,
-    loadExplanation: loadExplanationFor(input, probability, isLoadSupported, needsLoad),
-    reasoning: reasoningFor(input, probability, isLoadSupported, needsLoad)
+    loadExplanation: loadExplanationFor(input, probability, isLoadSupported && confidenceLevel !== 'Low', trustNeedsLoad),
+    reasoning: reasoningFor(input, probability, isLoadSupported && confidenceLevel !== 'Low', trustNeedsLoad)
   }
 }
 

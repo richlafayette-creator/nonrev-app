@@ -66,7 +66,7 @@ export default function Home() {
     }
     markActivationStep('runFirstTripPlan')
     setRecentSearches(saveRecentHomeSearch(normalized))
-    window.location.href = `/plan?aiTrip=${encodeURIComponent(normalized)}`
+    window.location.href = `/results?aiTrip=${encodeURIComponent(normalized)}`
   }
 
   function submitSearch(event: FormEvent<HTMLFormElement>) {

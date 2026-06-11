@@ -2728,6 +2728,11 @@ function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: It
         {compactItineraries.map((comparison) => renderFlightBoardRow(comparison))}
       </div>
 
+      <div className="nonrevy-flight-board__expand-actions">
+        <button type="button" onClick={() => setExpandedDetailIds(compactItineraries.map((item) => item.id))}>Expand All</button>
+        <button type="button" onClick={() => setExpandedDetailIds([])}>Collapse All</button>
+      </div>
+
       <details className="nonrevy-premium-details" style={{ marginTop: 8, border: '1px solid #334155', borderRadius: 10, padding: 8, background: '#020617' }}>
         <summary style={{ color: '#c084fc', cursor: 'pointer', fontWeight: 'bold' }}>Route intelligence, recovery, recommendations, and provider details</summary>
         <section style={{ display: 'grid', gap: 8, marginTop: 10 }}>
@@ -2770,7 +2775,7 @@ function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: It
   )
 }
 
-export default function PlanPage() {
+export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: boolean } = {}) {
   const [tripGoal, setTripGoal] = useState('')
   const [homeAirport, setHomeAirport] = useState('')
   const [travelWindow, setTravelWindow] = useState('')
@@ -2989,9 +2994,13 @@ export default function PlanPage() {
     }
     if (tripGoal.trim()) {
       setQuery(tripGoal.trim())
-      window.history.replaceState(null, '', `/plan?q=${encodeURIComponent(tripGoal.trim())}`)
+      if (!compactResultsMode) {
+        window.location.href = `/results?q=${encodeURIComponent(tripGoal.trim())}`
+        return
+      }
+      window.history.replaceState(null, '', `/results?q=${encodeURIComponent(tripGoal.trim())}`)
     }
-    await runItinerarySearch(tripGoal)
+    await runItinerarySearch(tripGoal, { maxLegs: '2' })
   }
 
   function handleCarrierChange(nextCarrier: string) {
@@ -3039,8 +3048,12 @@ export default function PlanPage() {
     setSubmitted(true)
     setAiPlannerStatus('AI planner scaffold generated route guidance and refreshed itinerary results.')
     setCopilotStatus('Copilot is using the refreshed itinerary, route intelligence, and recovery results.')
-    window.history.replaceState(null, '', `/plan?aiTrip=${encodeURIComponent(prompt)}`)
-    await runItinerarySearch(prompt)
+    if (!compactResultsMode) {
+      window.location.href = `/results?aiTrip=${encodeURIComponent(prompt)}`
+      return
+    }
+    window.history.replaceState(null, '', `/results?aiTrip=${encodeURIComponent(prompt)}`)
+    await runItinerarySearch(prompt, { maxLegs: '2' })
   }
 
   async function submitCopilotPrompt(event: FormEvent<HTMLFormElement>) {
@@ -3056,8 +3069,12 @@ export default function PlanPage() {
     setAiTripPrompt(prompt)
     setSubmitted(true)
     setCopilotStatus('Copilot translated your request into a planner search.')
-    window.history.replaceState(null, '', `/plan?aiTrip=${encodeURIComponent(prompt)}`)
-    await runItinerarySearch(prompt)
+    if (!compactResultsMode) {
+      window.location.href = `/results?aiTrip=${encodeURIComponent(prompt)}`
+      return
+    }
+    window.history.replaceState(null, '', `/results?aiTrip=${encodeURIComponent(prompt)}`)
+    await runItinerarySearch(prompt, { maxLegs: '2' })
   }
 
 
@@ -3071,8 +3088,12 @@ export default function PlanPage() {
     setSubmitted(true)
     setAiPlannerStatus('Universal search interpreted your airport, route, flight, cabin, or open-ended request.')
     setCopilotStatus('Copilot is using the universal search interpretation with current route intelligence and recovery signals.')
-    window.history.replaceState(null, '', `/plan?aiTrip=${encodeURIComponent(prompt)}`)
-    void runItinerarySearch(prompt)
+    if (!compactResultsMode) {
+      window.location.href = `/results?aiTrip=${encodeURIComponent(prompt)}`
+      return
+    }
+    window.history.replaceState(null, '', `/results?aiTrip=${encodeURIComponent(prompt)}`)
+    void runItinerarySearch(prompt, { maxLegs: '2' })
   }
 
   const matchingFlights = useMemo(
@@ -3159,6 +3180,80 @@ export default function PlanPage() {
   const travelDateHelperText = travelDateError || (travelWindow.trim()
     ? 'Single-date search active. Edit manually as YYYY-MM-DD or use the calendar picker where available.'
     : 'Optional. Use the calendar picker where available, or type YYYY-MM-DD, e.g. 2026-06-06. Blank searches stay flexible.')
+
+  if (compactResultsMode) {
+    return (
+      <main className="app-shell nonrevy-plan-shell nonrevy-results-page" style={{ minHeight: '100vh', background: '#020617', color: 'white', padding: 'clamp(8px, 2.4vw, 14px)', fontFamily: 'Arial', overflowX: 'hidden' }}>
+        <section className="nonrevy-results-page__shell">
+          <form onSubmit={submitPlanRequest} className="nonrevy-results-search" aria-label="Edit itinerary search">
+            <a href="/" className="nonrevy-results-search__brand" aria-label="NONREVY home">NONREVY</a>
+            <input
+              value={tripGoal}
+              onChange={(event) => setTripGoal(event.target.value)}
+              placeholder="LAX to HND tomorrow"
+              aria-label="Search itinerary"
+            />
+            <input
+              type="date"
+              value={travelWindow}
+              onChange={(event) => {
+                const nextDate = event.target.value
+                setTravelWindow(nextDate)
+                setTravelDateError(validateTravelDate(nextDate))
+              }}
+              onBlur={(event) => setTravelDateError(validateTravelDate(event.target.value))}
+              aria-label="Travel date"
+            />
+            <button type="submit" disabled={itineraryLoading}>{itineraryLoading ? 'Searching…' : 'Search'}</button>
+          </form>
+
+          {travelDateError ? <p className="nonrevy-results-page__warning">{travelDateError}</p> : null}
+          {itineraryWarnings.length ? (
+            <details className="nonrevy-results-page__notice">
+              <summary>Search notices</summary>
+              <ul>{itineraryWarnings.map((warning) => <li key={warning}>{warning}</li>)}</ul>
+            </details>
+          ) : null}
+          {itineraryDebug?.dataFreshnessMode === 'nearest-date-testing' ? (
+            <details className="nonrevy-results-page__notice nonrevy-results-page__notice--warn">
+              <summary>Nearest-date testing mode active</summary>
+              <p>
+                Showing nearest-date testing data matched to {itineraryDebug.routeMatching?.dateCoverage.effectiveMatchDate || 'a nearest available stored date'} instead of requested date {itineraryDebug.routeMatching?.dateCoverage.requestedSearchDate || 'unknown'}.
+              </p>
+            </details>
+          ) : null}
+
+          {itineraryLoading ? <PlannerSkeletonLoaders /> : null}
+          <ItineraryComparisonPanel comparisons={itineraryComparisons} travelDate={travelWindow} />
+
+          <details className="nonrevy-results-page__below">
+            <summary>Copilot, search settings, and diagnostics</summary>
+            <CopilotPanel
+              prompt={copilotPrompt}
+              setPrompt={setCopilotPrompt}
+              status={copilotStatus}
+              loading={itineraryLoading}
+              comparisons={itineraryComparisons}
+              travelerProfile={travelerProfile}
+              onSubmit={submitCopilotPrompt}
+            />
+            <UniversalSearchPanel
+              query={query || tripGoal || aiTripPrompt || copilotPrompt}
+              comparisons={itineraryComparisons}
+              flights={flights}
+              travelerProfile={travelerProfile}
+              onChoose={runUniversalSearchChoice}
+            />
+            <details style={{ border: '1px solid #334155', borderRadius: 14, padding: 12, background: '#020617', marginTop: 12 }}>
+              <summary style={{ color: '#67e8f9', cursor: 'pointer', fontWeight: 'bold' }}>Developer Diagnostics</summary>
+              <p style={{ color: '#94a3b8' }}>Source: {itinerarySource} · Mode: {itineraryDataMode} · Max legs: 2 default · Status: {itineraryStatus}</p>
+              {itineraryDebug ? <pre style={{ whiteSpace: 'pre-wrap', color: '#cbd5e1', fontSize: 12 }}>{JSON.stringify(itineraryDebug, null, 2)}</pre> : null}
+            </details>
+          </details>
+        </section>
+      </main>
+    )
+  }
 
   return (
     <main className="app-shell nonrevy-plan-shell" style={{ minHeight: '100vh', background: '#020617', color: 'white', padding: 'clamp(16px, 4vw, 32px)', fontFamily: 'Arial', overflowX: 'hidden' }}>
@@ -4151,3 +4246,5 @@ export default function PlanPage() {
     </main>
   )
 }
+
+export default PlanPage

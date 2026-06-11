@@ -2640,15 +2640,23 @@ function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: It
       >
         <div className="nonrevy-flight-board-row__main">
           <div className="nonrevy-flight-board-row__line" aria-label={`${comparison.carrier} ${comparison.flightNumber} ${comparison.route} ${depTime} to ${arrTime} ${comparison.totalTravelTime} ${compactAircraftLabel(comparison)} ${comparison.successPrediction.scoreLabel}`}>
-            {options?.pinned ? <span className="nonrevy-flight-board-row__rank">#{(options.recommendationIndex ?? 0) + 1}</span> : null}
-            <span className="nonrevy-flight-board-row__carrier">{compactCarrierCode(comparison.carrier)}</span>
-            <strong className="nonrevy-flight-board-row__flight-number">{comparison.flightNumber}</strong>
-            <span className="nonrevy-flight-board-row__route">{comparison.route}</span>
-            <span className="nonrevy-flight-board-row__times">{depTime.split(' ').slice(-1)[0]}→{arrTime.split(' ').slice(-1)[0]}</span>
-            <span className="nonrevy-flight-board-row__duration">{comparison.totalTravelTime}</span>
-            <span className="nonrevy-flight-board-row__aircraft">{compactAircraftLabel(comparison)}</span>
-            <span className="nonrevy-flight-board-row__score">{compactScoreIcon(comparison)}{compactScoreLabel(comparison)}</span>
-            <span className="nonrevy-flight-board-row__confidence">{comparison.successPrediction.confidenceBadge.replace(' Confidence', '')}</span>
+            <div className="nonrevy-flight-board-row__primary-line">
+              <span className="nonrevy-flight-board-row__flight-id">
+                {options?.pinned ? <span className="nonrevy-flight-board-row__rank">#{(options.recommendationIndex ?? 0) + 1}</span> : null}
+                <span className="nonrevy-flight-board-row__carrier">{compactCarrierCode(comparison.carrier)}</span>
+                <strong className="nonrevy-flight-board-row__flight-number">{comparison.flightNumber}</strong>
+              </span>
+              <span className="nonrevy-flight-board-row__route">{comparison.route}</span>
+              <span className="nonrevy-flight-board-row__badge-stack">
+                <span className="nonrevy-flight-board-row__score">{comparison.successPrediction.needsLoad ? 'Load' : `${compactScoreIcon(comparison)}${compactScoreLabel(comparison)}`}</span>
+                <span className="nonrevy-flight-board-row__confidence">{comparison.successPrediction.confidenceBadge.replace(' Confidence', '')}</span>
+              </span>
+            </div>
+            <div className="nonrevy-flight-board-row__secondary-line">
+              <span className="nonrevy-flight-board-row__times">{depTime.split(' ').slice(-1)[0]} → {arrTime.split(' ').slice(-1)[0]}</span>
+              <span className="nonrevy-flight-board-row__duration">{comparison.totalTravelTime}</span>
+              <span className="nonrevy-flight-board-row__aircraft">{compactAircraftLabel(comparison)}</span>
+            </div>
           </div>
           {isExpanded ? (
             <div className="nonrevy-flight-board-row__actions" onClick={(event) => event.stopPropagation()}>
@@ -2729,12 +2737,6 @@ function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: It
 
       {watchStatus && <p className="nonrevy-compact-results__status nonrevy-compact-results__status--watch">{watchStatus} <a href="/watchlist">Open watchlist</a></p>}
       {compareStatus && <p className="nonrevy-compact-results__status nonrevy-compact-results__status--save">{compareStatus}</p>}
-
-      {topRecommendations.length > 0 ? (
-        <div className="nonrevy-flight-board__pinned" aria-label="Top 3 recommendations">
-          {topRecommendations.map((comparison, index) => renderFlightBoardRow(comparison, { pinned: true, recommendationIndex: index }))}
-        </div>
-      ) : null}
 
       <div className="nonrevy-flight-board__list" aria-label="All feasible itineraries">
         {compactItineraries.map((comparison) => renderFlightBoardRow(comparison))}

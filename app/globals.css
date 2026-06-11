@@ -2922,3 +2922,172 @@ body {
     font-size: 0.62rem;
   }
 }
+
+/* Overflow-safe two-line compact flight rows */
+.nonrevy-flight-board-row {
+  padding: 4px 6px !important;
+  border-radius: 8px;
+}
+
+.nonrevy-flight-board-row__line {
+  display: grid !important;
+  grid-template-columns: 1fr !important;
+  gap: 2px !important;
+  width: 100%;
+  line-height: 1.08;
+}
+
+.nonrevy-flight-board-row__line > *::after,
+.nonrevy-flight-board-row__line > *:not(:last-child)::after {
+  content: none !important;
+  display: none !important;
+}
+
+.nonrevy-flight-board-row__primary-line,
+.nonrevy-flight-board-row__secondary-line,
+.nonrevy-flight-board-row__flight-id,
+.nonrevy-flight-board-row__badge-stack {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+}
+
+.nonrevy-flight-board-row__primary-line {
+  gap: 5px;
+}
+
+.nonrevy-flight-board-row__secondary-line {
+  gap: 7px;
+  color: #cbd5e1;
+}
+
+.nonrevy-flight-board-row__flight-id {
+  flex: 0 0 auto;
+  gap: 3px;
+  max-width: 42%;
+}
+
+.nonrevy-flight-board-row__carrier {
+  flex: 0 0 auto;
+  padding: 1px 4px;
+  border-radius: 5px;
+  font-size: clamp(0.7rem, 2.75vw, 0.82rem);
+}
+
+.nonrevy-flight-board-row__flight-number {
+  max-width: none !important;
+  overflow: visible !important;
+  color: #f8fafc;
+  font-size: clamp(0.78rem, 3vw, 0.9rem) !important;
+}
+
+.nonrevy-flight-board-row__route {
+  flex: 1 1 auto;
+  max-width: none !important;
+  overflow: visible !important;
+  white-space: normal !important;
+  color: #bae6fd;
+  font-size: clamp(0.94rem, 3.75vw, 1.08rem);
+  font-weight: 950;
+  letter-spacing: -0.045em;
+}
+
+.nonrevy-flight-board-row__badge-stack {
+  flex: 0 0 auto;
+  margin-left: auto;
+  gap: 3px;
+}
+
+.nonrevy-flight-board-row__score,
+.nonrevy-flight-board-row__confidence {
+  margin-left: 0 !important;
+  padding: 1px 4px;
+  border-radius: 999px;
+  font-size: clamp(0.58rem, 2.1vw, 0.68rem);
+  line-height: 1.05;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.nonrevy-flight-board-row__score {
+  max-width: none;
+  color: var(--score-color);
+}
+
+.nonrevy-flight-board-row__confidence {
+  color: #cbd5e1;
+  opacity: 0.85;
+}
+
+.nonrevy-flight-board-row__times {
+  flex: 0 0 auto;
+  max-width: none !important;
+  overflow: visible !important;
+  color: #f8fafc;
+  font-size: clamp(0.9rem, 3.5vw, 1.02rem);
+  font-weight: 950;
+  letter-spacing: -0.04em;
+}
+
+.nonrevy-flight-board-row__duration,
+.nonrevy-flight-board-row__aircraft {
+  flex: 0 1 auto;
+  max-width: none !important;
+  overflow: visible !important;
+  color: #cbd5e1;
+  font-size: clamp(0.72rem, 2.65vw, 0.82rem);
+  font-weight: 850;
+}
+
+.nonrevy-flight-board-row__aircraft {
+  color: #94a3b8;
+}
+
+.nonrevy-flight-board-row__details:not([open]) {
+  display: none;
+}
+
+.nonrevy-flight-board-row__details[open] {
+  display: block;
+}
+
+.nonrevy-flight-board-row__actions {
+  margin-top: 3px;
+  justify-content: flex-start;
+}
+
+.nonrevy-flight-board-row__actions button {
+  min-height: 17px;
+  padding: 1px 5px;
+  font-size: 0.58rem;
+}
+
+@media (max-width: 430px) {
+  .nonrevy-flight-board-row {
+    padding: 4px 5px !important;
+  }
+
+  .nonrevy-flight-board-row__primary-line {
+    gap: 4px;
+  }
+
+  .nonrevy-flight-board-row__secondary-line {
+    gap: 5px;
+  }
+
+  .nonrevy-flight-board-row__flight-id {
+    max-width: 44%;
+  }
+
+  .nonrevy-flight-board-row__route {
+    font-size: clamp(0.96rem, 4.05vw, 1.08rem);
+  }
+
+  .nonrevy-flight-board-row__times {
+    font-size: clamp(0.9rem, 3.8vw, 1rem);
+  }
+
+  .nonrevy-flight-board-row__aircraft {
+    display: inline-block;
+  }
+}

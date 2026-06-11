@@ -2642,12 +2642,12 @@ function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: It
           <div className="nonrevy-flight-board-row__line">
             {options?.pinned ? <span className="nonrevy-flight-board-row__rank">#{(options.recommendationIndex ?? 0) + 1}</span> : null}
             <span className="nonrevy-flight-board-row__carrier">{compactCarrierCode(comparison.carrier)}</span>
-            <strong>{comparison.flightNumber}</strong>
-            <span>{comparison.route}</span>
-            <span>{depTime}→{arrTime}</span>
-            <span>{comparison.totalTravelTime}</span>
-            <span>{compactAircraftLabel(comparison)}</span>
-            <span>{compactLegLabel(comparison.connections)}</span>
+            <strong className="nonrevy-flight-board-row__flight-number">{comparison.flightNumber}</strong>
+            <span className="nonrevy-flight-board-row__route">{comparison.route}</span>
+            <span className="nonrevy-flight-board-row__times">{depTime}→{arrTime}</span>
+            <span className="nonrevy-flight-board-row__duration">{comparison.totalTravelTime}</span>
+            <span className="nonrevy-flight-board-row__aircraft">{compactAircraftLabel(comparison)}</span>
+            <span className="nonrevy-flight-board-row__legs">{compactLegLabel(comparison.connections)}</span>
             <span className="nonrevy-flight-board-row__score">{compactScoreIcon(comparison)}{compactScoreLabel(comparison)}</span>
           </div>
           <div className="nonrevy-flight-board-row__actions" onClick={(event) => event.stopPropagation()}>

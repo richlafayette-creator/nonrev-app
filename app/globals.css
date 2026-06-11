@@ -2409,3 +2409,126 @@ body {
     font-size: clamp(0.78rem, 3.35vw, 0.9rem);
   }
 }
+
+/* Flight board readability hierarchy pass */
+.nonrevy-flight-board-row {
+  padding: 5px 6px;
+}
+
+.nonrevy-flight-board-row__line {
+  gap: 3px 5px;
+  line-height: 1.2;
+}
+
+.nonrevy-flight-board-row__route {
+  color: #e0f2fe;
+  font-size: clamp(0.96rem, 3.65vw, 1.14rem);
+  font-weight: 950;
+  letter-spacing: -0.035em;
+}
+
+.nonrevy-flight-board-row__flight-number {
+  max-width: min(38vw, 210px) !important;
+  color: #f8fafc;
+  font-size: clamp(0.88rem, 3.35vw, 1rem) !important;
+  letter-spacing: -0.02em;
+}
+
+.nonrevy-flight-board-row__times {
+  color: #c7e5ff;
+  font-size: clamp(0.82rem, 3.05vw, 0.94rem);
+  font-weight: 900;
+  letter-spacing: -0.025em;
+}
+
+.nonrevy-flight-board-row__duration,
+.nonrevy-flight-board-row__legs {
+  color: #dbeafe;
+  font-size: clamp(0.78rem, 2.9vw, 0.88rem);
+  font-weight: 900;
+}
+
+.nonrevy-flight-board-row__aircraft {
+  color: #94a3b8;
+  font-size: clamp(0.72rem, 2.65vw, 0.82rem);
+  font-weight: 780;
+}
+
+.nonrevy-flight-board-row__carrier {
+  padding: 2px 6px;
+  border-color: rgba(103, 232, 249, 0.38);
+  background: rgba(8, 47, 73, 0.72);
+  color: #cffafe;
+  font-size: clamp(0.72rem, 2.85vw, 0.82rem);
+  font-weight: 950;
+}
+
+.nonrevy-flight-board-row__score {
+  padding: 2px 6px;
+  font-size: clamp(0.72rem, 2.8vw, 0.82rem);
+  line-height: 1.1;
+  box-shadow: none;
+}
+
+.nonrevy-flight-board-row__actions {
+  justify-content: flex-start;
+  gap: 3px;
+  margin-top: 2px;
+}
+
+.nonrevy-flight-board-row__actions button {
+  min-height: 18px;
+  padding: 1px 5px;
+  border-color: rgba(148, 163, 184, 0.22);
+  background: rgba(2, 6, 23, 0.34);
+  color: #93c5fd;
+  font-size: clamp(0.56rem, 2.05vw, 0.64rem);
+  font-weight: 820;
+  line-height: 1.1;
+  opacity: 0.72;
+}
+
+.nonrevy-flight-board-row__actions button:hover,
+.nonrevy-flight-board-row__actions button:focus-visible {
+  opacity: 1;
+  border-color: rgba(103, 232, 249, 0.44);
+  background: rgba(8, 47, 73, 0.5);
+}
+
+.nonrevy-flight-board-row__details > summary {
+  font-size: 0.72rem;
+}
+
+@media (max-width: 560px) {
+  .nonrevy-results-page .nonrevy-flight-board-row {
+    padding: 5px 5px;
+  }
+
+  .nonrevy-results-page .nonrevy-flight-board-row__line {
+    gap: 2px 4px;
+    font-size: 0.8rem;
+  }
+
+  .nonrevy-results-page .nonrevy-flight-board-row__route {
+    font-size: clamp(1rem, 4.3vw, 1.16rem);
+  }
+
+  .nonrevy-results-page .nonrevy-flight-board-row__flight-number {
+    font-size: clamp(0.9rem, 3.75vw, 1.02rem) !important;
+  }
+
+  .nonrevy-results-page .nonrevy-flight-board-row__times {
+    font-size: clamp(0.84rem, 3.45vw, 0.96rem);
+  }
+
+  .nonrevy-results-page .nonrevy-flight-board-row__duration,
+  .nonrevy-results-page .nonrevy-flight-board-row__legs {
+    font-size: clamp(0.78rem, 3.18vw, 0.9rem);
+  }
+
+  .nonrevy-results-page .nonrevy-flight-board-row__actions button {
+    min-height: 17px;
+    padding: 1px 4px;
+    font-size: 0.58rem;
+  }
+}

@@ -1,10 +1,9 @@
 'use client'
 
-import { type FormEvent, useState } from 'react'
+import { type FormEvent, useEffect, useState } from 'react'
 import { useVoiceInput } from '../lib/useVoiceInput'
 import { markActivationStep } from '../lib/onboardingActivation'
-import { saveSavedSearch } from '../lib/savedSearches'
-import ActivationProgressCard from './ActivationProgressCard'
+import { loadSavedSearches, markSavedSearchRun, saveSavedSearch, savedSearchRunUrl, type SavedSearch } from '../lib/savedSearches'
 
 const searchExamples = [
   'LAX to HND tomorrow',
@@ -13,30 +12,78 @@ const searchExamples = [
   'Best Hawaii route this weekend'
 ]
 
+const recentSearchesStorageKey = 'nonrevy_recent_home_searches_v1'
+
+function loadRecentHomeSearches() {
+  if (typeof window === 'undefined' || !window.localStorage) return []
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(recentSearchesStorageKey) || '[]')
+    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string').slice(0, 4) : []
+  } catch {
+    return []
+  }
+}
+
+function saveRecentHomeSearch(query: string) {
+  if (typeof window === 'undefined' || !window.localStorage) return []
+  const normalized = query.trim().replace(/\s+/g, ' ')
+  if (!normalized) return loadRecentHomeSearches()
+  const next = [normalized, ...loadRecentHomeSearches().filter((item) => item.toLowerCase() !== normalized.toLowerCase())].slice(0, 4)
+  window.localStorage.setItem(recentSearchesStorageKey, JSON.stringify(next))
+  return next
+}
+
 export default function Home() {
   const [search, setSearch] = useState('')
   const [message, setMessage] = useState('')
+  const [recentSearches, setRecentSearches] = useState<string[]>([])
+  const [savedSearches, setSavedSearches] = useState<SavedSearch[]>([])
   const voiceInput = useVoiceInput({
     onTranscript: setSearch,
     onStatus: setMessage,
     idleStatus: 'Voice capture ready. Review the search box, then search when ready.'
   })
 
-  function submitSearch(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    const query = search.trim()
-    if (!query) {
+  useEffect(() => {
+    function refreshSavedSearches() {
+      setSavedSearches(loadSavedSearches().slice(0, 4))
+    }
+    setRecentSearches(loadRecentHomeSearches())
+    refreshSavedSearches()
+    window.addEventListener('nonrevy-saved-searches-updated', refreshSavedSearches)
+    window.addEventListener('storage', refreshSavedSearches)
+    return () => {
+      window.removeEventListener('nonrevy-saved-searches-updated', refreshSavedSearches)
+      window.removeEventListener('storage', refreshSavedSearches)
+    }
+  }, [])
+
+  function runSearch(query: string) {
+    const normalized = query.trim()
+    if (!normalized) {
       setMessage('Try “LAX to HND tomorrow” or “Open flights out of SBP today.”')
       return
     }
-
     markActivationStep('runFirstTripPlan')
-    window.location.href = `/plan?aiTrip=${encodeURIComponent(query)}`
+    setRecentSearches(saveRecentHomeSearch(normalized))
+    window.location.href = `/plan?aiTrip=${encodeURIComponent(normalized)}`
+  }
+
+  function submitSearch(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    runSearch(search)
   }
 
   function saveAiSearch() {
     const saved = saveSavedSearch({ query: search, kind: 'ai-trip' })
+    setSavedSearches(loadSavedSearches().slice(0, 4))
     setMessage(saved ? `Saved “${saved.label}” for quick reruns.` : 'Add a route, airport, cabin, or trip idea before saving.')
+  }
+
+  function runSavedSearch(saved: SavedSearch) {
+    markSavedSearchRun(saved.id)
+    setRecentSearches(saveRecentHomeSearch(saved.query))
+    window.location.href = savedSearchRunUrl(saved)
   }
 
   return (
@@ -66,13 +113,8 @@ export default function Home() {
               <span className="nonrevy-home__mark" aria-hidden="true">✈</span>
               <span className="nonrevy-home__wordmark">NONREVY</span>
             </div>
-            <p className="nonrevy-home__eyebrow">AI nonrev planner</p>
+            <h1 className="nonrevy-home__headline">Nonrev search</h1>
           </header>
-
-          <h1 className="nonrevy-home__headline">Tell us where. We’ll rank the way.</h1>
-          <p className="nonrevy-home__subhead">
-            Search airports, routes, flight numbers, cabins, or open-ended trip ideas. Get concise itinerary cards with route intelligence, recovery strategy, cabin upside, and load-request actions.
-          </p>
 
           <form onSubmit={submitSearch} className="nonrevy-home__search-card">
             <label htmlFor="homepage-ai-search" className="nonrevy-home__search-label">
@@ -84,10 +126,18 @@ export default function Home() {
                 id="homepage-ai-search"
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder="LAX, Tokyo Haneda, UA39, Polaris, or SBP to SEA"
+                placeholder="LAX to HND tomorrow"
                 autoComplete="off"
                 className="nonrevy-home__input"
               />
+            </div>
+
+            <div className="nonrevy-home__actions" aria-label="Search actions">
+              <button type="submit" className="nonrevy-home__primary">Search</button>
+              <button type="button" onClick={saveAiSearch} className="nonrevy-home__secondary">Save search</button>
+            </div>
+
+            <div className="nonrevy-home__voice-row">
               <button
                 type="button"
                 aria-label={voiceInput.isListening ? 'Stop listening' : 'Start voice input'}
@@ -95,23 +145,12 @@ export default function Home() {
                 title={voiceInput.isSupported ? 'Speak a route, airport, cabin, or trip idea' : 'Voice capture is not supported in this browser'}
                 className={`nonrevy-home__voice ${voiceInput.isListening ? 'nonrevy-home__voice--listening' : ''}`}
               >
-                {voiceInput.isListening ? '●' : '🎙️'}
+                <span aria-hidden="true">{voiceInput.isListening ? '●' : '🎙️'}</span>
+                <span>{voiceInput.isListening ? 'Listening…' : 'Voice input'}</span>
               </button>
             </div>
 
-            <div className="nonrevy-home__actions">
-              <button type="submit" className="nonrevy-home__primary">Search with AI</button>
-              <button type="button" onClick={saveAiSearch} className="nonrevy-home__secondary">Star / save search</button>
-            </div>
-
-            <div className="nonrevy-home__proof" aria-label="Planner capabilities">
-              <span>Universal search</span>
-              <span>Route intelligence</span>
-              <span>Recovery plans</span>
-              <span>Watchlist-ready</span>
-            </div>
-
-            <div className="nonrevy-home__chips" aria-label="Search examples">
+            <div className="nonrevy-home__chips" aria-label="Example searches">
               {searchExamples.map((example) => (
                 <button
                   key={example}
@@ -123,26 +162,27 @@ export default function Home() {
                 </button>
               ))}
             </div>
+
+            <section className="nonrevy-home__quick-section" aria-label="Recent searches">
+              <div className="nonrevy-home__section-heading">Recent searches</div>
+              <div className="nonrevy-home__quick-list">
+                {recentSearches.length ? recentSearches.map((item) => (
+                  <button key={item} type="button" onClick={() => runSearch(item)} className="nonrevy-home__quick-pill">{item}</button>
+                )) : <span className="nonrevy-home__empty">Your recent searches will appear here.</span>}
+              </div>
+            </section>
+
+            <section className="nonrevy-home__quick-section" aria-label="Saved searches">
+              <div className="nonrevy-home__section-heading">Saved searches</div>
+              <div className="nonrevy-home__quick-list">
+                {savedSearches.length ? savedSearches.map((item) => (
+                  <button key={item.id} type="button" onClick={() => runSavedSearch(item)} className="nonrevy-home__quick-pill">{item.label}</button>
+                )) : <a href="/saved-searches" className="nonrevy-home__quick-pill nonrevy-home__quick-pill--link">Create a saved search</a>}
+              </div>
+            </section>
           </form>
 
           {message && <p className="nonrevy-home__message">{message}</p>}
-
-          <section className="nonrevy-home__setup" style={{ marginTop: 18 }} aria-label="Today's Best Opportunities">
-            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-              <div>
-                <p style={{ color: '#67e8f9', fontWeight: 900, letterSpacing: 1, textTransform: 'uppercase', margin: 0 }}>Today’s Best Opportunities</p>
-                <p style={{ color: '#cbd5e1', margin: '6px 0 0' }}>Discover Polaris, Delta One, Hawaii, Europe, Asia, same-day, and hidden-gem nonrev ideas.</p>
-              </div>
-              <a href="/opportunities" style={{ color: '#020617', background: '#67e8f9', borderRadius: 999, padding: '10px 14px', fontWeight: 900, textDecoration: 'none' }}>Open feed</a>
-            </div>
-          </section>
-
-          <details className="nonrevy-home__setup">
-            <summary>Setup and activation details</summary>
-            <div style={{ marginTop: 14 }}>
-              <ActivationProgressCard />
-            </div>
-          </details>
         </div>
       </section>
     </main>

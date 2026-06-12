@@ -3802,3 +3802,184 @@ button.nonrevy-flight-board-row__carrier[aria-expanded="true"] {
   font-size: 0.78rem !important;
   margin-bottom: 0 !important;
 }
+
+/* Search-first discreet navigation drawer */
+main:has(> nav) {
+  padding-left: clamp(24px, 4vw, 56px) !important;
+}
+
+.app-menu {
+  position: fixed !important;
+  top: max(12px, env(safe-area-inset-top)) !important;
+  left: 12px !important;
+  z-index: 80 !important;
+  width: auto !important;
+  max-width: min(340px, calc(100vw - 24px)) !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  overflow: visible !important;
+  color: #f8fafc !important;
+  backdrop-filter: none !important;
+}
+
+.app-menu__summary {
+  display: inline-flex !important;
+  width: auto !important;
+  min-height: 38px !important;
+  align-items: center !important;
+  gap: 7px !important;
+  padding: 8px 10px !important;
+  border: 1px solid rgba(148, 163, 184, 0.24) !important;
+  border-radius: 999px !important;
+  background: rgba(2, 6, 23, 0.42) !important;
+  color: rgba(248, 250, 252, 0.88) !important;
+  box-shadow: 0 10px 30px rgba(2, 6, 23, 0.12) !important;
+  backdrop-filter: blur(14px) !important;
+}
+
+.app-menu__summary::before {
+  content: none !important;
+}
+
+.app-menu__summary:hover,
+.app-menu__summary[aria-expanded="true"] {
+  border-color: rgba(56, 189, 248, 0.45) !important;
+  background: rgba(2, 6, 23, 0.68) !important;
+}
+
+.app-menu__icon {
+  width: 1rem !important;
+  text-align: center !important;
+  color: #67e8f9 !important;
+  font-size: 0.95rem !important;
+  line-height: 1 !important;
+}
+
+.app-menu__brand {
+  font-size: 0.72rem !important;
+  letter-spacing: 0.16em !important;
+  color: rgba(248, 250, 252, 0.82) !important;
+}
+
+.app-menu__route {
+  display: none !important;
+}
+
+.app-menu__drawer {
+  width: min(320px, calc(100vw - 24px)) !important;
+  max-height: min(78vh, 680px) !important;
+  overflow-y: auto !important;
+  margin-top: 10px !important;
+  padding: 12px !important;
+  border: 1px solid rgba(148, 163, 184, 0.22) !important;
+  border-radius: 20px !important;
+  background: rgba(2, 6, 23, 0.88) !important;
+  box-shadow: 0 24px 80px rgba(2, 6, 23, 0.48) !important;
+  backdrop-filter: blur(22px) !important;
+}
+
+.app-menu__section,
+.app-menu__links {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 7px !important;
+  padding: 0 !important;
+}
+
+.app-menu__section + .app-menu__links,
+.app-menu__links + .app-menu__links {
+  margin-top: 14px !important;
+  padding-top: 14px !important;
+  border-top: 1px solid rgba(148, 163, 184, 0.16) !important;
+}
+
+.app-menu__section--account strong {
+  color: #f8fafc !important;
+  overflow-wrap: anywhere !important;
+}
+
+.app-menu__eyebrow {
+  color: #94a3b8 !important;
+  font-size: 0.68rem !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.18em !important;
+  text-transform: uppercase !important;
+}
+
+.app-menu__account-actions {
+  display: grid !important;
+  grid-template-columns: 1fr 1fr !important;
+  gap: 7px !important;
+}
+
+.app-menu__links a,
+.app-menu__account-actions a,
+.app-menu__account-actions button {
+  display: block !important;
+  width: 100% !important;
+  min-height: 0 !important;
+  box-sizing: border-box !important;
+  border: 1px solid rgba(148, 163, 184, 0.22) !important;
+  border-radius: 12px !important;
+  padding: 9px 10px !important;
+  background: rgba(15, 23, 42, 0.7) !important;
+  color: #e2e8f0 !important;
+  box-shadow: none !important;
+  text-decoration: none !important;
+  text-align: left !important;
+  font: inherit !important;
+  font-weight: 800 !important;
+}
+
+.app-menu__links a:hover,
+.app-menu__account-actions a:hover,
+.app-menu__account-actions button:hover {
+  border-color: rgba(56, 189, 248, 0.52) !important;
+  background: rgba(8, 47, 73, 0.62) !important;
+  transform: none !important;
+}
+
+.app-menu__links a[aria-current="page"] {
+  color: #020617 !important;
+  background: linear-gradient(135deg, #67e8f9, #38bdf8) !important;
+  border-color: transparent !important;
+}
+
+.account-menu {
+  display: none !important;
+}
+
+@media (max-width: 960px) {
+  .app-menu {
+    position: fixed !important;
+    width: auto !important;
+    margin: 0 !important;
+  }
+}
+
+@media (max-width: 720px) {
+  .app-menu {
+    position: fixed !important;
+    top: max(10px, env(safe-area-inset-top)) !important;
+    left: 10px !important;
+    margin: 0 !important;
+  }
+
+  .app-menu__brand {
+    display: none !important;
+  }
+
+  .app-menu__summary {
+    width: 38px !important;
+    height: 38px !important;
+    justify-content: center !important;
+    padding: 0 !important;
+  }
+
+  .app-menu__drawer {
+    width: min(304px, calc(100vw - 20px)) !important;
+    max-height: 72vh !important;
+  }
+}

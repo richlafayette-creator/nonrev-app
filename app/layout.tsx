@@ -1,6 +1,5 @@
 import type { Metadata, Viewport } from "next";
 import { Bungee, Geist, Geist_Mono } from "next/font/google";
-import AccountMenu from "./AccountMenu";
 import AppNavigation from "./AppNavigation";
 import PWAInstallScaffold from "./PWAInstallScaffold";
 import "./globals.css";
@@ -64,7 +63,6 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col">
         <AppNavigation />
-        <AccountMenu />
         {children}
         <PWAInstallScaffold />
       </body>

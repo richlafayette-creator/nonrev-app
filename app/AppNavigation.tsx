@@ -1,58 +1,135 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { usePathname } from 'next/navigation'
+import { supabase } from '../lib/supabase'
 
-const navItems = [
+const menuItems = [
   ['Home', '/'],
   ['Plan', '/plan'],
-  ['Profile', '/profile'],
+  ['Opportunities', '/opportunities'],
+  ['Open Requests', '/requests'],
+  ['My Requests', '/my-requests'],
   ['Best Routes', '/best-routes'],
   ['Historical Routes', '/historical-routes'],
   ['Intelligence', '/intelligence'],
-  ['Watchlist', '/watchlist'],
-  ['Saved Searches', '/saved-searches'],
-  ['Credits', '/credits'],
-  ['Trust', '/reputation'],
   ['Load Reports', '/load-reports'],
+  ['Outcomes', '/outcomes'],
   ['Notifications', '/notifications'],
-  ['Notification History', '/notification-history'],
-  ['Notification Diagnostics', '/notification-diagnostics'],
   ['Alerts', '/alerts'],
   ['Reminders', '/reminders'],
-  ['Agent', '/agent'],
-  ['Open Requests', '/requests'],
-  ['My Requests', '/my-requests'],
-  ['Outcomes', '/outcomes'],
-  ['Outcome Diagnostics', '/outcome-diagnostics']
+  ['Agent', '/agent']
+]
+
+const drawerItems = [
+  ['Profile', '/profile'],
+  ['Saved Searches', '/saved-searches'],
+  ['Watchlists', '/watchlist'],
+  ['Data Health', '/data-health'],
+  ['Billing', '/billing'],
+  ['Membership', '/membership'],
+  ['Settings', '/notification-preferences']
 ]
 
 export default function AppNavigation() {
   const [open, setOpen] = useState(false)
+  const [userEmail, setUserEmail] = useState('')
+  const [message, setMessage] = useState('')
   const pathname = usePathname()
+  const drawerRef = useRef<HTMLElement | null>(null)
+
+  useEffect(() => {
+    async function loadUser() {
+      const { data } = await supabase.auth.getUser()
+      setUserEmail(data.user?.email || '')
+    }
+
+    loadUser()
+
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUserEmail(session?.user?.email || '')
+      setMessage('')
+    })
+
+    return () => {
+      listener.subscription.unsubscribe()
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!open) return
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') setOpen(false)
+    }
+
+    function handlePointerDown(event: PointerEvent) {
+      if (drawerRef.current && !drawerRef.current.contains(event.target as Node)) {
+        setOpen(false)
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    document.addEventListener('pointerdown', handlePointerDown)
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown)
+      document.removeEventListener('pointerdown', handlePointerDown)
+    }
+  }, [open])
+
+  useEffect(() => {
+    setOpen(false)
+  }, [pathname])
+
+  async function logout() {
+    await supabase.auth.signOut()
+    setUserEmail('')
+    setMessage('Logged out.')
+  }
+
+  function renderLink([label, href]: string[]) {
+    const active = href === '/' ? pathname === href : pathname?.startsWith(href)
+    return (
+      <a key={href} href={href} aria-current={active ? 'page' : undefined}>{label}</a>
+    )
+  }
 
   return (
-    <aside className="app-menu" aria-label="Main navigation">
+    <aside ref={drawerRef} className={`app-menu ${open ? 'app-menu--open' : ''}`} aria-label="NONREVY navigation">
       <button
         className="app-menu__summary"
         type="button"
+        aria-label={open ? 'Close NONREVY drawer' : 'Open NONREVY drawer'}
         aria-expanded={open}
-        aria-controls="app-menu-links"
+        aria-controls="app-menu-drawer"
         onClick={() => setOpen((value) => !value)}
       >
+        <span className="app-menu__icon" aria-hidden="true">{open ? '×' : '☰'}</span>
         <span className="app-menu__brand">NONREVY</span>
-        <span className="app-menu__route">Menu</span>
       </button>
-      {open && (
-        <nav id="app-menu-links" className="app-menu__links">
-          {navItems.map(([label, href]) => {
-            const active = href === '/' ? pathname === href : pathname?.startsWith(href)
-            return (
-              <a key={href} href={href} aria-current={active ? 'page' : undefined}>{label}</a>
-            )
-          })}
-        </nav>
-      )}
+      {open ? (
+        <div id="app-menu-drawer" className="app-menu__drawer" role="dialog" aria-modal="false" aria-label="NONREVY menu">
+          <div className="app-menu__section app-menu__section--account">
+            <span className="app-menu__eyebrow">Account</span>
+            <strong>{userEmail || 'Guest'}</strong>
+            <div className="app-menu__account-actions">
+              {!userEmail ? <a href="/login">Login</a> : <button type="button" onClick={logout}>Logout</button>}
+              <a href="/account">Account</a>
+            </div>
+            {message ? <small>{message}</small> : null}
+          </div>
+
+          <nav className="app-menu__links" aria-label="Menu links">
+            <span className="app-menu__eyebrow">Menu</span>
+            {menuItems.map(renderLink)}
+          </nav>
+
+          <nav className="app-menu__links" aria-label="Account and settings links">
+            <span className="app-menu__eyebrow">Tools</span>
+            {drawerItems.map(renderLink)}
+          </nav>
+        </div>
+      ) : null}
     </aside>
   )
 }

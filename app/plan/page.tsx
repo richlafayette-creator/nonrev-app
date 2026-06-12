@@ -1111,9 +1111,15 @@ function loadAwareScorePhrase(comparison: ItineraryComparison) {
 function compactAircraftLabel(comparison: ItineraryComparison) {
   const firstDetail = comparison.aircraftDetails.split('|')[0]?.trim() || ''
   const parts = firstDetail.split('·').map((part) => part.trim()).filter(Boolean)
-  const aircraft = parts.find((part) => !part.match(/^[A-Z]{1,3}\s?\d+/i) && !part.toLowerCase().includes('status')) || parts[1] || firstDetail
+  const aircraft = parts.find((part) => !part.match(/^[A-Z]{1,3}\s?\d+/i) && !part.toLowerCase().includes('status') && !part.toLowerCase().includes('scheduled')) || parts[1] || firstDetail
   if (!aircraft || aircraft.toLowerCase().includes('pending')) return 'Aircraft pending'
-  return aircraft.length > 24 ? `${aircraft.slice(0, 21)}…` : aircraft
+  return aircraft
+    .replace(/Boeing\s+/i, '')
+    .replace(/Airbus\s+/i, '')
+    .replace(/Embraer\s+/i, 'E')
+    .replace(/Dreamliner/i, '')
+    .replace(/\s+/g, ' ')
+    .trim()
 }
 
 function compactCarrierCode(carrier: string) {
@@ -1122,6 +1128,23 @@ function compactCarrierCode(carrier: string) {
   const knownCode = words.find((word) => /^[A-Z0-9]{2,3}$/.test(word))
   if (knownCode) return knownCode.slice(0, 3)
   return words.map((word) => word[0]).join('').slice(0, 3).toUpperCase()
+}
+
+
+function compactFlightNumberLabel(flightNumber: string, carrierCode: string) {
+  const normalized = flightNumber.replace(/\s+/g, '').toUpperCase()
+  const carrier = carrierCode.toUpperCase()
+  if (normalized.startsWith(carrier)) return normalized.slice(carrier.length) || normalized
+  return normalized
+}
+
+function compactDurationLabel(value: string) {
+  return value.replace(/\s+/g, '').replace(/hours?/gi, 'h').replace(/minutes?/gi, 'm')
+}
+
+function compactStopsLabel(connectionCount: number) {
+  if (connectionCount <= 0) return 'Direct'
+  return `${connectionCount} stop${connectionCount === 1 ? '' : 's'}`
 }
 
 function compactScoreLabel(comparison: ItineraryComparison) {
@@ -1202,7 +1225,7 @@ function compactFlightBoardDateTime(value: string, airportCode?: string, referen
     const dayOffset = referenceDate ? Math.round((new Date(Number(year), Number(month) - 1, Number(day)).getTime() - referenceDate.getTime()) / 86400000) : 0
     const time = localDate.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }).replace(/\s/g, '').replace('AM', 'a').replace('PM', 'p')
     const date = localDate.toLocaleDateString([], { month: 'short', day: 'numeric' })
-    return `${date} ${time}${dayOffset > 0 ? `+${dayOffset}` : ''}`
+    return `${date} ${time}${dayOffset > 0 ? ` +${dayOffset}` : ''}`
   }
 
   if (!parsed) return displayField(value)
@@ -1211,7 +1234,7 @@ function compactFlightBoardDateTime(value: string, airportCode?: string, referen
   const day = date.toLocaleDateString([], { month: 'short', day: 'numeric', timeZone })
   const time = date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', timeZone }).replace(/\s/g, '').replace('AM', 'a').replace('PM', 'p')
   const dayOffset = referenceDate ? Math.round((Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()) - Date.UTC(referenceDate.getUTCFullYear(), referenceDate.getUTCMonth(), referenceDate.getUTCDate())) / 86400000) : 0
-  return `${day} ${time}${dayOffset > 0 ? `+${dayOffset}` : ''}`
+  return `${day} ${time}${dayOffset > 0 ? ` +${dayOffset}` : ''}`
 }
 
 function itineraryDepartureSortValue(comparison: ItineraryComparison) {
@@ -2628,6 +2651,9 @@ function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: It
     const legCount = comparison.connections + 1
     const isSelected = selectedComparisonId === comparison.id
     const isExpanded = expandedDetailIds.includes(comparison.id)
+    const carrierCode = compactCarrierCode(comparison.carrier)
+    const flightNumber = compactFlightNumberLabel(comparison.flightNumber, carrierCode)
+    const aircraft = compactAircraftLabel(comparison)
     const depTime = compactFlightBoardDateTime(comparison.departureDateTime, routeAirports[0])
     const arrTime = compactFlightBoardDateTime(comparison.arrivalDateTime, routeAirports[routeAirports.length - 1], comparison.departureDateTime)
 
@@ -2639,23 +2665,25 @@ function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: It
         onClick={() => openDetails(comparison)}
       >
         <div className="nonrevy-flight-board-row__main">
-          <div className="nonrevy-flight-board-row__line" aria-label={`${comparison.carrier} ${comparison.flightNumber} ${comparison.route} ${depTime} to ${arrTime} ${comparison.totalTravelTime} ${compactAircraftLabel(comparison)} ${comparison.successPrediction.scoreLabel}`}>
+          <div className="nonrevy-flight-board-row__line" aria-label={`${carrierCode}${flightNumber} ${comparison.route} ${depTime} to ${arrTime} ${comparison.totalTravelTime} ${aircraft} ${comparison.successPrediction.confidenceLevel} confidence`}>
             <div className="nonrevy-flight-board-row__primary-line">
               <span className="nonrevy-flight-board-row__flight-id">
                 {options?.pinned ? <span className="nonrevy-flight-board-row__rank">#{(options.recommendationIndex ?? 0) + 1}</span> : null}
-                <span className="nonrevy-flight-board-row__carrier">{compactCarrierCode(comparison.carrier)}</span>
-                <strong className="nonrevy-flight-board-row__flight-number">{comparison.flightNumber}</strong>
+                <span className="nonrevy-flight-board-row__carrier">{carrierCode}</span><strong className="nonrevy-flight-board-row__flight-number">{flightNumber}</strong>
               </span>
               <span className="nonrevy-flight-board-row__route">{comparison.route}</span>
-              <span className="nonrevy-flight-board-row__badge-stack">
-                <span className="nonrevy-flight-board-row__score">{comparison.successPrediction.needsLoad ? 'Load' : `${compactScoreIcon(comparison)}${compactScoreLabel(comparison)}`}</span>
-                <span className="nonrevy-flight-board-row__confidence">{comparison.successPrediction.confidenceBadge.replace(' Confidence', '')}</span>
-              </span>
+            </div>
+            <div className="nonrevy-flight-board-row__time-line">
+              <span className="nonrevy-flight-board-row__times">{depTime} → {arrTime}</span>
             </div>
             <div className="nonrevy-flight-board-row__secondary-line">
-              <span className="nonrevy-flight-board-row__times">{depTime.split(' ').slice(-1)[0]} → {arrTime.split(' ').slice(-1)[0]}</span>
-              <span className="nonrevy-flight-board-row__duration">{comparison.totalTravelTime}</span>
-              <span className="nonrevy-flight-board-row__aircraft">{compactAircraftLabel(comparison)}</span>
+              <span className="nonrevy-flight-board-row__duration">{compactDurationLabel(comparison.totalTravelTime)}</span>
+              <span className="nonrevy-flight-board-row__stops">{compactStopsLabel(comparison.connections)}</span>
+              <span className="nonrevy-flight-board-row__aircraft">{aircraft}</span>
+              <span className="nonrevy-flight-board-row__badge-stack">
+                {!comparison.successPrediction.needsLoad ? <span className="nonrevy-flight-board-row__score">{compactScoreIcon(comparison)}{compactScoreLabel(comparison)}</span> : null}
+                <span className="nonrevy-flight-board-row__confidence">{comparison.successPrediction.confidenceBadge.replace(' Confidence', '')}</span>
+              </span>
             </div>
           </div>
           {isExpanded ? (

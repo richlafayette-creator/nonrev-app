@@ -400,6 +400,46 @@ function displayField(value?: string | number | null) {
   return String(value)
 }
 
+
+function isProductionItinerary(itinerary: LiveItineraryResult) {
+  const haystack = [
+    itinerary.id,
+    itinerary.source,
+    itinerary.sourceProvider,
+    itinerary.dataFreshnessLabel,
+    itinerary.dataFreshnessDetail,
+    itinerary.dataFreshnessRule,
+    ...(itinerary.providerBadges || [])
+  ].filter(Boolean).join(' ').toLowerCase()
+
+  if (itinerary.productionAvailability === false) return false
+  if (itinerary.dataFreshnessRule === 'demo-fallback' || itinerary.dataFreshnessRule === 'nearest-date-testing-match') return false
+  if (haystack.includes('demo') || haystack.includes('test data') || haystack.includes('testing') || haystack.includes('planning fallback')) return false
+  return true
+}
+
+function productionEmptyStateReasons({
+  dataMode,
+  status,
+  debug,
+  travelDateError,
+  hasRequestedDate
+}: {
+  dataMode: string
+  status: string
+  debug: ItineraryDebugMetadata | null
+  travelDateError: string
+  hasRequestedDate: boolean
+}) {
+  const reasons = new Set<string>()
+  if (travelDateError) reasons.add(travelDateError)
+  if (debug?.trueLiveDataUnavailableReason) reasons.add(debug.trueLiveDataUnavailableReason)
+  if (dataMode.includes('No current') || status.toLowerCase().includes('no current live data')) reasons.add('Provider data unavailable')
+  if (hasRequestedDate && (dataMode.includes('No current') || debug?.routeMatching?.dateCoverage?.requestedSearchDate)) reasons.add('Date outside available schedule range')
+  if (!reasons.size) reasons.add('Provider data unavailable')
+  return Array.from(reasons)
+}
+
 function ProviderBadge({ label }: { label: string }) {
   const style = providerBadgeStyle(label)
   return (
@@ -2540,6 +2580,34 @@ function CopilotPanel({
   )
 }
 
+
+function ProductionEmptyState({ reasons }: { reasons: string[] }) {
+  return (
+    <section className="nonrevy-production-empty" aria-live="polite">
+      <p className="nonrevy-production-empty__eyebrow">Production data only</p>
+      <h2>No live itinerary data available</h2>
+      <div className="nonrevy-production-empty__grid">
+        <section>
+          <strong>Reasons</strong>
+          <ul>
+            {reasons.map((reason) => <li key={reason}>{reason}</li>)}
+          </ul>
+        </section>
+        <section>
+          <strong>Options</strong>
+          <ul>
+            <li>Try another date</li>
+            <li><a href="/load-reports">Request loads</a></li>
+            <li><a href="/intelligence">View route intelligence</a></li>
+            <li><a href="/best-routes">View nearby airport alternatives</a></li>
+          </ul>
+        </section>
+      </div>
+      <p>Demo and testing itineraries are hidden here so recommendations stay trustworthy.</p>
+    </section>
+  )
+}
+
 function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: ItineraryComparison[]; travelDate: string }) {
   const [watchStatus, setWatchStatus] = useState('')
   const [compareStatus, setCompareStatus] = useState('')
@@ -2561,7 +2629,7 @@ function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: It
     }
   }, [])
 
-  if (comparisons.length === 0 && savedComparisons.length === 0) return null
+  if (comparisons.length === 0) return null
 
   function watchRoute(comparison: ItineraryComparison) {
     const saved = saveTripWatch({
@@ -2825,7 +2893,7 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
   const [travelerCount, setTravelerCount] = useState('1')
   const [maxLegs, setMaxLegs] = useState('2')
   const [carrier, setCarrier] = useState('all')
-  const [personalTestingMode, setPersonalTestingMode] = useState(true)
+  const [personalTestingMode, setPersonalTestingMode] = useState(false)
   const [nearestDateToleranceDays, setNearestDateToleranceDays] = useState('45')
   const [voiceStatus, setVoiceStatus] = useState('Voice capture scaffold ready.')
   const [submitted, setSubmitted] = useState(false)
@@ -2920,8 +2988,8 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
       const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
       if (!supabaseUrl || !supabaseKey) {
-        setFlights(demoSearchFlights)
-        setLastUpdated(`${new Date().toLocaleTimeString()} · demo fallback`)
+        setFlights([])
+        setLastUpdated(`${new Date().toLocaleTimeString()} · no live provider rows`)
         return
       }
 
@@ -2931,11 +2999,11 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
           { headers: { apikey: supabaseKey } }
         )
         const data = await res.json()
-        setFlights(Array.isArray(data) && data.length ? data : demoSearchFlights)
-        setLastUpdated(`${new Date().toLocaleTimeString()}${Array.isArray(data) && data.length ? '' : ' · demo fallback'}`)
+        setFlights(Array.isArray(data) && data.length ? data.filter((flight) => !String(flight.id || '').startsWith('demo-') && !String(flight.source_provider || flight.sourceProvider || '').toLowerCase().includes('demo')) : [])
+        setLastUpdated(`${new Date().toLocaleTimeString()}${Array.isArray(data) && data.length ? '' : ' · no live provider rows'}`)
       } catch {
-        setFlights(demoSearchFlights)
-        setLastUpdated(`${new Date().toLocaleTimeString()} · demo fallback`)
+        setFlights([])
+        setLastUpdated(`${new Date().toLocaleTimeString()} · no live provider rows`)
       }
     }
 
@@ -2973,7 +3041,7 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
     setItineraryLoading(true)
     markActivationStep('runFirstTripPlan')
     setConfidenceUpdateTrigger('itinerary-search-run')
-    setItineraryStatus('Searching FlightAware live provider API data first, then exact-date stored Supabase flight data, then Aviationstack fallback. Demo fallback appears only when test data mode is enabled server-side...')
+    setItineraryStatus('Searching live itinerary data…')
     setItineraryDataMode('Searching providers')
     setItineraryWarnings([])
     setItineraryDebug(null)
@@ -2992,7 +3060,8 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
     try {
       const response = await fetch(`/api/itinerary/search?${params.toString()}`)
       const data = await response.json()
-      const itineraries = Array.isArray(data?.itineraries) ? data.itineraries as LiveItineraryResult[] : []
+      const rawItineraries = Array.isArray(data?.itineraries) ? data.itineraries as LiveItineraryResult[] : []
+      const itineraries = rawItineraries.filter(isProductionItinerary)
       setLiveItineraries(itineraries)
       const apiWarnings = Array.isArray(data?.warnings) ? data.warnings : []
       setItineraryWarnings(data?.errorMessage ? [...new Set([...apiWarnings, data.errorMessage])] : apiWarnings)
@@ -3009,10 +3078,10 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
           ? (data?.debug?.testDataModeEnabled === false ? 'No current live data' : 'Demo fallback data')
           : 'Live provider API data')
       setItineraryDebug(data?.debug || null)
-      setItineraryStatus(data?.statusMessage || (itineraries.length
-        ? `${itineraries.length} itinerary result${itineraries.length === 1 ? '' : 's'} found for ${data?.request?.origin || 'any origin'} → ${data?.request?.destination || 'any destination'}.`
-        : 'No current live data found for this search.'
-      ))
+      setItineraryStatus(itineraries.length
+        ? `${itineraries.length} live itinerary result${itineraries.length === 1 ? '' : 's'} found for ${data?.request?.origin || 'any origin'} → ${data?.request?.destination || 'any destination'}.`
+        : 'No live itinerary data available for this search.'
+      )
     } catch {
       setLiveItineraries([])
       setItineraryDebug(null)
@@ -3054,9 +3123,9 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
       return
     }
     setLiveItineraries([])
-    setItineraryDataMode('Fallback demo guidance')
-    setItinerarySource('Planning fallback')
-    setItineraryStatus('Carrier scope updated. Demo recommendations refreshed; add a route to search provider data.')
+    setItineraryDataMode('Awaiting live search')
+    setItinerarySource('Live itinerary search')
+    setItineraryStatus('Carrier scope updated. Add a route to search live itinerary data.')
   }
 
   function handleMaxLegsChange(nextMaxLegs: string) {
@@ -3067,9 +3136,9 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
       return
     }
     setLiveItineraries([])
-    setItineraryDataMode('Fallback demo guidance')
-    setItinerarySource('Planning fallback')
-    setItineraryStatus('Max legs updated. Demo recommendations refreshed; add a route to search live itinerary assembly.')
+    setItineraryDataMode('Awaiting live search')
+    setItinerarySource('Live itinerary search')
+    setItineraryStatus('Max legs updated. Add a route to search live itinerary data.')
   }
 
   function startVoiceScaffold() {
@@ -3142,11 +3211,11 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
     () => flights.filter((flight) => flightMatchesSearch(flight, query || tripGoal)),
     [flights, query, tripGoal]
   )
-  const visibleFlights = (query || tripGoal) ? (matchingFlights.length ? matchingFlights : demoSearchFlights) : flights
+  const visibleFlights = (query || tripGoal) ? matchingFlights : flights
   const flightResultsLabel = query || tripGoal
     ? matchingFlights.length
       ? `${matchingFlights.length} matching flights`
-      : `No matching flight rows; showing ${demoSearchFlights.length} demo fallback flights`
+      : 'No matching live flight rows'
     : `${flights.length} searchable flights loaded`
   const scoringScaffold = useMemo(() => getCarrierScoringScaffold(carrier, travelerProfile), [carrier, travelerProfile])
   const historicalStats = useMemo(() => historicalRouteStats(carrier), [carrier])
@@ -3172,43 +3241,22 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
     [aiTripPrompt, travelerProfile]
   )
 
-  const parsedPlanRequest = useMemo(() => parseItineraryPrompt(tripGoal || query), [tripGoal, query, aiTripPrompt])
-  const fallbackDemoItineraries = useMemo(() => buildFallbackDemoItineraries({
-    origin: itineraryDebug?.parsedOrigin || homeAirport || parsedPlanRequest.origin || aiTripPreview.origin,
-    destination: itineraryDebug?.parsedDestination || parsedPlanRequest.destination || aiTripPreview.destination,
-    carrierValue: carrier,
-    travelWindow: travelWindow || parsedPlanRequest.date || aiTripPreview.dateRange
-  }), [itineraryDebug?.parsedOrigin, itineraryDebug?.parsedDestination, homeAirport, parsedPlanRequest.origin, parsedPlanRequest.destination, parsedPlanRequest.date, aiTripPreview.origin, aiTripPreview.destination, aiTripPreview.dateRange, carrier, travelWindow])
-
   const itineraryComparisons = useMemo(() => {
-    const comparisons = liveItineraries.length > 0
-      ? liveItineraries.map((itinerary) => buildLiveItineraryComparison(
-        itinerary,
-        predictionEngine,
-        historicalStats.routes,
-        loadReports,
-        outcomes,
-        travelerProfile,
-        scoringScaffold.routeIntelligence,
-        scoringScaffold.weights,
-        scoringScaffold.recommendationScope,
-        confidenceUpdateTrigger
-      ))
-      : fallbackDemoItineraries.map((itinerary) => buildFallbackItineraryComparison(
-        itinerary,
-        predictionEngine,
-        historicalStats.routes,
-        loadReports,
-        outcomes,
-        scoringScaffold.recommendationScope,
-        travelerProfile,
-        scoringScaffold.routeIntelligence,
-        scoringScaffold.weights,
-        confidenceUpdateTrigger
-      ))
+    const comparisons = liveItineraries.map((itinerary) => buildLiveItineraryComparison(
+      itinerary,
+      predictionEngine,
+      historicalStats.routes,
+      loadReports,
+      outcomes,
+      travelerProfile,
+      scoringScaffold.routeIntelligence,
+      scoringScaffold.weights,
+      scoringScaffold.recommendationScope,
+      confidenceUpdateTrigger
+    ))
 
     return sortCompactItineraries(comparisons)
-  }, [liveItineraries, predictionEngine, historicalStats.routes, loadReports, outcomes, travelerProfile, scoringScaffold.routeIntelligence, scoringScaffold.weights, scoringScaffold.recommendationScope, confidenceUpdateTrigger, fallbackDemoItineraries])
+  }, [liveItineraries, predictionEngine, historicalStats.routes, loadReports, outcomes, travelerProfile, scoringScaffold.routeIntelligence, scoringScaffold.weights, scoringScaffold.recommendationScope, confidenceUpdateTrigger])
 
   const aiTripPlan = useMemo(() => generateAiTripPlan({
     prompt: aiTripPrompt,
@@ -3222,6 +3270,15 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
   const travelDateHelperText = travelDateError || (travelWindow.trim()
     ? 'Single-date search active. Edit manually as YYYY-MM-DD or use the calendar picker where available.'
     : 'Optional. Use the calendar picker where available, or type YYYY-MM-DD, e.g. 2026-06-06. Blank searches stay flexible.')
+  const hasSearchedForItineraries = submitted || Boolean(query.trim() || tripGoal.trim()) || itineraryDataMode === 'No current live data'
+  const showProductionEmptyState = !itineraryLoading && hasSearchedForItineraries && itineraryComparisons.length === 0
+  const productionEmptyReasons = productionEmptyStateReasons({
+    dataMode: itineraryDataMode,
+    status: itineraryStatus,
+    debug: itineraryDebug,
+    travelDateError,
+    hasRequestedDate: Boolean(travelWindow.trim())
+  })
 
   if (compactResultsMode) {
     return (
@@ -3250,23 +3307,10 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
           </form>
 
           {travelDateError ? <p className="nonrevy-results-page__warning">{travelDateError}</p> : null}
-          {itineraryWarnings.length ? (
-            <details className="nonrevy-results-page__notice">
-              <summary>Search notices</summary>
-              <ul>{itineraryWarnings.map((warning) => <li key={warning}>{warning}</li>)}</ul>
-            </details>
-          ) : null}
-          {itineraryDebug?.dataFreshnessMode === 'nearest-date-testing' ? (
-            <details className="nonrevy-results-page__notice nonrevy-results-page__notice--warn">
-              <summary>Nearest-date testing mode active</summary>
-              <p>
-                Showing nearest-date testing data matched to {itineraryDebug.routeMatching?.dateCoverage.effectiveMatchDate || 'a nearest available stored date'} instead of requested date {itineraryDebug.routeMatching?.dateCoverage.requestedSearchDate || 'unknown'}.
-              </p>
-            </details>
-          ) : null}
 
           {itineraryLoading ? <PlannerSkeletonLoaders /> : null}
-          <ItineraryComparisonPanel comparisons={itineraryComparisons} travelDate={travelWindow} />
+          {showProductionEmptyState ? <ProductionEmptyState reasons={productionEmptyReasons} /> : null}
+          {itineraryComparisons.length > 0 ? <ItineraryComparisonPanel comparisons={itineraryComparisons} travelDate={travelWindow} /> : null}
 
           <details className="nonrevy-results-page__below">
             <summary>Copilot, search settings, and diagnostics</summary>
@@ -3395,16 +3439,9 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
           {itineraryLoading ? (
             <p style={{ color: '#facc15' }}>{itineraryStatus}</p>
           ) : null}
-          {itineraryDebug?.dataFreshnessMode === 'nearest-date-testing' ? (
-            <div style={{ border: '1px solid #facc15', borderRadius: 14, padding: 14, background: '#1c1917', color: '#fde68a', marginBottom: 14 }}>
-              <strong>Nearest-date testing mode is active</strong>
-              <p style={{ margin: '6px 0 0' }}>
-                These itinerary rows are nearest-date testing data matched to {itineraryDebug.routeMatching?.dateCoverage.effectiveMatchDate || 'a nearest available stored date'} instead of requested date {itineraryDebug.routeMatching?.dateCoverage.requestedSearchDate || 'unknown'}. Do not treat them as live provider API availability.
-              </p>
-            </div>
-          ) : null}
           {itineraryLoading ? <PlannerSkeletonLoaders /> : null}
-          <ItineraryComparisonPanel comparisons={itineraryComparisons} travelDate={travelWindow} />
+          {showProductionEmptyState ? <ProductionEmptyState reasons={productionEmptyReasons} /> : null}
+          {itineraryComparisons.length > 0 ? <ItineraryComparisonPanel comparisons={itineraryComparisons} travelDate={travelWindow} /> : null}
         </section>
 
         <CopilotPanel
@@ -3937,51 +3974,6 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
                   />
                 </article>
               ))}
-              </div>
-            </details>
-          ) : itineraryDebug?.testDataModeEnabled ? (
-            <details className="nonrevy-premium-details" style={{ border: '1px solid #334155', borderRadius: 18, padding: 14, background: '#020617', marginTop: 16 }}>
-              <summary style={{ color: '#67e8f9', cursor: 'pointer', fontWeight: 'bold' }}>Developer Diagnostics: fallback demo itinerary source cards</summary>
-              <p style={{ color: '#94a3b8', marginTop: 12 }}>
-                No provider flights found for this search. These clearly marked demo fallback cards keep search, scoring, probability, watchlist, and outcome capture testable without live provider API data.
-              </p>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 260px), 1fr))', gap: 16 }}>
-                {fallbackDemoItineraries.map((itinerary) => (
-              <article key={itinerary.id} style={{ border: '1px solid #334155', borderRadius: 20, padding: 18, background: '#0f172a' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
-                  <h3 style={{ margin: 0 }}>{itinerary.title}</h3>
-                  <span style={{ color: confidenceColor(itinerary.confidence), fontWeight: 'bold' }}>{itinerary.confidence}</span>
-                </div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
-                  <ProviderBadge label="Source: Demo fallback" />
-                  <ProviderBadge label="Freshness: Demo fallback data" />
-                  <ProviderBadge label="Planning fallback" />
-                  <WeatherRiskBadge weatherRisk={getRouteWeatherRisk(itinerary.route)} />
-                </div>
-                <p style={{ color: '#facc15', fontWeight: 'bold' }}>{itinerary.ranking.label}: {itinerary.ranking.score}/100</p>
-                <p style={{ color: '#38bdf8', fontSize: 18, fontWeight: 'bold' }}>{itinerary.route}</p>
-                <p style={{ color: '#94a3b8' }}>Window: {itinerary.window}</p>
-                <p>{itinerary.notes}</p>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 210px), 1fr))', gap: 10, margin: '12px 0' }}>
-                  {airportCodesFromRoute(itinerary.route).map((code) => (
-                    <MapboxAirportMap key={`${itinerary.id}-${code}`} airportCode={code} title={`${code} airport preview`} compact />
-                  ))}
-                </div>
-                <RouteAirportDetails route={itinerary.route} />
-                <p style={{ color: '#cbd5e1' }}>Ranking notes: {itinerary.ranking.notes.join(' · ')}</p>
-                <ul style={{ color: '#cbd5e1', paddingLeft: 20 }}>
-                  {itinerary.segments.map((segment) => (
-                    <li key={segment}>{segment}</li>
-                  ))}
-                </ul>
-                <OutcomeCapture
-                  subjectType="saved-itinerary"
-                  subjectId={String(itinerary.id)}
-                  title={itinerary.title}
-                  route={itinerary.route}
-                />
-              </article>
-                ))}
               </div>
             </details>
           ) : (

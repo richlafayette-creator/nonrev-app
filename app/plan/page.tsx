@@ -1272,6 +1272,40 @@ function compactScoreIcon(comparison: ItineraryComparison) {
   return '🟡'
 }
 
+function compactConfidenceIndicator(comparison: ItineraryComparison) {
+  if (comparison.successPrediction.confidenceLevel === 'High') return '🟢 High'
+  if (comparison.successPrediction.confidenceLevel === 'Medium') return '🟡 Medium'
+  return '🔴 Low'
+}
+
+function rowLoadIntelligenceLabel(comparison: ItineraryComparison) {
+  const seats = comparison.loadSupport.seatsAvailable
+  const standby = comparison.loadSupport.standbyCount
+  const hasTrustedLoad = comparison.loadSupport.status === 'verified' || comparison.loadSupport.status === 'trusted'
+  if (hasTrustedLoad && typeof seats === 'number' && typeof standby === 'number') {
+    return `${seats} Open • ${standby} Standby`
+  }
+  if (comparison.loadSupport.status === 'weak' || comparison.loadSupport.status === 'stale') return 'Awaiting Load'
+  return 'Load Pending'
+}
+
+function compactConfidenceFactors(comparison: ItineraryComparison) {
+  const factors = [
+    ...comparison.successPrediction.confidenceReasoning,
+    ...comparison.successPrediction.reasoning
+  ]
+    .map(compactReasonText)
+    .map((reason) => reason
+      .replace('Available-seat margin is comfortably above standby demand', 'Seats exceed standbys')
+      .replace('Available-seat margin is usable but should still be monitored', 'Seats exceed standbys')
+      .replace('Nonstop route avoids connection risk', 'Nonstop routing')
+      .replace('Multiple backup departures', 'Strong recovery options')
+    )
+    .filter(Boolean)
+
+  return factors.filter((factor, index, all) => all.findIndex((item) => item.toLowerCase() === factor.toLowerCase()) === index).slice(0, 5)
+}
+
 function formatItineraryDateTime(value: string) {
   const parsed = parseScheduleTime(value)
   if (!parsed) return displayField(value)
@@ -2833,8 +2867,8 @@ function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: It
         <div className="nonrevy-flight-board-row__main">
           <div className="nonrevy-flight-board-row__rank-line">
             <span className="nonrevy-flight-board-row__rank-label">{compactRankingLabel(rankIndex)}</span>
-            <span className="nonrevy-flight-board-row__confidence" title={`${comparison.successPrediction.confidenceBadge} · ${comparison.successPrediction.confidenceScore}/100`}>
-              {comparison.successPrediction.confidenceLevel} {comparison.successPrediction.confidenceScore}
+            <span className="nonrevy-flight-board-row__confidence" title={`${comparison.successPrediction.confidenceBadge} · Confidence ${comparison.successPrediction.confidenceScore}/100`}>
+              {compactConfidenceIndicator(comparison)}
             </span>
           </div>
 
@@ -2867,6 +2901,7 @@ function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: It
               <div className="nonrevy-flight-board-row__secondary-line">
                 <span className="nonrevy-flight-board-row__duration">{compactDurationLabel(comparison.totalTravelTime)}</span>
                 <span className="nonrevy-flight-board-row__stops">{compactStopsLabel(comparison.connections)}</span>
+                <span className="nonrevy-flight-board-row__load" title={comparison.loadSupport.detail || comparison.successPrediction.loadExplanation}>{rowLoadIntelligenceLabel(comparison)}</span>
                 <span className="nonrevy-flight-board-row__aircraft">{aircraft}</span>
                 {!comparison.successPrediction.needsLoad ? <span className="nonrevy-flight-board-row__score">{compactScoreIcon(comparison)}{compactScoreLabel(comparison)}</span> : null}
               </div>
@@ -2906,12 +2941,16 @@ function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: It
             <section>
               <strong>Trust-first score details</strong>
               <p><strong>Success:</strong> {comparison.successPrediction.displayValue} · <strong>Confidence:</strong> {comparison.successPrediction.confidenceBadge} ({comparison.successPrediction.confidenceScore}/100)</p>
+              <p><strong>Load:</strong> {rowLoadIntelligenceLabel(comparison)}</p>
               <p>{comparison.successPrediction.loadExplanation}</p>
               <p>{comparison.successPrediction.confidenceExplanation}</p>
               {comparison.loadSupport.source ? <p>Load source: {comparison.loadSupport.source}</p> : null}
-              <ul>
-                {[...comparison.successPrediction.reasoning, ...comparison.successPrediction.confidenceReasoning].map((reason) => <li key={`${comparison.id}-${reason}`}>{reason}</li>)}
-              </ul>
+              <div className="nonrevy-flight-board-row__confidence-factors">
+                <strong>Confidence Factors:</strong>
+                <ul>
+                  {compactConfidenceFactors(comparison).map((reason) => <li key={`${comparison.id}-confidence-${reason}`}>{reason}</li>)}
+                </ul>
+              </div>
               <ScoringExplanationDetails comparison={comparison} backup={nextBackup} />
             </section>
 

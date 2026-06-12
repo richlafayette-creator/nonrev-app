@@ -3690,3 +3690,50 @@ button.nonrevy-flight-board-row__carrier[aria-expanded="true"] {
   box-shadow: inset 0 0 0 1px rgba(240, 249, 255, 0.82), 0 0 0 1px rgba(103, 232, 249, 0.5) !important;
   color: #ffffff !important;
 }
+
+/* User-focused confidence/load display: compact, no row-height increase */
+.nonrevy-flight-board-row__load {
+  flex: 0 1 auto !important;
+  min-width: 0 !important;
+  max-width: min(42vw, 150px) !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  border: 1px solid rgba(56, 189, 248, 0.34) !important;
+  border-radius: 999px !important;
+  padding: 1px 5px !important;
+  background: rgba(8, 47, 73, 0.5) !important;
+  color: #e0f2fe !important;
+  font-size: 0.68rem !important;
+  font-weight: 950 !important;
+  line-height: 1 !important;
+  letter-spacing: -0.02em !important;
+}
+
+.nonrevy-flight-board-row__confidence {
+  border-color: rgba(250, 204, 21, 0.4) !important;
+  background: rgba(15, 23, 42, 0.9) !important;
+  color: #f8fafc !important;
+  text-transform: none !important;
+  font-weight: 1000 !important;
+}
+
+.nonrevy-flight-board-row__confidence-factors {
+  margin-top: 5px !important;
+}
+
+.nonrevy-flight-board-row__confidence-factors strong {
+  color: #bae6fd !important;
+}
+
+.nonrevy-flight-board-row__confidence-factors ul {
+  margin: 4px 0 0 !important;
+}
+
+@media (max-width: 430px) {
+  .nonrevy-flight-board-row__load {
+    max-width: 38vw !important;
+    padding: 1px 4px !important;
+    font-size: 0.64rem !important;
+  }
+}

@@ -137,87 +137,120 @@ function confidenceEvidence(input: SuccessPredictionInput) {
   const seats = input.loadData?.seatsAvailable
   const standby = input.loadData?.standbyCount
   const hasStructuredLoad = typeof seats === 'number' && typeof standby === 'number'
+  const hasLiveLoad = status === 'verified' || status === 'trusted'
   const reasons: string[] = []
-  let score = 35
+  let score = 34
+  let guardrailCap = 99
 
   if (status === 'verified') {
-    score += 34
+    score += 38
     reasons.push('Fresh verified load data is present')
   } else if (status === 'trusted') {
-    score += 26
+    score += 30
     reasons.push('Trusted load data is present')
   } else if (status === 'weak') {
-    score -= 18
+    score -= 16
+    guardrailCap = Math.min(guardrailCap, 60)
     reasons.push('Load observation is weak or incomplete')
   } else if (status === 'stale') {
-    score -= 26
+    score -= 22
+    guardrailCap = Math.min(guardrailCap, 60)
     reasons.push('Load observation is stale')
   } else {
-    score -= 32
+    score -= 30
+    guardrailCap = Math.min(guardrailCap, 60)
     reasons.push('No load data is available')
   }
+
+  if (!hasLiveLoad) guardrailCap = Math.min(guardrailCap, 60)
 
   if (hasStructuredLoad) {
     const margin = seats - standby
     const pressureRatio = seats <= 0 ? Number.POSITIVE_INFINITY : standby / seats
+    if (standby > seats) guardrailCap = Math.min(guardrailCap, 35)
+    else if (standby >= seats) guardrailCap = Math.min(guardrailCap, 50)
+
     if (margin >= 10 || pressureRatio <= 0.45) {
-      score += 12
-      reasons.push('Available-seat margin is comfortably above standby demand')
+      score += 18
+      reasons.push('Seats exceed standbys')
     } else if (margin >= 4 || pressureRatio <= 0.7) {
-      score += 5
-      reasons.push('Available-seat margin is usable but should still be monitored')
+      score += 10
+      reasons.push('Seats exceed standbys')
     } else if (margin > 0) {
-      score -= 14
-      reasons.push('Standby demand is approaching available seats')
+      score -= 8
+      reasons.push('Standbys are close to open seats')
+    } else if (margin === 0) {
+      score -= 22
+      reasons.push('Standbys equal open seats')
     } else {
-      score -= 24
-      reasons.push('Standby demand meets or exceeds available seats')
+      score -= 32
+      reasons.push('Standbys exceed open seats')
     }
   } else {
     score -= 12
-    reasons.push('Missing structured available-seat and standby counts')
+    guardrailCap = Math.min(guardrailCap, 60)
+    reasons.push('Missing structured open-seat and standby counts')
   }
 
   if (Number.isFinite(input.historicalLoadSignal)) {
     const historicalSignal = input.historicalLoadSignal || 0
     if (historicalSignal >= 6) {
-      score += 10
-      reasons.push('Historical/community observations are consistently favorable')
+      score += 8
+      reasons.push('Historical success patterns are favorable')
     } else if (historicalSignal >= 0) {
-      score += 5
-      reasons.push('Historical/community observations provide some support')
+      score += 4
+      reasons.push('Historical success patterns provide support')
     } else {
-      score -= 6
-      reasons.push('Historical/community observations are unfavorable')
+      score -= 7
+      reasons.push('Historical success patterns are unfavorable')
     }
   } else {
     score -= 5
     reasons.push('No historical load signal is available')
   }
 
-  if (input.carrierCoverage === 'Strong') {
+  if (input.recoveryStrength === 'Strong' || input.backupAvailability === 'Excellent') {
     score += 7
-    reasons.push('Carrier/source coverage is strong')
+    reasons.push('Strong recovery options')
+  } else if (input.recoveryStrength === 'Limited' || input.backupAvailability === 'Poor') {
+    score -= 7
+    reasons.push('Limited recovery options')
+  }
+
+  if (input.carrierCoverage === 'Strong') {
+    score += 5
+    reasons.push('Carrier reliability signal is strong')
   } else if (input.carrierCoverage === 'Limited') {
     score -= 8
-    reasons.push('Carrier/source coverage is limited')
+    reasons.push('Carrier reliability signal is limited')
   } else {
-    score += 2
-    reasons.push('Carrier/source coverage is moderate')
+    score += 1
+    reasons.push('Carrier reliability signal is moderate')
+  }
+
+  if (input.connectionCount === 0) {
+    score += 6
+    reasons.push('Nonstop routing')
+  } else if (input.connectionCount === 1) {
+    score -= 3
+    reasons.push('One connection adds routing complexity')
+  } else {
+    score -= 9
+    reasons.push('Multiple connections add routing complexity')
   }
 
   if (input.scheduleDensity === 'High') {
-    score += 5
-    reasons.push('Schedule density gives corroborating route context')
+    score += hasLiveLoad ? 2 : 1
+    reasons.push('Schedule density gives minor supporting context')
   } else if (input.scheduleDensity === 'Low') {
-    score -= 5
+    score -= 3
     reasons.push('Schedule-only context is sparse')
   }
 
-  if (input.routeConfidenceScore >= 76) score += 6
-  else if (input.routeConfidenceScore < 55) score -= 8
+  if (input.routeConfidenceScore >= 76) score += 3
+  else if (input.routeConfidenceScore < 55) score -= 6
 
-  return { score: clamp(score, 1, 99), reasons: [...new Set(reasons)].slice(0, 5) }
+  return { score: clamp(Math.min(score, guardrailCap), 1, 99), reasons: [...new Set(reasons)].slice(0, 6) }
 }
 
 function confidenceLevelFor(score: number): SuccessPredictionConfidenceLevel {

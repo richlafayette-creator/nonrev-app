@@ -2,7 +2,7 @@
 
 import { type CSSProperties, type FormEvent, useEffect, useMemo, useState } from 'react'
 import { flightMatchesSearch } from '../../lib/flightSearch'
-import { delayRiskScore, rankItinerary } from '../../lib/intelligence'
+import { delayRiskScore, rankItinerary, scoreNonrevItinerary, type NonrevSuccessScore, type NonrevLoadReportSignal } from '../../lib/intelligence'
 import { allFlightFields, fieldValue, passengerFlightCoverageNotes, richFlightFieldLabels } from '../../lib/flightDataScaffold'
 import { airportCodesFromRoute, airportMapScaffolds } from '../../lib/airportMapScaffold'
 import { buildRouteAirportIntelligence, connectionRiskColor, type RouteAirportIntelligence } from '../../lib/airportIntelligence'
@@ -488,6 +488,7 @@ type ItineraryComparison = {
   communityReportSummary: string
   why: string[]
   explanation: ScoringExplanation
+  nextGenSuccess: NonrevSuccessScore
 }
 
 type ScoringExplanation = {
@@ -845,6 +846,123 @@ function recoveryStrengthForComparison(backupAvailability: string, disruption: D
   return 'Limited'
 }
 
+
+function availabilityStrengthScore(value: string) {
+  if (value === 'Excellent') return 92
+  if (value === 'Good') return 78
+  if (value === 'Fair') return 60
+  return 38
+}
+
+function hubStrengthScore(summary: string) {
+  if (summary.includes('Primary Hub')) return 92
+  if (summary.includes('Strong Hub')) return 82
+  if (summary.includes('Focus City')) return 66
+  if (summary.includes('Limited Hub')) return 42
+  return 58
+}
+
+function remainingDeparturesScoreInput(backupAvailability: string, connections: number) {
+  const base = backupAvailability === 'Excellent' ? 7 : backupAvailability === 'Good' ? 5 : backupAvailability === 'Fair' ? 3 : 1
+  return Math.max(0, base - Math.max(0, connections - 1))
+}
+
+function alternateRoutingOptionsInput(airportIntelligence: RouteAirportIntelligence, comparisonsAvailable = 0) {
+  const backupBase = airportIntelligence.backupFlightAvailability === 'Excellent' ? 5 : airportIntelligence.backupFlightAvailability === 'Good' ? 4 : airportIntelligence.backupFlightAvailability === 'Fair' ? 2 : 1
+  return Math.max(backupBase, Math.min(6, comparisonsAvailable))
+}
+
+function aircraftSeatCountEstimate(aircraftDetails: string) {
+  const value = aircraftDetails.toLowerCase()
+  if (value.includes('a380')) return 500
+  if (value.includes('777-300') || value.includes('777 300') || value.includes('747')) return 360
+  if (value.includes('777') || value.includes('a350') || value.includes('787-10')) return 300
+  if (value.includes('787') || value.includes('767') || value.includes('a330')) return 240
+  if (value.includes('757') || value.includes('a321')) return 190
+  if (value.includes('737') || value.includes('a320') || value.includes('a319')) return 165
+  if (value.includes('e175') || value.includes('e75') || value.includes('embraer') || value.includes('crj')) return 76
+  return null
+}
+
+function delayRateFromSignals(disruption: DisruptionIntelligence, weatherRisk: WeatherRisk, connectionRisk: number) {
+  return Math.max(4, Math.min(42, 10 + disruption.disruptionImpactScore * 0.34 + weatherRisk.scoreImpact * 0.32 + connectionRisk * 0.08))
+}
+
+function cancellationRateFromSignals(disruption: DisruptionIntelligence, weatherRisk: WeatherRisk) {
+  const routeHealthPenalty = disruption.routeHealth === 'Red' ? 5 : disruption.routeHealth === 'Yellow' ? 2 : 0
+  return Math.max(1, Math.min(18, 2 + routeHealthPenalty + weatherRisk.scoreImpact * 0.12 + disruption.disruptionImpactScore * 0.08))
+}
+
+function loadReportsForSuccessScore(routeReports: LoadReport[]): NonrevLoadReportSignal[] {
+  return routeReports.map((report) => ({
+    availableSeats: report.seatsAvailableEstimate ?? undefined,
+    standbyCount: report.standbysClearedEstimate ?? undefined,
+    trustScore: report.reportTrustScore,
+    sourceTrustScore: report.reportTrustScore,
+    contributorId: `${report.carrier}-${report.contributorTrustScore}-${report.confidenceLevel}`,
+    createdAt: report.createdAt,
+    verified: report.verified,
+    confidenceLevel: report.confidenceLevel
+  }))
+}
+
+function historicalFlightSuccessFromReports(routeReports: LoadReport[], flightNumber: string, fallback: number) {
+  const normalizedFlight = flightNumber.replace(/\s+/g, '').toUpperCase()
+  const matching = routeReports.filter((report) => report.flightNumber.replace(/\s+/g, '').toUpperCase() === normalizedFlight)
+  if (!matching.length) return fallback
+  const probabilities = matching.map((report) => {
+    const seats = report.seatsAvailableEstimate ?? 0
+    const standby = report.standbysClearedEstimate ?? 0
+    const margin = seats - standby
+    if (report.loadStatus === 'Seats open' || margin >= 6) return 88
+    if (report.loadStatus === 'Looks workable' || margin >= 0) return 72
+    if (report.loadStatus === 'Tight' || margin >= -3) return 44
+    if (report.loadStatus === 'Full') return 18
+    return fallback
+  })
+  return Math.round(probabilities.reduce((total, value) => total + value, 0) / probabilities.length)
+}
+
+function buildNextGenSuccessScore(input: {
+  route: string
+  flightNumber: string
+  carrier: string
+  score: number
+  successProbability: number
+  historicalSuccess: number
+  routeReports: LoadReport[]
+  loadSupport: NonNullable<SuccessPredictionInput['loadData']>
+  departureDateTime: string
+  aircraftDetails: string
+  airportIntelligence: RouteAirportIntelligence
+  disruption: DisruptionIntelligence
+  weatherRisk: WeatherRisk
+  connections: number
+  comparisonCount?: number
+}) {
+  return scoreNonrevItinerary({
+    route: input.route,
+    flightNumber: input.flightNumber,
+    carrier: input.carrier,
+    baseItineraryScore: input.score,
+    baseSuccessProbability: input.successProbability,
+    historicalFlightSuccessRate: historicalFlightSuccessFromReports(input.routeReports, input.flightNumber, input.historicalSuccess),
+    historicalRouteSuccessRate: input.historicalSuccess,
+    airlineRecoveryNetworkStrength: Math.round((availabilityStrengthScore(input.airportIntelligence.backupFlightAvailability) * 0.72) + (100 - input.disruption.disruptionImpactScore) * 0.28),
+    remainingDeparturesToday: remainingDeparturesScoreInput(input.airportIntelligence.backupFlightAvailability, input.connections),
+    hubStrength: hubStrengthScore(input.airportIntelligence.hubStrengthSummary),
+    publicSeatInventory: input.loadSupport.seatsAvailable ?? null,
+    standbyCount: input.loadSupport.standbyCount ?? null,
+    departureDateTime: input.departureDateTime,
+    historicalCancellationRate: cancellationRateFromSignals(input.disruption, input.weatherRisk),
+    historicalDelayRate: delayRateFromSignals(input.disruption, input.weatherRisk, input.airportIntelligence.connectionRiskScore),
+    aircraftSeatCount: aircraftSeatCountEstimate(input.aircraftDetails),
+    alternateRoutingOptions: alternateRoutingOptionsInput(input.airportIntelligence, input.comparisonCount),
+    userLoadReports: loadReportsForSuccessScore(input.routeReports),
+    connectionCount: input.connections
+  })
+}
+
 function buildLiveItineraryComparison(
   itinerary: LiveItineraryResult,
   predictionEngine: ReturnType<typeof calculatePredictionEngine>,
@@ -918,6 +1036,22 @@ function buildLiveItineraryComparison(
     historicalLoadSignal: loadAdjustment,
     loadData: loadSupport
   })
+  const nextGenSuccess = buildNextGenSuccessScore({
+    route: itinerary.route,
+    flightNumber: itinerary.operatingFlightNumber || itinerary.flightNumber,
+    carrier: itinerary.carrier,
+    score,
+    successProbability: successPrediction.probability,
+    historicalSuccess,
+    routeReports,
+    loadSupport,
+    departureDateTime: itinerary.legs[0]?.departureTime || itinerary.departureTime || 'Pending',
+    aircraftDetails: itinerary.legs.map((leg) => [leg.flightNumber, leg.aircraft, leg.status].filter(Boolean).join(' · ')).join(' | ') || itinerary.aircraft || 'Pending provider details',
+    airportIntelligence,
+    disruption,
+    weatherRisk,
+    connections
+  })
   const explanation = buildScoringExplanation({
     route: itinerary.route,
     carrier: itinerary.carrier,
@@ -989,7 +1123,8 @@ function buildLiveItineraryComparison(
         : 'No saved outcomes for this exact route yet; traveler profile and historical signals carry more weight.',
       connections === 0 ? 'Nonstop option avoids connection risk.' : `${connections} connection${connections === 1 ? '' : 's'} adds a controlled recovery-risk penalty.`
     ],
-    explanation
+    explanation,
+    nextGenSuccess
   }
 }
 
@@ -1065,6 +1200,22 @@ function buildFallbackItineraryComparison(
     historicalLoadSignal: loadAdjustment,
     loadData: loadSupport
   })
+  const nextGenSuccess = buildNextGenSuccessScore({
+    route: itinerary.route,
+    flightNumber: itinerary.title,
+    carrier: carrierLabel,
+    score,
+    successProbability: successPrediction.probability,
+    historicalSuccess,
+    routeReports,
+    loadSupport,
+    departureDateTime: itinerary.window || 'Flexible',
+    aircraftDetails: itinerary.segments.join(' | '),
+    airportIntelligence,
+    disruption,
+    weatherRisk,
+    connections
+  })
   const explanation = buildScoringExplanation({
     route: itinerary.route,
     carrier: carrierLabel,
@@ -1133,7 +1284,8 @@ function buildFallbackItineraryComparison(
         : 'No saved route outcomes yet; traveler profile and route intelligence remain the main signals.',
       connections === 0 ? 'Nonstop shape keeps connection risk low.' : `${connections} connection${connections === 1 ? '' : 's'} creates backup flexibility but adds transfer risk.`
     ],
-    explanation
+    explanation,
+    nextGenSuccess
   }
 }
 
@@ -1213,11 +1365,9 @@ function compactStopsLabel(connectionCount: number) {
 }
 
 
-function compactRankingLabel(index: number) {
-  if (index === 0) return '#1 Best Choice'
-  if (index === 1) return '#2 Strong Option'
-  if (index === 2) return '#3 Backup Option'
-  return `#${index + 1} Alternate`
+function compactRankingLabel(index: number, comparison?: ItineraryComparison) {
+  const label = comparison?.nextGenSuccess.label || (index === 0 ? 'Best Choice' : index === 1 ? 'Strong Option' : index === 2 ? 'Backup Option' : 'Last Chance')
+  return `#${index + 1} ${label}`
 }
 
 function compactReasonText(reason: string) {
@@ -1230,6 +1380,8 @@ function compactReasonText(reason: string) {
 
 function compactItineraryReasons(comparison: ItineraryComparison) {
   const reasons = [
+    ...comparison.nextGenSuccess.topPositiveFactors.map((factor) => factor.detail),
+    `Risk: ${comparison.nextGenSuccess.topRiskFactor.detail}`,
     ...comparison.why,
     ...comparison.successPrediction.reasoning,
     ...comparison.explanation.whyRankedHere
@@ -1262,12 +1414,11 @@ function flightBoardDayOffset(arrivalValue: string, departureValue: string) {
 }
 
 function compactScoreLabel(comparison: ItineraryComparison) {
-  if (comparison.successPrediction.scoreLabel === 'Needs Load') return 'LoadReq'
-  return comparison.successPrediction.displayValue.replace(/\s+/g, '')
+  return `${comparison.nextGenSuccess.score}/100`
 }
 
 function compactScoreIcon(comparison: ItineraryComparison) {
-  const color = successScoreColor(comparison.successPrediction.probability, comparison.successPrediction.isLoadSupported)
+  const color = successScoreColor(comparison.nextGenSuccess.score, comparison.successPrediction.isLoadSupported)
   if (color === '#22c55e') return '🟢'
   if (color === '#f87171') return '🔴'
   return '🟡'
@@ -1391,10 +1542,10 @@ function itineraryDepartureSortValue(comparison: ItineraryComparison) {
 
 function sortCompactItineraries(comparisons: ItineraryComparison[]) {
   return [...comparisons].sort((a, b) =>
-    a.connections - b.connections ||
-    itineraryDepartureSortValue(a) - itineraryDepartureSortValue(b) ||
+    b.nextGenSuccess.score - a.nextGenSuccess.score ||
     b.successPrediction.probability - a.successPrediction.probability ||
-    b.score - a.score
+    b.routeConfidence.score - a.routeConfidence.score ||
+    itineraryDepartureSortValue(a) - itineraryDepartureSortValue(b)
   )
 }
 
@@ -2910,7 +3061,7 @@ function ItineraryComparisonPanel({ comparisons, travelDate, communityLoads, onC
     const index = compactItineraries.findIndex((item) => item.id === comparison.id)
     const rankIndex = index >= 0 ? index : 0
     const nextBackup = compactItineraries[index + 1] || compactItineraries.find((item) => item.id !== comparison.id)
-    const scoreColor = successScoreColor(comparison.successPrediction.probability, comparison.successPrediction.isLoadSupported)
+    const scoreColor = successScoreColor(comparison.nextGenSuccess.score, comparison.successPrediction.isLoadSupported)
     const routeAirports = airportCodesFromComparisonRoute(comparison.route)
     const legCount = comparison.connections + 1
     const isSelected = selectedComparisonId === comparison.id
@@ -2938,13 +3089,13 @@ function ItineraryComparisonPanel({ comparisons, travelDate, communityLoads, onC
       >
         <div className="nonrevy-flight-board-row__main">
           <div className="nonrevy-flight-board-row__rank-line">
-            <span className="nonrevy-flight-board-row__rank-label">{compactRankingLabel(rankIndex)}</span>
+            <span className="nonrevy-flight-board-row__rank-label">{compactRankingLabel(rankIndex, comparison)}</span>
             <span className="nonrevy-flight-board-row__confidence" title={`${comparison.successPrediction.confidenceBadge} · Confidence ${comparison.successPrediction.confidenceScore}/100`}>
               {compactConfidenceIndicator(comparison)}
             </span>
           </div>
 
-          <div className="nonrevy-flight-board-row__content" aria-label={`${compactRankingLabel(rankIndex)} ${carrierCode}${flightNumber} ${comparison.route} ${depTime} to ${arrTime} ${comparison.totalTravelTime} ${compactStopsLabel(comparison.connections)} ${comparison.successPrediction.confidenceLevel} confidence`}>
+          <div className="nonrevy-flight-board-row__content" aria-label={`${compactRankingLabel(rankIndex, comparison)} ${carrierCode}${flightNumber} ${comparison.route} ${depTime} to ${arrTime} ${comparison.totalTravelTime} ${compactStopsLabel(comparison.connections)} ${comparison.successPrediction.confidenceLevel} confidence`}>
             <div className="nonrevy-flight-board-row__flight-data">
               <div className="nonrevy-flight-board-row__primary-line">
                 <span className="nonrevy-flight-board-row__flight-id">
@@ -2975,7 +3126,7 @@ function ItineraryComparisonPanel({ comparisons, travelDate, communityLoads, onC
                 <span className="nonrevy-flight-board-row__stops">{compactStopsLabel(comparison.connections)}</span>
                 <span className="nonrevy-flight-board-row__load" title={comparison.loadSupport.detail || comparison.successPrediction.loadExplanation}>{rowLoadIntelligenceLabel(comparison)}</span>
                 <span className="nonrevy-flight-board-row__aircraft">{aircraft}</span>
-                {!comparison.successPrediction.needsLoad ? <span className="nonrevy-flight-board-row__score">{compactScoreIcon(comparison)}{compactScoreLabel(comparison)}</span> : null}
+                <span className="nonrevy-flight-board-row__score" title="Next-gen nonrev success score">{compactScoreIcon(comparison)}{compactScoreLabel(comparison)}</span>
               </div>
             </div>
 
@@ -3008,7 +3159,7 @@ function ItineraryComparisonPanel({ comparisons, travelDate, communityLoads, onC
               </div>
             </section>
             <section>
-              <strong>{compactRankingLabel(rankIndex)}</strong>
+              <strong>{compactRankingLabel(rankIndex, comparison)}</strong>
               <p>{plainEnglishRationale(comparison, rankIndex)}</p>
             </section>
             <section className="nonrevy-community-loads">
@@ -3058,7 +3209,9 @@ function ItineraryComparisonPanel({ comparisons, travelDate, communityLoads, onC
             </section>
             <section>
               <strong>Trust-first score details</strong>
-              <p><strong>Success:</strong> {comparison.successPrediction.displayValue} · <strong>Confidence:</strong> {comparison.successPrediction.confidenceBadge} ({comparison.successPrediction.confidenceScore}/100)</p>
+              <p><strong>Overall score:</strong> {comparison.nextGenSuccess.score}/100 · <strong>Success:</strong> {comparison.successPrediction.displayValue} · <strong>Confidence:</strong> {comparison.successPrediction.confidenceBadge} ({comparison.successPrediction.confidenceScore}/100)</p>
+              <p><strong>Top positives:</strong> {comparison.nextGenSuccess.topPositiveFactors.map((factor) => factor.detail).join(' · ')}</p>
+              <p><strong>Top risk:</strong> {comparison.nextGenSuccess.topRiskFactor.detail}</p>
               <p><strong>Load:</strong> {rowLoadIntelligenceLabel(comparison)}</p>
               <p>{comparison.successPrediction.loadExplanation}</p>
               <p>{comparison.successPrediction.confidenceExplanation}</p>
@@ -3107,7 +3260,7 @@ function ItineraryComparisonPanel({ comparisons, travelDate, communityLoads, onC
     <section className="nonrevy-results-shell nonrevy-compact-results nonrevy-flight-board" style={{ border: '1px solid rgba(56, 189, 248, 0.35)', borderRadius: 14, padding: 'clamp(6px, 2vw, 10px)', background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.96), rgba(30, 41, 59, 0.86))', marginBottom: 16 }}>
       <div className="nonrevy-flight-board__header">
         <strong>Flight board</strong>
-        <span>Direct first · then 1-stop · 2-stop · chronological</span>
+        <span>Ranked by nonrev success score · schedule is secondary</span>
       </div>
 
       {watchStatus && <p className="nonrevy-compact-results__status nonrevy-compact-results__status--watch">{watchStatus} <a href="/watchlist">Open watchlist</a></p>}

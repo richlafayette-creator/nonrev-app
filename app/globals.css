@@ -3737,3 +3737,68 @@ button.nonrevy-flight-board-row__carrier[aria-expanded="true"] {
     font-size: 0.64rem !important;
   }
 }
+
+/* Community Loads MVP */
+.nonrevy-community-loads__card {
+  border: 1px solid rgba(56, 189, 248, 0.32) !important;
+  border-radius: 12px !important;
+  padding: 10px !important;
+  margin-top: 8px !important;
+  background: rgba(8, 47, 73, 0.42) !important;
+}
+
+.nonrevy-community-loads__card p {
+  margin: 4px 0 !important;
+}
+
+.nonrevy-community-loads__submit-toggle,
+.nonrevy-community-loads__form button {
+  border: 0 !important;
+  border-radius: 10px !important;
+  padding: 9px 11px !important;
+  background: #38bdf8 !important;
+  color: #020617 !important;
+  font-weight: 950 !important;
+  cursor: pointer !important;
+}
+
+.nonrevy-community-loads__submit-toggle {
+  margin-top: 10px !important;
+}
+
+.nonrevy-community-loads__form {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)) !important;
+  gap: 8px !important;
+  margin-top: 10px !important;
+}
+
+.nonrevy-community-loads__form label {
+  color: #cbd5e1 !important;
+  font-size: 0.76rem !important;
+  font-weight: 850 !important;
+}
+
+.nonrevy-community-loads__form input,
+.nonrevy-community-loads__form textarea {
+  box-sizing: border-box !important;
+  width: 100% !important;
+  margin-top: 4px !important;
+  border: 1px solid #475569 !important;
+  border-radius: 9px !important;
+  padding: 8px !important;
+  background: #020617 !important;
+  color: #f8fafc !important;
+  font: inherit !important;
+}
+
+.nonrevy-community-loads__form textarea {
+  grid-column: 1 / -1 !important;
+  resize: vertical !important;
+}
+
+.nonrevy-community-loads__status {
+  color: #bae6fd !important;
+  font-size: 0.78rem !important;
+  margin-bottom: 0 !important;
+}

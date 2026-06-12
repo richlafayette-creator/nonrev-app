@@ -1162,6 +1162,30 @@ function compactAircraftLabel(comparison: ItineraryComparison) {
     .trim()
 }
 
+const AIRLINE_NAME_BY_CODE: Record<string, string> = {
+  UA: 'United Airlines',
+  NH: 'All Nippon Airways',
+  AA: 'American Airlines',
+  DL: 'Delta Air Lines',
+  AS: 'Alaska Airlines',
+  HA: 'Hawaiian Airlines',
+  OO: 'SkyWest Airlines'
+}
+
+function airlineNameForCarrier(carrier: string, carrierCode: string) {
+  const normalizedCarrier = carrier.replace(/\s+/g, ' ').trim()
+  const normalizedCode = carrierCode.trim().toUpperCase()
+  const mappedName = AIRLINE_NAME_BY_CODE[normalizedCode]
+
+  if (normalizedCarrier && !new RegExp(`^${normalizedCode}$`, 'i').test(normalizedCarrier)) {
+    const carrierWithoutCode = normalizedCarrier.replace(new RegExp(`^${normalizedCode}\\s*[-–—:]?\\s*`, 'i'), '').trim()
+    if (carrierWithoutCode && !/^[A-Z0-9]{2,3}$/i.test(carrierWithoutCode)) return carrierWithoutCode
+    if (!/^[A-Z0-9]{2,3}$/i.test(normalizedCarrier)) return normalizedCarrier
+  }
+
+  return mappedName || 'Unknown carrier'
+}
+
 function compactCarrierCode(carrier: string) {
   const words = carrier.trim().split(/\s+/).filter(Boolean)
   if (!words.length) return 'AIR'
@@ -2663,6 +2687,7 @@ function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: It
   const [savedComparisons, setSavedComparisons] = useState<SavedItineraryComparison[]>([])
   const [expandedDetailIds, setExpandedDetailIds] = useState<string[]>([])
   const [selectedComparisonId, setSelectedComparisonId] = useState('')
+  const [visibleCarrierNameId, setVisibleCarrierNameId] = useState('')
 
   useEffect(() => {
     function refreshSavedComparisons() {
@@ -2756,8 +2781,27 @@ function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: It
     setDetailsOpen(comparison.id, true)
   }
 
+  function toggleDetails(comparison: ItineraryComparison, open: boolean) {
+    setSelectedComparisonId(comparison.id)
+    setDetailsOpen(comparison.id, open)
+  }
+
+  function collapseAllRows() {
+    setExpandedDetailIds([])
+    setVisibleCarrierNameId('')
+  }
+
   const compactItineraries = sortCompactItineraries(comparisons)
   const routeInsights = buildRouteIntelligenceInsights(compactItineraries)
+
+  function renderExpandControls(position: 'top' | 'bottom') {
+    return (
+      <div className={`nonrevy-flight-board__expand-actions nonrevy-flight-board__expand-actions--${position}`} aria-label={`${position} flight board expansion controls`}>
+        <button type="button" onClick={() => setExpandedDetailIds(compactItineraries.map((item) => item.id))}>Expand All</button>
+        <button type="button" onClick={collapseAllRows}>Collapse All</button>
+      </div>
+    )
+  }
 
   function renderFlightBoardRow(comparison: ItineraryComparison) {
     const index = compactItineraries.findIndex((item) => item.id === comparison.id)
@@ -2769,6 +2813,8 @@ function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: It
     const isSelected = selectedComparisonId === comparison.id
     const isExpanded = expandedDetailIds.includes(comparison.id)
     const carrierCode = compactCarrierCode(comparison.carrier)
+    const airlineName = airlineNameForCarrier(comparison.carrier, carrierCode)
+    const isCarrierNameVisible = visibleCarrierNameId === comparison.id
     const flightNumber = compactFlightNumberLabel(comparison.flightNumber, carrierCode)
     const aircraft = compactAircraftLabel(comparison)
     const depTime = compactFlightBoardDateTime(comparison.departureDateTime, routeAirports[0])
@@ -2796,7 +2842,20 @@ function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: It
             <div className="nonrevy-flight-board-row__flight-data">
               <div className="nonrevy-flight-board-row__primary-line">
                 <span className="nonrevy-flight-board-row__flight-id">
-                  <span className="nonrevy-flight-board-row__carrier">{carrierCode}</span><strong className="nonrevy-flight-board-row__flight-number">{flightNumber}</strong>
+                  <button
+                    type="button"
+                    className="nonrevy-flight-board-row__carrier"
+                    aria-label={`${carrierCode} carrier name`}
+                    aria-expanded={isCarrierNameVisible}
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      setVisibleCarrierNameId(isCarrierNameVisible ? '' : comparison.id)
+                    }}
+                  >
+                    {carrierCode}
+                  </button>
+                  {isCarrierNameVisible ? <span className="nonrevy-flight-board-row__carrier-popover" role="status">{airlineName}</span> : null}
+                  <strong className="nonrevy-flight-board-row__flight-number">{flightNumber}</strong>
                 </span>
                 <span className="nonrevy-flight-board-row__route">{comparison.route}</span>
               </div>
@@ -2817,7 +2876,7 @@ function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: It
               <button type="button" onClick={() => requestLoad(comparison)} title="Request load" aria-label="Request load">↻</button>
               <button type="button" onClick={() => saveForComparison(comparison)} title="Save" aria-label="Save itinerary">☆</button>
               <button type="button" onClick={() => watchRoute(comparison)} title="Watch" aria-label="Watch route">👁</button>
-              <button type="button" onClick={() => openDetails(comparison)} title={isExpanded ? 'Hide details' : 'Details'} aria-label={isExpanded ? 'Hide details' : 'Show details'}>{isExpanded ? '▴' : '▾'}</button>
+              <button type="button" onClick={() => toggleDetails(comparison, !isExpanded)} title={isExpanded ? 'Hide details' : 'Details'} aria-label={isExpanded ? 'Hide details' : 'Show details'}>{isExpanded ? '▴' : '▾'}</button>
             </div>
           </div>
 
@@ -2897,14 +2956,13 @@ function ItineraryComparisonPanel({ comparisons, travelDate }: { comparisons: It
       {watchStatus && <p className="nonrevy-compact-results__status nonrevy-compact-results__status--watch">{watchStatus} <a href="/watchlist">Open watchlist</a></p>}
       {compareStatus && <p className="nonrevy-compact-results__status nonrevy-compact-results__status--save">{compareStatus}</p>}
 
+      {renderExpandControls('top')}
+
       <div className="nonrevy-flight-board__list" aria-label="All feasible itineraries">
         {compactItineraries.map((comparison) => renderFlightBoardRow(comparison))}
       </div>
 
-      <div className="nonrevy-flight-board__expand-actions">
-        <button type="button" onClick={() => setExpandedDetailIds(compactItineraries.map((item) => item.id))}>Expand All</button>
-        <button type="button" onClick={() => setExpandedDetailIds([])}>Collapse All</button>
-      </div>
+      {renderExpandControls('bottom')}
 
       <details className="nonrevy-premium-details" style={{ marginTop: 8, border: '1px solid #334155', borderRadius: 10, padding: 8, background: '#020617' }}>
         <summary style={{ color: '#c084fc', cursor: 'pointer', fontWeight: 'bold' }}>Route intelligence, recovery, recommendations, and provider details</summary>

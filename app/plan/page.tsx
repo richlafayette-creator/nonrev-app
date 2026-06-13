@@ -11,7 +11,7 @@ import { carrierScoringProfiles, getCarrierScoringScaffold, normalizeCarrierFami
 import { historicalRouteStats, type HistoricalRoute } from '../../lib/historicalRoutes'
 import { parseItineraryPrompt } from '../../lib/itinerarySearch'
 import { effectiveLoadReportWeight, loadLoadReports, loadReportSignal, loadReportSummary, type LoadReport } from '../../lib/loadReports'
-import { communityLoadFreshness, communityLoadSummaryForItinerary, communityRouteAirports, loadCommunityContributorReputation, loadCommunityLoads, relativeCommunityLoadTime, saveCommunityLoadReport, type CommunityLoadReport } from '../../lib/communityLoads'
+import { communityLoadFreshness, communityLoadSummaryForItinerary, communityRouteAirports, loadCommunityContributorReputation, loadCommunityLoads, relativeCommunityLoadTime, saveCommunityLoadReport, saveCommunityLoadRequest, validateCommunityLoadReport, type CommunityLoadFreshness, type CommunityLoadReport, type CommunityLoadValidationStatus } from '../../lib/communityLoads'
 import { calculatePredictionEngine } from '../../lib/predictionEngine'
 import { buildDisruptionIntelligence, routeHealthColor, type DisruptionIntelligence } from '../../lib/disruptionIntelligence'
 import { calculateRouteConfidence, confidenceBadgeColor, confidenceTrendColor, confidenceUpdateTriggerLabel, type ConfidenceTrend, type ConfidenceUpdateTrigger, type RouteConfidence } from '../../lib/routeConfidence'
@@ -2876,10 +2876,21 @@ type CommunityLoadFormState = {
   notes: string
 }
 
+function itineraryLoadDate(comparison: ItineraryComparison, travelDate: string) {
+  const trimmedTravelDate = travelDate.trim()
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmedTravelDate)) return trimmedTravelDate
+  const match = comparison.departureDateTime.match(/\d{4}-\d{2}-\d{2}/)
+  return match?.[0] || ''
+}
+
+function communityFreshnessClass(freshness: CommunityLoadFreshness | null) {
+  return `nonrevy-community-loads__freshness nonrevy-community-loads__freshness--${(freshness || 'none').toLowerCase()}`
+}
+
 function initialCommunityLoadForm(comparison: ItineraryComparison, travelDate: string): CommunityLoadFormState {
   return {
     flightNumber: comparison.flightNumber,
-    date: travelDate.trim() || comparison.departureDateTime.slice(0, 10),
+    date: itineraryLoadDate(comparison, travelDate),
     availableSeats: '',
     standbyCount: '',
     cabin: '',
@@ -2895,8 +2906,9 @@ function ItineraryComparisonPanel({ comparisons, travelDate, communityLoads, onC
   const [selectedComparisonId, setSelectedComparisonId] = useState('')
   const [visibleCarrierNameId, setVisibleCarrierNameId] = useState('')
   const [activeCommunityLoadId, setActiveCommunityLoadId] = useState('')
+  const [activeLoadRequestId, setActiveLoadRequestId] = useState('')
   const [communityLoadForm, setCommunityLoadForm] = useState<CommunityLoadFormState>({ flightNumber: '', date: '', availableSeats: '', standbyCount: '', cabin: '', notes: '' })
-  const [communityLoadStatus, setCommunityLoadStatus] = useState('Community Loads ready. Submit a load without changing scoring.')
+  const [communityLoadStatus, setCommunityLoadStatus] = useState('Community Loads ready. Submit or request a load without changing scoring.')
 
   useEffect(() => {
     function refreshSavedComparisons() {
@@ -2963,16 +2975,44 @@ function ItineraryComparisonPanel({ comparisons, travelDate, communityLoads, onC
     }
   }
 
-  function requestLoad(comparison: ItineraryComparison) {
-    window.location.href = `/load-reports?route=${encodeURIComponent(comparison.route)}&carrier=${encodeURIComponent(comparison.carrier)}&date=${encodeURIComponent(travelDate.trim() || 'Flexible')}`
+  function openLoadRequestForm(comparison: ItineraryComparison) {
+    setSelectedComparisonId(comparison.id)
+    setDetailsOpen(comparison.id, true)
+    setActiveLoadRequestId(activeLoadRequestId === comparison.id ? '' : comparison.id)
+    setActiveCommunityLoadId('')
+    setCommunityLoadForm(initialCommunityLoadForm(comparison, travelDate))
+    setCommunityLoadStatus('Flight and date are prefilled. Tap Submit Request to ask the community for this load.')
+  }
+
+  function submitLoadRequest(comparison: ItineraryComparison) {
+    const routeAirports = communityRouteAirports(comparison.route)
+    const flightNumber = communityLoadForm.flightNumber || comparison.flightNumber
+    const date = communityLoadForm.date || itineraryLoadDate(comparison, travelDate)
+    if (!flightNumber.trim() || !date) {
+      setCommunityLoadStatus('Flight number and date are required before requesting a load.')
+      return
+    }
+    const saved = saveCommunityLoadRequest({
+      flightNumber,
+      carrier: comparison.carrier,
+      route: comparison.route,
+      origin: routeAirports.origin,
+      destination: routeAirports.destination,
+      date
+    })
+    if (saved) {
+      setActiveLoadRequestId('')
+      setCommunityLoadStatus(`Load requested for ${saved.flightNumber} on ${saved.date}.`)
+    }
   }
 
   function openCommunityLoadForm(comparison: ItineraryComparison) {
     setSelectedComparisonId(comparison.id)
     setDetailsOpen(comparison.id, true)
     setActiveCommunityLoadId(activeCommunityLoadId === comparison.id ? '' : comparison.id)
+    setActiveLoadRequestId('')
     setCommunityLoadForm(initialCommunityLoadForm(comparison, travelDate))
-    setCommunityLoadStatus('Community Loads are display-only for scoring in this MVP phase.')
+    setCommunityLoadStatus('Fast Submit Load is ready. Required fields are flight, date, seats, and standby count.')
   }
 
   function updateCommunityLoadForm(field: keyof CommunityLoadFormState, value: string) {
@@ -3010,6 +3050,12 @@ function ItineraryComparisonPanel({ comparisons, travelDate, communityLoads, onC
       setCommunityLoadForm(initialCommunityLoadForm(comparison, travelDate))
       setCommunityLoadStatus(`Community load saved: ${saved.availableSeats} available • ${saved.standbyCount} standby · trust ${saved.sourceTrustScore}/100.`)
     }
+  }
+
+  function markCommunityLoad(report: CommunityLoadReport, status: CommunityLoadValidationStatus) {
+    validateCommunityLoadReport(report.id, status)
+    onCommunityLoadsUpdated()
+    setCommunityLoadStatus(`Marked report ${status.toLowerCase()}. Contributor trust signal updated locally.`)
   }
 
   function removeComparison(id: string) {
@@ -3079,6 +3125,8 @@ function ItineraryComparisonPanel({ comparisons, travelDate, communityLoads, onC
     const communityLoad = communityLoadSummaryForItinerary(communityLoads, { flightNumber: comparison.flightNumber, route: comparison.route, date: travelDate.trim() || undefined })
     const latestCommunityLoad = communityLoad.latestReport
     const submitLoadOpen = activeCommunityLoadId === comparison.id
+    const requestLoadOpen = activeLoadRequestId === comparison.id
+    const contributor = loadCommunityContributorReputation()
 
     return (
       <article
@@ -3131,7 +3179,7 @@ function ItineraryComparisonPanel({ comparisons, travelDate, communityLoads, onC
             </div>
 
             <div className="nonrevy-flight-board-row__actions" onClick={(event) => event.stopPropagation()} aria-label="Itinerary actions">
-              <button type="button" onClick={() => openCommunityLoadForm(comparison)} title="Submit Load" aria-label="Submit community load">＋</button>
+              <button type="button" onClick={() => openLoadRequestForm(comparison)} title="Request Load" aria-label="Request load">Load</button>
               <button type="button" onClick={() => saveForComparison(comparison)} title="Save" aria-label="Save itinerary">☆</button>
               <button type="button" onClick={() => watchRoute(comparison)} title="Watch" aria-label="Watch route">👁</button>
               <button type="button" onClick={() => toggleDetails(comparison, !isExpanded)} title={isExpanded ? 'Hide details' : 'Details'} aria-label={isExpanded ? 'Hide details' : 'Show details'}>{isExpanded ? '▴' : '▾'}</button>
@@ -3153,7 +3201,7 @@ function ItineraryComparisonPanel({ comparisons, travelDate, communityLoads, onC
               <strong>Actions</strong>
               <div className="nonrevy-flight-board-row__actions nonrevy-flight-board-row__actions--details">
                 <button type="button" onClick={() => openCommunityLoadForm(comparison)} title="Submit Load" aria-label="Submit community load">＋</button>
-                <button type="button" onClick={() => requestLoad(comparison)} title="Request load" aria-label="Request load">↻</button>
+                <button type="button" onClick={() => openLoadRequestForm(comparison)} title="Request load" aria-label="Request load">Load</button>
                 <button type="button" onClick={() => saveForComparison(comparison)} title="Save" aria-label="Save itinerary">☆</button>
                 <button type="button" onClick={() => watchRoute(comparison)} title="Watch" aria-label="Watch route">👁</button>
               </div>
@@ -3166,16 +3214,35 @@ function ItineraryComparisonPanel({ comparisons, travelDate, communityLoads, onC
               <strong>Community Loads</strong>
               {latestCommunityLoad ? (
                 <div className="nonrevy-community-loads__card">
-                  <p><strong>Community Load</strong> {latestCommunityLoad.availableSeats} Available • {latestCommunityLoad.standbyCount} Standby</p>
-                  <p>Submitted {relativeCommunityLoadTime(latestCommunityLoad.createdAt)} · {communityLoadFreshness(latestCommunityLoad.createdAt)}</p>
-                  <p>Trust Score {communityLoad.averageTrustScore || latestCommunityLoad.sourceTrustScore} · {communityLoad.reportCount} Report{communityLoad.reportCount === 1 ? '' : 's'}</p>
+                  <div className="nonrevy-community-loads__card-head">
+                    <strong>Community Load</strong>
+                    <span className={communityFreshnessClass(communityLoad.freshness)}>{communityLoad.freshness}</span>
+                  </div>
+                  <p className="nonrevy-community-loads__counts">{latestCommunityLoad.availableSeats} Open • {latestCommunityLoad.standbyCount} Standby</p>
+                  <p>{relativeCommunityLoadTime(latestCommunityLoad.createdAt)} · Trust {communityLoad.averageTrustScore || latestCommunityLoad.sourceTrustScore} · {communityLoad.reportCount} Report{communityLoad.reportCount === 1 ? '' : 's'}</p>
+                  {latestCommunityLoad.validationStatus ? <p>Validation: {latestCommunityLoad.validationStatus}</p> : null}
+                  <div className="nonrevy-community-loads__validation" aria-label="Validate community load report">
+                    {(['Confirmed', 'Outdated', 'Inaccurate'] as CommunityLoadValidationStatus[]).map((status) => (
+                      <button key={`${latestCommunityLoad.id}-${status}`} type="button" onClick={() => markCommunityLoad(latestCommunityLoad, status)}>{status}</button>
+                    ))}
+                  </div>
                   {latestCommunityLoad.cabin ? <p>Cabin: {latestCommunityLoad.cabin}</p> : null}
                   {latestCommunityLoad.notes ? <p>Notes: {latestCommunityLoad.notes}</p> : null}
                 </div>
               ) : (
                 <p>No community load reports yet for this itinerary.</p>
               )}
-              <button type="button" className="nonrevy-community-loads__submit-toggle" onClick={() => openCommunityLoadForm(comparison)}>{submitLoadOpen ? 'Close Submit Load' : 'Submit Load'}</button>
+              <div className="nonrevy-community-loads__quick-actions">
+                <button type="button" className="nonrevy-community-loads__submit-toggle" onClick={() => openLoadRequestForm(comparison)}>{requestLoadOpen ? 'Close Request' : 'Request Load'}</button>
+                <button type="button" className="nonrevy-community-loads__submit-toggle" onClick={() => openCommunityLoadForm(comparison)}>{submitLoadOpen ? 'Close Submit' : 'Submit Load'}</button>
+              </div>
+              {requestLoadOpen ? (
+                <div className="nonrevy-community-loads__request">
+                  <strong>Request Load</strong>
+                  <p>{communityLoadForm.flightNumber || comparison.flightNumber} · {communityLoadForm.date || itineraryLoadDate(comparison, travelDate) || 'Date needed'} · {comparison.route}</p>
+                  <button type="button" onClick={() => submitLoadRequest(comparison)}>Submit Request</button>
+                </div>
+              ) : null}
               {submitLoadOpen ? (
                 <form className="nonrevy-community-loads__form" onSubmit={(event) => submitCommunityLoad(event, comparison)}>
                   <label>
@@ -3205,6 +3272,12 @@ function ItineraryComparisonPanel({ comparisons, travelDate, communityLoads, onC
                   <button type="submit">Save Community Load</button>
                 </form>
               ) : null}
+              <div className="nonrevy-community-loads__profile">
+                <strong>Contributor Profile</strong>
+                <span>{contributor.totalReports} Reports Submitted</span>
+                <span>Trust Score {contributor.trustScore}/100</span>
+                <span>{contributor.acceptedReports > 0 ? 'Verified contributor' : 'Verification pending'}</span>
+              </div>
               <p className="nonrevy-community-loads__status">{communityLoadStatus}</p>
             </section>
             <section>

@@ -1,7 +1,9 @@
 export const communityLoadsStorageKey = 'nonrevy.communityLoads'
 export const communityContributorReputationStorageKey = 'nonrevy.communityLoadContributorReputation'
+export const communityLoadRequestsStorageKey = 'nonrevy.communityLoadRequests'
 
-export type CommunityLoadFreshness = 'Fresh' | 'Recent' | 'Stale'
+export type CommunityLoadFreshness = 'Fresh' | 'Recent' | 'Stale' | 'Expired'
+export type CommunityLoadValidationStatus = 'Confirmed' | 'Outdated' | 'Inaccurate'
 
 export type CommunityLoadReport = {
   id: string
@@ -22,6 +24,20 @@ export type CommunityLoadReport = {
   contributorId: string
   contributorTrustScore: number
   sourceTrustScore: number
+  validationStatus?: CommunityLoadValidationStatus
+  validationCounts?: Record<CommunityLoadValidationStatus, number>
+  createdAt: string
+}
+
+export type CommunityLoadRequest = {
+  id: string
+  flightNumber: string
+  carrier: string
+  route: string
+  origin: string
+  destination: string
+  date: string
+  status: 'Open' | 'Fulfilled'
   createdAt: string
 }
 
@@ -104,7 +120,8 @@ export function communityLoadFreshness(createdAt: string, now = new Date()): Com
   const ageMinutes = Math.max(0, (now.getTime() - createdTime) / 60_000)
   if (ageMinutes < 60) return 'Fresh'
   if (ageMinutes < 240) return 'Recent'
-  return 'Stale'
+  if (ageMinutes < 1440) return 'Stale'
+  return 'Expired'
 }
 
 export function relativeCommunityLoadTime(createdAt: string, now = new Date()) {
@@ -210,6 +227,12 @@ function migrateReport(raw: Partial<CommunityLoadReport>): CommunityLoadReport |
     contributorId: String(raw.contributorId || defaultContributorId),
     contributorTrustScore: clamp(safeNumber(raw.contributorTrustScore, 50), 0, 100),
     sourceTrustScore: clamp(safeNumber(raw.sourceTrustScore, raw.contributorTrustScore || 50), 0, 100),
+    validationStatus: raw.validationStatus === 'Confirmed' || raw.validationStatus === 'Outdated' || raw.validationStatus === 'Inaccurate' ? raw.validationStatus : undefined,
+    validationCounts: {
+      Confirmed: clamp(safeNumber(raw.validationCounts?.Confirmed), 0, 999_999),
+      Outdated: clamp(safeNumber(raw.validationCounts?.Outdated), 0, 999_999),
+      Inaccurate: clamp(safeNumber(raw.validationCounts?.Inaccurate), 0, 999_999)
+    },
     createdAt
   }
 }
@@ -218,6 +241,72 @@ export function loadCommunityLoads() {
   return readJsonArray<Partial<CommunityLoadReport>>(communityLoadsStorageKey)
     .map(migrateReport)
     .filter((report): report is CommunityLoadReport => Boolean(report))
+}
+
+
+function migrateRequest(raw: Partial<CommunityLoadRequest>): CommunityLoadRequest | null {
+  if (!raw || typeof raw !== 'object') return null
+  const route = String(raw.route || '').toUpperCase()
+  const routeAirports = communityRouteAirports(route)
+  const flightNumber = normalizeCommunityFlightNumber(String(raw.flightNumber || ''))
+  const date = String(raw.date || '')
+  if (!flightNumber || !date) return null
+  return {
+    id: String(raw.id || `community-load-request-${flightNumber}-${date}-${Date.now()}`),
+    flightNumber,
+    carrier: String(raw.carrier || flightNumber.match(/^[A-Z]{2,3}/)?.[0] || 'Unknown'),
+    route,
+    origin: String(raw.origin || routeAirports.origin || ''),
+    destination: String(raw.destination || routeAirports.destination || ''),
+    date,
+    status: raw.status === 'Fulfilled' ? 'Fulfilled' : 'Open',
+    createdAt: String(raw.createdAt || new Date().toISOString())
+  }
+}
+
+export function loadCommunityLoadRequests() {
+  return readJsonArray<Partial<CommunityLoadRequest>>(communityLoadRequestsStorageKey)
+    .map(migrateRequest)
+    .filter((request): request is CommunityLoadRequest => Boolean(request))
+}
+
+export function saveCommunityLoadRequest(input: Omit<CommunityLoadRequest, 'id' | 'status' | 'createdAt'>) {
+  if (typeof window === 'undefined') return null
+  const flightNumber = normalizeCommunityFlightNumber(input.flightNumber)
+  const request: CommunityLoadRequest = {
+    id: `community-load-request-${flightNumber}-${input.date}-${Date.now()}`,
+    flightNumber,
+    carrier: input.carrier.trim() || flightNumber.match(/^[A-Z]{2,3}/)?.[0] || 'Unknown',
+    route: input.route.trim().toUpperCase(),
+    origin: input.origin.trim().toUpperCase(),
+    destination: input.destination.trim().toUpperCase(),
+    date: input.date,
+    status: 'Open',
+    createdAt: new Date().toISOString()
+  }
+  writeJson(communityLoadRequestsStorageKey, [request, ...loadCommunityLoadRequests()])
+  window.dispatchEvent(new Event('nonrevy-community-load-requests-updated'))
+  return request
+}
+
+export function validateCommunityLoadReport(reportId: string, status: CommunityLoadValidationStatus) {
+  if (typeof window === 'undefined') return []
+  const reports = loadCommunityLoads().map((report) => {
+    if (report.id !== reportId) return report
+    const validationCounts = report.validationCounts || { Confirmed: 0, Outdated: 0, Inaccurate: 0 }
+    return {
+      ...report,
+      validationStatus: status,
+      validationCounts: {
+        ...validationCounts,
+        [status]: (validationCounts[status] || 0) + 1
+      },
+      sourceTrustScore: clamp(report.sourceTrustScore + (status === 'Confirmed' ? 2 : status === 'Outdated' ? -4 : -8), 0, 100)
+    }
+  })
+  writeJson(communityLoadsStorageKey, reports)
+  window.dispatchEvent(new Event('nonrevy-community-loads-updated'))
+  return reports
 }
 
 export function saveCommunityLoadReport(submission: CommunityLoadSubmission) {
@@ -246,6 +335,8 @@ export function saveCommunityLoadReport(submission: CommunityLoadSubmission) {
     contributorId,
     contributorTrustScore: reputation.trustScore,
     sourceTrustScore: sourceTrustScoreFor(reputation, submission),
+    validationStatus: undefined,
+    validationCounts: { Confirmed: 0, Outdated: 0, Inaccurate: 0 },
     createdAt
   }
   const reports = [report, ...loadCommunityLoads()]

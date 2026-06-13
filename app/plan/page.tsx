@@ -2,7 +2,7 @@
 
 import { type CSSProperties, type FormEvent, useEffect, useMemo, useState } from 'react'
 import { flightMatchesSearch } from '../../lib/flightSearch'
-import { delayRiskScore, rankItinerary, scoreNonrevItinerary, type NonrevSuccessScore, type NonrevLoadReportSignal } from '../../lib/intelligence'
+import { delayRiskScore, rankItinerary, scoreNonrevItinerary, type CommunityLoadScoringSignal, type NonrevSuccessScore, type NonrevLoadReportSignal } from '../../lib/intelligence'
 import { allFlightFields, fieldValue, passengerFlightCoverageNotes, richFlightFieldLabels } from '../../lib/flightDataScaffold'
 import { airportCodesFromRoute, airportMapScaffolds } from '../../lib/airportMapScaffold'
 import { buildRouteAirportIntelligence, connectionRiskColor, type RouteAirportIntelligence } from '../../lib/airportIntelligence'
@@ -11,7 +11,7 @@ import { carrierScoringProfiles, getCarrierScoringScaffold, normalizeCarrierFami
 import { historicalRouteStats, type HistoricalRoute } from '../../lib/historicalRoutes'
 import { parseItineraryPrompt } from '../../lib/itinerarySearch'
 import { effectiveLoadReportWeight, loadLoadReports, loadReportSignal, loadReportSummary, type LoadReport } from '../../lib/loadReports'
-import { communityLoadFreshness, communityLoadSummaryForItinerary, communityRouteAirports, loadCommunityContributorReputation, loadCommunityLoads, relativeCommunityLoadTime, saveCommunityLoadReport, saveCommunityLoadRequest, validateCommunityLoadReport, type CommunityLoadFreshness, type CommunityLoadReport, type CommunityLoadValidationStatus } from '../../lib/communityLoads'
+import { communityLoadFreshness, communityLoadIntelligenceForItinerary, communityLoadSummaryForItinerary, communityRouteAirports, loadCommunityContributorReputation, loadCommunityLoads, relativeCommunityLoadTime, saveCommunityLoadReport, saveCommunityLoadRequest, validateCommunityLoadReport, type CommunityLoadFreshness, type CommunityLoadIntelligence, type CommunityLoadReport, type CommunityLoadValidationStatus } from '../../lib/communityLoads'
 import { calculatePredictionEngine } from '../../lib/predictionEngine'
 import { buildDisruptionIntelligence, routeHealthColor, type DisruptionIntelligence } from '../../lib/disruptionIntelligence'
 import { calculateRouteConfidence, confidenceBadgeColor, confidenceTrendColor, confidenceUpdateTriggerLabel, type ConfidenceTrend, type ConfidenceUpdateTrigger, type RouteConfidence } from '../../lib/routeConfidence'
@@ -489,6 +489,7 @@ type ItineraryComparison = {
   why: string[]
   explanation: ScoringExplanation
   nextGenSuccess: NonrevSuccessScore
+  communityIntelligence: CommunityLoadIntelligence | null
 }
 
 type ScoringExplanation = {
@@ -741,6 +742,13 @@ function parseScheduleTime(value: string) {
   return Number.isFinite(time) ? time : null
 }
 
+function itineraryLoadDateFromSchedule(value: string) {
+  const directMatch = value.match(/\d{4}-\d{2}-\d{2}/)
+  if (directMatch) return directMatch[0]
+  const parsed = parseScheduleTime(value)
+  return parsed ? new Date(parsed).toISOString().slice(0, 10) : undefined
+}
+
 function totalTravelTimeFromItinerary(itinerary: LiveItineraryResult) {
   const departure = parseScheduleTime(itinerary.legs[0]?.departureTime || itinerary.departureTime)
   const arrival = parseScheduleTime(itinerary.legs[itinerary.legs.length - 1]?.arrivalTime || itinerary.arrivalTime)
@@ -931,6 +939,7 @@ function buildNextGenSuccessScore(input: {
   successProbability: number
   historicalSuccess: number
   routeReports: LoadReport[]
+  communityIntelligence?: CommunityLoadScoringSignal | null
   loadSupport: NonNullable<SuccessPredictionInput['loadData']>
   departureDateTime: string
   aircraftDetails: string
@@ -959,6 +968,7 @@ function buildNextGenSuccessScore(input: {
     aircraftSeatCount: aircraftSeatCountEstimate(input.aircraftDetails),
     alternateRoutingOptions: alternateRoutingOptionsInput(input.airportIntelligence, input.comparisonCount),
     userLoadReports: loadReportsForSuccessScore(input.routeReports),
+    communityLoadIntelligence: input.communityIntelligence || null,
     connectionCount: input.connections
   })
 }
@@ -968,6 +978,7 @@ function buildLiveItineraryComparison(
   predictionEngine: ReturnType<typeof calculatePredictionEngine>,
   historicalRoutes: HistoricalRoute[],
   loadReports: LoadReport[],
+  communityLoads: CommunityLoadReport[],
   outcomes: TripOutcome[],
   travelerProfile: TravelerProfileScaffold,
   routeIntelligence: Record<string, string>,
@@ -977,6 +988,11 @@ function buildLiveItineraryComparison(
 ): ItineraryComparison {
   const historicalRoute = matchingHistoricalRoute(itinerary.route, historicalRoutes)
   const routeReports = matchingRouteLoadReports(itinerary.route, loadReports)
+  const communityIntelligence = communityLoadIntelligenceForItinerary(communityLoads, {
+    flightNumber: itinerary.operatingFlightNumber || itinerary.flightNumber,
+    route: itinerary.route,
+    date: itineraryLoadDateFromSchedule(itinerary.legs[0]?.departureTime || itinerary.departureTime || '')
+  })
   const loadSupport = loadSupportFromReports(routeReports)
   const routeOutcomes = matchingRouteOutcomes(itinerary.route, outcomes)
   const outcomeRate = outcomeSuccessRate(routeOutcomes)
@@ -1044,6 +1060,7 @@ function buildLiveItineraryComparison(
     successProbability: successPrediction.probability,
     historicalSuccess,
     routeReports,
+    communityIntelligence,
     loadSupport,
     departureDateTime: itinerary.legs[0]?.departureTime || itinerary.departureTime || 'Pending',
     aircraftDetails: itinerary.legs.map((leg) => [leg.flightNumber, leg.aircraft, leg.status].filter(Boolean).join(' · ')).join(' | ') || itinerary.aircraft || 'Pending provider details',
@@ -1105,7 +1122,8 @@ function buildLiveItineraryComparison(
     weatherRisk,
     airportIntelligence,
     communityReports: routeReports,
-    communityReportSummary: reportTrustAndRecencySummary(routeReports),
+    communityReportSummary: communityIntelligence ? `Community intelligence: ${communityIntelligence.averageAvailableSeats ?? '—'} open, ${communityIntelligence.averageStandbyCount ?? '—'} standby, ${communityIntelligence.reportCount} reports, ${communityIntelligence.communityConfidence} confidence.` : reportTrustAndRecencySummary(routeReports),
+    communityIntelligence,
     why: [
       `Blends provider itinerary score ${itinerary.score}/100 with probability engine baseline ${predictionEngine.successProbability}%.`,
       `Route confidence engine scores this option ${routeConfidence.score}/100 (${routeConfidence.badge}) with a ${routeConfidence.trend} trend.`,
@@ -1133,6 +1151,7 @@ function buildFallbackItineraryComparison(
   predictionEngine: ReturnType<typeof calculatePredictionEngine>,
   historicalRoutes: HistoricalRoute[],
   loadReports: LoadReport[],
+  communityLoads: CommunityLoadReport[],
   outcomes: TripOutcome[],
   carrierLabel: string,
   travelerProfile: TravelerProfileScaffold,
@@ -1142,6 +1161,11 @@ function buildFallbackItineraryComparison(
 ): ItineraryComparison {
   const historicalRoute = matchingHistoricalRoute(itinerary.route, historicalRoutes)
   const routeReports = matchingRouteLoadReports(itinerary.route, loadReports)
+  const communityIntelligence = communityLoadIntelligenceForItinerary(communityLoads, {
+    flightNumber: itinerary.title,
+    route: itinerary.route,
+    date: itineraryLoadDateFromSchedule(itinerary.window || '')
+  })
   const loadSupport = loadSupportFromReports(routeReports)
   const routeOutcomes = matchingRouteOutcomes(itinerary.route, outcomes)
   const outcomeRate = outcomeSuccessRate(routeOutcomes)
@@ -1208,6 +1232,7 @@ function buildFallbackItineraryComparison(
     successProbability: successPrediction.probability,
     historicalSuccess,
     routeReports,
+    communityIntelligence,
     loadSupport,
     departureDateTime: itinerary.window || 'Flexible',
     aircraftDetails: itinerary.segments.join(' | '),
@@ -1266,7 +1291,8 @@ function buildFallbackItineraryComparison(
     weatherRisk,
     airportIntelligence,
     communityReports: routeReports,
-    communityReportSummary: reportTrustAndRecencySummary(routeReports),
+    communityReportSummary: communityIntelligence ? `Community intelligence: ${communityIntelligence.averageAvailableSeats ?? '—'} open, ${communityIntelligence.averageStandbyCount ?? '—'} standby, ${communityIntelligence.reportCount} reports, ${communityIntelligence.communityConfidence} confidence.` : reportTrustAndRecencySummary(routeReports),
+    communityIntelligence,
     why: [
       `Combines fallback ranking ${itinerary.ranking.score}/100 with probability engine baseline ${predictionEngine.successProbability}%.`,
       `Route confidence engine scores this option ${routeConfidence.score}/100 (${routeConfidence.badge}) with a ${routeConfidence.trend} trend.`,
@@ -3123,7 +3149,8 @@ function ItineraryComparisonPanel({ comparisons, travelDate, communityLoads, onC
     const arrivalDisplay = arrTime.replace(/ \+\d+$/, '')
     const reasons = compactItineraryReasons(comparison)
     const communityLoad = communityLoadSummaryForItinerary(communityLoads, { flightNumber: comparison.flightNumber, route: comparison.route, date: travelDate.trim() || undefined })
-    const latestCommunityLoad = communityLoad.latestReport
+    const communityIntelligence = comparison.communityIntelligence || communityLoadIntelligenceForItinerary(communityLoads, { flightNumber: comparison.flightNumber, route: comparison.route, date: itineraryLoadDate(comparison, travelDate) || undefined })
+    const latestCommunityLoad = communityIntelligence?.latestReport || communityLoad.latestReport
     const submitLoadOpen = activeCommunityLoadId === comparison.id
     const requestLoadOpen = activeLoadRequestId === comparison.id
     const contributor = loadCommunityContributorReputation()
@@ -3212,22 +3239,37 @@ function ItineraryComparisonPanel({ comparisons, travelDate, communityLoads, onC
             </section>
             <section className="nonrevy-community-loads">
               <strong>Community Loads</strong>
-              {latestCommunityLoad ? (
-                <div className="nonrevy-community-loads__card">
+              {communityIntelligence ? (
+                <div className="nonrevy-community-loads__card nonrevy-community-loads__card--intelligence">
                   <div className="nonrevy-community-loads__card-head">
-                    <strong>Community Load</strong>
-                    <span className={communityFreshnessClass(communityLoad.freshness)}>{communityLoad.freshness}</span>
+                    <strong>Community Intelligence</strong>
+                    <span className={communityFreshnessClass(communityIntelligence.freshness)}>{communityIntelligence.freshness}</span>
                   </div>
-                  <p className="nonrevy-community-loads__counts">{latestCommunityLoad.availableSeats} Open • {latestCommunityLoad.standbyCount} Standby</p>
+                  <p className="nonrevy-community-loads__counts">{communityIntelligence.averageAvailableSeats ?? '—'} Open • {communityIntelligence.averageStandbyCount ?? '—'} Standby</p>
+                  <p className="nonrevy-community-loads__compact-confidence">{communityIntelligence.reportCount} Report{communityIntelligence.reportCount === 1 ? '' : 's'} · {communityIntelligence.communityConfidence} Confidence</p>
+                  <p>Confidence {communityIntelligence.confidenceScore}/100 · Agreement {communityIntelligence.agreementScore}/100 · Freshness {communityIntelligence.freshnessScore}/100</p>
+                  {communityIntelligence.outlierReportIds.length ? <p>{communityIntelligence.outlierReportIds.length} outlier report{communityIntelligence.outlierReportIds.length === 1 ? '' : 's'} down-weighted.</p> : null}
+                  <div className="nonrevy-community-loads__why">
+                    <strong>Why community confidence</strong>
+                    <ul>
+                      {communityIntelligence.explanation.map((reason) => <li key={`${comparison.id}-community-intelligence-${reason}`}>{reason}</li>)}
+                    </ul>
+                  </div>
+                  {latestCommunityLoad?.validationStatus ? <p>Latest validation: {latestCommunityLoad.validationStatus}</p> : null}
+                  {latestCommunityLoad ? (
+                    <div className="nonrevy-community-loads__validation" aria-label="Validate community load report">
+                      {(['Confirmed', 'Outdated', 'Inaccurate'] as CommunityLoadValidationStatus[]).map((status) => (
+                        <button key={`${latestCommunityLoad.id}-${status}`} type="button" onClick={() => markCommunityLoad(latestCommunityLoad, status)}>{status}</button>
+                      ))}
+                    </div>
+                  ) : null}
+                  {communityIntelligence.cabin && communityIntelligence.cabin !== 'ANY' ? <p>Cabin: {communityIntelligence.cabin}</p> : null}
+                  {latestCommunityLoad?.notes ? <p>Latest notes: {latestCommunityLoad.notes}</p> : null}
+                </div>
+              ) : latestCommunityLoad ? (
+                <div className="nonrevy-community-loads__card">
+                  <p><strong>Community Load</strong> {latestCommunityLoad.availableSeats} Open • {latestCommunityLoad.standbyCount} Standby</p>
                   <p>{relativeCommunityLoadTime(latestCommunityLoad.createdAt)} · Trust {communityLoad.averageTrustScore || latestCommunityLoad.sourceTrustScore} · {communityLoad.reportCount} Report{communityLoad.reportCount === 1 ? '' : 's'}</p>
-                  {latestCommunityLoad.validationStatus ? <p>Validation: {latestCommunityLoad.validationStatus}</p> : null}
-                  <div className="nonrevy-community-loads__validation" aria-label="Validate community load report">
-                    {(['Confirmed', 'Outdated', 'Inaccurate'] as CommunityLoadValidationStatus[]).map((status) => (
-                      <button key={`${latestCommunityLoad.id}-${status}`} type="button" onClick={() => markCommunityLoad(latestCommunityLoad, status)}>{status}</button>
-                    ))}
-                  </div>
-                  {latestCommunityLoad.cabin ? <p>Cabin: {latestCommunityLoad.cabin}</p> : null}
-                  {latestCommunityLoad.notes ? <p>Notes: {latestCommunityLoad.notes}</p> : null}
                 </div>
               ) : (
                 <p>No community load reports yet for this itinerary.</p>
@@ -3286,6 +3328,7 @@ function ItineraryComparisonPanel({ comparisons, travelDate, communityLoads, onC
               <p><strong>Top positives:</strong> {comparison.nextGenSuccess.topPositiveFactors.map((factor) => factor.detail).join(' · ')}</p>
               <p><strong>Top risk:</strong> {comparison.nextGenSuccess.topRiskFactor.detail}</p>
               <p><strong>Load:</strong> {rowLoadIntelligenceLabel(comparison)}</p>
+              {comparison.nextGenSuccess.communityIntelligenceImpact ? <p><strong>Community scoring:</strong> {comparison.nextGenSuccess.communityIntelligenceImpact.reportCount} report{comparison.nextGenSuccess.communityIntelligenceImpact.reportCount === 1 ? '' : 's'} blended at up to {comparison.nextGenSuccess.communityIntelligenceImpact.maxWeight}% of score · base {comparison.nextGenSuccess.communityIntelligenceImpact.baseScore}/100 → community-adjusted {comparison.nextGenSuccess.communityIntelligenceImpact.blendedScore}/100.</p> : null}
               <p>{comparison.successPrediction.loadExplanation}</p>
               <p>{comparison.successPrediction.confidenceExplanation}</p>
               {comparison.loadSupport.source ? <p>Load source: {comparison.loadSupport.source}</p> : null}
@@ -3747,6 +3790,7 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
       predictionEngine,
       historicalStats.routes,
       loadReports,
+      communityLoads,
       outcomes,
       travelerProfile,
       scoringScaffold.routeIntelligence,
@@ -3756,7 +3800,7 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
     ))
 
     return sortCompactItineraries(comparisons)
-  }, [liveItineraries, predictionEngine, historicalStats.routes, loadReports, outcomes, travelerProfile, scoringScaffold.routeIntelligence, scoringScaffold.weights, scoringScaffold.recommendationScope, confidenceUpdateTrigger])
+  }, [liveItineraries, predictionEngine, historicalStats.routes, loadReports, communityLoads, outcomes, travelerProfile, scoringScaffold.routeIntelligence, scoringScaffold.weights, scoringScaffold.recommendationScope, confidenceUpdateTrigger])
 
   const aiTripPlan = useMemo(() => generateAiTripPlan({
     prompt: aiTripPrompt,

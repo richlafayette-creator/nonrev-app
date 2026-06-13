@@ -49,6 +49,35 @@ export type CommunityLoadContributorReputation = {
   updatedAt: string
 }
 
+export type CommunityConfidenceLevel = 'High' | 'Medium' | 'Low'
+
+export type CommunityLoadIntelligenceReport = CommunityLoadReport & {
+  adjustedTrustScore: number
+  outlier: boolean
+}
+
+export type CommunityLoadIntelligence = {
+  key: string
+  flightNumber: string
+  date: string
+  cabin: string
+  route: string
+  latestReport: CommunityLoadReport | null
+  reportCount: number
+  averageAvailableSeats: number | null
+  averageStandbyCount: number | null
+  freshness: CommunityLoadFreshness | null
+  freshnessScore: number
+  confidenceScore: number
+  agreementScore: number
+  averageTrustScore: number
+  communityConfidence: CommunityConfidenceLevel
+  outlierReportIds: string[]
+  trustedReports: CommunityLoadIntelligenceReport[]
+  explanation: string[]
+  scoreContribution: number
+}
+
 export type CommunityLoadSummary = {
   latestReport: CommunityLoadReport | null
   reportCount: number
@@ -186,6 +215,75 @@ export function updateCommunityContributorReputation(options: { contributorId?: 
     trustScore,
     updatedAt: new Date().toISOString()
   })
+}
+
+
+function normalizeCommunityCabin(value?: string | null) {
+  return value?.trim().toUpperCase().replace(/\s+/g, ' ') || 'ANY'
+}
+
+function average(values: number[]) {
+  if (!values.length) return 0
+  return values.reduce((total, value) => total + value, 0) / values.length
+}
+
+function median(values: number[]) {
+  if (!values.length) return 0
+  const sorted = [...values].sort((a, b) => a - b)
+  const mid = Math.floor(sorted.length / 2)
+  return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2
+}
+
+function standardDeviation(values: number[]) {
+  if (values.length <= 1) return 0
+  const avg = average(values)
+  const variance = average(values.map((value) => Math.pow(value - avg, 2)))
+  return Math.sqrt(variance)
+}
+
+function freshnessScoreFor(createdAt: string) {
+  const createdTime = Date.parse(createdAt)
+  if (!Number.isFinite(createdTime)) return 28
+  const ageMinutes = Math.max(0, (Date.now() - createdTime) / 60_000)
+  if (ageMinutes <= 60) return 96
+  if (ageMinutes <= 240) return 84
+  if (ageMinutes <= 720) return 68
+  if (ageMinutes <= 1440) return 52
+  if (ageMinutes <= 2880) return 34
+  return 20
+}
+
+function communityLoadAgreementScore(reports: CommunityLoadReport[]) {
+  if (reports.length <= 1) return 48
+  const margins = reports.map((report) => report.availableSeats - report.standbyCount)
+  const seats = reports.map((report) => report.availableSeats)
+  const standby = reports.map((report) => report.standbyCount)
+  const marginDeviation = standardDeviation(margins)
+  const seatDeviation = standardDeviation(seats)
+  const standbyDeviation = standardDeviation(standby)
+  return clamp(100 - marginDeviation * 6 - seatDeviation * 2.5 - standbyDeviation * 1.5, 0, 100)
+}
+
+function communityLoadScore(averageAvailableSeats: number | null, averageStandbyCount: number | null) {
+  if (averageAvailableSeats === null || averageStandbyCount === null) return 50
+  const margin = averageAvailableSeats - averageStandbyCount
+  if (margin >= 12) return 96
+  if (margin >= 6) return 86
+  if (margin >= 2) return 72
+  if (margin >= 0) return 58
+  if (margin >= -4) return 36
+  return 18
+}
+
+function communityConfidenceLevelFor(reportCount: number, freshnessScore: number, agreementScore: number): CommunityConfidenceLevel {
+  if (reportCount >= 3 && freshnessScore >= 80 && agreementScore >= 72) return 'High'
+  if (reportCount >= 2 && freshnessScore >= 52 && agreementScore >= 52) return 'Medium'
+  if (reportCount === 1 && freshnessScore >= 80) return 'Medium'
+  return 'Low'
+}
+
+function groupKeyForCommunityLoad(report: Pick<CommunityLoadReport, 'flightNumber' | 'date' | 'cabin' | 'route'>) {
+  return [normalizeCommunityFlightNumber(report.flightNumber), report.date, normalizeCommunityCabin(report.cabin), report.route.trim().toUpperCase()].join('|')
 }
 
 function sourceTrustScoreFor(reputation: CommunityLoadContributorReputation, submission: CommunityLoadSubmission) {
@@ -343,6 +441,94 @@ export function saveCommunityLoadReport(submission: CommunityLoadSubmission) {
   writeJson(communityLoadsStorageKey, reports)
   window.dispatchEvent(new Event('nonrevy-community-loads-updated'))
   return report
+}
+
+
+export function aggregateCommunityLoadReports(reports: CommunityLoadReport[]) {
+  const groups = new Map<string, CommunityLoadReport[]>()
+  reports.forEach((report) => {
+    const key = groupKeyForCommunityLoad(report)
+    groups.set(key, [...(groups.get(key) || []), report])
+  })
+  return [...groups.entries()].map(([key, groupReports]) => buildCommunityLoadIntelligence(key, groupReports))
+}
+
+function buildCommunityLoadIntelligence(key: string, reports: CommunityLoadReport[]): CommunityLoadIntelligence {
+  const sortedReports = [...reports].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
+  const latestReport = sortedReports[0] || null
+  const medianSeats = median(sortedReports.map((report) => report.availableSeats))
+  const medianStandby = median(sortedReports.map((report) => report.standbyCount))
+  const medianMargin = median(sortedReports.map((report) => report.availableSeats - report.standbyCount))
+  const trustedReports: CommunityLoadIntelligenceReport[] = sortedReports.map((report) => {
+    const seatDeviation = Math.abs(report.availableSeats - medianSeats)
+    const standbyDeviation = Math.abs(report.standbyCount - medianStandby)
+    const marginDeviation = Math.abs((report.availableSeats - report.standbyCount) - medianMargin)
+    const outlier = sortedReports.length >= 3 && (seatDeviation > Math.max(6, Math.abs(medianSeats) * 0.45) || standbyDeviation > Math.max(6, Math.abs(medianStandby) * 0.55) || marginDeviation > 8)
+    return {
+      ...report,
+      outlier,
+      adjustedTrustScore: clamp(report.sourceTrustScore * (outlier ? 0.35 : 1), 0, 100)
+    }
+  })
+  const trustedWeight = trustedReports.reduce((total, report) => total + Math.max(1, report.adjustedTrustScore), 0)
+  const weightedAverage = (selector: (report: CommunityLoadIntelligenceReport) => number) => trustedReports.length
+    ? trustedReports.reduce((total, report) => total + selector(report) * Math.max(1, report.adjustedTrustScore), 0) / trustedWeight
+    : null
+  const averageAvailableSeats = weightedAverage((report) => report.availableSeats)
+  const averageStandbyCount = weightedAverage((report) => report.standbyCount)
+  const freshnessScore = latestReport ? freshnessScoreFor(latestReport.createdAt) : 0
+  const agreementScore = communityLoadAgreementScore(trustedReports.filter((report) => !report.outlier))
+  const averageTrustScore = trustedReports.length ? clamp(average(trustedReports.map((report) => report.adjustedTrustScore)), 0, 100) : 0
+  const loadScore = communityLoadScore(averageAvailableSeats, averageStandbyCount)
+  const reportVolumeScore = clamp(45 + Math.min(trustedReports.length, 5) * 11, 0, 100)
+  const confidenceScore = clamp(reportVolumeScore * 0.26 + freshnessScore * 0.28 + agreementScore * 0.28 + averageTrustScore * 0.18, 0, 100)
+  const communityConfidence = communityConfidenceLevelFor(trustedReports.length, freshnessScore, agreementScore)
+  const outlierReportIds = trustedReports.filter((report) => report.outlier).map((report) => report.id)
+  const scoreContribution = clamp(loadScore * 0.58 + confidenceScore * 0.42, 0, 100)
+  const matchingReportText = trustedReports.length === 1 ? '1 report' : `${trustedReports.filter((report) => !report.outlier).length} matching reports`
+  const lastUpdateText = latestReport ? `Last update ${relativeCommunityLoadTime(latestReport.createdAt)}` : 'No recent update'
+  const agreementText = agreementScore >= 76 ? 'Strong agreement' : agreementScore >= 55 ? 'Moderate agreement' : 'Reporter agreement is weak'
+  return {
+    key,
+    flightNumber: latestReport?.flightNumber || key.split('|')[0] || '',
+    date: latestReport?.date || key.split('|')[1] || '',
+    cabin: latestReport?.cabin || key.split('|')[2] || 'ANY',
+    route: latestReport?.route || key.split('|')[3] || '',
+    latestReport,
+    reportCount: trustedReports.length,
+    averageAvailableSeats: averageAvailableSeats === null ? null : clamp(averageAvailableSeats, 0, 999),
+    averageStandbyCount: averageStandbyCount === null ? null : clamp(averageStandbyCount, 0, 999),
+    freshness: latestReport ? communityLoadFreshness(latestReport.createdAt) : null,
+    freshnessScore,
+    confidenceScore,
+    agreementScore,
+    averageTrustScore,
+    communityConfidence,
+    outlierReportIds,
+    trustedReports,
+    explanation: [
+      matchingReportText,
+      lastUpdateText,
+      agreementText,
+      outlierReportIds.length ? `${outlierReportIds.length} outlier report${outlierReportIds.length === 1 ? '' : 's'} down-weighted` : 'No major outliers detected'
+    ],
+    scoreContribution
+  }
+}
+
+export function communityLoadIntelligenceForItinerary(reports: CommunityLoadReport[], input: { flightNumber: string; route: string; date?: string; cabin?: string }): CommunityLoadIntelligence | null {
+  const matchingReports = reports.filter((report) => {
+    if (!communityLoadMatchesItinerary(report, input)) return false
+    if (input.cabin && normalizeCommunityCabin(report.cabin) !== normalizeCommunityCabin(input.cabin)) return false
+    return true
+  })
+  if (!matchingReports.length) return null
+  const groups = aggregateCommunityLoadReports(matchingReports)
+  return groups.sort((a, b) =>
+    b.confidenceScore - a.confidenceScore ||
+    b.reportCount - a.reportCount ||
+    Date.parse(b.latestReport?.createdAt || '') - Date.parse(a.latestReport?.createdAt || '')
+  )[0] || null
 }
 
 export function communityLoadMatchesItinerary(report: CommunityLoadReport, input: { flightNumber: string; route: string; date?: string }) {

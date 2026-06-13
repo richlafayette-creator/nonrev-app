@@ -31,6 +31,17 @@ export type NonrevLoadReportSignal = {
   confidenceLevel?: string
 }
 
+export type CommunityLoadScoringSignal = {
+  scoreContribution: number
+  confidenceScore: number
+  reportCount: number
+  averageAvailableSeats: number | null
+  averageStandbyCount: number | null
+  agreementScore: number
+  freshnessScore: number
+  communityConfidence: 'High' | 'Medium' | 'Low'
+}
+
 export type NonrevSuccessScoringInput = {
   route: string
   flightNumber?: string
@@ -50,6 +61,7 @@ export type NonrevSuccessScoringInput = {
   aircraftSeatCount?: number | null
   alternateRoutingOptions?: number | null
   userLoadReports?: NonrevLoadReportSignal[]
+  communityLoadIntelligence?: CommunityLoadScoringSignal | null
   connectionCount?: number
 }
 
@@ -69,6 +81,14 @@ export type NonrevSuccessScore = {
   topRiskFactor: NonrevSuccessFactor
   factors: NonrevSuccessFactor[]
   formula: string
+  communityIntelligenceImpact?: {
+    baseScore: number
+    communityScore: number
+    blendedScore: number
+    maxWeight: number
+    confidence: 'High' | 'Medium' | 'Low'
+    reportCount: number
+  }
 }
 
 export const nonrevSuccessWeights = {
@@ -247,7 +267,12 @@ export function scoreNonrevItinerary(input: NonrevSuccessScoringInput): NonrevSu
 
   const totalWeight = factors.reduce((total, factor) => total + factor.weight, 0)
   const weightedScore = factors.reduce((total, factor) => total + factor.normalizedScore * factor.weight, 0) / totalWeight
-  const score = clamp(weightedScore, 1, 99)
+  const communitySignal = input.communityLoadIntelligence
+  const communityWeight = communitySignal && communitySignal.reportCount > 0 ? 0.25 : 0
+  const blendedScore = communitySignal && communityWeight
+    ? weightedScore * (1 - communityWeight) + normalizePercent(communitySignal.scoreContribution, 50) * communityWeight
+    : weightedScore
+  const score = clamp(blendedScore, 1, 99)
   const topPositiveFactors = [...factors]
     .sort((a, b) => (b.normalizedScore - 50) * b.weight - (a.normalizedScore - 50) * a.weight)
     .slice(0, 3)
@@ -260,7 +285,17 @@ export function scoreNonrevItinerary(input: NonrevSuccessScoringInput): NonrevSu
     topPositiveFactors,
     topRiskFactor,
     factors,
-    formula: nonrevSuccessFormulaDocumentation.formula
+    formula: communitySignal && communityWeight
+      ? `${nonrevSuccessFormulaDocumentation.formula} Community intelligence may contribute up to 25% of the final score when submitted reports exist.`
+      : nonrevSuccessFormulaDocumentation.formula,
+    communityIntelligenceImpact: communitySignal && communityWeight ? {
+      baseScore: clamp(weightedScore, 1, 99),
+      communityScore: clamp(communitySignal.scoreContribution, 0, 100),
+      blendedScore: score,
+      maxWeight: 25,
+      confidence: communitySignal.communityConfidence,
+      reportCount: communitySignal.reportCount
+    } : undefined
   }
 }
 

@@ -92,6 +92,7 @@ export default function Home() {
         <a href="/plan" style={{ marginRight: 16, color: '#fb7185' }}>Plan</a>
         <a href="/opportunities" style={{ marginRight: 16, color: '#67e8f9' }}>Opportunities</a>
         <a href="/saved-searches" style={{ marginRight: 16, color: '#67e8f9' }}>Saved Searches</a>
+        <a href="/dashboard" style={{ marginRight: 16, color: '#f472b6' }}>Dashboard</a>
         <a href="/watchlist" style={{ marginRight: 16, color: '#facc15' }}>Watchlist</a>
         <a href="/requests" style={{ marginRight: 16, color: '#c084fc' }}>Open Requests</a>
         <a href="/my-requests" style={{ marginRight: 16, color: '#facc15' }}>My Requests</a>

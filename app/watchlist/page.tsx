@@ -1,7 +1,7 @@
 'use client'
 
 import { type FormEvent, useEffect, useMemo, useState } from 'react'
-import { removeTripWatch, loadSavedTripWatchlist, saveTripWatch, type SavedTripWatch } from '../../lib/watchlist'
+import { removeTripWatch, loadSavedTripWatchlist, saveGenericWatch, saveTripWatch, watchTargetOptions, type SavedTripWatch, type WatchTargetType } from '../../lib/watchlist'
 import { loadSavedItineraryComparisons, type SavedItineraryComparison } from '../../lib/savedItineraryComparisons'
 import { loadLoadReports, loadReportSignal, type LoadReport } from '../../lib/loadReports'
 import { buildDisruptionIntelligence } from '../../lib/disruptionIntelligence'
@@ -107,6 +107,7 @@ export default function WatchlistPage() {
   const [loadReports, setLoadReports] = useState<LoadReport[]>([])
   const [outcomes, setOutcomes] = useState<TripOutcome[]>([])
   const [confidenceUpdateTrigger, setConfidenceUpdateTrigger] = useState<ConfidenceUpdateTrigger>('watchlist-viewed')
+  const [watchType, setWatchType] = useState<WatchTargetType>('route')
   const [routeText, setRouteText] = useState('')
   const [travelDate, setTravelDate] = useState('')
   const [carrier, setCarrier] = useState('United')
@@ -160,12 +161,26 @@ export default function WatchlistPage() {
 
   function addRoute(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    const selectedItinerary = normalizeRoute(routeText)
+    const selectedItinerary = watchType === 'route' ? normalizeRoute(routeText) : routeText.trim().toUpperCase().replace(/\s+/g, ' ')
     if (!selectedItinerary) return
+
+    if (watchType !== 'route') {
+      const saved = saveGenericWatch({ watchType, query: selectedItinerary, travelDate: travelDate || 'Flexible', carrier })
+      if (saved) {
+        setWatchlist(loadSavedTripWatchlist())
+        setSaveStatus(`Watching ${saved.watchLabel || saved.selectedItinerary}.`)
+        setRouteText('')
+        setTravelDate('')
+      }
+      return
+    }
 
     const endpoints = routeEndpoints(selectedItinerary)
     const routeConfidence = confidenceForRoute({
       id: 'draft',
+      watchType,
+      watchQuery: selectedItinerary,
+      watchLabel: selectedItinerary,
       origin: endpoints.origin,
       destination: endpoints.destination,
       travelDate: travelDate || 'Flexible',
@@ -247,7 +262,7 @@ export default function WatchlistPage() {
         <p style={{ color: '#facc15', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1 }}>Saved trip watchlists</p>
         <h1 style={{ fontSize: 44, margin: '8px 0 12px' }}>Route Watchlist</h1>
         <p style={{ color: '#94a3b8', fontSize: 18, maxWidth: 780 }}>
-          Watch route recommendations from the planner, track their current score and success probability, and remove routes when you no longer need them. Local-only storage for now.
+          Watch flight numbers, routes, destinations, airports, regions, or premium-cabin opportunities so NONREVY has something useful to monitor even when you are not actively searching. Local-only storage for now.
         </p>
 
         <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14, margin: '24px 0' }}>
@@ -267,11 +282,21 @@ export default function WatchlistPage() {
 
         <form onSubmit={addRoute} style={{ border: '1px solid #334155', borderRadius: 22, padding: 20, background: '#0f172a', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginTop: 24 }}>
           <label style={{ color: '#cbd5e1' }}>
-            Selected itinerary
+            Watch type
+            <select
+              value={watchType}
+              onChange={(event) => setWatchType(event.target.value as WatchTargetType)}
+              style={{ boxSizing: 'border-box', width: '100%', marginTop: 6, padding: 12, borderRadius: 12, border: '1px solid #475569', background: '#020617', color: 'white' }}
+            >
+              {watchTargetOptions.map((option) => <option key={option.key} value={option.key}>{option.label}</option>)}
+            </select>
+          </label>
+          <label style={{ color: '#cbd5e1' }}>
+            Watch target
             <input
               value={routeText}
               onChange={(event) => setRouteText(event.target.value)}
-              placeholder="LAX-HNL or LAX → SFO → HNL"
+              placeholder={watchTargetOptions.find((option) => option.key === watchType)?.hint || 'LAX-HND'}
               style={{ boxSizing: 'border-box', width: '100%', marginTop: 6, padding: 12, borderRadius: 12, border: '1px solid #475569', background: '#020617', color: 'white' }}
             />
           </label>
@@ -303,6 +328,14 @@ export default function WatchlistPage() {
         <p style={{ color: '#94a3b8' }}>{saveStatus}</p>
 
         <div style={{ display: 'grid', gap: 14, marginTop: 24 }}>
+          <section style={{ border: '1px solid #334155', borderRadius: 18, padding: 16, background: '#020617' }}>
+            <strong style={{ color: '#38bdf8' }}>Watchlist Center examples</strong>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
+              {['UA39', 'LAX-HND', 'Any Japan route', 'HND airport', 'Any Polaris opportunity'].map((example) => (
+                <button key={example} type="button" onClick={() => setRouteText(example)} style={{ border: '1px solid #334155', borderRadius: 999, padding: '8px 10px', background: '#0f172a', color: '#cbd5e1', fontWeight: 'bold' }}>{example}</button>
+              ))}
+            </div>
+          </section>
           {watchlist.length === 0 && (
             <article className="flight-card" style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: 18, padding: 18 }}>
               <h2 style={{ marginTop: 0 }}>No watched routes yet</h2>
@@ -317,8 +350,8 @@ export default function WatchlistPage() {
             <article key={route.id} className="flight-card" style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: 18, padding: 18 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap', alignItems: 'flex-start' }}>
                 <div>
-                  <strong style={{ color: '#facc15', textTransform: 'uppercase', letterSpacing: 1 }}>{route.carrier}</strong>
-                  <h2 style={{ margin: '8px 0', color: '#f8fafc' }}>{route.origin} → {route.destination}</h2>
+                  <strong style={{ color: '#facc15', textTransform: 'uppercase', letterSpacing: 1 }}>{route.watchType || 'route'} watch · {route.carrier}</strong>
+                  <h2 style={{ margin: '8px 0', color: '#f8fafc' }}>{route.watchLabel || `${route.origin} → ${route.destination}`}</h2>
                   <p style={{ color: '#38bdf8', fontWeight: 'bold', margin: '6px 0' }}>{route.selectedItinerary}</p>
                   <p style={{ color: '#94a3b8', margin: 0 }}>Travel date: {route.travelDate} · Last updated: {new Date(route.lastUpdated).toLocaleString()}</p>
                 </div>
@@ -346,8 +379,8 @@ export default function WatchlistPage() {
               <p style={{ color: '#cbd5e1', margin: '12px 0 0' }}>{routeConfidence.updateExplanation}</p>
               <p style={{ color: '#94a3b8', margin: '6px 0 0' }}>Update trigger: {confidenceUpdateTriggerLabel(routeConfidence.updateTrigger)}</p>
               <AlertPreferenceChecklist
-                preference={preferenceFor(route.id, 'watched-route', `${route.origin} → ${route.destination}`)}
-                onToggle={(key, enabled) => updatePreference(route.id, 'watched-route', `${route.origin} → ${route.destination}`, key, enabled)}
+                preference={preferenceFor(route.id, 'watched-route', route.watchLabel || `${route.origin} → ${route.destination}`)}
+                onToggle={(key, enabled) => updatePreference(route.id, 'watched-route', route.watchLabel || `${route.origin} → ${route.destination}`, key, enabled)}
               />
             </article>
             )

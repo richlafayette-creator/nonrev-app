@@ -6,6 +6,7 @@ import { supabase } from '../lib/supabase'
 
 const menuItems = [
   ['Home', '/'],
+  ['Dashboard', '/dashboard'],
   ['Plan', '/plan'],
   ['Opportunities', '/opportunities'],
   ['Open Requests', '/requests'],

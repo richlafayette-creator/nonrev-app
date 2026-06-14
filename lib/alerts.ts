@@ -1,12 +1,13 @@
 import { buildDisruptionIntelligence } from './disruptionIntelligence'
 import { effectiveLoadReportWeight, loadLoadReports, loadReportSignal } from './loadReports'
+import { loadCommunityLoads, relativeCommunityLoadTime, type CommunityLoadReport } from './communityLoads'
 import { calculateRouteConfidence, type RouteConfidence } from './routeConfidence'
 import { loadSavedItineraryComparisons, type SavedItineraryComparison } from './savedItineraryComparisons'
 import { deliverNotification, eventTypeEnabled, type NotificationEventType } from './notificationDelivery'
 import { loadTripAlertPreferences, getTripAlertPreference, type TripAlertPreference, type TripAlertTargetType } from './tripAlertPreferences'
 import { loadTripOutcomes, tripOutcomeStats } from './tripOutcomes'
 import { defaultTravelerProfile, loadTravelerProfileFromStorage, type TravelerProfileScaffold } from './travelerProfile'
-import { loadSavedTripWatchlist, type SavedTripWatch } from './watchlist'
+import { loadSavedTripWatchlist, watchMatchesText, type SavedTripWatch } from './watchlist'
 
 export const alertHistoryStorageKey = 'nonrevy.alertHistory'
 export const alertSnapshotStorageKey = 'nonrevy.alertSnapshots'
@@ -14,8 +15,11 @@ export const alertSnapshotStorageKey = 'nonrevy.alertSnapshots'
 export type RealTimeAlertType =
   | 'Confidence increased'
   | 'Confidence decreased'
+  | 'New community load'
+  | 'Seat availability changed'
   | 'Better route found'
   | 'New backup route available'
+  | 'Watchlist activity'
   | 'Disruption detected'
   | 'Weather risk increased'
 
@@ -51,6 +55,9 @@ type AlertSnapshot = {
   successProbability: number
   disruptionImpactScore: number
   weatherImpactScore: number
+  latestCommunityLoadId?: string
+  availableSeats?: number
+  standbyCount?: number
   updatedAt: string
 }
 
@@ -96,8 +103,11 @@ function reportsForRoute(route: string) {
 function alertTypeColor(type: RealTimeAlertType) {
   if (type === 'Confidence increased') return '#22c55e'
   if (type === 'Confidence decreased') return '#f87171'
+  if (type === 'New community load') return '#22c55e'
+  if (type === 'Seat availability changed') return '#14b8a6'
   if (type === 'Better route found') return '#38bdf8'
   if (type === 'New backup route available') return '#c084fc'
+  if (type === 'Watchlist activity') return '#f472b6'
   if (type === 'Disruption detected') return '#fb7185'
   return '#facc15'
 }
@@ -210,7 +220,9 @@ function itineraryTarget(itinerary: SavedItineraryComparison): AlertTarget {
 
 function alertsEnabled(preference: TripAlertPreference, type: RealTimeAlertType) {
   if (type === 'Confidence increased' || type === 'Confidence decreased') return preference.flags.scoreChanges || preference.flags.successProbabilityChanges
+  if (type === 'New community load' || type === 'Seat availability changed') return preference.flags.communityLoadReports
   if (type === 'Better route found' || type === 'New backup route available') return preference.flags.betterRouteFound
+  if (type === 'Watchlist activity') return true
   if (type === 'Disruption detected') return preference.flags.delayCancellationUpdates || preference.flags.disruptionAlerts
   if (type === 'Weather risk increased') return preference.flags.weatherAlerts
   return true
@@ -218,14 +230,18 @@ function alertsEnabled(preference: TripAlertPreference, type: RealTimeAlertType)
 
 function notificationEventTypeForAlert(type: RealTimeAlertType): NotificationEventType {
   if (type === 'Confidence increased' || type === 'Confidence decreased') return 'route-confidence-changes'
+  if (type === 'New community load' || type === 'Seat availability changed') return 'community-load-reports'
   if (type === 'Better route found' || type === 'New backup route available') return 'better-route-found'
+  if (type === 'Watchlist activity') return 'watchlist'
   if (type === 'Disruption detected') return 'disruption-alerts'
   return 'weather-alerts'
 }
 
 function notificationSourceForAlert(type: RealTimeAlertType) {
   if (type === 'Confidence increased' || type === 'Confidence decreased') return 'route-confidence' as const
+  if (type === 'New community load' || type === 'Seat availability changed') return 'community-load-report' as const
   if (type === 'Better route found' || type === 'New backup route available') return 'better-route' as const
+  if (type === 'Watchlist activity') return 'watchlist' as const
   if (type === 'Disruption detected') return 'disruption' as const
   return 'weather' as const
 }
@@ -309,6 +325,75 @@ function betterRouteAlert(target: AlertTarget, candidates: AlertTarget[], curren
     ],
     `${better.candidate.route}:${better.confidence}`
   )
+}
+
+
+function latestCommunityLoadForTarget(target: AlertTarget) {
+  const reports = loadCommunityLoads()
+    .filter((report) => watchMatchesText({
+      id: target.id,
+      watchType: target.source === 'watchlist' ? undefined : 'route',
+      watchQuery: target.route,
+      watchLabel: target.targetLabel,
+      origin: routeEndpoints(target.route).origin,
+      destination: routeEndpoints(target.route).destination,
+      travelDate: 'Flexible',
+      carrier: target.carrier,
+      selectedItinerary: target.route,
+      score: target.score,
+      successProbability: target.successProbability,
+      riskLevel: 'Medium',
+      connections: 0,
+      totalTravelTime: 'Pending',
+      lastUpdated: nowIso()
+    }, `${report.flightNumber} ${report.route} ${report.origin} ${report.destination} ${report.cabin || ''} ${report.notes || ''}`))
+    .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
+  return reports[0] || null
+}
+
+function communityLoadAlerts(target: AlertTarget, previous: AlertSnapshot | undefined) {
+  const report = latestCommunityLoadForTarget(target)
+  if (!report) return []
+  const alerts: RealTimeAlert[] = []
+  if (previous?.latestCommunityLoadId !== report.id) {
+    alerts.push(buildAlert(
+      target,
+      'New community load',
+      'info',
+      `${report.flightNumber} community load updated`,
+      `${report.route} now has ${report.availableSeats} seats available and ${report.standbyCount} listed standby.`,
+      'Open seats',
+      `${report.availableSeats}`,
+      [
+        `${report.flightNumber} · ${report.route} · ${report.cabin || 'Any cabin'}`,
+        `${report.availableSeats} available seats, ${report.standbyCount} standby.`,
+        `Updated ${relativeCommunityLoadTime(report.createdAt)}.`
+      ],
+      `${report.id}`
+    ))
+  }
+  if (previous && (previous.availableSeats !== undefined || previous.standbyCount !== undefined)) {
+    const seatDelta = report.availableSeats - (previous.availableSeats ?? report.availableSeats)
+    const standbyDelta = report.standbyCount - (previous.standbyCount ?? report.standbyCount)
+    if (Math.abs(seatDelta) >= 2 || Math.abs(standbyDelta) >= 2) {
+      alerts.push(buildAlert(
+        target,
+        'Seat availability changed',
+        seatDelta >= 0 && standbyDelta <= 1 ? 'good' : 'warning',
+        `Seat availability changed for ${target.targetLabel}`,
+        `${report.flightNumber} moved to ${report.availableSeats} open / ${report.standbyCount} standby (${seatDelta >= 0 ? '+' : ''}${seatDelta} seats, ${standbyDelta >= 0 ? '+' : ''}${standbyDelta} standby).`,
+        'Seat movement',
+        `${seatDelta >= 0 ? '+' : ''}${seatDelta}`,
+        [
+          `Previous local snapshot: ${previous.availableSeats ?? '—'} open / ${previous.standbyCount ?? '—'} standby.`,
+          `Latest community report: ${report.availableSeats} open / ${report.standbyCount} standby.`,
+          `Updated ${relativeCommunityLoadTime(report.createdAt)}.`
+        ],
+        `${report.id}:${report.availableSeats}:${report.standbyCount}`
+      ))
+    }
+  }
+  return alerts
 }
 
 function generateAlertsForTarget(target: AlertTarget, previous: AlertSnapshot | undefined, candidates: AlertTarget[], travelerProfile: TravelerProfileScaffold) {
@@ -426,6 +511,9 @@ export function refreshRealTimeAlerts() {
       successProbability: target.successProbability,
       disruptionImpactScore: disruption.disruptionImpactScore,
       weatherImpactScore: confidence.weatherImpact.scoreImpact,
+      latestCommunityLoadId: latestCommunityLoadForTarget(target)?.id,
+      availableSeats: latestCommunityLoadForTarget(target)?.availableSeats,
+      standbyCount: latestCommunityLoadForTarget(target)?.standbyCount,
       updatedAt: nowIso()
     }
   })
@@ -459,4 +547,45 @@ export function alertSummary(alerts: RealTimeAlert[]) {
     return counts
   }, {} as Record<RealTimeAlertType, number>)
   return { unread, critical, warning, byType }
+}
+
+
+export type RouteActivityItem = {
+  id: string
+  title: string
+  body: string
+  route: string
+  occurredAt: string
+  tone: 'green' | 'blue' | 'yellow' | 'pink'
+}
+
+export function buildRouteActivityFeed(limit = 24): RouteActivityItem[] {
+  if (typeof window === 'undefined') return []
+  const alertItems = loadAlertHistory().map((alert) => ({
+    id: `alert-${alert.id}`,
+    title: alert.title,
+    body: alert.body,
+    route: alert.route,
+    occurredAt: alert.generatedAt,
+    tone: alert.severity === 'good' ? 'green' as const : alert.severity === 'warning' ? 'yellow' as const : alert.type === 'Watchlist activity' ? 'pink' as const : 'blue' as const
+  }))
+  const communityItems = loadCommunityLoads().map((report: CommunityLoadReport) => ({
+    id: `community-${report.id}`,
+    title: `${report.flightNumber} Community load updated`,
+    body: `${report.availableSeats} seats available · ${report.standbyCount} standby · ${relativeCommunityLoadTime(report.createdAt)}`,
+    route: report.route,
+    occurredAt: report.createdAt,
+    tone: 'green' as const
+  }))
+  const watchItems = loadSavedTripWatchlist().map((watch) => ({
+    id: `watch-${watch.id}`,
+    title: `Watching ${watch.watchLabel || watch.selectedItinerary}`,
+    body: `${watch.watchType || 'route'} watch · ${watch.carrier} · ${watch.travelDate}`,
+    route: watch.selectedItinerary,
+    occurredAt: watch.lastUpdated,
+    tone: 'pink' as const
+  }))
+  return [...alertItems, ...communityItems, ...watchItems]
+    .sort((a, b) => Date.parse(b.occurredAt) - Date.parse(a.occurredAt))
+    .slice(0, limit)
 }

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   alertSeverityColor,
   alertSummary,
+  buildRouteActivityFeed,
   clearAlertHistory,
   markAllAlertsRead,
   markAlertRead,
@@ -14,10 +15,13 @@ import {
 } from '../../lib/alerts'
 
 const alertTypes: RealTimeAlertType[] = [
+  'New community load',
+  'Seat availability changed',
   'Confidence increased',
   'Confidence decreased',
   'Better route found',
   'New backup route available',
+  'Watchlist activity',
   'Disruption detected',
   'Weather risk increased'
 ]
@@ -51,6 +55,7 @@ export default function AlertFeedPage() {
   }, [])
 
   const summary = useMemo(() => alertSummary(alerts), [alerts])
+  const activityFeed = useMemo(() => buildRouteActivityFeed(18), [alerts])
   const filteredAlerts = activeType === 'All' ? alerts : alerts.filter((alert) => alert.type === activeType)
 
   return (
@@ -69,7 +74,7 @@ export default function AlertFeedPage() {
           <p style={{ color: '#22c55e', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1, marginTop: 0 }}>Real-time alert engine</p>
           <h1 style={{ fontSize: 44, margin: '8px 0 12px' }}>Alert Feed</h1>
           <p style={{ color: '#94a3b8', fontSize: 18, maxWidth: 860 }}>
-            Local alert history for watchlists, saved itineraries, route confidence movement, success probability, disruption intelligence, backup routing, and weather-risk changes.
+            Local alert history for watchlists, saved itineraries, new community loads, seat availability changes, route confidence movement, better itineraries, disruption intelligence, backup routing, and weather-risk changes.
           </p>
           <p style={{ color: '#cbd5e1' }}>{status}</p>
         </div>
@@ -99,6 +104,38 @@ export default function AlertFeedPage() {
             <h2 style={{ fontSize: 18, marginBottom: 0 }}>{label}</h2>
           </article>
         ))}
+      </section>
+
+
+      <section style={{ border: '1px solid #334155', borderRadius: 20, padding: 16, background: '#0f172a', marginBottom: 20 }}>
+        <strong style={{ color: '#f472b6' }}>Notification architecture</strong>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10, marginTop: 12 }}>
+          {[
+            ['In-app alerts', 'Active now: local alert history and unread state.'],
+            ['Email alerts', 'Prepared as queued placeholder until provider config exists.'],
+            ['Push notifications', 'Prepared through browser/mobile channel preferences; no external provider required yet.']
+          ].map(([title, body]) => (
+            <article key={title} style={{ border: '1px solid #1e293b', borderRadius: 14, padding: 12, background: '#020617' }}>
+              <strong style={{ color: '#f8fafc' }}>{title}</strong>
+              <p style={{ color: '#94a3b8', marginBottom: 0 }}>{body}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section style={{ border: '1px solid #334155', borderRadius: 20, padding: 16, background: '#0f172a', marginBottom: 20 }}>
+        <strong style={{ color: '#38bdf8' }}>Route Activity Feed</strong>
+        <div style={{ display: 'grid', gap: 10, marginTop: 12 }}>
+          {activityFeed.length ? activityFeed.map((item) => (
+            <article key={item.id} style={{ border: '1px solid #1e293b', borderRadius: 14, padding: 12, background: '#020617' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
+                <strong style={{ color: item.tone === 'green' ? '#22c55e' : item.tone === 'yellow' ? '#facc15' : item.tone === 'pink' ? '#f472b6' : '#38bdf8' }}>{item.title}</strong>
+                <small style={{ color: '#64748b' }}>{timeLabel(item.occurredAt)}</small>
+              </div>
+              <p style={{ color: '#cbd5e1', margin: '6px 0 0' }}>{item.route} · {item.body}</p>
+            </article>
+          )) : <p style={{ color: '#94a3b8', margin: 0 }}>No route activity yet. Add a watch or community load to start the feed.</p>}
+        </div>
       </section>
 
       <section style={{ border: '1px solid #334155', borderRadius: 20, padding: 16, background: '#0f172a', marginBottom: 20 }}>

@@ -6,6 +6,7 @@ export const tripAlertPreferenceOptions = [
   { key: 'delayCancellationUpdates', label: 'Delay/cancellation updates', description: 'Notify when schedule disruption signals appear.' },
   { key: 'disruptionAlerts', label: 'Disruption alerts', description: 'Notify when route-health disruption intelligence turns risky.' },
   { key: 'weatherAlerts', label: 'Weather alerts', description: 'Notify when weather risk increases.' },
+  { key: 'communityLoadReports', label: 'Community load reports', description: 'Notify when matching community load or seat availability changes appear.' },
   { key: 'betterRouteFound', label: 'New better route found', description: 'Notify when NONREVY finds a stronger route option.' },
   { key: 'didYouGetOnReminder', label: 'Did-you-get-on reminder', description: 'Prompt after travel to capture the outcome.' }
 ] as const
@@ -31,6 +32,7 @@ export const defaultTripAlertPreferenceFlags: TripAlertPreferenceFlags = {
   delayCancellationUpdates: true,
   disruptionAlerts: true,
   weatherAlerts: true,
+  communityLoadReports: true,
   betterRouteFound: false,
   didYouGetOnReminder: true
 }
@@ -57,7 +59,10 @@ export function loadTripAlertPreferences() {
     const storedPreferences = window.localStorage.getItem(tripAlertPreferencesStorageKey)
     if (!storedPreferences) return []
     const preferences = JSON.parse(storedPreferences)
-    return Array.isArray(preferences) ? preferences as TripAlertPreference[] : []
+    return Array.isArray(preferences) ? (preferences as TripAlertPreference[]).map((preference) => ({
+      ...preference,
+      flags: { ...defaultTripAlertPreferenceFlags, ...(preference.flags || {}) }
+    })) : []
   } catch {
     return []
   }

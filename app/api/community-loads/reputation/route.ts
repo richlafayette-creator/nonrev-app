@@ -1,44 +1,28 @@
 import { NextResponse } from 'next/server'
+import {
+  calculateCommunityContributorTrustScore,
+  communityContributorTrustBreakdown,
+  initialCommunityContributorReputation,
+  type CommunityLoadContributorReputation,
+  type CommunityLoadValidationStatus
+} from '../../../../lib/communityLoads'
 
 export const dynamic = 'force-dynamic'
 
-type ReputationRecord = {
-  contributorId: string
-  totalReports: number
-  acceptedReports: number
-  trustScore: number
-  updatedAt: string
-}
+const inMemoryReputation = new Map<string, CommunityLoadContributorReputation>()
 
-const inMemoryReputation = new Map<string, ReputationRecord>()
-
-function clamp(value: number, min: number, max: number) {
-  return Math.max(min, Math.min(max, Math.round(value)))
-}
-
-function initialReputation(contributorId: string): ReputationRecord {
-  return {
-    contributorId,
-    totalReports: 0,
-    acceptedReports: 0,
-    trustScore: 50,
-    updatedAt: new Date().toISOString()
-  }
-}
-
-function scoreFor(totalReports: number, acceptedReports: number) {
-  if (!totalReports) return 50
-  const acceptanceRate = acceptedReports / totalReports
-  return clamp(50 + acceptanceRate * 35 + Math.min(totalReports, 30) * 0.5 - (totalReports - acceptedReports) * 8, 0, 100)
+function reputationFor(contributorId: string) {
+  return inMemoryReputation.get(contributorId) || initialCommunityContributorReputation(contributorId)
 }
 
 export async function GET(request: Request) {
   const contributorId = new URL(request.url).searchParams.get('contributorId') || 'anonymous-community-contributor'
-  return NextResponse.json({ reputation: inMemoryReputation.get(contributorId) || initialReputation(contributorId) })
+  const reputation = reputationFor(contributorId)
+  return NextResponse.json({ reputation, breakdown: communityContributorTrustBreakdown(reputation) })
 }
 
 export async function POST(request: Request) {
-  let body: { contributorId?: string; accepted?: boolean }
+  let body: { contributorId?: string; accepted?: boolean; sourceTrustScore?: number; validationStatus?: CommunityLoadValidationStatus }
   try {
     body = await request.json()
   } catch {
@@ -46,16 +30,38 @@ export async function POST(request: Request) {
   }
 
   const contributorId = body.contributorId || 'anonymous-community-contributor'
-  const current = inMemoryReputation.get(contributorId) || initialReputation(contributorId)
-  const totalReports = current.totalReports + 1
-  const acceptedReports = current.acceptedReports + (body.accepted === false ? 0 : 1)
-  const reputation: ReputationRecord = {
+  const current = reputationFor(contributorId)
+  const isSubmissionUpdate = body.accepted !== undefined
+  const totalReports = current.totalReports + (isSubmissionUpdate ? 1 : 0)
+  const acceptedReports = current.acceptedReports + (isSubmissionUpdate && body.accepted === false ? 0 : isSubmissionUpdate ? 1 : 0)
+  const sourceTrustScore = Number(body.sourceTrustScore)
+  const averageSourceTrustScore = isSubmissionUpdate && Number.isFinite(sourceTrustScore)
+    ? Math.round(((current.averageSourceTrustScore * current.totalReports) + Math.max(0, Math.min(100, sourceTrustScore))) / Math.max(1, totalReports))
+    : current.averageSourceTrustScore
+  const confirmedValidations = current.confirmedValidations + (body.validationStatus === 'Confirmed' ? 1 : 0)
+  const outdatedValidations = current.outdatedValidations + (body.validationStatus === 'Outdated' ? 1 : 0)
+  const inaccurateValidations = current.inaccurateValidations + (body.validationStatus === 'Inaccurate' ? 1 : 0)
+  const breakdown = calculateCommunityContributorTrustScore({
+    totalReports,
+    acceptedReports,
+    confirmedValidations,
+    outdatedValidations,
+    inaccurateValidations,
+    averageSourceTrustScore
+  })
+  const reputation: CommunityLoadContributorReputation = {
+    ...current,
     contributorId,
     totalReports,
     acceptedReports,
-    trustScore: scoreFor(totalReports, acceptedReports),
+    confirmedValidations,
+    outdatedValidations,
+    inaccurateValidations,
+    averageSourceTrustScore,
+    trustScore: breakdown.trustScore,
+    trustLevel: breakdown.trustLevel,
     updatedAt: new Date().toISOString()
   }
   inMemoryReputation.set(contributorId, reputation)
-  return NextResponse.json({ reputation }, { status: 201 })
+  return NextResponse.json({ reputation, breakdown }, { status: 201 })
 }

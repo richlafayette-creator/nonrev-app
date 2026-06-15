@@ -45,8 +45,25 @@ export type CommunityLoadContributorReputation = {
   contributorId: string
   totalReports: number
   acceptedReports: number
+  confirmedValidations: number
+  outdatedValidations: number
+  inaccurateValidations: number
+  averageSourceTrustScore: number
   trustScore: number
+  trustLevel: CommunityContributorTrustLevel
   updatedAt: string
+}
+
+export type CommunityContributorTrustLevel = 'New' | 'Reliable' | 'Highly trusted' | 'Needs corroboration'
+
+export type CommunityContributorTrustBreakdown = {
+  trustScore: number
+  trustLevel: CommunityContributorTrustLevel
+  submissionQualityScore: number
+  validationScore: number
+  volumeScore: number
+  corroborationPenalty: number
+  explanation: string[]
 }
 
 export type CommunityConfidenceLevel = 'High' | 'Medium' | 'Low'
@@ -165,22 +182,95 @@ export function relativeCommunityLoadTime(createdAt: string, now = new Date()) {
   return `${ageDays} day${ageDays === 1 ? '' : 's'} ago`
 }
 
+export function communityContributorTrustLevel(trustScore: number, validationCount = 0): CommunityContributorTrustLevel {
+  if (trustScore >= 82 && validationCount >= 3) return 'Highly trusted'
+  if (trustScore >= 62) return 'Reliable'
+  if (trustScore < 42) return 'Needs corroboration'
+  return 'New'
+}
+
+export function calculateCommunityContributorTrustScore(input: {
+  totalReports: number
+  acceptedReports: number
+  confirmedValidations?: number
+  outdatedValidations?: number
+  inaccurateValidations?: number
+  averageSourceTrustScore?: number
+}): CommunityContributorTrustBreakdown {
+  const totalReports = clamp(safeNumber(input.totalReports), 0, 999_999)
+  const acceptedReports = clamp(safeNumber(input.acceptedReports), 0, totalReports || 999_999)
+  const confirmedValidations = clamp(safeNumber(input.confirmedValidations), 0, 999_999)
+  const outdatedValidations = clamp(safeNumber(input.outdatedValidations), 0, 999_999)
+  const inaccurateValidations = clamp(safeNumber(input.inaccurateValidations), 0, 999_999)
+  const validationCount = confirmedValidations + outdatedValidations + inaccurateValidations
+  const acceptedRate = totalReports ? acceptedReports / totalReports : 0.72
+  const averageSourceTrustScore = clamp(safeNumber(input.averageSourceTrustScore, 50), 0, 100)
+  const submissionQualityScore = clamp(acceptedRate * 26 + averageSourceTrustScore * 0.24, 0, 50)
+  const validationBalance = validationCount
+    ? (confirmedValidations * 1 + outdatedValidations * 0.3 - inaccurateValidations * 1.15) / validationCount
+    : 0.18
+  const validationScore = clamp(18 + validationBalance * 24, 0, 42)
+  const volumeScore = clamp(Math.min(totalReports, 12) * 1.6 + Math.min(validationCount, 8) * 1.2, 0, 24)
+  const corroborationPenalty = clamp(inaccurateValidations * 8 + outdatedValidations * 3 - confirmedValidations * 1.5, 0, 30)
+  const trustScore = clamp(18 + submissionQualityScore + validationScore + volumeScore - corroborationPenalty, 0, 100)
+  const trustLevel = communityContributorTrustLevel(trustScore, validationCount)
+  return {
+    trustScore,
+    trustLevel,
+    submissionQualityScore,
+    validationScore,
+    volumeScore,
+    corroborationPenalty,
+    explanation: [
+      `Submission quality contributes ${submissionQualityScore}/50 from accepted reports and source completeness.`,
+      validationCount ? `Community validation contributes ${validationScore}/42 from ${confirmedValidations} confirmed, ${outdatedValidations} outdated, and ${inaccurateValidations} inaccurate marks.` : 'Validation starts neutral until other travelers confirm or dispute reports.',
+      `Report volume contributes ${volumeScore}/24 without overpowering accuracy.`,
+      corroborationPenalty ? `Corroboration penalty subtracts ${corroborationPenalty} for disputed or stale reports.` : 'No corroboration penalty currently applied.'
+    ]
+  }
+}
+
 export function initialCommunityContributorReputation(contributorId = defaultContributorId): CommunityLoadContributorReputation {
+  const trust = calculateCommunityContributorTrustScore({ totalReports: 0, acceptedReports: 0, averageSourceTrustScore: 50 })
   return {
     contributorId,
     totalReports: 0,
     acceptedReports: 0,
-    trustScore: 50,
+    confirmedValidations: 0,
+    outdatedValidations: 0,
+    inaccurateValidations: 0,
+    averageSourceTrustScore: 50,
+    trustScore: trust.trustScore,
+    trustLevel: trust.trustLevel,
     updatedAt: new Date().toISOString()
   }
 }
 
 function migrateReputation(raw: Partial<CommunityLoadContributorReputation> | null | undefined, contributorId = defaultContributorId): CommunityLoadContributorReputation {
+  const totalReports = clamp(safeNumber(raw?.totalReports), 0, 999_999)
+  const acceptedReports = clamp(safeNumber(raw?.acceptedReports), 0, totalReports || 999_999)
+  const confirmedValidations = clamp(safeNumber(raw?.confirmedValidations), 0, 999_999)
+  const outdatedValidations = clamp(safeNumber(raw?.outdatedValidations), 0, 999_999)
+  const inaccurateValidations = clamp(safeNumber(raw?.inaccurateValidations), 0, 999_999)
+  const averageSourceTrustScore = clamp(safeNumber(raw?.averageSourceTrustScore, raw?.trustScore || 50), 0, 100)
+  const trust = calculateCommunityContributorTrustScore({
+    totalReports,
+    acceptedReports,
+    confirmedValidations,
+    outdatedValidations,
+    inaccurateValidations,
+    averageSourceTrustScore
+  })
   return {
     contributorId: String(raw?.contributorId || contributorId),
-    totalReports: clamp(safeNumber(raw?.totalReports), 0, 999_999),
-    acceptedReports: clamp(safeNumber(raw?.acceptedReports), 0, 999_999),
-    trustScore: clamp(safeNumber(raw?.trustScore, 50), 0, 100),
+    totalReports,
+    acceptedReports,
+    confirmedValidations,
+    outdatedValidations,
+    inaccurateValidations,
+    averageSourceTrustScore,
+    trustScore: trust.trustScore,
+    trustLevel: trust.trustLevel,
     updatedAt: String(raw?.updatedAt || new Date().toISOString())
   }
 }
@@ -199,22 +289,51 @@ export function loadCommunityContributorReputation(contributorId = defaultContri
 export function saveCommunityContributorReputation(reputation: CommunityLoadContributorReputation) {
   const nextReputation = migrateReputation(reputation, reputation.contributorId)
   writeJson(communityContributorReputationStorageKey, nextReputation)
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event('nonrevy-reputation-updated'))
   return nextReputation
 }
 
-export function updateCommunityContributorReputation(options: { contributorId?: string; accepted?: boolean } = {}) {
+export function updateCommunityContributorReputation(options: {
+  contributorId?: string
+  accepted?: boolean
+  sourceTrustScore?: number
+  validationStatus?: CommunityLoadValidationStatus
+} = {}) {
   const current = loadCommunityContributorReputation(options.contributorId || defaultContributorId)
-  const totalReports = current.totalReports + 1
-  const acceptedReports = current.acceptedReports + (options.accepted === false ? 0 : 1)
-  const acceptanceRate = totalReports ? acceptedReports / totalReports : 1
-  const trustScore = clamp(50 + acceptanceRate * 35 + Math.min(totalReports, 30) * 0.5 - (totalReports - acceptedReports) * 8, 0, 100)
+  const isSubmissionUpdate = options.accepted !== undefined
+  const totalReports = current.totalReports + (isSubmissionUpdate ? 1 : 0)
+  const acceptedReports = current.acceptedReports + (isSubmissionUpdate && options.accepted === false ? 0 : isSubmissionUpdate ? 1 : 0)
+  const sourceTrustScore = options.sourceTrustScore === undefined ? undefined : clamp(options.sourceTrustScore, 0, 100)
+  const averageSourceTrustScore = isSubmissionUpdate && sourceTrustScore !== undefined
+    ? clamp(((current.averageSourceTrustScore * current.totalReports) + sourceTrustScore) / Math.max(1, totalReports), 0, 100)
+    : current.averageSourceTrustScore
+  const confirmedValidations = current.confirmedValidations + (options.validationStatus === 'Confirmed' ? 1 : 0)
+  const outdatedValidations = current.outdatedValidations + (options.validationStatus === 'Outdated' ? 1 : 0)
+  const inaccurateValidations = current.inaccurateValidations + (options.validationStatus === 'Inaccurate' ? 1 : 0)
+  const trust = calculateCommunityContributorTrustScore({
+    totalReports,
+    acceptedReports,
+    confirmedValidations,
+    outdatedValidations,
+    inaccurateValidations,
+    averageSourceTrustScore
+  })
   return saveCommunityContributorReputation({
     ...current,
     totalReports,
     acceptedReports,
-    trustScore,
+    confirmedValidations,
+    outdatedValidations,
+    inaccurateValidations,
+    averageSourceTrustScore,
+    trustScore: trust.trustScore,
+    trustLevel: trust.trustLevel,
     updatedAt: new Date().toISOString()
   })
+}
+
+export function communityContributorTrustBreakdown(reputation: CommunityLoadContributorReputation): CommunityContributorTrustBreakdown {
+  return calculateCommunityContributorTrustScore(reputation)
 }
 
 
@@ -392,6 +511,12 @@ export function validateCommunityLoadReport(reportId: string, status: CommunityL
   const reports = loadCommunityLoads().map((report) => {
     if (report.id !== reportId) return report
     const validationCounts = report.validationCounts || { Confirmed: 0, Outdated: 0, Inaccurate: 0 }
+    const nextSourceTrustScore = clamp(report.sourceTrustScore + (status === 'Confirmed' ? 4 : status === 'Outdated' ? -6 : -12), 0, 100)
+    updateCommunityContributorReputation({
+      contributorId: report.contributorId,
+      validationStatus: status,
+      sourceTrustScore: nextSourceTrustScore
+    })
     return {
       ...report,
       validationStatus: status,
@@ -399,7 +524,7 @@ export function validateCommunityLoadReport(reportId: string, status: CommunityL
         ...validationCounts,
         [status]: (validationCounts[status] || 0) + 1
       },
-      sourceTrustScore: clamp(report.sourceTrustScore + (status === 'Confirmed' ? 2 : status === 'Outdated' ? -4 : -8), 0, 100)
+      sourceTrustScore: nextSourceTrustScore
     }
   })
   writeJson(communityLoadsStorageKey, reports)
@@ -410,7 +535,9 @@ export function validateCommunityLoadReport(reportId: string, status: CommunityL
 export function saveCommunityLoadReport(submission: CommunityLoadSubmission) {
   if (typeof window === 'undefined') return null
   const contributorId = submission.contributorId || defaultContributorId
-  const reputation = updateCommunityContributorReputation({ contributorId, accepted: true })
+  const currentReputation = loadCommunityContributorReputation(contributorId)
+  const preliminarySourceTrustScore = sourceTrustScoreFor(currentReputation, submission)
+  const reputation = updateCommunityContributorReputation({ contributorId, accepted: true, sourceTrustScore: preliminarySourceTrustScore })
   const routeAirports = communityRouteAirports(submission.route)
   const flightNumber = normalizeCommunityFlightNumber(submission.flightNumber)
   const createdAt = new Date().toISOString()

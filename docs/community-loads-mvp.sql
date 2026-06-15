@@ -55,3 +55,13 @@ from public.community_load_reports report;
 -- recovery options: backup departures and alternate routing resilience
 -- carrier performance: reliability/source coverage weighting
 -- route complexity: nonstop vs connection damping and airport disruption exposure
+
+-- Reputation/trust scoring follow-up: local and API scaffolds now track validation feedback
+-- separately from report volume so contributor trust can rise with corroborated reports and
+-- fall when reports are repeatedly marked outdated or inaccurate.
+alter table if exists public.community_load_contributor_reputation
+  add column if not exists confirmed_validations integer not null default 0 check (confirmed_validations >= 0),
+  add column if not exists outdated_validations integer not null default 0 check (outdated_validations >= 0),
+  add column if not exists inaccurate_validations integer not null default 0 check (inaccurate_validations >= 0),
+  add column if not exists average_source_trust_score integer not null default 50 check (average_source_trust_score between 0 and 100),
+  add column if not exists trust_level text not null default 'New';

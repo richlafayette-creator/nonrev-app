@@ -11,7 +11,7 @@ import { carrierScoringProfiles, getCarrierScoringScaffold, normalizeCarrierFami
 import { historicalRouteStats, type HistoricalRoute } from '../../lib/historicalRoutes'
 import { parseItineraryPrompt } from '../../lib/itinerarySearch'
 import { effectiveLoadReportWeight, loadLoadReports, loadReportSignal, loadReportSummary, type LoadReport } from '../../lib/loadReports'
-import { communityLoadFreshness, communityLoadIntelligenceForItinerary, communityLoadSummaryForItinerary, communityRouteAirports, loadCommunityContributorReputation, loadCommunityLoads, relativeCommunityLoadTime, saveCommunityLoadReport, saveCommunityLoadRequest, validateCommunityLoadReport, type CommunityLoadFreshness, type CommunityLoadIntelligence, type CommunityLoadReport, type CommunityLoadValidationStatus } from '../../lib/communityLoads'
+import { communityLoadFreshness, communityLoadIntelligenceForItinerary, communityLoadSummaryForItinerary, communityRouteAirports, communityContributorTrustBreakdown, loadCommunityContributorReputation, loadCommunityLoads, relativeCommunityLoadTime, saveCommunityLoadReport, saveCommunityLoadRequest, validateCommunityLoadReport, type CommunityLoadFreshness, type CommunityLoadIntelligence, type CommunityLoadReport, type CommunityLoadValidationStatus } from '../../lib/communityLoads'
 import { calculatePredictionEngine } from '../../lib/predictionEngine'
 import { buildDisruptionIntelligence, routeHealthColor, type DisruptionIntelligence } from '../../lib/disruptionIntelligence'
 import { calculateRouteConfidence, confidenceBadgeColor, confidenceTrendColor, confidenceUpdateTriggerLabel, type ConfidenceTrend, type ConfidenceUpdateTrigger, type RouteConfidence } from '../../lib/routeConfidence'
@@ -3317,8 +3317,9 @@ function ItineraryComparisonPanel({ comparisons, travelDate, communityLoads, onC
               <div className="nonrevy-community-loads__profile">
                 <strong>Contributor Profile</strong>
                 <span>{contributor.totalReports} Reports Submitted</span>
-                <span>Trust Score {contributor.trustScore}/100</span>
-                <span>{contributor.acceptedReports > 0 ? 'Verified contributor' : 'Verification pending'}</span>
+                <span>Trust Score {contributor.trustScore}/100 · {contributor.trustLevel}</span>
+                <span>{contributor.confirmedValidations} Confirmed · {contributor.outdatedValidations} Outdated · {contributor.inaccurateValidations} Inaccurate</span>
+                <span>{communityContributorTrustBreakdown(contributor).explanation[0]}</span>
               </div>
               <p className="nonrevy-community-loads__status">{communityLoadStatus}</p>
             </section>

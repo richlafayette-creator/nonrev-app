@@ -37,6 +37,12 @@ export type CommunityLoadScoringSignal = {
   reportCount: number
   averageAvailableSeats: number | null
   averageStandbyCount: number | null
+  loadMargin?: number | null
+  loadImpact?: 'Strong' | 'Narrow' | 'Risky' | 'Poor' | 'Unknown'
+  loadScoreCap?: number | null
+  scoringWeight?: number
+  isRecent?: boolean
+  freshness?: 'Fresh' | 'Recent' | 'Stale' | 'Expired' | null
   agreementScore: number
   freshnessScore: number
   communityConfidence: 'High' | 'Medium' | 'Low'
@@ -88,6 +94,10 @@ export type NonrevSuccessScore = {
     maxWeight: number
     confidence: 'High' | 'Medium' | 'Low'
     reportCount: number
+    loadMargin?: number | null
+    loadImpact?: string
+    freshness?: string | null
+    scoreCap?: number | null
   }
 }
 
@@ -268,11 +278,18 @@ export function scoreNonrevItinerary(input: NonrevSuccessScoringInput): NonrevSu
   const totalWeight = factors.reduce((total, factor) => total + factor.weight, 0)
   const weightedScore = factors.reduce((total, factor) => total + factor.normalizedScore * factor.weight, 0) / totalWeight
   const communitySignal = input.communityLoadIntelligence
-  const communityWeight = communitySignal && communitySignal.reportCount > 0 ? 0.25 : 0
+  const communityHasReports = Boolean(communitySignal && communitySignal.reportCount > 0)
+  const communityWeight = communitySignal && communityHasReports
+    ? Math.max(0.04, Math.min(0.44, communitySignal.scoringWeight ?? (communitySignal.isRecent ? 0.36 : 0.08)))
+    : 0
+  const communityScore = communitySignal ? normalizePercent(communitySignal.scoreContribution, 50) : 50
   const blendedScore = communitySignal && communityWeight
-    ? weightedScore * (1 - communityWeight) + normalizePercent(communitySignal.scoreContribution, 50) * communityWeight
+    ? weightedScore * (1 - communityWeight) + communityScore * communityWeight
     : weightedScore
-  const score = clamp(blendedScore, 1, 99)
+  const marginScoreCap = communitySignal?.loadScoreCap ?? null
+  const recencyScoreCap = communityHasReports && !communitySignal?.isRecent ? 74 : null
+  const scoreCap = marginScoreCap ?? recencyScoreCap
+  const score = clamp(scoreCap ? Math.min(blendedScore, scoreCap) : blendedScore, 1, 99)
   const topPositiveFactors = [...factors]
     .sort((a, b) => (b.normalizedScore - 50) * b.weight - (a.normalizedScore - 50) * a.weight)
     .slice(0, 3)
@@ -286,15 +303,19 @@ export function scoreNonrevItinerary(input: NonrevSuccessScoringInput): NonrevSu
     topRiskFactor,
     factors,
     formula: communitySignal && communityWeight
-      ? `${nonrevSuccessFormulaDocumentation.formula} Community intelligence may contribute up to 25% of the final score when submitted reports exist.`
+      ? `${nonrevSuccessFormulaDocumentation.formula} Fresh/recent community loads can contribute up to 44% of the final score and stale loads are heavily down-weighted.`
       : nonrevSuccessFormulaDocumentation.formula,
     communityIntelligenceImpact: communitySignal && communityWeight ? {
       baseScore: clamp(weightedScore, 1, 99),
       communityScore: clamp(communitySignal.scoreContribution, 0, 100),
       blendedScore: score,
-      maxWeight: 25,
+      maxWeight: Math.round(communityWeight * 100),
       confidence: communitySignal.communityConfidence,
-      reportCount: communitySignal.reportCount
+      reportCount: communitySignal.reportCount,
+      loadMargin: communitySignal.loadMargin,
+      loadImpact: communitySignal.loadImpact,
+      freshness: communitySignal.freshness,
+      scoreCap
     } : undefined
   }
 }

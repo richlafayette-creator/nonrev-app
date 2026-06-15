@@ -629,6 +629,61 @@ function loadSupportFromReports(reports: LoadReport[]): NonNullable<SuccessPredi
   }
 }
 
+
+function compactCommunityLoadAge(createdAt: string) {
+  const parsed = Date.parse(createdAt)
+  if (!Number.isFinite(parsed)) return 'age unknown'
+  const minutes = Math.max(0, Math.round((Date.now() - parsed) / 60_000))
+  if (minutes < 60) return `${minutes}m ago`
+  const hours = Math.round(minutes / 60)
+  if (hours < 48) return `${hours}h ago`
+  return `${Math.round(hours / 24)}d ago`
+}
+
+function communityLoadCompactRowText(communityIntelligence: CommunityLoadIntelligence | null | undefined) {
+  const latest = communityIntelligence?.latestReport
+  if (!latest || !(communityIntelligence?.freshness === 'Fresh' || communityIntelligence?.freshness === 'Recent')) return ''
+  return `Community Load: ${latest.availableSeats} Open • ${latest.standbyCount} Listed ${communityIntelligence.freshness} ${compactCommunityLoadAge(latest.createdAt)}`
+}
+
+function communityLoadImpactSummary(communityIntelligence: CommunityLoadIntelligence | null | undefined) {
+  if (!communityIntelligence) return 'No recent community load is available, so high-confidence scoring stays capped by the trust-first engine.'
+  const available = communityIntelligence.averageAvailableSeats ?? communityIntelligence.latestReport?.availableSeats ?? null
+  const standby = communityIntelligence.averageStandbyCount ?? communityIntelligence.latestReport?.standbyCount ?? null
+  if (available === null || standby === null) return 'Community load exists but is missing structured open-seat/listed-passenger counts.'
+  const margin = available - standby
+  const marginText = margin >= 0 ? `${margin}-seat margin` : `${Math.abs(margin)}-seat shortfall`
+  const capText = communityIntelligence.loadScoreCap
+    ? ` Score capped because standby demand ${standby > available ? 'exceeds' : 'is close to'} availability.`
+    : communityIntelligence.isRecent ? ' Recent load margin is allowed to lift this itinerary above otherwise similar options.' : ' Stale load is down-weighted significantly.'
+  return `Load Impact: ${available} open seats; ${standby} listed nonrev passengers; ${communityIntelligence.loadImpact} ${marginText}.${capText}`
+}
+
+function loadSupportWithCommunityLoad(
+  baseLoadSupport: NonNullable<SuccessPredictionInput['loadData']>,
+  communityIntelligence: CommunityLoadIntelligence | null
+): NonNullable<SuccessPredictionInput['loadData']> {
+  if (!communityIntelligence?.latestReport) return baseLoadSupport
+  const available = communityIntelligence.averageAvailableSeats ?? communityIntelligence.latestReport.availableSeats
+  const standby = communityIntelligence.averageStandbyCount ?? communityIntelligence.latestReport.standbyCount
+  const hasStructuredCounts = typeof available === 'number' && typeof standby === 'number'
+  if (!hasStructuredCounts) return baseLoadSupport
+  const freshness = communityIntelligence.freshness || 'Stale'
+  const isRecent = freshness === 'Fresh' || freshness === 'Recent'
+  const status: NonNullable<SuccessPredictionInput['loadData']>['status'] = isRecent
+    ? communityIntelligence.communityConfidence === 'High' ? 'verified' : 'trusted'
+    : 'stale'
+  const detail = `${communityLoadCompactRowText(communityIntelligence) || `Community Load: ${available} Open • ${standby} Listed ${freshness}`} · ${communityLoadImpactSummary(communityIntelligence)}`
+  if (!isRecent && (baseLoadSupport.status === 'verified' || baseLoadSupport.status === 'trusted')) return baseLoadSupport
+  return {
+    status,
+    seatsAvailable: available,
+    standbyCount: standby,
+    source: `Community load · ${freshness} · ${communityIntelligence.reportCount} report${communityIntelligence.reportCount === 1 ? '' : 's'}`,
+    detail
+  }
+}
+
 function reportTrustAndRecencySummary(reports: LoadReport[]) {
   if (!reports.length) return 'No community report trust/recency signal yet.'
   const averageTrust = Math.round(reports.reduce((total, report) => total + report.reportTrustScore, 0) / reports.length)
@@ -993,7 +1048,7 @@ function buildLiveItineraryComparison(
     route: itinerary.route,
     date: itineraryLoadDateFromSchedule(itinerary.legs[0]?.departureTime || itinerary.departureTime || '')
   })
-  const loadSupport = loadSupportFromReports(routeReports)
+  const loadSupport = loadSupportWithCommunityLoad(loadSupportFromReports(routeReports), communityIntelligence)
   const routeOutcomes = matchingRouteOutcomes(itinerary.route, outcomes)
   const outcomeRate = outcomeSuccessRate(routeOutcomes)
   const connections = Math.max(0, itinerary.legs.length - 1)
@@ -1122,7 +1177,7 @@ function buildLiveItineraryComparison(
     weatherRisk,
     airportIntelligence,
     communityReports: routeReports,
-    communityReportSummary: communityIntelligence ? `Community intelligence: ${communityIntelligence.averageAvailableSeats ?? '—'} open, ${communityIntelligence.averageStandbyCount ?? '—'} standby, ${communityIntelligence.reportCount} reports, ${communityIntelligence.communityConfidence} confidence.` : reportTrustAndRecencySummary(routeReports),
+    communityReportSummary: communityIntelligence ? `${communityLoadCompactRowText(communityIntelligence) || `Community intelligence: ${communityIntelligence.averageAvailableSeats ?? '—'} open, ${communityIntelligence.averageStandbyCount ?? '—'} listed, ${communityIntelligence.reportCount} reports, ${communityIntelligence.communityConfidence} confidence.`} ${communityLoadImpactSummary(communityIntelligence)}` : reportTrustAndRecencySummary(routeReports),
     communityIntelligence,
     why: [
       `Blends provider itinerary score ${itinerary.score}/100 with probability engine baseline ${predictionEngine.successProbability}%.`,
@@ -1134,8 +1189,8 @@ function buildLiveItineraryComparison(
         ? `Historical route match ${historicalRoute.route} contributes ${historicalRoute.successRate}% success and ${historicalRoute.reportCount} reports.`
         : `Carrier historical scaffold contributes ${predictionEngine.inputSummary.historicalSuccessRate}% average success.` ,
       routeReports.length
-        ? `${routeReports.length} structured community load report${routeReports.length === 1 ? '' : 's'} add a ${loadAdjustment >= 0 ? '+' : ''}${loadAdjustment.toFixed(1)} trust/recency-weighted load signal.`
-        : 'No matching community load reports yet, so the comparison keeps the route-neutral load assumption.',
+        ? `${routeReports.length} legacy structured load report${routeReports.length === 1 ? '' : 's'} add a ${loadAdjustment >= 0 ? '+' : ''}${loadAdjustment.toFixed(1)} trust/recency-weighted load signal.`
+        : communityIntelligence ? communityLoadImpactSummary(communityIntelligence) : 'No matching recent community load reports yet, so the comparison cannot show high confidence from loads alone.',
       routeOutcomes.length
         ? `${routeOutcomes.length} saved outcome${routeOutcomes.length === 1 ? '' : 's'} calibrate this route at ${outcomeRate}% success.`
         : 'No saved outcomes for this exact route yet; traveler profile and historical signals carry more weight.',
@@ -1166,7 +1221,7 @@ function buildFallbackItineraryComparison(
     route: itinerary.route,
     date: itineraryLoadDateFromSchedule(itinerary.window || '')
   })
-  const loadSupport = loadSupportFromReports(routeReports)
+  const loadSupport = loadSupportWithCommunityLoad(loadSupportFromReports(routeReports), communityIntelligence)
   const routeOutcomes = matchingRouteOutcomes(itinerary.route, outcomes)
   const outcomeRate = outcomeSuccessRate(routeOutcomes)
   const airportCount = itinerary.route.split('→').length
@@ -1291,7 +1346,7 @@ function buildFallbackItineraryComparison(
     weatherRisk,
     airportIntelligence,
     communityReports: routeReports,
-    communityReportSummary: communityIntelligence ? `Community intelligence: ${communityIntelligence.averageAvailableSeats ?? '—'} open, ${communityIntelligence.averageStandbyCount ?? '—'} standby, ${communityIntelligence.reportCount} reports, ${communityIntelligence.communityConfidence} confidence.` : reportTrustAndRecencySummary(routeReports),
+    communityReportSummary: communityIntelligence ? `${communityLoadCompactRowText(communityIntelligence) || `Community intelligence: ${communityIntelligence.averageAvailableSeats ?? '—'} open, ${communityIntelligence.averageStandbyCount ?? '—'} listed, ${communityIntelligence.reportCount} reports, ${communityIntelligence.communityConfidence} confidence.`} ${communityLoadImpactSummary(communityIntelligence)}` : reportTrustAndRecencySummary(routeReports),
     communityIntelligence,
     why: [
       `Combines fallback ranking ${itinerary.ranking.score}/100 with probability engine baseline ${predictionEngine.successProbability}%.`,
@@ -1303,8 +1358,8 @@ function buildFallbackItineraryComparison(
         ? `Historical route match ${historicalRoute.route} contributes ${historicalRoute.successRate}% success and ${historicalRoute.reportCount} reports.`
         : `Historical carrier scaffold contributes ${predictionEngine.inputSummary.historicalSuccessRate}% average success.`,
       routeReports.length
-        ? `${routeReports.length} structured community load report${routeReports.length === 1 ? '' : 's'} add a ${loadAdjustment >= 0 ? '+' : ''}${loadAdjustment.toFixed(1)} trust/recency-weighted load signal.`
-        : 'No matching community load reports yet; use this as planning guidance only.',
+        ? `${routeReports.length} legacy structured load report${routeReports.length === 1 ? '' : 's'} add a ${loadAdjustment >= 0 ? '+' : ''}${loadAdjustment.toFixed(1)} trust/recency-weighted load signal.`
+        : communityIntelligence ? communityLoadImpactSummary(communityIntelligence) : 'No matching recent community load reports yet; use this as planning guidance only.',
       routeOutcomes.length
         ? `${routeOutcomes.length} saved outcome${routeOutcomes.length === 1 ? '' : 's'} calibrate this route at ${outcomeRate}% success.`
         : 'No saved route outcomes yet; traveler profile and route intelligence remain the main signals.',
@@ -3150,6 +3205,7 @@ function ItineraryComparisonPanel({ comparisons, travelDate, communityLoads, onC
     const reasons = compactItineraryReasons(comparison)
     const communityLoad = communityLoadSummaryForItinerary(communityLoads, { flightNumber: comparison.flightNumber, route: comparison.route, date: travelDate.trim() || undefined })
     const communityIntelligence = comparison.communityIntelligence || communityLoadIntelligenceForItinerary(communityLoads, { flightNumber: comparison.flightNumber, route: comparison.route, date: itineraryLoadDate(comparison, travelDate) || undefined })
+    const communityLoadRowText = communityLoadCompactRowText(communityIntelligence)
     const latestCommunityLoad = communityIntelligence?.latestReport || communityLoad.latestReport
     const submitLoadOpen = activeCommunityLoadId === comparison.id
     const requestLoadOpen = activeLoadRequestId === comparison.id
@@ -3199,7 +3255,11 @@ function ItineraryComparisonPanel({ comparisons, travelDate, communityLoads, onC
               <div className="nonrevy-flight-board-row__secondary-line">
                 <span className="nonrevy-flight-board-row__duration">{compactDurationLabel(comparison.totalTravelTime)}</span>
                 <span className="nonrevy-flight-board-row__stops">{compactStopsLabel(comparison.connections)}</span>
-                <span className="nonrevy-flight-board-row__load" title={comparison.loadSupport.detail || comparison.successPrediction.loadExplanation}>{rowLoadIntelligenceLabel(comparison)}</span>
+                {communityLoadRowText ? (
+                  <span className="nonrevy-flight-board-row__load" title={communityLoadImpactSummary(communityIntelligence)}>{communityLoadRowText}</span>
+                ) : (
+                  <span className="nonrevy-flight-board-row__load" title={comparison.loadSupport.detail || comparison.successPrediction.loadExplanation}>{rowLoadIntelligenceLabel(comparison)}</span>
+                )}
                 <span className="nonrevy-flight-board-row__aircraft">{aircraft}</span>
                 <span className="nonrevy-flight-board-row__score" title="Next-gen nonrev success score">{compactScoreIcon(comparison)}{compactScoreLabel(comparison)}</span>
               </div>
@@ -3245,9 +3305,16 @@ function ItineraryComparisonPanel({ comparisons, travelDate, communityLoads, onC
                     <strong>Community Intelligence</strong>
                     <span className={communityFreshnessClass(communityIntelligence.freshness)}>{communityIntelligence.freshness}</span>
                   </div>
-                  <p className="nonrevy-community-loads__counts">{communityIntelligence.averageAvailableSeats ?? '—'} Open • {communityIntelligence.averageStandbyCount ?? '—'} Standby</p>
-                  <p className="nonrevy-community-loads__compact-confidence">{communityIntelligence.reportCount} Report{communityIntelligence.reportCount === 1 ? '' : 's'} · {communityIntelligence.communityConfidence} Confidence</p>
+                  <p className="nonrevy-community-loads__counts">{communityIntelligence.averageAvailableSeats ?? '—'} Open • {communityIntelligence.averageStandbyCount ?? '—'} Listed</p>
+                  {communityLoadRowText ? <p className="nonrevy-community-loads__compact-confidence">{communityLoadRowText}</p> : null}
+                  <p className="nonrevy-community-loads__compact-confidence">{communityIntelligence.reportCount} Report{communityIntelligence.reportCount === 1 ? '' : 's'} · {communityIntelligence.communityConfidence} Confidence · {Math.round(communityIntelligence.scoringWeight * 100)}% scoring weight</p>
                   <p>Confidence {communityIntelligence.confidenceScore}/100 · Agreement {communityIntelligence.agreementScore}/100 · Freshness {communityIntelligence.freshnessScore}/100</p>
+                  <div className="nonrevy-community-loads__why">
+                    <strong>Load Impact</strong>
+                    <ul>
+                      {communityIntelligence.loadImpactExplanation.map((reason) => <li key={`${comparison.id}-load-impact-${reason}`}>{reason}</li>)}
+                    </ul>
+                  </div>
                   {communityIntelligence.outlierReportIds.length ? <p>{communityIntelligence.outlierReportIds.length} outlier report{communityIntelligence.outlierReportIds.length === 1 ? '' : 's'} down-weighted.</p> : null}
                   <div className="nonrevy-community-loads__why">
                     <strong>Why community confidence</strong>
@@ -3268,7 +3335,7 @@ function ItineraryComparisonPanel({ comparisons, travelDate, communityLoads, onC
                 </div>
               ) : latestCommunityLoad ? (
                 <div className="nonrevy-community-loads__card">
-                  <p><strong>Community Load</strong> {latestCommunityLoad.availableSeats} Open • {latestCommunityLoad.standbyCount} Standby</p>
+                  <p><strong>Community Load</strong> {latestCommunityLoad.availableSeats} Open • {latestCommunityLoad.standbyCount} Listed</p>
                   <p>{relativeCommunityLoadTime(latestCommunityLoad.createdAt)} · Trust {communityLoad.averageTrustScore || latestCommunityLoad.sourceTrustScore} · {communityLoad.reportCount} Report{communityLoad.reportCount === 1 ? '' : 's'}</p>
                 </div>
               ) : (
@@ -3329,7 +3396,8 @@ function ItineraryComparisonPanel({ comparisons, travelDate, communityLoads, onC
               <p><strong>Top positives:</strong> {comparison.nextGenSuccess.topPositiveFactors.map((factor) => factor.detail).join(' · ')}</p>
               <p><strong>Top risk:</strong> {comparison.nextGenSuccess.topRiskFactor.detail}</p>
               <p><strong>Load:</strong> {rowLoadIntelligenceLabel(comparison)}</p>
-              {comparison.nextGenSuccess.communityIntelligenceImpact ? <p><strong>Community scoring:</strong> {comparison.nextGenSuccess.communityIntelligenceImpact.reportCount} report{comparison.nextGenSuccess.communityIntelligenceImpact.reportCount === 1 ? '' : 's'} blended at up to {comparison.nextGenSuccess.communityIntelligenceImpact.maxWeight}% of score · base {comparison.nextGenSuccess.communityIntelligenceImpact.baseScore}/100 → community-adjusted {comparison.nextGenSuccess.communityIntelligenceImpact.blendedScore}/100.</p> : null}
+              {comparison.nextGenSuccess.communityIntelligenceImpact ? <p><strong>Community scoring:</strong> {comparison.nextGenSuccess.communityIntelligenceImpact.reportCount} report{comparison.nextGenSuccess.communityIntelligenceImpact.reportCount === 1 ? '' : 's'} blended at up to {comparison.nextGenSuccess.communityIntelligenceImpact.maxWeight}% of score · base {comparison.nextGenSuccess.communityIntelligenceImpact.baseScore}/100 → community-adjusted {comparison.nextGenSuccess.communityIntelligenceImpact.blendedScore}/100.{comparison.nextGenSuccess.communityIntelligenceImpact.scoreCap ? ` Score capped at ${comparison.nextGenSuccess.communityIntelligenceImpact.scoreCap} by load margin guardrails.` : ''}</p> : null}
+              {communityIntelligence ? <p>{communityLoadImpactSummary(communityIntelligence)}</p> : null}
               <p>{comparison.successPrediction.loadExplanation}</p>
               <p>{comparison.successPrediction.confidenceExplanation}</p>
               {comparison.loadSupport.source ? <p>Load source: {comparison.loadSupport.source}</p> : null}

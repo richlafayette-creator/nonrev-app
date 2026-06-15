@@ -73,6 +73,8 @@ export type CommunityLoadIntelligenceReport = CommunityLoadReport & {
   outlier: boolean
 }
 
+export type CommunityLoadImpact = 'Strong' | 'Narrow' | 'Risky' | 'Poor' | 'Unknown'
+
 export type CommunityLoadIntelligence = {
   key: string
   flightNumber: string
@@ -83,6 +85,11 @@ export type CommunityLoadIntelligence = {
   reportCount: number
   averageAvailableSeats: number | null
   averageStandbyCount: number | null
+  loadMargin: number | null
+  loadImpact: CommunityLoadImpact
+  loadScoreCap: number | null
+  scoringWeight: number
+  isRecent: boolean
   freshness: CommunityLoadFreshness | null
   freshnessScore: number
   confidenceScore: number
@@ -92,6 +99,7 @@ export type CommunityLoadIntelligence = {
   outlierReportIds: string[]
   trustedReports: CommunityLoadIntelligenceReport[]
   explanation: string[]
+  loadImpactExplanation: string[]
   scoreContribution: number
 }
 
@@ -383,15 +391,45 @@ function communityLoadAgreementScore(reports: CommunityLoadReport[]) {
   return clamp(100 - marginDeviation * 6 - seatDeviation * 2.5 - standbyDeviation * 1.5, 0, 100)
 }
 
+export function communityLoadMargin(availableSeats: number | null, standbyCount: number | null) {
+  if (availableSeats === null || standbyCount === null) return null
+  return availableSeats - standbyCount
+}
+
+export function communityLoadImpactFor(availableSeats: number | null, standbyCount: number | null): CommunityLoadImpact {
+  if (availableSeats === null || standbyCount === null) return 'Unknown'
+  if (standbyCount <= 0) return availableSeats >= 4 ? 'Strong' : 'Narrow'
+  if (availableSeats >= standbyCount * 2) return 'Strong'
+  if (availableSeats > standbyCount) return 'Narrow'
+  if (availableSeats === standbyCount) return 'Risky'
+  return 'Poor'
+}
+
+export function communityLoadScoreCapFor(availableSeats: number | null, standbyCount: number | null) {
+  if (availableSeats === null || standbyCount === null) return null
+  if (standbyCount > availableSeats) return 35
+  if (standbyCount >= availableSeats) return 50
+  return null
+}
+
 function communityLoadScore(averageAvailableSeats: number | null, averageStandbyCount: number | null) {
   if (averageAvailableSeats === null || averageStandbyCount === null) return 50
   const margin = averageAvailableSeats - averageStandbyCount
-  if (margin >= 12) return 96
-  if (margin >= 6) return 86
-  if (margin >= 2) return 72
-  if (margin >= 0) return 58
-  if (margin >= -4) return 36
-  return 18
+  if (averageStandbyCount <= 0) return averageAvailableSeats >= 6 ? 94 : averageAvailableSeats >= 3 ? 76 : 62
+  if (averageAvailableSeats >= averageStandbyCount * 2) return 94
+  if (averageAvailableSeats > averageStandbyCount && margin >= Math.max(4, averageStandbyCount * 0.45)) return 82
+  if (averageAvailableSeats > averageStandbyCount) return 66
+  if (averageAvailableSeats === averageStandbyCount) return 48
+  if (margin >= -4) return 30
+  return 16
+}
+
+function communityLoadScoringWeight(freshness: CommunityLoadFreshness | null, confidenceScore: number) {
+  const confidenceMultiplier = confidenceScore >= 76 ? 1 : confidenceScore >= 52 ? 0.82 : 0.64
+  if (freshness === 'Fresh') return Number((0.42 * confidenceMultiplier).toFixed(2))
+  if (freshness === 'Recent') return Number((0.34 * confidenceMultiplier).toFixed(2))
+  if (freshness === 'Stale') return Number((0.1 * confidenceMultiplier).toFixed(2))
+  return Number((0.04 * confidenceMultiplier).toFixed(2))
 }
 
 function communityConfidenceLevelFor(reportCount: number, freshnessScore: number, agreementScore: number): CommunityConfidenceLevel {
@@ -603,15 +641,22 @@ function buildCommunityLoadIntelligence(key: string, reports: CommunityLoadRepor
     : null
   const averageAvailableSeats = weightedAverage((report) => report.availableSeats)
   const averageStandbyCount = weightedAverage((report) => report.standbyCount)
+  const freshness = latestReport ? communityLoadFreshness(latestReport.createdAt) : null
+  const isRecent = freshness === 'Fresh' || freshness === 'Recent'
   const freshnessScore = latestReport ? freshnessScoreFor(latestReport.createdAt) : 0
   const agreementScore = communityLoadAgreementScore(trustedReports.filter((report) => !report.outlier))
   const averageTrustScore = trustedReports.length ? clamp(average(trustedReports.map((report) => report.adjustedTrustScore)), 0, 100) : 0
   const loadScore = communityLoadScore(averageAvailableSeats, averageStandbyCount)
+  const loadMargin = averageAvailableSeats === null || averageStandbyCount === null ? null : clamp(averageAvailableSeats - averageStandbyCount, -999, 999)
+  const loadImpact = communityLoadImpactFor(averageAvailableSeats, averageStandbyCount)
+  const loadScoreCap = communityLoadScoreCapFor(averageAvailableSeats, averageStandbyCount)
   const reportVolumeScore = clamp(45 + Math.min(trustedReports.length, 5) * 11, 0, 100)
-  const confidenceScore = clamp(reportVolumeScore * 0.26 + freshnessScore * 0.28 + agreementScore * 0.28 + averageTrustScore * 0.18, 0, 100)
+  const confidenceScore = clamp(reportVolumeScore * 0.24 + freshnessScore * 0.32 + agreementScore * 0.26 + averageTrustScore * 0.18, 0, 100)
   const communityConfidence = communityConfidenceLevelFor(trustedReports.length, freshnessScore, agreementScore)
+  const scoringWeight = communityLoadScoringWeight(freshness, confidenceScore)
   const outlierReportIds = trustedReports.filter((report) => report.outlier).map((report) => report.id)
-  const scoreContribution = clamp(loadScore * 0.58 + confidenceScore * 0.42, 0, 100)
+  const freshnessAdjustedLoadScore = isRecent ? loadScore : clamp(loadScore * 0.45 + 50 * 0.55, 0, 100)
+  const scoreContribution = clamp(freshnessAdjustedLoadScore * 0.72 + confidenceScore * 0.28, 0, 100)
   const matchingReportText = trustedReports.length === 1 ? '1 report' : `${trustedReports.filter((report) => !report.outlier).length} matching reports`
   const lastUpdateText = latestReport ? `Last update ${relativeCommunityLoadTime(latestReport.createdAt)}` : 'No recent update'
   const agreementText = agreementScore >= 76 ? 'Strong agreement' : agreementScore >= 55 ? 'Moderate agreement' : 'Reporter agreement is weak'
@@ -625,7 +670,12 @@ function buildCommunityLoadIntelligence(key: string, reports: CommunityLoadRepor
     reportCount: trustedReports.length,
     averageAvailableSeats: averageAvailableSeats === null ? null : clamp(averageAvailableSeats, 0, 999),
     averageStandbyCount: averageStandbyCount === null ? null : clamp(averageStandbyCount, 0, 999),
-    freshness: latestReport ? communityLoadFreshness(latestReport.createdAt) : null,
+    loadMargin,
+    loadImpact,
+    loadScoreCap,
+    scoringWeight,
+    isRecent,
+    freshness,
     freshnessScore,
     confidenceScore,
     agreementScore,
@@ -637,7 +687,14 @@ function buildCommunityLoadIntelligence(key: string, reports: CommunityLoadRepor
       matchingReportText,
       lastUpdateText,
       agreementText,
-      outlierReportIds.length ? `${outlierReportIds.length} outlier report${outlierReportIds.length === 1 ? '' : 's'} down-weighted` : 'No major outliers detected'
+      outlierReportIds.length ? `${outlierReportIds.length} outlier report${outlierReportIds.length === 1 ? '' : 's'} down-weighted` : 'No major outliers detected',
+      isRecent ? 'Fresh/recent load data receives major scoring weight.' : 'Stale load data is down-weighted significantly.'
+    ],
+    loadImpactExplanation: [
+      averageAvailableSeats === null ? 'Open seat count is missing.' : `${clamp(averageAvailableSeats, 0, 999)} open seat${clamp(averageAvailableSeats, 0, 999) === 1 ? '' : 's'}.`,
+      averageStandbyCount === null ? 'Listed nonrev passenger count is missing.' : `${clamp(averageStandbyCount, 0, 999)} listed nonrev passenger${clamp(averageStandbyCount, 0, 999) === 1 ? '' : 's'}.`,
+      loadMargin === null ? 'Load margin cannot be calculated yet.' : `${loadImpact === 'Strong' ? 'Strong' : loadImpact === 'Narrow' ? 'Narrow' : loadImpact === 'Risky' ? 'Risky' : loadImpact === 'Poor' ? 'Poor' : 'Unknown'} ${loadMargin >= 0 ? loadMargin : Math.abs(loadMargin)}-seat ${loadMargin >= 0 ? 'margin' : 'shortfall'}.`,
+      loadScoreCap ? `Score capped at ${loadScoreCap} because standby demand ${loadImpact === 'Poor' ? 'exceeds' : 'is close to'} availability.` : isRecent ? 'Recent load margin can lift otherwise similar itineraries.' : 'Stale load is only a weak planning signal.'
     ],
     scoreContribution
   }
@@ -652,7 +709,9 @@ export function communityLoadIntelligenceForItinerary(reports: CommunityLoadRepo
   if (!matchingReports.length) return null
   const groups = aggregateCommunityLoadReports(matchingReports)
   return groups.sort((a, b) =>
+    Number(b.isRecent) - Number(a.isRecent) ||
     b.confidenceScore - a.confidenceScore ||
+    b.freshnessScore - a.freshnessScore ||
     b.reportCount - a.reportCount ||
     Date.parse(b.latestReport?.createdAt || '') - Date.parse(a.latestReport?.createdAt || '')
   )[0] || null

@@ -1752,6 +1752,88 @@ function backupRouteReasoning(comparison: ItineraryComparison, backup?: Itinerar
   ]
 }
 
+function conservativeItineraryDecision(comparison: ItineraryComparison) {
+  if (comparison.disruption.routeHealth === 'Red' || comparison.personalSuccessPrediction.probability < 50) return 'Back up first'
+  if (comparison.personalSuccessPrediction.confidence === 'Low' || comparison.successPrediction.needsLoad || comparison.loadSupport.status === 'missing') return 'Watch closely'
+  if (comparison.personalSuccessPrediction.probability >= 75 && comparison.disruption.routeHealth === 'Green') return 'Primary candidate'
+  return 'Usable with backup'
+}
+
+function conservativeItineraryGuardrails(comparison: ItineraryComparison) {
+  const guardrails: string[] = []
+  if (comparison.loadSupport.status === 'missing') guardrails.push('No verified load yet; keep the estimate capped and recheck before travel.')
+  if (comparison.personalSuccessPrediction.confidence === 'Low') guardrails.push('Confidence is low, so treat this as planning guidance instead of a go/no-go call.')
+  if (comparison.disruption.routeHealth !== 'Green') guardrails.push(`${comparison.disruption.routeHealth} route health means a backup should be ready before committing.`)
+  if (comparison.connections > 0) guardrails.push(`${compactStopsLabel(comparison.connections)} adds connection recovery risk.`)
+  if (comparison.weatherRisk.category !== 'Low') guardrails.push(`${comparison.weatherRisk.category} weather risk can change standby outcomes quickly.`)
+  if (!guardrails.length) guardrails.push('Signals are usable, but nonrev success still depends on final loads and same-day operations.')
+  return guardrails.slice(0, 4)
+}
+
+function ItineraryIntelligenceDetailPanel({ comparison, backup }: { comparison: ItineraryComparison; backup?: ItineraryComparison }) {
+  const decision = conservativeItineraryDecision(comparison)
+  const guardrails = conservativeItineraryGuardrails(comparison)
+  const backupLine = backup
+    ? `${backup.carrier} · ${backup.route} · ${backup.personalSuccessPrediction.probability}% personal estimate · ${compactStopsLabel(backup.connections)}`
+    : 'No same-search backup is available; broaden carrier scope or routing before relying on this option.'
+  const loadLine = rowLoadIntelligenceLabel(comparison)
+  const intelligenceCards = [
+    ['Decision', decision, decision === 'Primary candidate' ? '#22c55e' : decision === 'Back up first' ? '#f87171' : '#facc15'],
+    ['Estimated success', `${comparison.personalSuccessPrediction.probability}% · ${comparison.personalSuccessPrediction.confidence}`, comparisonMetricColor(comparison.personalSuccessPrediction.probability)],
+    ['Load signal', loadLine, comparison.loadSupport.status === 'verified' || comparison.loadSupport.status === 'trusted' ? '#22c55e' : '#facc15'],
+    ['Recovery', `${comparison.airportIntelligence.backupFlightAvailability} · ${compactStopsLabel(comparison.connections)}`, comparison.airportIntelligence.backupFlightAvailability === 'Excellent' || comparison.airportIntelligence.backupFlightAvailability === 'Good' ? '#38bdf8' : '#facc15']
+  ] as const
+
+  return (
+    <details className="nonrevy-itinerary-intel-panel">
+      <summary>
+        <span>Itinerary intelligence</span>
+        <span>{decision}</span>
+      </summary>
+      <div className="nonrevy-itinerary-intel-panel__body">
+        <div className="nonrevy-itinerary-intel-panel__cards" aria-label="Itinerary intelligence summary">
+          {intelligenceCards.map(([label, value, color]) => (
+            <article key={`${comparison.id}-${label}`}>
+              <small>{label}</small>
+              <strong style={{ color }}>{value}</strong>
+            </article>
+          ))}
+        </div>
+
+        <section>
+          <strong>Why</strong>
+          <ul>
+            {comparison.personalSuccessPrediction.why.map((reason) => <li key={`${comparison.id}-intel-why-${reason}`}>{reason}</li>)}
+          </ul>
+        </section>
+
+        <section>
+          <strong>Conservative guardrails</strong>
+          <ul>
+            {guardrails.map((guardrail) => <li key={`${comparison.id}-intel-guardrail-${guardrail}`}>{guardrail}</li>)}
+          </ul>
+        </section>
+
+        <section>
+          <strong>Backup read</strong>
+          <p>{backupLine}</p>
+        </section>
+
+        <details className="nonrevy-itinerary-intel-panel__subdetails">
+          <summary>Signal details</summary>
+          <div className="nonrevy-itinerary-intel-panel__signals">
+            <p><strong>Route confidence:</strong> {comparison.routeConfidence.score}/100 · {comparison.routeConfidence.badge} · {comparison.routeConfidence.trend}</p>
+            <p><strong>Disruption:</strong> {comparison.disruption.routeHealth} · impact {comparison.disruption.disruptionImpactScore}/99</p>
+            <p><strong>Weather:</strong> {comparison.weatherRisk.category} · {comparison.weatherRisk.details[0]}</p>
+            <p><strong>Data:</strong> {comparison.dataFreshnessLabel || 'Provider freshness pending'} · {comparison.sourceDetails}</p>
+            <p><strong>Inputs used:</strong> {comparison.personalSuccessPrediction.inputsUsed.join(' · ')}</p>
+          </div>
+        </details>
+      </div>
+    </details>
+  )
+}
+
 function ScoringExplanationDetails({ comparison, backup }: { comparison: ItineraryComparison; backup?: ItineraryComparison }) {
   const sections = [
     ['Why this route ranked here', comparison.explanation.whyRankedHere],
@@ -3362,6 +3444,7 @@ function ItineraryComparisonPanel({ comparisons, travelDate, communityLoads, onC
             <section>
               <strong>{compactRankingLabel(rankIndex, comparison)}</strong>
               <p>{plainEnglishRationale(comparison, rankIndex)}</p>
+              <ItineraryIntelligenceDetailPanel comparison={comparison} backup={nextBackup} />
             </section>
             <section className="nonrevy-community-loads">
               <strong>Community Loads</strong>

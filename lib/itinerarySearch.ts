@@ -185,10 +185,32 @@ const airportAliases: Record<string, string> = {
   sanluisobispo: 'SBP',
   obispo: 'SBP',
   slo: 'SBP',
-  sanluis: 'SBP'
+  sanluis: 'SBP',
+  newyork: 'JFK',
+  nyc: 'JFK',
+  jfk: 'JFK',
+  ewr: 'EWR',
+  newark: 'EWR',
+  boston: 'BOS',
+  bos: 'BOS',
+  chicago: 'ORD',
+  ord: 'ORD',
+  denver: 'DEN',
+  den: 'DEN',
+  atlanta: 'ATL',
+  atl: 'ATL',
+  dallas: 'DFW',
+  dfw: 'DFW',
+  phoenix: 'PHX',
+  phx: 'PHX',
+  lasvegas: 'LAS',
+  vegas: 'LAS',
+  las: 'LAS',
+  sandiego: 'SAN',
+  san: 'SAN'
 }
 
-const fillerRouteWords = new Set(['get', 'me', 'the', 'to', 'for', 'via', 'and', 'non', 'rev', 'nonrev', 'path', 'cheapest'])
+const fillerRouteWords = new Set(['get', 'me', 'the', 'to', 'for', 'from', 'out', 'of', 'leaving', 'departing', 'via', 'and', 'non', 'rev', 'nonrev', 'path', 'cheapest', 'open', 'flights', 'flight', 'best', 'route'])
 
 function airportCode(value?: string | null) {
   const match = value?.toUpperCase().match(/\b[A-Z]{3}\b/)
@@ -221,23 +243,71 @@ function addDays(date: Date, days: number) {
   return next
 }
 
+const monthNames: Record<string, number> = {
+  jan: 0, january: 0,
+  feb: 1, february: 1,
+  mar: 2, march: 2,
+  apr: 3, april: 3,
+  may: 4,
+  jun: 5, june: 5,
+  jul: 6, july: 6,
+  aug: 7, august: 7,
+  sep: 8, sept: 8, september: 8,
+  oct: 9, october: 9,
+  nov: 10, november: 10,
+  dec: 11, december: 11
+}
+
+function isoFromMonthDay(monthText: string, dayText: string, yearText: string | undefined, now: Date) {
+  const month = monthNames[monthText.toLowerCase()]
+  const day = Number(dayText)
+  if (month === undefined || !Number.isFinite(day) || day < 1 || day > 31) return undefined
+  const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
+  const requestedYear = yearText ? Number(yearText) : today.getUTCFullYear()
+  let parsed = new Date(Date.UTC(requestedYear, month, day))
+  if (!yearText && parsed.getTime() < today.getTime()) parsed = new Date(Date.UTC(requestedYear + 1, month, day))
+  return parsed.toISOString().slice(0, 10)
+}
+
 function dateFromRelative(value: string, now = new Date()) {
   const normalized = value.toLowerCase()
   const date = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
+  if (normalized.includes('today') || normalized.includes('tonight')) return date.toISOString().slice(0, 10)
   if (normalized.includes('tomorrow')) return addDays(date, 1).toISOString().slice(0, 10)
   if (normalized.includes('this weekend') || normalized.includes('weekend')) {
     const daysUntilSaturday = (6 - date.getUTCDay() + 7) % 7
     return addDays(date, daysUntilSaturday || 7).toISOString().slice(0, 10)
   }
   const weekdays = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
-  const nextWeekday = normalized.match(/next\s+(sunday|monday|tuesday|wednesday|thursday|friday|saturday)/)
+  const nextWeekday = normalized.match(/\b(?:next|this|on)\s+(sunday|monday|tuesday|wednesday|thursday|friday|saturday)\b/)
   if (nextWeekday) {
     const target = weekdays.indexOf(nextWeekday[1])
-    const diff = (target - date.getUTCDay() + 7) % 7 || 7
+    const diff = (target - date.getUTCDay() + 7) % 7 || (nextWeekday[0].startsWith('this') || nextWeekday[0].startsWith('on') ? 0 : 7)
+    return addDays(date, diff).toISOString().slice(0, 10)
+  }
+  const bareWeekday = normalized.match(/\b(sunday|monday|tuesday|wednesday|thursday|friday|saturday)\b/)
+  if (bareWeekday) {
+    const target = weekdays.indexOf(bareWeekday[1])
+    const diff = (target - date.getUTCDay() + 7) % 7
     return addDays(date, diff).toISOString().slice(0, 10)
   }
   const isoDate = normalized.match(/\b(20\d{2}-\d{2}-\d{2})\b/)
   if (isoDate) return isoDate[1]
+  const monthDay = normalized.match(/\b(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t|tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s+(\d{1,2})(?:st|nd|rd|th)?(?:,?\s+(20\d{2}))?\b/)
+  if (monthDay) return isoFromMonthDay(monthDay[1], monthDay[2], monthDay[3], now)
+  const numericDate = normalized.match(/\b(\d{1,2})\/(\d{1,2})(?:\/(20\d{2}|\d{2}))?\b/)
+  if (numericDate) {
+    const month = Number(numericDate[1])
+    const day = Number(numericDate[2])
+    if (Number.isFinite(month) && month >= 1 && month <= 12) {
+      const year = numericDate[3] ? (numericDate[3].length === 2 ? `20${numericDate[3]}` : numericDate[3]) : undefined
+      const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
+      const requestedYear = year ? Number(year) : today.getUTCFullYear()
+      let parsed = new Date(Date.UTC(requestedYear, month - 1, day))
+      if (!year && parsed.getTime() < today.getTime()) parsed = new Date(Date.UTC(requestedYear + 1, month - 1, day))
+      return parsed.toISOString().slice(0, 10)
+    }
+  }
   return undefined
 }
 
@@ -250,16 +320,41 @@ function carrierFromText(value: string) {
   return matched?.[0]
 }
 
+function routePhraseStopPattern() {
+  return '(?:today|tonight|tomorrow|next\\s+\\w+|this\\s+weekend|weekend|on\\s+\\w+|with\\s+\\w+|united|delta|alaska|hawaiian|ua|dl|as|ha|polaris|first|business|economy)'
+}
+
 function routeFromText(value: string) {
   const normalized = value.trim()
-  const explicitRoute = normalized.match(/\b([A-Za-z]{3}|[A-Za-z][A-Za-z\s]+?)\s*(?:-|→|\bto\b)\s*([A-Za-z]{3}|[A-Za-z][A-Za-z\s]+?)(?:\s+(?:tomorrow|next\s+\w+|this\s+weekend|weekend|united|delta|alaska|hawaiian|ua|dl|as|ha)\b|$)/i)
-  if (explicitRoute) {
-    const origin = airportFromPhrase(explicitRoute[1])
-    const destination = airportFromPhrase(explicitRoute[2])
+  const stop = routePhraseStopPattern()
+  const codeRoute = normalized.match(/\b([A-Za-z]{3})\s*(?:-|→)\s*([A-Za-z]{3})\b/)
+  if (codeRoute) {
+    const origin = airportFromPhrase(codeRoute[1])
+    const destination = airportFromPhrase(codeRoute[2])
     if (origin || destination) return { origin, destination, routePhraseFound: true }
   }
 
-  const destinationOnly = normalized.match(/\b(?:to|for)\s+([A-Za-z]{3}|[A-Za-z][A-Za-z\s]+?)(?:\s+(?:tomorrow|next\s+\w+|this\s+weekend|weekend|on\s+\w+|with\s+\w+|united|delta|alaska|hawaiian|ua|dl|as|ha)\b|$)/i)
+  const toFromRoute = normalized.match(new RegExp(`\\b(?:to|for)\\s+([A-Za-z]{3}|[A-Za-z][A-Za-z\\s]+?)\\s+from\\s+([A-Za-z]{3}|[A-Za-z][A-Za-z\\s]+?)(?:\\s+${stop}\\b|$)`, 'i'))
+  if (toFromRoute) {
+    const destination = airportFromPhrase(toFromRoute[1])
+    const origin = airportFromPhrase(toFromRoute[2])
+    if (origin || destination) return { origin, destination, routePhraseFound: true }
+  }
+
+  const fromToRoute = normalized.match(new RegExp(`\\b(?:from|leaving|departing|out\\s+of)?\\s*([A-Za-z]{3}|[A-Za-z][A-Za-z\\s]+?)\\s*(?:-|→|to|for)\\s+([A-Za-z]{3}|[A-Za-z][A-Za-z\\s]+?)(?:\\s+${stop}\\b|$)`, 'i'))
+  if (fromToRoute) {
+    const origin = airportFromPhrase(fromToRoute[1])
+    const destination = airportFromPhrase(fromToRoute[2])
+    if (origin || destination) return { origin, destination, routePhraseFound: true }
+  }
+
+  const originOnly = normalized.match(/\b(?:from|leaving|departing|out\s+of)\s+([A-Za-z]{3}|[A-Za-z][A-Za-z\s]+?)(?:\s+(?:today|tonight|tomorrow|next\s+\w+|this\s+weekend|weekend|on\s+\w+|with\s+\w+|united|delta|alaska|hawaiian|ua|dl|as|ha|open|flights|flight)\b|$)/i)
+  if (originOnly) {
+    const origin = airportFromPhrase(originOnly[1])
+    if (origin) return { origin, routePhraseFound: true }
+  }
+
+  const destinationOnly = normalized.match(/\b(?:to|for)\s+([A-Za-z]{3}|[A-Za-z][A-Za-z\s]+?)(?:\s+(?:today|tonight|tomorrow|next\s+\w+|this\s+weekend|weekend|on\s+\w+|with\s+\w+|united|delta|alaska|hawaiian|ua|dl|as|ha|polaris|first|business|economy)\b|$)/i)
   if (destinationOnly) {
     const destination = airportFromPhrase(destinationOnly[1])
     if (destination) return { destination, routePhraseFound: true }
@@ -354,9 +449,9 @@ export function parseItineraryPrompt(prompt: string, now = new Date()): Partial<
   }
 }
 
-export function normalizeItineraryRequest(searchParams: URLSearchParams): ParsedItineraryRequest {
-  const prompt = searchParams.get('q') || searchParams.get('query') || searchParams.get('prompt') || undefined
-  const parsed = prompt ? parseItineraryPrompt(prompt) : {}
+export function normalizeItineraryRequest(searchParams: URLSearchParams, now = new Date()): ParsedItineraryRequest {
+  const prompt = searchParams.get('q') || searchParams.get('query') || searchParams.get('prompt') || searchParams.get('aiTrip') || undefined
+  const parsed = prompt ? parseItineraryPrompt(prompt, now) : {}
   const maxLegs = Number(searchParams.get('maxLegs') || '2')
   const explicitOrigin = airportCode(searchParams.get('origin'))
   const explicitDestination = airportCode(searchParams.get('destination'))

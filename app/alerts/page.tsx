@@ -9,10 +9,12 @@ import {
   markAllAlertsRead,
   markAlertRead,
   realTimeAlertTypeColor,
+  loadAlertSnapshots,
   refreshRealTimeAlerts,
   type RealTimeAlert,
   type RealTimeAlertType
 } from '../../lib/alerts'
+import { syncPersistentAlerts } from '../../lib/persistentTripClient'
 
 const alertTypes: RealTimeAlertType[] = [
   'New community load',
@@ -43,6 +45,10 @@ export default function AlertFeedPage() {
     const nextAlerts = refreshRealTimeAlerts()
     setAlerts(nextAlerts)
     setStatus(message)
+    syncPersistentAlerts(nextAlerts, loadAlertSnapshots()).then(({ alerts: syncedAlerts }) => {
+      setAlerts(syncedAlerts)
+      if (syncedAlerts.length) setStatus('Alert feed synced for this device.')
+    })
   }
 
   useEffect(() => {
@@ -74,7 +80,7 @@ export default function AlertFeedPage() {
           <p style={{ color: '#22c55e', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1, marginTop: 0 }}>Real-time alert engine</p>
           <h1 style={{ fontSize: 44, margin: '8px 0 12px' }}>Alert Feed</h1>
           <p style={{ color: '#94a3b8', fontSize: 18, maxWidth: 860 }}>
-            Local alert history for watchlists, saved itineraries, new community loads, seat availability changes, route confidence movement, better itineraries, disruption intelligence, backup routing, and weather-risk changes.
+            Alert history for watchlists, saved itineraries, new community loads, seat availability changes, route confidence movement, better itineraries, disruption intelligence, backup routing, and weather-risk changes.
           </p>
           <p style={{ color: '#cbd5e1' }}>{status}</p>
         </div>
@@ -111,7 +117,7 @@ export default function AlertFeedPage() {
         <strong style={{ color: '#f472b6' }}>Notification architecture</strong>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10, marginTop: 12 }}>
           {[
-            ['In-app alerts', 'Active now: local alert history and unread state.'],
+            ['In-app alerts', 'Active now: persistent alert history with local fallback.'],
             ['Email alerts', 'Prepared as queued placeholder until provider config exists.'],
             ['Push notifications', 'Prepared through browser/mobile channel preferences; no external provider required yet.']
           ].map(([title, body]) => (

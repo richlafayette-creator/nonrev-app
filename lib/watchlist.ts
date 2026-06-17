@@ -1,4 +1,5 @@
 import { deliverNotification } from './notificationDelivery'
+import { persistWatch, removePersistentWatch } from './persistentTripClient'
 
 export const savedTripWatchlistStorageKey = 'nonrevy.savedTripWatchlist'
 
@@ -92,6 +93,7 @@ export function saveTripWatch(watch: Omit<SavedTripWatch, 'id' | 'origin' | 'des
   )
   const watchlist = [nextWatch, ...deduped]
   window.localStorage.setItem(savedTripWatchlistStorageKey, JSON.stringify(watchlist))
+  void persistWatch(nextWatch)
   deliverNotification({
     eventType: 'watchlist',
     title: `Watchlist added: ${nextWatch.watchLabel || `${nextWatch.origin} → ${nextWatch.destination}`}`,
@@ -158,6 +160,7 @@ export function removeTripWatch(id: string) {
 
   const watchlist = loadSavedTripWatchlist().filter((item) => item.id !== id)
   window.localStorage.setItem(savedTripWatchlistStorageKey, JSON.stringify(watchlist))
+  void removePersistentWatch(id)
   window.dispatchEvent(new Event('nonrevy-watchlist-updated'))
   return watchlist
 }

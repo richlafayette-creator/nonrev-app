@@ -5,6 +5,7 @@ import { buildRouteActivityFeed, loadAlertHistory, refreshRealTimeAlerts, type R
 import { loadCommunityLoads, relativeCommunityLoadTime, type CommunityLoadReport } from '../../lib/communityLoads'
 import { loadSavedSearches, savedSearchRunUrl, type SavedSearch } from '../../lib/savedSearches'
 import { loadSavedTripWatchlist, type SavedTripWatch } from '../../lib/watchlist'
+import { syncPersistentAlerts, syncPersistentWatchlist } from '../../lib/persistentTripClient'
 
 function timeLabel(value: string) {
   try {
@@ -30,6 +31,8 @@ export default function DashboardPage() {
     setCommunityLoads(loadCommunityLoads())
     setActivity(buildRouteActivityFeed(10))
     setStatus(message)
+    syncPersistentWatchlist(loadSavedTripWatchlist()).then(setWatches)
+    syncPersistentAlerts(nextAlerts).then(({ alerts: syncedAlerts }) => setAlerts(syncedAlerts.length ? syncedAlerts : nextAlerts))
   }
 
   useEffect(() => {

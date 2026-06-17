@@ -8,6 +8,7 @@ import { loadTripAlertPreferences, getTripAlertPreference, type TripAlertPrefere
 import { loadTripOutcomes, tripOutcomeStats } from './tripOutcomes'
 import { defaultTravelerProfile, loadTravelerProfileFromStorage, type TravelerProfileScaffold } from './travelerProfile'
 import { loadSavedTripWatchlist, watchMatchesText, type SavedTripWatch } from './watchlist'
+import { clearPersistentAlertHistory, markAllPersistentAlertsRead, markPersistentAlertRead, persistAlertSnapshots, persistAlerts } from './persistentTripClient'
 
 export const alertHistoryStorageKey = 'nonrevy.alertHistory'
 export const alertSnapshotStorageKey = 'nonrevy.alertSnapshots'
@@ -47,7 +48,7 @@ export type RealTimeAlert = {
   details: string[]
 }
 
-type AlertSnapshot = {
+export type AlertSnapshot = {
   targetId: string
   targetType: AlertTargetType
   route: string
@@ -142,11 +143,12 @@ function saveAlertHistory(alerts: RealTimeAlert[]) {
     .sort((a, b) => Date.parse(b.generatedAt) - Date.parse(a.generatedAt))
     .slice(0, 80)
   window.localStorage.setItem(alertHistoryStorageKey, JSON.stringify(trimmed))
+  void persistAlerts(trimmed)
   window.dispatchEvent(new Event('nonrevy-alerts-updated'))
   return trimmed
 }
 
-function loadAlertSnapshots() {
+export function loadAlertSnapshots() {
   if (typeof window === 'undefined') return []
 
   try {
@@ -162,6 +164,7 @@ function loadAlertSnapshots() {
 function saveAlertSnapshots(snapshots: AlertSnapshot[]) {
   if (typeof window === 'undefined') return []
   window.localStorage.setItem(alertSnapshotStorageKey, JSON.stringify(snapshots))
+  void persistAlertSnapshots(snapshots)
   return snapshots
 }
 
@@ -523,17 +526,20 @@ export function refreshRealTimeAlerts() {
 
 export function markAlertRead(alertId: string) {
   if (typeof window === 'undefined') return []
+  void markPersistentAlertRead(alertId)
   return saveAlertHistory(loadAlertHistory().map((alert) => alert.id === alertId ? { ...alert, read: true } : alert))
 }
 
 export function markAllAlertsRead() {
   if (typeof window === 'undefined') return []
+  void markAllPersistentAlertsRead()
   return saveAlertHistory(loadAlertHistory().map((alert) => ({ ...alert, read: true })))
 }
 
 export function clearAlertHistory() {
   if (typeof window === 'undefined') return []
   window.localStorage.setItem(alertHistoryStorageKey, JSON.stringify([]))
+  void clearPersistentAlertHistory()
   window.dispatchEvent(new Event('nonrevy-alerts-updated'))
   return []
 }

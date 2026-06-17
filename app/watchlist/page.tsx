@@ -2,6 +2,7 @@
 
 import { type FormEvent, useEffect, useMemo, useState } from 'react'
 import { removeTripWatch, loadSavedTripWatchlist, saveGenericWatch, saveTripWatch, watchTargetOptions, type SavedTripWatch, type WatchTargetType } from '../../lib/watchlist'
+import { syncPersistentWatchlist } from '../../lib/persistentTripClient'
 import { loadSavedItineraryComparisons, type SavedItineraryComparison } from '../../lib/savedItineraryComparisons'
 import { loadLoadReports, loadReportSignal, type LoadReport } from '../../lib/loadReports'
 import { buildDisruptionIntelligence } from '../../lib/disruptionIntelligence'
@@ -111,7 +112,7 @@ export default function WatchlistPage() {
   const [routeText, setRouteText] = useState('')
   const [travelDate, setTravelDate] = useState('')
   const [carrier, setCarrier] = useState('United')
-  const [saveStatus, setSaveStatus] = useState('Saved trip watchlist is stored locally in this browser.')
+  const [saveStatus, setSaveStatus] = useState('Saved trip watchlist syncs across signed-in devices when Supabase persistence is configured.')
 
   useEffect(() => {
     function refreshWatchlist(trigger: ConfidenceUpdateTrigger = 'watchlist-viewed') {
@@ -125,6 +126,10 @@ export default function WatchlistPage() {
     }
 
     refreshWatchlist()
+    syncPersistentWatchlist(loadSavedTripWatchlist()).then((syncedWatchlist) => {
+      setWatchlist(syncedWatchlist)
+      if (syncedWatchlist.length) setSaveStatus('Watchlist synced for this device.')
+    })
     const refreshForViewed = () => refreshWatchlist('watchlist-viewed')
     const refreshForWeather = () => refreshWatchlist('weather-risk-changed')
     const refreshForDisruption = () => refreshWatchlist('disruption-status-changed')
@@ -262,7 +267,7 @@ export default function WatchlistPage() {
         <p style={{ color: '#facc15', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1 }}>Saved trip watchlists</p>
         <h1 style={{ fontSize: 44, margin: '8px 0 12px' }}>Route Watchlist</h1>
         <p style={{ color: '#94a3b8', fontSize: 18, maxWidth: 780 }}>
-          Watch flight numbers, routes, destinations, airports, regions, or premium-cabin opportunities so NONREVY has something useful to monitor even when you are not actively searching. Local-only storage for now.
+          Watch flight numbers, routes, destinations, airports, regions, or premium-cabin opportunities so NONREVY has something useful to monitor even when you are not actively searching.
         </p>
 
         <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14, margin: '24px 0' }}>
@@ -391,7 +396,7 @@ export default function WatchlistPage() {
           <p style={{ color: '#f472b6', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1, marginTop: 0 }}>Saved itinerary alert preferences</p>
           <h2 style={{ margin: '8px 0' }}>Alerts for saved itinerary comparisons</h2>
           <p style={{ color: '#94a3b8' }}>
-            These preferences apply to itinerary options saved from /plan. They stay local until the realtime alert engine is connected.
+            These preferences apply to itinerary options saved from /plan. Watchlist alerts are persisted when Supabase sync is configured.
           </p>
           {savedItineraries.length === 0 ? (
             <article style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#020617' }}>

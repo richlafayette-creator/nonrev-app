@@ -81,7 +81,7 @@ export default function OnboardingPage() {
           NONREVY uses these local assumptions to seed traveler profile, route confidence, planning defaults, and activation progress. Account sync can plug in later.
         </p>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.1fr) minmax(280px, 0.9fr)', gap: 18, marginTop: 28 }}>
+        <div className="nonrevy-onboarding__grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.1fr) minmax(280px, 0.9fr)', gap: 18, marginTop: 28 }}>
           <form onSubmit={completeOnboarding} style={{ border: '1px solid #334155', borderRadius: 24, padding: 22, background: '#0f172a' }}>
             <h2 style={{ marginTop: 0 }}>Traveler setup</h2>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>

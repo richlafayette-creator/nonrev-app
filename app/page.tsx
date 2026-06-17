@@ -2,7 +2,7 @@
 
 import { type FormEvent, useEffect, useState } from 'react'
 import { useVoiceInput } from '../lib/useVoiceInput'
-import { markActivationStep } from '../lib/onboardingActivation'
+import { betaOnboardingNudge, calculateActivationProgress, markActivationStep, type BetaOnboardingNudge } from '../lib/onboardingActivation'
 import { loadSavedSearches, markSavedSearchRun, saveSavedSearch, savedSearchRunUrl, type SavedSearch } from '../lib/savedSearches'
 
 const searchExamples = [
@@ -38,6 +38,7 @@ export default function Home() {
   const [message, setMessage] = useState('')
   const [recentSearches, setRecentSearches] = useState<string[]>([])
   const [savedSearches, setSavedSearches] = useState<SavedSearch[]>([])
+  const [onboardingNudge, setOnboardingNudge] = useState<BetaOnboardingNudge | null>(null)
   const voiceInput = useVoiceInput({
     onTranscript: setSearch,
     onStatus: setMessage,
@@ -48,13 +49,31 @@ export default function Home() {
     function refreshSavedSearches() {
       setSavedSearches(loadSavedSearches().slice(0, 4))
     }
+    function refreshBetaOnboarding() {
+      const nudge = betaOnboardingNudge(calculateActivationProgress())
+      setOnboardingNudge(nudge.completed ? null : nudge)
+    }
+    function refreshHomeState() {
+      refreshSavedSearches()
+      refreshBetaOnboarding()
+    }
     setRecentSearches(loadRecentHomeSearches())
-    refreshSavedSearches()
-    window.addEventListener('nonrevy-saved-searches-updated', refreshSavedSearches)
-    window.addEventListener('storage', refreshSavedSearches)
+    refreshHomeState()
+    window.addEventListener('nonrevy-saved-searches-updated', refreshHomeState)
+    window.addEventListener('nonrevy-onboarding-updated', refreshBetaOnboarding)
+    window.addEventListener('nonrevy-activation-progress-updated', refreshBetaOnboarding)
+    window.addEventListener('nonrevy-notification-preferences-updated', refreshBetaOnboarding)
+    window.addEventListener('nonrevy-watchlist-updated', refreshBetaOnboarding)
+    window.addEventListener('nonrevy-trip-outcomes-updated', refreshBetaOnboarding)
+    window.addEventListener('storage', refreshHomeState)
     return () => {
-      window.removeEventListener('nonrevy-saved-searches-updated', refreshSavedSearches)
-      window.removeEventListener('storage', refreshSavedSearches)
+      window.removeEventListener('nonrevy-saved-searches-updated', refreshHomeState)
+      window.removeEventListener('nonrevy-onboarding-updated', refreshBetaOnboarding)
+      window.removeEventListener('nonrevy-activation-progress-updated', refreshBetaOnboarding)
+      window.removeEventListener('nonrevy-notification-preferences-updated', refreshBetaOnboarding)
+      window.removeEventListener('nonrevy-watchlist-updated', refreshBetaOnboarding)
+      window.removeEventListener('nonrevy-trip-outcomes-updated', refreshBetaOnboarding)
+      window.removeEventListener('storage', refreshHomeState)
     }
   }, [])
 
@@ -182,6 +201,17 @@ export default function Home() {
               </div>
             </section>
           </form>
+
+          {onboardingNudge ? (
+            <details className={`nonrevy-home__setup ${onboardingNudge.completed ? 'nonrevy-home__setup--complete' : ''}`}>
+              <summary>
+                <span>{onboardingNudge.title}</span>
+                <span>{onboardingNudge.progressLabel}</span>
+              </summary>
+              <p>{onboardingNudge.body}</p>
+              <a href={onboardingNudge.href}>{onboardingNudge.ctaLabel}</a>
+            </details>
+          ) : null}
 
           {message && <p className="nonrevy-home__message">{message}</p>}
         </div>

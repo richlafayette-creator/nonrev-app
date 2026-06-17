@@ -50,6 +50,15 @@ export type ActivationProgress = {
   lastUpdated: string
 }
 
+export type BetaOnboardingNudge = {
+  completed: boolean
+  title: string
+  body: string
+  href: string
+  ctaLabel: string
+  progressLabel: string
+}
+
 const activationStepLabels: Record<ActivationStepKey, string> = {
   completeProfile: 'Complete profile',
   runFirstTripPlan: 'Run first trip plan',
@@ -210,6 +219,29 @@ export function calculateActivationProgress(): ActivationProgress {
     steps,
     onboardingCompleted: Boolean(onboarding.completedAt),
     lastUpdated: new Date().toISOString()
+  }
+}
+
+export function betaOnboardingNudge(progress = calculateActivationProgress()): BetaOnboardingNudge {
+  const nextStep = progress.steps.find((step) => !step.completed)
+  if (!nextStep) {
+    return {
+      completed: true,
+      title: 'Beta setup complete',
+      body: 'Your profile, watchlist, notifications, and outcome loop are ready for beta testing.',
+      href: '/plan',
+      ctaLabel: 'Plan a trip',
+      progressLabel: `${progress.completedCount}/${progress.totalCount} ready`
+    }
+  }
+
+  return {
+    completed: false,
+    title: 'Finish beta setup',
+    body: nextStep.detail,
+    href: nextStep.href,
+    ctaLabel: nextStep.label,
+    progressLabel: `${progress.completedCount}/${progress.totalCount} ready`
   }
 }
 

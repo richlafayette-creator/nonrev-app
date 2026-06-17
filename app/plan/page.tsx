@@ -16,6 +16,7 @@ import { calculatePredictionEngine } from '../../lib/predictionEngine'
 import { buildDisruptionIntelligence, routeHealthColor, type DisruptionIntelligence } from '../../lib/disruptionIntelligence'
 import { calculateRouteConfidence, confidenceBadgeColor, confidenceTrendColor, confidenceUpdateTriggerLabel, type ConfidenceTrend, type ConfidenceUpdateTrigger, type RouteConfidence } from '../../lib/routeConfidence'
 import { calculateSuccessPrediction, type CarrierCoverage, type RecoveryStrength as PredictionRecoveryStrength, type ScheduleDensity, type SuccessPrediction, type SuccessPredictionInput } from '../../lib/successPredictionEngine'
+import { calculatePersonalSuccessPrediction, type PersonalSuccessPrediction } from '../../lib/personalSuccessPredictor'
 import { getRouteWeatherRisk, weatherRiskColor, type WeatherRisk } from '../../lib/weatherIntelligence'
 import { defaultTravelerProfile, loadTravelerProfileFromStorage, travelerProfileAssumptions, type TravelerProfileScaffold } from '../../lib/travelerProfile'
 import { useVoiceInput } from '../../lib/useVoiceInput'
@@ -481,6 +482,7 @@ type ItineraryComparison = {
   disruption: DisruptionIntelligence
   routeConfidence: RouteConfidence
   successPrediction: SuccessPrediction
+  personalSuccessPrediction: PersonalSuccessPrediction
   loadSupport: NonNullable<SuccessPredictionInput['loadData']>
   weatherRisk: WeatherRisk
   airportIntelligence: RouteAirportIntelligence
@@ -909,6 +911,27 @@ function recoveryStrengthForComparison(backupAvailability: string, disruption: D
   return 'Limited'
 }
 
+function communityLoadForPersonalPrediction(
+  loadSupport: NonNullable<SuccessPredictionInput['loadData']>,
+  communityIntelligence: CommunityLoadIntelligence | null
+) {
+  return {
+    seatsAvailable: loadSupport.seatsAvailable,
+    standbyCount: loadSupport.standbyCount,
+    status: loadSupport.status,
+    confidence: communityIntelligence?.communityConfidence,
+    reportCount: communityIntelligence?.reportCount,
+    freshness: communityIntelligence?.freshness,
+    detail: loadSupport.detail || communityIntelligence?.loadImpactExplanation[0]
+  }
+}
+
+function routeFrequencyForPersonalPrediction(scheduleDensity: ScheduleDensity, backupOptions: number): 'High' | 'Medium' | 'Low' {
+  if (scheduleDensity === 'High' || backupOptions >= 4) return 'High'
+  if (scheduleDensity === 'Medium' || backupOptions >= 2) return 'Medium'
+  return 'Low'
+}
+
 
 function availabilityStrengthScore(value: string) {
   if (value === 'Excellent') return 92
@@ -1092,6 +1115,10 @@ function buildLiveItineraryComparison(
     updateTrigger
   })
   const totalTravelTime = totalTravelTimeFromItinerary(itinerary)
+  const carrierCoverage = carrierCoverageForComparison(itinerary.carrier, itinerary.providerBadges)
+  const scheduleDensity = scheduleDensityForComparison(connections, airportIntelligence.backupFlightAvailability, totalTravelTime)
+  const recoveryStrength = recoveryStrengthForComparison(airportIntelligence.backupFlightAvailability, disruption)
+  const backupOptionCount = alternateRoutingOptionsInput(airportIntelligence)
   const successPrediction = calculateSuccessPrediction({
     route: itinerary.route,
     baseSuccessProbability: successProbability,
@@ -1099,13 +1126,29 @@ function buildLiveItineraryComparison(
     connectionCount: connections,
     totalTravelTime,
     backupAvailability: airportIntelligence.backupFlightAvailability,
-    carrierCoverage: carrierCoverageForComparison(itinerary.carrier, itinerary.providerBadges),
-    scheduleDensity: scheduleDensityForComparison(connections, airportIntelligence.backupFlightAvailability, totalTravelTime),
-    recoveryStrength: recoveryStrengthForComparison(airportIntelligence.backupFlightAvailability, disruption),
+    carrierCoverage,
+    scheduleDensity,
+    recoveryStrength,
     routeRisk: riskLevel,
     travelerProfile,
     historicalLoadSignal: loadAdjustment,
     loadData: loadSupport
+  })
+  const personalSuccessPrediction = calculatePersonalSuccessPrediction({
+    airline: itinerary.carrier,
+    route: itinerary.route,
+    passPriority: travelerProfile.passPriority,
+    travelerType: travelerProfile.travelerType,
+    travelerProfile,
+    communityLoad: communityLoadForPersonalPrediction(loadSupport, communityIntelligence),
+    historicalRouteBehavior: { successRate: historicalSuccess, score: historicalScore, reportCount: historicalRoute?.reportCount || predictionEngine.sampleSize.historicalRouteReports },
+    departureDateTime: itinerary.legs[0]?.departureTime || itinerary.departureTime || 'Pending',
+    backupOptionCount,
+    recoveryNetworkStrength: recoveryStrength,
+    routeFrequency: routeFrequencyForPersonalPrediction(scheduleDensity, backupOptionCount),
+    backupAvailability: airportIntelligence.backupFlightAvailability,
+    connectionCount: connections,
+    routeConfidenceScore: routeConfidence.score
   })
   const nextGenSuccess = buildNextGenSuccessScore({
     route: itinerary.route,
@@ -1173,6 +1216,7 @@ function buildLiveItineraryComparison(
     disruption,
     routeConfidence,
     successPrediction,
+    personalSuccessPrediction,
     loadSupport,
     weatherRisk,
     airportIntelligence,
@@ -1264,6 +1308,10 @@ function buildFallbackItineraryComparison(
     updateTrigger
   })
   const totalTravelTime = fallbackTravelTimeEstimate(itinerary)
+  const carrierCoverage = carrierCoverageForComparison(carrierLabel, ['Planning fallback'])
+  const scheduleDensity = scheduleDensityForComparison(connections, airportIntelligence.backupFlightAvailability, totalTravelTime)
+  const recoveryStrength = recoveryStrengthForComparison(airportIntelligence.backupFlightAvailability, disruption)
+  const backupOptionCount = alternateRoutingOptionsInput(airportIntelligence)
   const successPrediction = calculateSuccessPrediction({
     route: itinerary.route,
     baseSuccessProbability: successProbability,
@@ -1271,13 +1319,29 @@ function buildFallbackItineraryComparison(
     connectionCount: connections,
     totalTravelTime,
     backupAvailability: airportIntelligence.backupFlightAvailability,
-    carrierCoverage: carrierCoverageForComparison(carrierLabel, ['Planning fallback']),
-    scheduleDensity: scheduleDensityForComparison(connections, airportIntelligence.backupFlightAvailability, totalTravelTime),
-    recoveryStrength: recoveryStrengthForComparison(airportIntelligence.backupFlightAvailability, disruption),
+    carrierCoverage,
+    scheduleDensity,
+    recoveryStrength,
     routeRisk: riskLevel,
     travelerProfile,
     historicalLoadSignal: loadAdjustment,
     loadData: loadSupport
+  })
+  const personalSuccessPrediction = calculatePersonalSuccessPrediction({
+    airline: carrierLabel,
+    route: itinerary.route,
+    passPriority: travelerProfile.passPriority,
+    travelerType: travelerProfile.travelerType,
+    travelerProfile,
+    communityLoad: communityLoadForPersonalPrediction(loadSupport, communityIntelligence),
+    historicalRouteBehavior: { successRate: historicalSuccess, score: historicalScore, reportCount: historicalRoute?.reportCount || predictionEngine.sampleSize.historicalRouteReports },
+    departureDateTime: itinerary.window || 'Flexible',
+    backupOptionCount,
+    recoveryNetworkStrength: recoveryStrength,
+    routeFrequency: routeFrequencyForPersonalPrediction(scheduleDensity, backupOptionCount),
+    backupAvailability: airportIntelligence.backupFlightAvailability,
+    connectionCount: connections,
+    routeConfidenceScore: routeConfidence.score
   })
   const nextGenSuccess = buildNextGenSuccessScore({
     route: itinerary.route,
@@ -1342,6 +1406,7 @@ function buildFallbackItineraryComparison(
     disruption,
     routeConfidence,
     successPrediction,
+    personalSuccessPrediction,
     loadSupport,
     weatherRisk,
     airportIntelligence,
@@ -1623,6 +1688,7 @@ function itineraryDepartureSortValue(comparison: ItineraryComparison) {
 
 function sortCompactItineraries(comparisons: ItineraryComparison[]) {
   return [...comparisons].sort((a, b) =>
+    b.personalSuccessPrediction.probability - a.personalSuccessPrediction.probability ||
     b.nextGenSuccess.score - a.nextGenSuccess.score ||
     b.successPrediction.probability - a.successPrediction.probability ||
     b.routeConfidence.score - a.routeConfidence.score ||
@@ -3396,6 +3462,14 @@ function ItineraryComparisonPanel({ comparisons, travelDate, communityLoads, onC
               <p><strong>Top positives:</strong> {comparison.nextGenSuccess.topPositiveFactors.map((factor) => factor.detail).join(' · ')}</p>
               <p><strong>Top risk:</strong> {comparison.nextGenSuccess.topRiskFactor.detail}</p>
               <p><strong>Load:</strong> {rowLoadIntelligenceLabel(comparison)}</p>
+              <details className="nonrevy-premium-details" style={{ border: '1px solid #334155', borderRadius: 12, padding: 10, background: '#020617', marginTop: 10 }}>
+                <summary style={{ color: '#38bdf8', cursor: 'pointer', fontWeight: 'bold' }}>Personal Success Predictor</summary>
+                <p><strong>Estimated Success:</strong> {comparison.personalSuccessPrediction.probability}% · <strong>Confidence:</strong> {comparison.personalSuccessPrediction.confidence}</p>
+                <strong>Why:</strong>
+                <ul>
+                  {comparison.personalSuccessPrediction.why.map((reason) => <li key={`${comparison.id}-personal-${reason}`}>{reason}</li>)}
+                </ul>
+              </details>
               {comparison.nextGenSuccess.communityIntelligenceImpact ? <p><strong>Community scoring:</strong> {comparison.nextGenSuccess.communityIntelligenceImpact.reportCount} report{comparison.nextGenSuccess.communityIntelligenceImpact.reportCount === 1 ? '' : 's'} blended at up to {comparison.nextGenSuccess.communityIntelligenceImpact.maxWeight}% of score · base {comparison.nextGenSuccess.communityIntelligenceImpact.baseScore}/100 → community-adjusted {comparison.nextGenSuccess.communityIntelligenceImpact.blendedScore}/100.{comparison.nextGenSuccess.communityIntelligenceImpact.scoreCap ? ` Score capped at ${comparison.nextGenSuccess.communityIntelligenceImpact.scoreCap} by load margin guardrails.` : ''}</p> : null}
               {communityIntelligence ? <p>{communityLoadImpactSummary(communityIntelligence)}</p> : null}
               <p>{comparison.successPrediction.loadExplanation}</p>

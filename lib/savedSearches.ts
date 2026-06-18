@@ -1,3 +1,5 @@
+import { accountPersistenceFetch } from './accountPersistenceClient'
+
 export const savedSearchesStorageKey = 'nonrevy_saved_searches_v1'
 
 export type SavedSearchKind = 'route-search' | 'ai-trip'
@@ -57,6 +59,26 @@ export function loadSavedSearches(): SavedSearch[] {
   }
 }
 
+function persistSavedSearches(searches: SavedSearch[]) {
+  if (!storageAvailable()) return searches
+  const saved = searches
+    .sort((a, b) => Date.parse(b.updatedAt || b.createdAt) - Date.parse(a.updatedAt || a.createdAt))
+    .slice(0, 25)
+  window.localStorage.setItem(savedSearchesStorageKey, JSON.stringify(saved))
+  window.dispatchEvent(new Event('nonrevy-saved-searches-updated'))
+  return saved
+}
+
+function mergeSavedSearches(searches: SavedSearch[]) {
+  const merged = new Map<string, SavedSearch>()
+  searches
+    .sort((a, b) => Date.parse(b.updatedAt || b.createdAt) - Date.parse(a.updatedAt || a.createdAt))
+    .forEach((search) => {
+      if (!merged.has(search.id)) merged.set(search.id, search)
+    })
+  return [...merged.values()].slice(0, 25)
+}
+
 export function saveSavedSearch(input: { query: string; kind: SavedSearchKind; carrier?: string; label?: string }): SavedSearch | null {
   if (!storageAvailable()) return null
   const query = normalizeQuery(input.query)
@@ -78,18 +100,15 @@ export function saveSavedSearch(input: { query: string; kind: SavedSearchKind; c
     runCount: previous?.runCount || 0
   }
 
-  const deduped = existing.filter((item) => item.id !== id)
-  const saved = [next, ...deduped].slice(0, 25)
-  window.localStorage.setItem(savedSearchesStorageKey, JSON.stringify(saved))
-  window.dispatchEvent(new Event('nonrevy-saved-searches-updated'))
+  persistSavedSearches([next, ...existing.filter((item) => item.id !== id)])
+  void syncSavedSearch(next)
   return next
 }
 
 export function removeSavedSearch(id: string) {
   if (!storageAvailable()) return []
-  const searches = loadSavedSearches().filter((item) => item.id !== id)
-  window.localStorage.setItem(savedSearchesStorageKey, JSON.stringify(searches))
-  window.dispatchEvent(new Event('nonrevy-saved-searches-updated'))
+  const searches = persistSavedSearches(loadSavedSearches().filter((item) => item.id !== id))
+  void accountPersistenceFetch<{ removed?: boolean }>(`/api/saved-searches/${encodeURIComponent(id)}`, { method: 'DELETE' })
   return searches
 }
 
@@ -107,9 +126,26 @@ export function markSavedSearchRun(id: string) {
     }
     return updatedSearch
   })
-  window.localStorage.setItem(savedSearchesStorageKey, JSON.stringify(searches))
-  window.dispatchEvent(new Event('nonrevy-saved-searches-updated'))
+  persistSavedSearches(searches)
+  if (updatedSearch) void syncSavedSearch(updatedSearch)
   return updatedSearch
+}
+
+export async function syncSavedSearch(search: SavedSearch) {
+  return accountPersistenceFetch<{ search?: SavedSearch; searches?: SavedSearch[]; storageMode?: string; status?: string; detail?: string }>('/api/saved-searches', {
+    method: 'POST',
+    body: JSON.stringify({ search })
+  })
+}
+
+export async function syncSavedSearches() {
+  const localSearches = loadSavedSearches()
+  const result = await accountPersistenceFetch<{ searches?: SavedSearch[]; storageMode?: string; status?: string; detail?: string }>('/api/saved-searches', {
+    method: 'POST',
+    body: JSON.stringify({ searches: localSearches })
+  })
+  const merged = persistSavedSearches(mergeSavedSearches([...(result?.searches || []), ...localSearches]))
+  return { searches: merged, storageMode: result?.storageMode || 'local-fallback', status: result?.status || 'local-fallback', detail: result?.detail || 'Local saved search fallback is active.' }
 }
 
 export function savedSearchRunUrl(search: SavedSearch) {

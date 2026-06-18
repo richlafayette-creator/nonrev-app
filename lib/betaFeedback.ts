@@ -1,3 +1,5 @@
+import { accountPersistenceFetch } from './accountPersistenceClient'
+
 export const betaFeedbackStorageKey = 'nonrevy.betaFeedback'
 
 export type BetaFeedbackCategory = 'Wrong result' | 'Confusing UI' | 'Missing feature' | 'Bug' | 'Praise' | 'Other'
@@ -69,11 +71,19 @@ export function loadBetaFeedback() {
   }
 }
 
+function mergeFeedbackRecords(records: BetaFeedbackRecord[]) {
+  const merged = new Map<string, BetaFeedbackRecord>()
+  records
+    .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
+    .forEach((record) => {
+      if (!merged.has(record.id)) merged.set(record.id, record)
+    })
+  return [...merged.values()].slice(0, 100)
+}
+
 function saveBetaFeedback(records: BetaFeedbackRecord[]) {
   if (!isBrowser()) return records
-  const trimmed = records
-    .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
-    .slice(0, 100)
+  const trimmed = mergeFeedbackRecords(records)
   window.localStorage.setItem(betaFeedbackStorageKey, JSON.stringify(trimmed))
   window.dispatchEvent(new Event('nonrevy-beta-feedback-updated'))
   return trimmed
@@ -90,15 +100,37 @@ export function submitBetaFeedback(draft: BetaFeedbackDraft) {
   })
   if (!normalized) return null
   saveBetaFeedback([normalized, ...loadBetaFeedback()])
+  void persistBetaFeedbackRecord(normalized)
   return normalized
 }
 
 export function markBetaFeedbackReviewed(id: string) {
-  return saveBetaFeedback(loadBetaFeedback().map((item) => item.id === id ? { ...item, status: 'reviewed' } : item))
+  const records = saveBetaFeedback(loadBetaFeedback().map((item) => item.id === id ? { ...item, status: 'reviewed' } : item))
+  const updated = records.find((item) => item.id === id)
+  if (updated) void persistBetaFeedbackRecord(updated)
+  return records
 }
 
 export function clearBetaFeedback() {
+  void accountPersistenceFetch<{ cleared?: boolean }>('/api/beta-feedback', { method: 'DELETE' })
   return saveBetaFeedback([])
+}
+
+export async function persistBetaFeedbackRecord(record: BetaFeedbackRecord) {
+  return accountPersistenceFetch<{ record?: BetaFeedbackRecord; records?: BetaFeedbackRecord[]; storageMode?: string; status?: string; detail?: string }>('/api/beta-feedback', {
+    method: 'POST',
+    body: JSON.stringify({ record })
+  })
+}
+
+export async function syncBetaFeedback() {
+  const localRecords = loadBetaFeedback()
+  const result = await accountPersistenceFetch<{ records?: BetaFeedbackRecord[]; storageMode?: string; status?: string; detail?: string }>('/api/beta-feedback', {
+    method: 'POST',
+    body: JSON.stringify({ records: localRecords })
+  })
+  const merged = saveBetaFeedback(mergeFeedbackRecords([...(result?.records || []), ...localRecords]))
+  return { records: merged, storageMode: result?.storageMode || 'local-fallback', status: result?.status || 'local-fallback', detail: result?.detail || 'Local beta feedback fallback is active.' }
 }
 
 export function betaFeedbackSummary(records = loadBetaFeedback()) {

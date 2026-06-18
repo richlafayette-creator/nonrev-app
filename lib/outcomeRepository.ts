@@ -1,3 +1,4 @@
+import { accountPersistenceFetch } from './accountPersistenceClient'
 import { supabase } from './supabase'
 import { defaultTravelerProfile, loadTravelerProfileFromStorage, type TravelerProfileScaffold } from './travelerProfile'
 
@@ -142,7 +143,7 @@ function writeHealth(patch: Partial<OutcomeRepositoryHealthRecord>) {
 }
 
 function databaseConfigured() {
-  return Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
+  return isBrowser()
 }
 
 export function normalizeTripOutcome(outcome: Partial<TripOutcome> & CreateTripOutcomeInput): TripOutcome {
@@ -374,30 +375,23 @@ export async function syncOutcomeRepository(options: { reason?: 'auto' | 'manual
   writeHealth({ lastSyncStatus: 'syncing', lastError: undefined })
 
   try {
-    const userId = await currentUserId()
     const localOutcomes = localOutcomeRepository.list()
-    const existingDatabaseOutcomes = await fetchDatabaseOutcomes(userId)
-    const databaseFingerprints = new Set(existingDatabaseOutcomes.map(outcomeFingerprint))
-    const completedFingerprints = new Set(readHealth().migrationCompletedFingerprints)
     const optimistic = options.optimisticOutcome ? [options.optimisticOutcome] : []
     const candidates = mergeOutcomeLists(optimistic, localOutcomes)
-    const toMigrate = candidates.filter((outcome) => {
-      const fingerprint = outcomeFingerprint(outcome)
-      return !databaseFingerprints.has(fingerprint) && !completedFingerprints.has(fingerprint)
+    const result = await accountPersistenceFetch<{ outcomes?: TripOutcome[]; storageMode?: string; status?: string; detail?: string }>('/api/outcomes', {
+      method: 'POST',
+      body: JSON.stringify({ outcomes: candidates })
     })
+    if (!result || result.storageMode !== 'supabase') throw new Error(result?.detail || 'Account outcome persistence is using local fallback.')
 
-    for (const outcome of toMigrate) {
-      await insertOutcomeToDatabase(outcome, userId)
-      completedFingerprints.add(outcomeFingerprint(outcome))
-    }
-
-    const refreshedDatabaseOutcomes = await fetchDatabaseOutcomes(userId)
+    const refreshedDatabaseOutcomes = (result.outcomes || []).map((outcome) => normalizeTripOutcome({ ...outcome, source: 'Database' } as TripOutcome))
+    const databaseFingerprints = new Set(refreshedDatabaseOutcomes.map(outcomeFingerprint))
     persistDatabaseMirror(refreshedDatabaseOutcomes)
     writeHealth({
       lastSyncAt: new Date().toISOString(),
       lastSyncStatus: 'synced',
       lastError: undefined,
-      migrationCompletedFingerprints: Array.from(completedFingerprints).slice(-1000)
+      migrationCompletedFingerprints: Array.from(databaseFingerprints).slice(-1000)
     })
     window.dispatchEvent(new Event('nonrevy-trip-outcomes-updated'))
   } catch (error) {

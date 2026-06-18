@@ -8,6 +8,7 @@ import {
   removeSavedSearch,
   saveSavedSearch,
   savedSearchRunUrl,
+  syncSavedSearches,
   type SavedSearch,
   type SavedSearchKind
 } from '../../lib/savedSearches'
@@ -29,7 +30,7 @@ export default function SavedSearchesPage() {
   const [query, setQuery] = useState('LAX to HNL tomorrow')
   const [label, setLabel] = useState('')
   const [carrier, setCarrier] = useState('all')
-  const [status, setStatus] = useState('Saved searches stay local to this browser for now.')
+  const [status, setStatus] = useState('Saved searches sync to your beta account when available, with local fallback.')
 
   function refreshSavedSearches() {
     setSavedSearches(loadSavedSearches())
@@ -37,6 +38,10 @@ export default function SavedSearchesPage() {
 
   useEffect(() => {
     refreshSavedSearches()
+    void syncSavedSearches().then((result) => {
+      setSavedSearches(result.searches)
+      setStatus(result.storageMode === 'supabase' ? 'Saved searches synced to beta account.' : result.detail)
+    })
     window.addEventListener('nonrevy-saved-searches-updated', refreshSavedSearches)
     window.addEventListener('storage', refreshSavedSearches)
     return () => {

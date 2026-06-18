@@ -10,6 +10,7 @@ import {
   loadBetaFeedback,
   markBetaFeedbackReviewed,
   submitBetaFeedback,
+  syncBetaFeedback,
   type BetaFeedbackCategory,
   type BetaFeedbackRecord,
   type BetaFeedbackSentiment
@@ -43,7 +44,7 @@ export default function BetaFeedbackPage() {
   const [message, setMessage] = useState('')
   const [contact, setContact] = useState('')
   const [pageUrl, setPageUrl] = useState('')
-  const [status, setStatus] = useState('Private beta feedback is saved locally until you choose to export it.')
+  const [status, setStatus] = useState('Private beta feedback syncs to your beta account when available, with local fallback.')
 
   function refreshFeedback() {
     setRecords(loadBetaFeedback())
@@ -52,6 +53,10 @@ export default function BetaFeedbackPage() {
   useEffect(() => {
     refreshFeedback()
     setPageUrl(window.location.href)
+    void syncBetaFeedback().then((result) => {
+      setRecords(result.records)
+      setStatus(result.storageMode === 'supabase' ? 'Feedback synced to beta account.' : result.detail)
+    })
     window.addEventListener('nonrevy-beta-feedback-updated', refreshFeedback)
     window.addEventListener('storage', refreshFeedback)
     return () => {

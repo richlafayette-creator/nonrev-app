@@ -1,6 +1,7 @@
 -- Persistent watchlists and alerts for beta cross-device sync.
 -- Apply manually in Supabase. Server API uses SUPABASE_SERVICE_ROLE_KEY and stores each user's
 -- watch/alert payload under a service-derived user/device owner key.
+-- Also apply docs/account-beta-persistence.sql for saved searches, beta feedback, and outcomes.
 
 create table if not exists public.nonrevy_watchlist_items (
   id text primary key,

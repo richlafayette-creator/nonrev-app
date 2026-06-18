@@ -3,7 +3,7 @@
 import { type FormEvent, useEffect, useState } from 'react'
 import { useVoiceInput } from '../lib/useVoiceInput'
 import { betaOnboardingNudge, calculateActivationProgress, markActivationStep, type BetaOnboardingNudge } from '../lib/onboardingActivation'
-import { loadSavedSearches, markSavedSearchRun, saveSavedSearch, savedSearchRunUrl, type SavedSearch } from '../lib/savedSearches'
+import { loadSavedSearches, markSavedSearchRun, saveSavedSearch, savedSearchRunUrl, syncSavedSearches, type SavedSearch } from '../lib/savedSearches'
 
 const searchExamples = [
   'LAX to HND tomorrow',
@@ -59,6 +59,7 @@ export default function Home() {
     }
     setRecentSearches(loadRecentHomeSearches())
     refreshHomeState()
+    void syncSavedSearches().then(() => refreshSavedSearches())
     window.addEventListener('nonrevy-saved-searches-updated', refreshHomeState)
     window.addEventListener('nonrevy-onboarding-updated', refreshBetaOnboarding)
     window.addEventListener('nonrevy-activation-progress-updated', refreshBetaOnboarding)

@@ -334,6 +334,14 @@ type ItinerarySearchOverrides = {
   travelWindow?: string
 }
 
+type SearchTrustReceiptProps = {
+  dataMode: string
+  source: string
+  status: string
+  warnings: string[]
+  debug: ItineraryDebugMetadata | null
+}
+
 function riskColor(risk: string) {
   if (risk.includes('Low')) return '#22c55e'
   if (risk.includes('Medium')) return '#facc15'
@@ -3127,7 +3135,7 @@ function initialCommunityLoadForm(comparison: ItineraryComparison, travelDate: s
   }
 }
 
-function ItineraryComparisonPanel({ comparisons, travelDate, communityLoads, onCommunityLoadsUpdated }: { comparisons: ItineraryComparison[]; travelDate: string; communityLoads: CommunityLoadReport[]; onCommunityLoadsUpdated: () => void }) {
+function ItineraryComparisonPanel({ comparisons, travelDate, communityLoads, onCommunityLoadsUpdated, trustReceipt }: { comparisons: ItineraryComparison[]; travelDate: string; communityLoads: CommunityLoadReport[]; onCommunityLoadsUpdated: () => void; trustReceipt: SearchTrustReceiptProps }) {
   const [watchStatus, setWatchStatus] = useState('')
   const [compareStatus, setCompareStatus] = useState('')
   const [savedComparisons, setSavedComparisons] = useState<SavedItineraryComparison[]>([])
@@ -3323,7 +3331,7 @@ function ItineraryComparisonPanel({ comparisons, travelDate, communityLoads, onC
   const compactItineraries = sortCompactItineraries(comparisons)
   const routeInsights = buildRouteIntelligenceInsights(compactItineraries)
 
-  function renderExpandControls(position: 'top' | 'bottom') {
+function renderExpandControls(position: 'top' | 'bottom') {
     return (
       <div className={`nonrevy-flight-board__expand-actions nonrevy-flight-board__expand-actions--${position}`} aria-label={`${position} flight board expansion controls`}>
         <button type="button" onClick={() => setExpandedDetailIds(compactItineraries.map((item) => item.id))}>Expand All</button>
@@ -3332,7 +3340,82 @@ function ItineraryComparisonPanel({ comparisons, travelDate, communityLoads, onC
     )
   }
 
-  function renderFlightBoardRow(comparison: ItineraryComparison) {
+function searchTrustReceiptTone(dataMode: string, debug: ItineraryDebugMetadata | null) {
+  const normalizedMode = dataMode.toLowerCase()
+  if (debug?.trueLiveDataAvailable || normalizedMode.includes('live provider')) {
+    return {
+      label: 'Live data checked',
+      color: '#22c55e',
+      border: 'rgba(34, 197, 94, 0.42)',
+      background: 'rgba(20, 83, 45, 0.20)',
+      message: 'Rankings are using current provider data where available. Still verify final loads before leaving for the airport.'
+    }
+  }
+  if (normalizedMode.includes('stored supabase')) {
+    return {
+      label: 'Stored schedule data',
+      color: '#38bdf8',
+      border: 'rgba(56, 189, 248, 0.40)',
+      background: 'rgba(8, 47, 73, 0.24)',
+      message: 'Rankings use stored schedule rows and local signals. Treat load confidence as planning guidance until a fresh load is confirmed.'
+    }
+  }
+  if (normalizedMode.includes('no current')) {
+    return {
+      label: 'No live rows shown',
+      color: '#facc15',
+      border: 'rgba(250, 204, 21, 0.42)',
+      background: 'rgba(113, 63, 18, 0.24)',
+      message: 'No current live itinerary data is confirmed for this search. Use alternate dates, broader carrier scope, or request a load.'
+    }
+  }
+  if (normalizedMode.includes('demo') || normalizedMode.includes('test') || normalizedMode.includes('nearest')) {
+    return {
+      label: 'Testing data',
+      color: '#f472b6',
+      border: 'rgba(244, 114, 182, 0.42)',
+      background: 'rgba(131, 24, 67, 0.22)',
+      message: 'These rows may include testing or nearest-date data. Useful for beta QA, not airport-day decisions.'
+    }
+  }
+  return {
+    label: 'Planning guidance',
+    color: '#94a3b8',
+    border: 'rgba(148, 163, 184, 0.30)',
+    background: 'rgba(15, 23, 42, 0.72)',
+    message: 'Use these rankings as planning guidance and verify critical load details before travel.'
+  }
+}
+
+function SearchTrustReceipt({ dataMode, source, status, warnings, debug }: SearchTrustReceiptProps) {
+  const tone = searchTrustReceiptTone(dataMode, debug)
+  const providerNote = debug?.trueLiveDataAvailable
+    ? 'Current provider API data confirmed for this result set.'
+    : debug?.trueLiveDataUnavailableReason || 'Provider availability details are kept in diagnostics.'
+  const freshnessNotes = debug?.dataFreshnessExplanation || []
+  const pipelineNotes = [...new Set([...warnings, ...freshnessNotes, ...(debug?.providerExplanation || [])])].slice(0, 6)
+
+  return (
+    <aside className="nonrevy-search-trust-receipt" style={{ borderColor: tone.border, background: tone.background }} aria-label="Search result trust summary">
+      <div className="nonrevy-search-trust-receipt__topline">
+        <strong style={{ color: tone.color }}>{tone.label}</strong>
+        <span>{dataMode}</span>
+      </div>
+      <p>{tone.message}</p>
+      <details>
+        <summary>Trust details</summary>
+        <ul>
+          <li>Source: {source}</li>
+          <li>Status: {status}</li>
+          <li>{providerNote}</li>
+          {pipelineNotes.map((note) => <li key={note}>{note}</li>)}
+        </ul>
+      </details>
+    </aside>
+  )
+}
+
+function renderFlightBoardRow(comparison: ItineraryComparison) {
     const index = compactItineraries.findIndex((item) => item.id === comparison.id)
     const rankIndex = index >= 0 ? index : 0
     const nextBackup = compactItineraries[index + 1] || compactItineraries.find((item) => item.id !== comparison.id)
@@ -3604,6 +3687,8 @@ function ItineraryComparisonPanel({ comparisons, travelDate, communityLoads, onC
         <strong>Flight board</strong>
         <span>Ranked by nonrev success score · schedule is secondary</span>
       </div>
+
+      <SearchTrustReceipt {...trustReceipt} />
 
       {watchStatus && <p className="nonrevy-compact-results__status nonrevy-compact-results__status--watch">{watchStatus} <a href="/watchlist">Open watchlist</a></p>}
       {compareStatus && <p className="nonrevy-compact-results__status nonrevy-compact-results__status--save">{compareStatus}</p>}
@@ -4080,7 +4165,7 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
 
           {itineraryLoading ? <PlannerSkeletonLoaders /> : null}
           {showProductionEmptyState ? <ProductionEmptyState reasons={productionEmptyReasons} /> : null}
-          {itineraryComparisons.length > 0 ? <ItineraryComparisonPanel comparisons={itineraryComparisons} travelDate={travelWindow} communityLoads={communityLoads} onCommunityLoadsUpdated={() => setCommunityLoads(loadCommunityLoads())} /> : null}
+          {itineraryComparisons.length > 0 ? <ItineraryComparisonPanel comparisons={itineraryComparisons} travelDate={travelWindow} communityLoads={communityLoads} onCommunityLoadsUpdated={() => setCommunityLoads(loadCommunityLoads())} trustReceipt={{ dataMode: itineraryDataMode, source: itinerarySource, status: itineraryStatus, warnings: itineraryWarnings, debug: itineraryDebug }} /> : null}
 
           <details className="nonrevy-results-page__below">
             <summary>Copilot, search settings, and diagnostics</summary>
@@ -4211,7 +4296,7 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
           ) : null}
           {itineraryLoading ? <PlannerSkeletonLoaders /> : null}
           {showProductionEmptyState ? <ProductionEmptyState reasons={productionEmptyReasons} /> : null}
-          {itineraryComparisons.length > 0 ? <ItineraryComparisonPanel comparisons={itineraryComparisons} travelDate={travelWindow} communityLoads={communityLoads} onCommunityLoadsUpdated={() => setCommunityLoads(loadCommunityLoads())} /> : null}
+          {itineraryComparisons.length > 0 ? <ItineraryComparisonPanel comparisons={itineraryComparisons} travelDate={travelWindow} communityLoads={communityLoads} onCommunityLoadsUpdated={() => setCommunityLoads(loadCommunityLoads())} trustReceipt={{ dataMode: itineraryDataMode, source: itinerarySource, status: itineraryStatus, warnings: itineraryWarnings, debug: itineraryDebug }} /> : null}
         </section>
 
         <CopilotPanel

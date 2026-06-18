@@ -213,6 +213,15 @@ export default function Home() {
             </details>
           ) : null}
 
+          <details className="nonrevy-home__beta-feedback">
+            <summary>
+              <span>Private beta feedback</span>
+              <span>Local capture</span>
+            </summary>
+            <p>Report wrong rankings, confusing copy, bugs, or moments that helped. Nothing sends automatically.</p>
+            <a href="/beta-feedback">Open feedback capture</a>
+          </details>
+
           {message && <p className="nonrevy-home__message">{message}</p>}
         </div>
       </section>

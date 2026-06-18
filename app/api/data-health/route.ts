@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getLiveScheduleProviderReadiness, type LiveScheduleProviderKey, type ScheduleProviderReadiness } from '../../../lib/liveScheduleProviders'
+import { persistentBetaFeedbackTableName, persistentSavedSearchesTableName, persistentTripOutcomesTableName } from '../../../lib/accountBetaStore'
 import { providerResultTableName } from '../../../lib/providerResultRepository'
 
 export const dynamic = 'force-dynamic'
@@ -48,6 +49,31 @@ type ProviderPersistenceDiagnostics = {
   coverageBySourceProvider: ProviderSourceCoverage[]
   detail: string
   recommendedNextAction: string
+}
+
+
+type AccountPersistenceDiagnostics = {
+  status: 'ready' | 'missing-config' | 'unreachable'
+  storageMode: 'supabase' | 'local-fallback'
+  missingEnvironmentVariables: string[]
+  checkedTables: Array<{ table: string; reachable: boolean; recordCount: number | null; detail: string }>
+  detail: string
+  recommendedNextAction: string
+}
+
+type RouteFreshnessProbeDiagnostics = {
+  status: 'ready' | 'warning' | 'blocked'
+  probes: Array<{ key: string; status: 'ready' | 'warning' | 'blocked'; detail: string }>
+  detail: string
+  recommendedNextAction: string
+}
+
+type ProviderReadinessMatrixRow = {
+  provider: string
+  status: 'Ready' | 'Warning' | 'Missing'
+  missingEnvironmentVariables: string[]
+  fallbackBehavior: string
+  rateLimits: string
 }
 
 const timeoutMs = 5000
@@ -329,7 +355,7 @@ async function checkSupabaseFlights(): Promise<HealthItem> {
       return item({
         key: 'supabase-flight-data',
         label: 'Supabase flight data',
-        status: 'Error',
+        status: 'Limited',
         safeErrorMessage: safeMessage(message),
         recommendedFix: 'Verify Supabase credentials, REST access, and flights table permissions.',
         detail: 'Flights table probe failed.'
@@ -349,10 +375,10 @@ async function checkSupabaseFlights(): Promise<HealthItem> {
     return item({
       key: 'supabase-flight-data',
       label: 'Supabase flight data',
-      status: 'Error',
+      status: 'Limited',
       safeErrorMessage: safeMessage(error),
       recommendedFix: 'Check network access, Supabase URL, and service availability.',
-      detail: 'Supabase health check could not complete.'
+      detail: 'Supabase health check could not complete; stored/local fallback paths remain active.'
     })
   }
 }
@@ -403,7 +429,7 @@ async function checkSupabaseFlightFreshness(): Promise<HealthItem> {
       return item({
         key: 'supabase-flight-data-freshness',
         label: 'Supabase flight data freshness',
-        status: 'Error',
+        status: 'Limited',
         safeErrorMessage: safeMessage(message),
         recommendedFix: 'Verify the flights table exposes flight_date and source_checked_at columns.',
         detail: 'Stored flight data freshness probe failed.'
@@ -453,10 +479,10 @@ async function checkSupabaseFlightFreshness(): Promise<HealthItem> {
     return item({
       key: 'supabase-flight-data-freshness',
       label: 'Supabase flight data freshness',
-      status: 'Error',
+      status: 'Limited',
       safeErrorMessage: safeMessage(error),
       recommendedFix: 'Check network access, Supabase URL, and flights table availability.',
-      detail: 'Stored flight data freshness check could not complete.'
+      detail: 'Stored flight data freshness check could not complete; route cards keep source/date warning labels.'
     })
   }
 }
@@ -483,7 +509,7 @@ async function checkAviationstack(): Promise<HealthItem> {
       return item({
         key: 'aviationstack-fallback',
         label: 'Aviationstack fallback',
-        status: response.status === 429 ? 'Limited' : 'Error',
+        status: 'Limited',
         safeErrorMessage: safeMessage(message),
         recommendedFix: 'Verify Aviationstack plan status, quota, and API key configuration.',
         detail: 'Fallback provider probe returned an error.'
@@ -502,7 +528,7 @@ async function checkAviationstack(): Promise<HealthItem> {
     return item({
       key: 'aviationstack-fallback',
       label: 'Aviationstack fallback',
-      status: 'Error',
+      status: 'Limited',
       safeErrorMessage: safeMessage(error),
       recommendedFix: 'Check provider availability and outbound network access.',
       detail: 'Aviationstack health check could not complete.'
@@ -533,7 +559,7 @@ async function checkFlightAware(): Promise<HealthItem> {
       return item({
         key: 'flightaware-enrichment',
         label: 'FlightAware enrichment',
-        status: response.status === 429 ? 'Limited' : 'Error',
+        status: 'Limited',
         safeErrorMessage: safeMessage(message),
         recommendedFix: 'Verify AeroAPI key, entitlement, quota, and billing status.',
         detail: 'FlightAware enrichment probe returned an error.'
@@ -552,7 +578,7 @@ async function checkFlightAware(): Promise<HealthItem> {
     return item({
       key: 'flightaware-enrichment',
       label: 'FlightAware enrichment',
-      status: 'Error',
+      status: 'Limited',
       safeErrorMessage: safeMessage(error),
       recommendedFix: 'Check provider availability and outbound network access.',
       detail: 'FlightAware health check could not complete.'
@@ -727,6 +753,187 @@ function providerReadinessFromChecks(checks: HealthItem[]): ScheduleProviderRead
   return getLiveScheduleProviderReadiness({ overrides })
 }
 
+
+function supabasePersistenceConfig() {
+  const hasServerUrl = Boolean(process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL)
+  const hasAnonKey = Boolean(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
+  const hasServiceRoleKey = Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY)
+  const missingEnvironmentVariables = [
+    ...(!hasServerUrl ? ['SUPABASE_URL or NEXT_PUBLIC_SUPABASE_URL'] : []),
+    ...(!hasAnonKey ? ['NEXT_PUBLIC_SUPABASE_ANON_KEY'] : []),
+    ...(!hasServiceRoleKey ? ['SUPABASE_SERVICE_ROLE_KEY'] : [])
+  ]
+  return {
+    supabaseUrl: process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+    serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY || '',
+    hasServerUrl,
+    hasAnonKey,
+    hasServiceRoleKey,
+    missingEnvironmentVariables
+  }
+}
+
+async function accountPersistenceDiagnostics(): Promise<AccountPersistenceDiagnostics> {
+  const config = supabasePersistenceConfig()
+  const tableNames = [persistentSavedSearchesTableName, persistentBetaFeedbackTableName, persistentTripOutcomesTableName]
+
+  if (!config.hasServerUrl || !config.hasServiceRoleKey) {
+    return {
+      status: 'missing-config',
+      storageMode: 'local-fallback',
+      missingEnvironmentVariables: config.missingEnvironmentVariables,
+      checkedTables: tableNames.map((table) => ({ table, reachable: false, recordCount: null, detail: 'Skipped because server-side Supabase service persistence is not configured.' })),
+      detail: 'Account-backed beta persistence is not fully configured. Browser localStorage fallback remains active for saved searches, beta feedback, outcomes, watchlists, and alerts.',
+      recommendedNextAction: 'Set SUPABASE_SERVICE_ROLE_KEY server-side and apply docs/account-beta-persistence.sql plus docs/persistent-watchlists-alerts.sql before private beta cross-device persistence checks.'
+    }
+  }
+
+  const baseUrl = config.supabaseUrl.replace(/\/$/, '')
+  const checkedTables: AccountPersistenceDiagnostics['checkedTables'] = []
+
+  for (const table of tableNames) {
+    try {
+      const { response, data } = await fetchJsonWithTimeout(`${baseUrl}/rest/v1/${table}?select=id`, {
+        headers: providerResultHeaders(config.serviceRoleKey, { Prefer: 'count=exact', Range: '0-0' })
+      })
+      if (!response.ok) {
+        const message = typeof data === 'object' && data && 'message' in data ? String(data.message) : `Supabase returned ${response.status}`
+        checkedTables.push({ table, reachable: false, recordCount: null, detail: safeMessage(message) })
+        continue
+      }
+      checkedTables.push({ table, reachable: true, recordCount: parseExactCount(response, Array.isArray(data) ? data.length : 0), detail: 'Reachable with service-role REST diagnostics.' })
+    } catch (error) {
+      checkedTables.push({ table, reachable: false, recordCount: null, detail: safeMessage(error) })
+    }
+  }
+
+  const allReachable = checkedTables.every((entry) => entry.reachable)
+  return {
+    status: allReachable ? 'ready' : 'unreachable',
+    storageMode: allReachable ? 'supabase' : 'local-fallback',
+    missingEnvironmentVariables: config.missingEnvironmentVariables,
+    checkedTables,
+    detail: allReachable
+      ? 'Account-backed beta persistence tables are reachable with server-side service-role diagnostics.'
+      : 'At least one account persistence table was unreachable. Client features keep localStorage fallback active.',
+    recommendedNextAction: allReachable
+      ? 'No action needed beyond private beta monitoring.'
+      : 'Apply docs/account-beta-persistence.sql and verify service-role REST access for all account persistence tables.'
+  }
+}
+
+function checkSupabaseAccountPersistence(accountPersistence: AccountPersistenceDiagnostics): HealthItem {
+  if (accountPersistence.status === 'ready') {
+    return item({
+      key: 'supabase-account-persistence',
+      label: 'Supabase account persistence',
+      status: 'Connected',
+      safeErrorMessage: '',
+      recommendedFix: 'No action needed.',
+      detail: accountPersistence.detail
+    })
+  }
+
+  return item({
+    key: 'supabase-account-persistence',
+    label: 'Supabase account persistence',
+    status: accountPersistence.status === 'missing-config' ? 'Missing' : 'Limited',
+    safeErrorMessage: accountPersistence.missingEnvironmentVariables.length
+      ? `Missing ${accountPersistence.missingEnvironmentVariables.join(', ')}.`
+      : 'One or more Supabase account persistence tables could not be reached.',
+    recommendedFix: accountPersistence.recommendedNextAction,
+    detail: accountPersistence.detail
+  })
+}
+
+function routeFreshnessProbeDiagnostics(checks: HealthItem[]): RouteFreshnessProbeDiagnostics {
+  const byKey = new Map(checks.map((check) => [check.key, check]))
+  const flightAware = byKey.get('flightaware-enrichment')
+  const aviationstack = byKey.get('aviationstack-fallback')
+  const freshness = byKey.get('supabase-flight-data-freshness')
+  const anyLiveReady = flightAware?.status === 'Connected' || aviationstack?.status === 'Connected'
+  const storedFreshnessReady = freshness?.status === 'Connected'
+  const probes: RouteFreshnessProbeDiagnostics['probes'] = [
+    {
+      key: 'live-provider-requested-date-probe',
+      status: anyLiveReady ? 'ready' : 'warning',
+      detail: anyLiveReady
+        ? 'At least one live provider is reachable for requested-date route freshness checks.'
+        : 'No live provider is currently reachable; route freshness relies on stored-data labeling and local/demo-safe fallbacks.'
+    },
+    {
+      key: 'stored-route-freshness-probe',
+      status: storedFreshnessReady ? 'ready' : 'warning',
+      detail: freshness?.detail || 'Stored route freshness could not be verified.'
+    },
+    {
+      key: 'production-safe-fallback-probe',
+      status: testDataModeEnabled() ? 'warning' : 'ready',
+      detail: testDataModeEnabled()
+        ? 'NONREVY_TEST_DATA_MODE=true is enabled, so nearest-date/demo fallback route cards may appear for testing.'
+        : 'Production-safe mode is active; nearest-date/demo fallback route cards are blocked unless test mode is explicitly enabled.'
+    }
+  ]
+  const hasBlocked = probes.some((probe) => probe.status === 'blocked')
+  const hasWarning = probes.some((probe) => probe.status === 'warning')
+  return {
+    status: hasBlocked ? 'blocked' : hasWarning ? 'warning' : 'ready',
+    probes,
+    detail: hasWarning
+      ? 'Route freshness probes are operational with warnings. Existing itinerary responses should continue showing source/date labels and fallback warnings.'
+      : 'Route freshness probes are ready for live or exact-date/stored-data labeling.',
+    recommendedNextAction: hasWarning
+      ? 'Resolve live provider or stored freshness warnings before claiming private beta route results are fully live/current.'
+      : 'No action needed beyond monitoring provider freshness labels.'
+  }
+}
+
+function envMissing(names: string[]) {
+  return names.filter((name) => !process.env[name] && !(name === 'SUPABASE_URL' && process.env.NEXT_PUBLIC_SUPABASE_URL))
+}
+
+function providerReadinessMatrix(checks: HealthItem[], accountPersistence: AccountPersistenceDiagnostics, routeFreshness: RouteFreshnessProbeDiagnostics): ProviderReadinessMatrixRow[] {
+  const byKey = new Map(checks.map((check) => [check.key, check]))
+  const statusFor = (check?: HealthItem): ProviderReadinessMatrixRow['status'] => check?.status === 'Connected' ? 'Ready' : check?.status === 'Missing' ? 'Missing' : 'Warning'
+  return [
+    {
+      provider: 'FlightAware AeroAPI',
+      status: statusFor(byKey.get('flightaware-enrichment')),
+      missingEnvironmentVariables: envMissing(['FLIGHTAWARE_API_KEY']),
+      fallbackBehavior: 'Planner skips FlightAware safely, then uses stored Supabase rows, Aviationstack fallback, and test/demo fallback only when enabled.',
+      rateLimits: byKey.get('flightaware-enrichment')?.safeErrorMessage.toLowerCase().includes('rate limit') ? 'Warning from latest probe; check AeroAPI quota.' : 'Monitor AeroAPI quota/entitlements; 429 responses are treated as Limited warnings.'
+    },
+    {
+      provider: 'AviationStack',
+      status: statusFor(byKey.get('aviationstack-fallback')),
+      missingEnvironmentVariables: envMissing(['AVIATIONSTACK_API_KEY']),
+      fallbackBehavior: 'Fallback provider is skipped safely; planner continues with FlightAware, stored Supabase rows, and local/test-safe fallbacks.',
+      rateLimits: byKey.get('aviationstack-fallback')?.safeErrorMessage.toLowerCase().includes('rate limit') ? 'Warning from latest probe; check AviationStack plan quota.' : 'Monitor AviationStack plan limits; quota/rate-limit responses are treated as Limited warnings.'
+    },
+    {
+      provider: 'Mapbox',
+      status: statusFor(byKey.get('mapbox-maps')),
+      missingEnvironmentVariables: envMissing(['NEXT_PUBLIC_MAPBOX_TOKEN']),
+      fallbackBehavior: 'Airport map cards render a placeholder/context card instead of failing the page.',
+      rateLimits: byKey.get('mapbox-maps')?.safeErrorMessage.toLowerCase().includes('429') ? 'Warning from latest probe; check Mapbox quota.' : 'Monitor Mapbox account quota and URL restrictions; 429 responses are treated as Limited warnings.'
+    },
+    {
+      provider: 'Supabase persistence',
+      status: accountPersistence.status === 'ready' ? 'Ready' : accountPersistence.status === 'missing-config' ? 'Missing' : 'Warning',
+      missingEnvironmentVariables: accountPersistence.missingEnvironmentVariables,
+      fallbackBehavior: 'Saved searches, beta feedback, outcomes, watchlists, and alerts continue using browser localStorage/local fallback when server persistence is unavailable.',
+      rateLimits: 'Supabase REST diagnostics are bounded to count/range probes; monitor project API limits during beta traffic.'
+    },
+    {
+      provider: 'Route freshness probes',
+      status: routeFreshness.status === 'ready' ? 'Ready' : routeFreshness.status === 'blocked' ? 'Missing' : 'Warning',
+      missingEnvironmentVariables: [],
+      fallbackBehavior: 'Cards retain requested-date/source warnings; production-safe mode blocks nearest-date/demo availability unless test mode is enabled.',
+      rateLimits: 'Freshness probes reuse lightweight provider/Supabase diagnostics and do not add high-volume route search traffic.'
+    }
+  ]
+}
+
 async function checkMapbox(): Promise<HealthItem> {
   const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN
   if (!token) {
@@ -747,7 +954,7 @@ async function checkMapbox(): Promise<HealthItem> {
       return item({
         key: 'mapbox-maps',
         label: 'Mapbox maps',
-        status: response.status === 429 ? 'Limited' : 'Error',
+        status: 'Limited',
         safeErrorMessage: `Mapbox returned ${response.status}.`,
         recommendedFix: 'Verify Mapbox token scopes, URL restrictions, and account quota.',
         detail: 'Static map probe returned an error.'
@@ -766,7 +973,7 @@ async function checkMapbox(): Promise<HealthItem> {
     return item({
       key: 'mapbox-maps',
       label: 'Mapbox maps',
-      status: 'Error',
+      status: 'Limited',
       safeErrorMessage: safeMessage(error),
       recommendedFix: 'Check Mapbox availability and outbound network access.',
       detail: 'Mapbox health check could not complete.'
@@ -775,22 +982,29 @@ async function checkMapbox(): Promise<HealthItem> {
 }
 
 export async function GET() {
-  const checks = await Promise.all([
-    checkSupabaseFlights(),
-    checkSupabaseFlightFreshness(),
-    checkAviationstack(),
-    checkFlightAware(),
-    checkMapbox(),
-    Promise.resolve(checkProviderResultPersistence())
+  const [baseChecks, providerPersistence, accountPersistence] = await Promise.all([
+    Promise.all([
+      checkSupabaseFlights(),
+      checkSupabaseFlightFreshness(),
+      checkAviationstack(),
+      checkFlightAware(),
+      checkMapbox(),
+      Promise.resolve(checkProviderResultPersistence())
+    ]),
+    providerPersistenceDiagnostics(),
+    accountPersistenceDiagnostics()
   ])
-
-  const providerPersistence = await providerPersistenceDiagnostics()
+  const checks = [...baseChecks, checkSupabaseAccountPersistence(accountPersistence)]
+  const routeFreshnessProbes = routeFreshnessProbeDiagnostics(checks)
 
   return NextResponse.json({
     checkedAt: checkedAt(),
     checks,
     liveItineraryReadiness: buildLiveItineraryReadiness(checks),
     scheduleProviderReadiness: providerReadinessFromChecks(checks),
-    providerPersistence
+    providerPersistence,
+    accountPersistence,
+    routeFreshnessProbes,
+    providerReadiness: providerReadinessMatrix(checks, accountPersistence, routeFreshnessProbes)
   })
 }

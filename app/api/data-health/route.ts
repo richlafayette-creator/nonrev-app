@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getLiveScheduleProviderReadiness, type LiveScheduleProviderKey, type ScheduleProviderReadiness } from '../../../lib/liveScheduleProviders'
 import { persistentBetaFeedbackTableName, persistentSavedSearchesTableName, persistentTripOutcomesTableName } from '../../../lib/accountBetaStore'
+import { persistentAlertHistoryTableName, persistentAlertSnapshotTableName, persistentWatchlistTableName } from '../../../lib/persistentTripStore'
 import { providerResultTableName } from '../../../lib/providerResultRepository'
 
 export const dynamic = 'force-dynamic'
@@ -40,6 +41,37 @@ type ProviderSourceCoverage = {
   count: number
 }
 
+type SupabaseEnvironmentDiagnostics = {
+  clientConfigured: boolean
+  serviceRoleConfigured: boolean
+  missingClientEnvironmentVariables: string[]
+  missingServiceRoleEnvironmentVariables: string[]
+  detail: string
+  recommendedNextAction: string
+}
+
+type BetaPersistenceTableDiagnostics = {
+  table: string
+  status: 'present' | 'missing' | 'unknown'
+  reachable: boolean
+  recordCount: number | null
+  detail: string
+}
+
+type FlightFreshnessColumnDiagnostics = {
+  column: 'flight_date' | 'source_checked_at'
+  status: 'present' | 'missing' | 'unknown'
+  detail: string
+}
+
+type FlightFreshnessSchemaDiagnostics = {
+  status: 'ready' | 'warning' | 'unknown'
+  columns: FlightFreshnessColumnDiagnostics[]
+  fallbackMode: 'flight-date' | 'source-checked-at' | 'unavailable'
+  detail: string
+  recommendedNextAction: string
+}
+
 type ProviderPersistenceDiagnostics = {
   enabled: boolean
   status: 'disabled' | 'ready' | 'missing-config' | 'unreachable'
@@ -56,7 +88,7 @@ type AccountPersistenceDiagnostics = {
   status: 'ready' | 'missing-config' | 'unreachable'
   storageMode: 'supabase' | 'local-fallback'
   missingEnvironmentVariables: string[]
-  checkedTables: Array<{ table: string; reachable: boolean; recordCount: number | null; detail: string }>
+  checkedTables: BetaPersistenceTableDiagnostics[]
   detail: string
   recommendedNextAction: string
 }
@@ -144,6 +176,72 @@ function providerResultHeaders(serviceRoleKey: string, extra: HeadersInit = {}):
     Authorization: `Bearer ${serviceRoleKey}`,
     ...extra
   }
+}
+
+
+const requiredBetaPersistenceTables = [
+  persistentSavedSearchesTableName,
+  persistentBetaFeedbackTableName,
+  persistentTripOutcomesTableName,
+  persistentWatchlistTableName,
+  persistentAlertHistoryTableName,
+  persistentAlertSnapshotTableName
+]
+
+function supabaseEnvironmentDiagnostics(): SupabaseEnvironmentDiagnostics {
+  const hasUrl = Boolean(process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL)
+  const hasAnonKey = Boolean(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
+  const hasServiceRoleKey = Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY)
+  const missingClientEnvironmentVariables = [
+    ...(!hasUrl ? ['SUPABASE_URL or NEXT_PUBLIC_SUPABASE_URL'] : []),
+    ...(!hasAnonKey ? ['NEXT_PUBLIC_SUPABASE_ANON_KEY'] : [])
+  ]
+  const missingServiceRoleEnvironmentVariables = [
+    ...(!hasUrl ? ['SUPABASE_URL or NEXT_PUBLIC_SUPABASE_URL'] : []),
+    ...(!hasServiceRoleKey ? ['SUPABASE_SERVICE_ROLE_KEY'] : [])
+  ]
+  return {
+    clientConfigured: hasUrl && hasAnonKey,
+    serviceRoleConfigured: hasUrl && hasServiceRoleKey,
+    missingClientEnvironmentVariables,
+    missingServiceRoleEnvironmentVariables,
+    detail: hasUrl && hasAnonKey && hasServiceRoleKey
+      ? 'Supabase public client and server-side service-role persistence configuration are present. Secret values are not exposed.'
+      : 'Supabase configuration is incomplete. Public client and service-role readiness are reported separately; local fallback remains active for beta persistence when service-role configuration is missing.',
+    recommendedNextAction: hasUrl && hasAnonKey && hasServiceRoleKey
+      ? 'No environment action needed; verify required tables and freshness columns.'
+      : 'Set missing Supabase environment variables server-side. Keep SUPABASE_SERVICE_ROLE_KEY server-only and never expose its value to the client.'
+  }
+}
+
+function checkSupabaseClientConfigured(environment: SupabaseEnvironmentDiagnostics): HealthItem {
+  return item({
+    key: 'supabase-client-config',
+    label: 'Supabase client configured',
+    status: environment.clientConfigured ? 'Connected' : 'Missing',
+    safeErrorMessage: environment.missingClientEnvironmentVariables.length
+      ? `Missing ${environment.missingClientEnvironmentVariables.join(', ')}.`
+      : '',
+    recommendedFix: environment.clientConfigured ? 'No action needed.' : 'Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY for browser-safe Supabase client features.',
+    detail: environment.clientConfigured
+      ? 'Browser-safe Supabase URL and anon key configuration are present. Values are not exposed by diagnostics.'
+      : 'Browser-safe Supabase client configuration is incomplete; client-side Supabase features may remain unavailable.'
+  })
+}
+
+function checkSupabaseServiceRoleConfigured(environment: SupabaseEnvironmentDiagnostics): HealthItem {
+  return item({
+    key: 'supabase-service-role-config',
+    label: 'Supabase service role configured',
+    status: environment.serviceRoleConfigured ? 'Connected' : 'Missing',
+    safeErrorMessage: environment.missingServiceRoleEnvironmentVariables.length
+      ? `Missing ${environment.missingServiceRoleEnvironmentVariables.join(', ')}.`
+      : '',
+    recommendedFix: environment.serviceRoleConfigured ? 'No action needed.' : 'Set SUPABASE_SERVICE_ROLE_KEY server-side for account-backed beta persistence diagnostics and writes.',
+    detail: environment.serviceRoleConfigured
+      ? 'Server-side Supabase service-role configuration is present. Secret values are not exposed.'
+      : 'Server-side Supabase service-role configuration is missing; account-backed beta persistence stays in local fallback mode.'
+  })
 }
 
 async function providerPersistenceDiagnostics(): Promise<ProviderPersistenceDiagnostics> {
@@ -398,9 +496,66 @@ function daysBetween(left?: string, right?: string) {
   return Math.round((leftTime - rightTime) / 86400000)
 }
 
-async function checkSupabaseFlightFreshness(): Promise<HealthItem> {
+
+async function flightFreshnessSchemaDiagnostics(): Promise<FlightFreshnessSchemaDiagnostics> {
   const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  const columns: FlightFreshnessColumnDiagnostics[] = []
+
+  if (!supabaseUrl || !supabaseKey) {
+    return {
+      status: 'unknown',
+      columns: [
+        { column: 'flight_date', status: 'unknown', detail: 'Skipped because Supabase URL/key configuration is incomplete.' },
+        { column: 'source_checked_at', status: 'unknown', detail: 'Skipped because Supabase URL/key configuration is incomplete.' }
+      ],
+      fallbackMode: 'unavailable',
+      detail: 'Flight freshness schema could not be checked because Supabase is not configured.',
+      recommendedNextAction: 'Set Supabase URL and key configuration, then verify flights.flight_date and flights.source_checked_at.'
+    }
+  }
+
+  for (const column of ['flight_date', 'source_checked_at'] as const) {
+    try {
+      const { response, data } = await fetchJsonWithTimeout(`${supabaseUrl.replace(/\/$/, '')}/rest/v1/flights?select=${column}&limit=1`, {
+        headers: {
+          apikey: supabaseKey,
+          Authorization: `Bearer ${supabaseKey}`
+        }
+      })
+      if (response.ok) {
+        columns.push({ column, status: 'present', detail: `${column} is queryable on public.flights.` })
+      } else {
+        const message = typeof data === 'object' && data && 'message' in data ? String(data.message) : `Supabase returned ${response.status}`
+        columns.push({ column, status: 'missing', detail: safeMessage(message) })
+      }
+    } catch (error) {
+      columns.push({ column, status: 'unknown', detail: safeMessage(error) })
+    }
+  }
+
+  const hasFlightDate = columns.some((column) => column.column === 'flight_date' && column.status === 'present')
+  const hasSourceCheckedAt = columns.some((column) => column.column === 'source_checked_at' && column.status === 'present')
+  const fallbackMode: FlightFreshnessSchemaDiagnostics['fallbackMode'] = hasFlightDate ? 'flight-date' : hasSourceCheckedAt ? 'source-checked-at' : 'unavailable'
+  return {
+    status: hasFlightDate && hasSourceCheckedAt ? 'ready' : 'warning',
+    columns,
+    fallbackMode,
+    detail: hasFlightDate && hasSourceCheckedAt
+      ? 'Required flight freshness columns are present.'
+      : hasSourceCheckedAt
+        ? 'flights.flight_date is missing, so freshness diagnostics fall back to source_checked_at age only.'
+        : 'Required flight freshness columns are missing or unavailable; freshness warnings remain active.',
+    recommendedNextAction: hasFlightDate && hasSourceCheckedAt
+      ? 'No schema action needed.'
+      : 'Apply the flights freshness migration documented in docs/flight-data-expansion.sql, then resync current/future schedule rows.'
+  }
+}
+
+async function checkSupabaseFlightFreshness(schema?: FlightFreshnessSchemaDiagnostics): Promise<HealthItem> {
+  const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  const freshnessSchema = schema || await flightFreshnessSchemaDiagnostics()
 
   if (!supabaseUrl || !supabaseKey) {
     return item({
@@ -413,9 +568,23 @@ async function checkSupabaseFlightFreshness(): Promise<HealthItem> {
     })
   }
 
+  if (freshnessSchema.fallbackMode === 'unavailable') {
+    return item({
+      key: 'supabase-flight-data-freshness',
+      label: 'Supabase flight data freshness',
+      status: 'Limited',
+      safeErrorMessage: freshnessSchema.columns.map((column) => `${column.column}: ${column.status}`).join('; '),
+      recommendedFix: freshnessSchema.recommendedNextAction,
+      detail: freshnessSchema.detail
+    })
+  }
+
+  const selectColumns = freshnessSchema.fallbackMode === 'flight-date' ? 'flight_date,source_checked_at' : 'source_checked_at'
+  const orderColumn = freshnessSchema.fallbackMode === 'flight-date' ? 'flight_date' : 'source_checked_at'
+
   try {
     const { response, data } = await fetchJsonWithTimeout(
-      `${supabaseUrl}/rest/v1/flights?select=flight_date,source_checked_at&order=flight_date.desc.nullslast&limit=25`,
+      `${supabaseUrl.replace(/\/$/, '')}/rest/v1/flights?select=${selectColumns}&order=${orderColumn}.desc.nullslast&limit=25`,
       {
         headers: {
           apikey: supabaseKey,
@@ -431,8 +600,8 @@ async function checkSupabaseFlightFreshness(): Promise<HealthItem> {
         label: 'Supabase flight data freshness',
         status: 'Limited',
         safeErrorMessage: safeMessage(message),
-        recommendedFix: 'Verify the flights table exposes flight_date and source_checked_at columns.',
-        detail: 'Stored flight data freshness probe failed.'
+        recommendedFix: freshnessSchema.recommendedNextAction,
+        detail: 'Stored flight data freshness probe failed, but app behavior remains in safe warning/local fallback mode.'
       })
     }
 
@@ -442,17 +611,28 @@ async function checkSupabaseFlightFreshness(): Promise<HealthItem> {
     const today = new Date().toISOString().slice(0, 10)
     const daysUntilLatestFlight = daysBetween(latestFlightDate, today)
     const sourceCheckAgeDays = latestSourceCheck ? Math.abs(daysBetween(today, isoDateOnly(latestSourceCheck))) : Infinity
-    const staleByFlightDate = Number.isFinite(daysUntilLatestFlight) && daysUntilLatestFlight < 0
+    const staleByFlightDate = freshnessSchema.fallbackMode === 'flight-date' && Number.isFinite(daysUntilLatestFlight) && daysUntilLatestFlight < 0
     const staleBySourceCheck = Number.isFinite(sourceCheckAgeDays) && sourceCheckAgeDays > 7
 
-    if (!rows.length || !latestFlightDate) {
+    if (!rows.length || (!latestFlightDate && !latestSourceCheck)) {
       return item({
         key: 'supabase-flight-data-freshness',
         label: 'Supabase flight data freshness',
         status: 'Limited',
-        safeErrorMessage: 'No flight_date values were found in stored Supabase rows.',
+        safeErrorMessage: freshnessSchema.fallbackMode === 'flight-date' ? 'No flight_date/source_checked_at values were found in stored Supabase rows.' : 'No source_checked_at values were found in stored Supabase rows.',
         recommendedFix: 'Sync current or future provider schedule rows into Supabase before relying on stored data.',
         detail: 'Stored flight data exists check may pass, but freshness could not be established.'
+      })
+    }
+
+    if (freshnessSchema.fallbackMode === 'source-checked-at') {
+      return item({
+        key: 'supabase-flight-data-freshness',
+        label: 'Supabase flight data freshness',
+        status: 'Limited',
+        safeErrorMessage: 'flights.flight_date is missing; using source_checked_at fallback only.',
+        recommendedFix: freshnessSchema.recommendedNextAction,
+        detail: `Latest source check ${latestSourceCheck || 'not recorded'}. Requested-flight-date freshness cannot be verified until flights.flight_date is added.`
       })
     }
 
@@ -481,7 +661,7 @@ async function checkSupabaseFlightFreshness(): Promise<HealthItem> {
       label: 'Supabase flight data freshness',
       status: 'Limited',
       safeErrorMessage: safeMessage(error),
-      recommendedFix: 'Check network access, Supabase URL, and flights table availability.',
+      recommendedFix: 'Check network access, Supabase URL, flights table availability, and freshness column migration status.',
       detail: 'Stored flight data freshness check could not complete; route cards keep source/date warning labels.'
     })
   }
@@ -755,70 +935,68 @@ function providerReadinessFromChecks(checks: HealthItem[]): ScheduleProviderRead
 
 
 function supabasePersistenceConfig() {
-  const hasServerUrl = Boolean(process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL)
-  const hasAnonKey = Boolean(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
-  const hasServiceRoleKey = Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY)
-  const missingEnvironmentVariables = [
-    ...(!hasServerUrl ? ['SUPABASE_URL or NEXT_PUBLIC_SUPABASE_URL'] : []),
-    ...(!hasAnonKey ? ['NEXT_PUBLIC_SUPABASE_ANON_KEY'] : []),
-    ...(!hasServiceRoleKey ? ['SUPABASE_SERVICE_ROLE_KEY'] : [])
-  ]
+  const environment = supabaseEnvironmentDiagnostics()
   return {
     supabaseUrl: process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || '',
     serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY || '',
-    hasServerUrl,
-    hasAnonKey,
-    hasServiceRoleKey,
-    missingEnvironmentVariables
+    hasServerUrl: Boolean(process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL),
+    hasAnonKey: Boolean(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY),
+    hasServiceRoleKey: Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY),
+    missingEnvironmentVariables: [...new Set([...environment.missingClientEnvironmentVariables, ...environment.missingServiceRoleEnvironmentVariables])]
   }
 }
 
 async function accountPersistenceDiagnostics(): Promise<AccountPersistenceDiagnostics> {
   const config = supabasePersistenceConfig()
-  const tableNames = [persistentSavedSearchesTableName, persistentBetaFeedbackTableName, persistentTripOutcomesTableName]
 
   if (!config.hasServerUrl || !config.hasServiceRoleKey) {
     return {
       status: 'missing-config',
       storageMode: 'local-fallback',
       missingEnvironmentVariables: config.missingEnvironmentVariables,
-      checkedTables: tableNames.map((table) => ({ table, reachable: false, recordCount: null, detail: 'Skipped because server-side Supabase service persistence is not configured.' })),
-      detail: 'Account-backed beta persistence is not fully configured. Browser localStorage fallback remains active for saved searches, beta feedback, outcomes, watchlists, and alerts.',
-      recommendedNextAction: 'Set SUPABASE_SERVICE_ROLE_KEY server-side and apply docs/account-beta-persistence.sql plus docs/persistent-watchlists-alerts.sql before private beta cross-device persistence checks.'
+      checkedTables: requiredBetaPersistenceTables.map((table) => ({
+        table,
+        status: 'unknown',
+        reachable: false,
+        recordCount: null,
+        detail: 'Skipped because server-side Supabase service-role persistence is not configured; table presence cannot be verified safely from this runtime.'
+      })),
+      detail: 'Account-backed beta persistence is not fully configured. Browser localStorage fallback remains active for saved searches, beta feedback, outcomes, watchlists, alerts, and alert snapshots.',
+      recommendedNextAction: 'Set SUPABASE_SERVICE_ROLE_KEY server-side, then apply docs/account-beta-persistence.sql and docs/persistent-watchlists-alerts.sql before private beta cross-device persistence checks.'
     }
   }
 
   const baseUrl = config.supabaseUrl.replace(/\/$/, '')
   const checkedTables: AccountPersistenceDiagnostics['checkedTables'] = []
 
-  for (const table of tableNames) {
+  for (const table of requiredBetaPersistenceTables) {
     try {
       const { response, data } = await fetchJsonWithTimeout(`${baseUrl}/rest/v1/${table}?select=id`, {
         headers: providerResultHeaders(config.serviceRoleKey, { Prefer: 'count=exact', Range: '0-0' })
       })
       if (!response.ok) {
         const message = typeof data === 'object' && data && 'message' in data ? String(data.message) : `Supabase returned ${response.status}`
-        checkedTables.push({ table, reachable: false, recordCount: null, detail: safeMessage(message) })
+        checkedTables.push({ table, status: 'missing', reachable: false, recordCount: null, detail: safeMessage(message) })
         continue
       }
-      checkedTables.push({ table, reachable: true, recordCount: parseExactCount(response, Array.isArray(data) ? data.length : 0), detail: 'Reachable with service-role REST diagnostics.' })
+      checkedTables.push({ table, status: 'present', reachable: true, recordCount: parseExactCount(response, Array.isArray(data) ? data.length : 0), detail: 'Table is present and reachable with service-role REST diagnostics.' })
     } catch (error) {
-      checkedTables.push({ table, reachable: false, recordCount: null, detail: safeMessage(error) })
+      checkedTables.push({ table, status: 'unknown', reachable: false, recordCount: null, detail: safeMessage(error) })
     }
   }
 
-  const allReachable = checkedTables.every((entry) => entry.reachable)
+  const allReachable = checkedTables.every((entry) => entry.status === 'present')
   return {
     status: allReachable ? 'ready' : 'unreachable',
     storageMode: allReachable ? 'supabase' : 'local-fallback',
     missingEnvironmentVariables: config.missingEnvironmentVariables,
     checkedTables,
     detail: allReachable
-      ? 'Account-backed beta persistence tables are reachable with server-side service-role diagnostics.'
-      : 'At least one account persistence table was unreachable. Client features keep localStorage fallback active.',
+      ? 'Required beta persistence tables are present and reachable with server-side service-role diagnostics.'
+      : 'At least one required beta persistence table is missing, unreachable, or unknown. Client features keep localStorage fallback active.',
     recommendedNextAction: allReachable
       ? 'No action needed beyond private beta monitoring.'
-      : 'Apply docs/account-beta-persistence.sql and verify service-role REST access for all account persistence tables.'
+      : 'Apply docs/account-beta-persistence.sql and docs/persistent-watchlists-alerts.sql, then verify service-role REST access for all required beta persistence tables.'
   }
 }
 
@@ -982,10 +1160,14 @@ async function checkMapbox(): Promise<HealthItem> {
 }
 
 export async function GET() {
+  const supabaseEnvironment = supabaseEnvironmentDiagnostics()
+  const flightFreshnessSchema = await flightFreshnessSchemaDiagnostics()
   const [baseChecks, providerPersistence, accountPersistence] = await Promise.all([
     Promise.all([
+      Promise.resolve(checkSupabaseClientConfigured(supabaseEnvironment)),
+      Promise.resolve(checkSupabaseServiceRoleConfigured(supabaseEnvironment)),
       checkSupabaseFlights(),
-      checkSupabaseFlightFreshness(),
+      checkSupabaseFlightFreshness(flightFreshnessSchema),
       checkAviationstack(),
       checkFlightAware(),
       checkMapbox(),
@@ -1002,8 +1184,10 @@ export async function GET() {
     checks,
     liveItineraryReadiness: buildLiveItineraryReadiness(checks),
     scheduleProviderReadiness: providerReadinessFromChecks(checks),
+    supabaseEnvironment,
     providerPersistence,
     accountPersistence,
+    flightFreshnessSchema,
     routeFreshnessProbes,
     providerReadiness: providerReadinessMatrix(checks, accountPersistence, routeFreshnessProbes)
   })

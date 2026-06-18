@@ -1,5 +1,11 @@
 -- Account-backed beta persistence for NONREVY private beta.
 -- Apply manually in Supabase. Server routes use SUPABASE_SERVICE_ROLE_KEY and keep browser localStorage fallback.
+-- Required runtime environment:
+--   NEXT_PUBLIC_SUPABASE_URL
+--   NEXT_PUBLIC_SUPABASE_ANON_KEY
+--   SUPABASE_SERVICE_ROLE_KEY (server-only; never expose to the browser)
+-- Also apply docs/persistent-watchlists-alerts.sql for watchlist/alert beta sync tables.
+-- Apply docs/flight-data-expansion.sql for public.flights flight_date/source_checked_at freshness diagnostics.
 
 create table if not exists public.nonrevy_saved_searches (
   id text primary key,

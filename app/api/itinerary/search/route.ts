@@ -3,6 +3,7 @@ import { airportScaffoldFor } from '../../../../lib/airportMapScaffold'
 import { buildItinerariesFromFlights, closestAvailableFlightDates, flightMatchesRequest, normalizeFlightRouteForDiagnostics, normalizeItineraryRequest, summarizeRouteMatching, type ItineraryResult, type ParsedItineraryRequest, type RouteMatchingSummary } from '../../../../lib/itinerarySearch'
 import { mvpRouteSeedDate, mvpRouteSeedFlightsForRequest } from '../../../../lib/mvpRouteSeedData'
 import { createAviationstackScheduleProvider, createFlightAwareScheduleProvider, getLiveScheduleProviderReadiness, scheduleResultsToFlightRecords, type ScheduleProviderReadiness } from '../../../../lib/liveScheduleProviders'
+import { createProviderResultRepository, providerResultTableName, type ProviderCacheLookupResult, type ProviderResultRecord } from '../../../../lib/providerResultRepository'
 import { applyRouteCoverageLookupResult, buildRouteCoverageFallbackSuggestions, type RouteCoverageLookupStatus, type RouteCoverageSuggestion } from '../../../../lib/routeCoverageFallback'
 
 export const dynamic = 'force-dynamic'
@@ -19,6 +20,8 @@ type ProviderStatus = {
 }
 
 type ApiResponseCounts = {
+  providerCacheFetched: number
+  providerCacheItineraries: number
   flightAwareScheduleRequests: number
   flightAwareScheduleFetched: number
   flightAwareScheduleItineraries: number
@@ -41,6 +44,18 @@ type SupabaseQueryDiagnostics = {
   routeCoverageCount: number
   targetedCount: number
   recentCount: number
+}
+
+type ProviderCacheFreshnessBand = 'none' | 'current-0-6h' | 'reduced-6-24h' | 'yellow-1-3d' | 'historical-over-3d'
+
+type ProviderCacheDebug = {
+  table: string
+  storageMode: ProviderCacheLookupResult['storageMode']
+  status: ProviderCacheLookupResult['status']
+  fetched: number
+  usableItineraries: number
+  freshnessBand: ProviderCacheFreshnessBand
+  detail: string
 }
 
 type SafeNormalizedItinerarySample = {
@@ -72,6 +87,7 @@ type ItineraryDebugMetadata = {
   apiResponseCounts: ApiResponseCounts
   routeMatching: RouteMatchingSummary
   supabaseQueryPath: SupabaseQueryDiagnostics
+  providerCache: ProviderCacheDebug
   providerFallbackOrder: string[]
   emptyResults: string[]
   rateLimits: string[]
@@ -84,7 +100,7 @@ type ItineraryDebugMetadata = {
   trueLiveDataUnavailableReason: string
   activeDataMode: 'production-safe' | 'test-data'
   testDataModeEnabled: boolean
-  dataFreshnessMode: 'live-current-api' | 'stored-supabase' | 'nearest-date-testing' | 'demo-fallback' | 'mvp-test-data' | 'no-current-live-data'
+  dataFreshnessMode: 'live-current-api' | 'provider-cache' | 'stored-supabase' | 'nearest-date-testing' | 'demo-fallback' | 'mvp-test-data' | 'no-current-live-data'
   dataFreshnessExplanation: string[]
   scheduleProviderReadiness: ScheduleProviderReadiness[]
   safeErrors: string[]
@@ -151,17 +167,21 @@ const providerLabels: Record<ProviderKey, string> = {
 }
 
 const providerFallbackOrder = [
-  '1. FlightAware live schedules (route/date schedule search)',
-  '2. Stored Supabase flight data (targeted route/date query, then recent-row safety query)',
-  '3. Aviationstack live provider API fallback (only when quota/account health allows usable results)',
-  '4. Demo fallback cards (only if no live API or stored provider data returns itinerary data)'
+  '1. Recent provider cache (Supabase provider_itinerary_results, then local fallback)',
+  '2. FlightAware live schedules (route/date schedule search)',
+  '3. Stored Supabase flight data (targeted route/date query, then recent-row safety query)',
+  '4. Aviationstack live provider API fallback (only when quota/account health allows usable results)',
+  '5. Nearby airport / positioning route intelligence',
+  '6. Demo fallback cards (only if no live API or stored provider data returns itinerary data)'
 ]
 
 const productionSafeProviderFallbackOrder = [
-  '1. FlightAware live schedules (route/date schedule search)',
-  '2. Stored Supabase flight data (strict exact requested-date rows only)',
-  '3. Aviationstack live provider API fallback (only when quota/account health allows usable results)',
-  '4. Demo fallback and nearest-date testing cards are disabled unless NONREVY_TEST_DATA_MODE=true'
+  '1. Recent provider cache (Supabase provider_itinerary_results, then local fallback)',
+  '2. FlightAware live schedules (route/date schedule search)',
+  '3. Stored Supabase flight data (strict exact requested-date rows only)',
+  '4. Aviationstack live provider API fallback (only when quota/account health allows usable results)',
+  '5. Nearby airport / positioning route intelligence',
+  '6. Demo fallback and nearest-date testing cards are disabled unless NONREVY_TEST_DATA_MODE=true'
 ]
 
 const providerTimeoutMs = 7000
@@ -209,6 +229,8 @@ function uniqueMessages(messages: Array<string | undefined>) {
 
 function emptyCounts(): ApiResponseCounts {
   return {
+    providerCacheFetched: 0,
+    providerCacheItineraries: 0,
     flightAwareScheduleRequests: 0,
     flightAwareScheduleFetched: 0,
     flightAwareScheduleItineraries: 0,
@@ -301,6 +323,103 @@ function safeNormalizedItinerarySample(itinerary?: ItineraryResult): SafeNormali
 
 type FreshnessAnnotation = Pick<ItineraryResult, 'dataFreshnessLabel' | 'dataFreshnessDetail' | 'dataFreshnessRule' | 'dataFreshnessWarning' | 'requestedDate' | 'matchedDate' | 'productionAvailability'>
 
+function providerCacheRecordToFlightRecord(record: ProviderResultRecord): FlightRecord {
+  return {
+    id: `provider-cache-${record.source_provider}-${record.flight_number}-${record.origin}-${record.destination}-${record.departure_time}`,
+    source_provider: `provider-cache:${record.source_provider}`,
+    source_checked_at: record.source_checked_at,
+    cached_at: record.cached_at,
+    flight_number: record.flight_number,
+    carrier: record.carrier,
+    airline: record.airline,
+    origin: record.origin,
+    destination: record.destination,
+    departure_time: record.departure_time,
+    arrival_time: record.arrival_time,
+    aircraft: record.aircraft,
+    status: record.status,
+    score: 68
+  }
+}
+
+function providerCacheRecordsToFlightRecords(records: ProviderResultRecord[]) {
+  return uniqueFlights(records.map(providerCacheRecordToFlightRecord))
+}
+
+function sourceCheckedAtAgeHours(value?: string) {
+  const parsed = Date.parse(value || '')
+  if (!Number.isFinite(parsed)) return Infinity
+  return Math.max(0, (Date.now() - parsed) / 3600000)
+}
+
+function providerCacheFreshnessBand(records: ProviderResultRecord[]): ProviderCacheFreshnessBand {
+  if (!records.length) return 'none'
+  const newestHours = Math.min(...records.map((record) => sourceCheckedAtAgeHours(record.source_checked_at || record.cached_at)))
+  if (newestHours <= 6) return 'current-0-6h'
+  if (newestHours <= 24) return 'reduced-6-24h'
+  if (newestHours <= 72) return 'yellow-1-3d'
+  return 'historical-over-3d'
+}
+
+function providerCacheFreshnessAnnotation(band: ProviderCacheFreshnessBand, request: ParsedItineraryRequest): FreshnessAnnotation {
+  if (band === 'current-0-6h') return {
+    dataFreshnessLabel: 'Recent cached provider data',
+    dataFreshnessDetail: 'Provider result was cached within 0–6 hours. Treat as cached provider data, not a fresh live API response.',
+    dataFreshnessRule: 'cached-provider-current',
+    requestedDate: request.date,
+    matchedDate: request.date,
+    productionAvailability: false
+  }
+  if (band === 'reduced-6-24h') return {
+    dataFreshnessLabel: 'Cached provider data',
+    dataFreshnessDetail: 'Provider result was cached within 6–24 hours. Confidence is slightly reduced and this is not current live availability.',
+    dataFreshnessRule: 'cached-provider-reduced',
+    dataFreshnessWarning: 'Cached provider result: checked 6–24 hours ago, not current live availability.',
+    requestedDate: request.date,
+    matchedDate: request.date,
+    productionAvailability: false
+  }
+  if (band === 'yellow-1-3d') return {
+    dataFreshnessLabel: 'Older cached route data',
+    dataFreshnessDetail: 'Provider result was cached within 1–3 days. Confidence is yellow/conservative; verify live loads before acting.',
+    dataFreshnessRule: 'cached-provider-yellow',
+    dataFreshnessWarning: 'Older cached route data: not current live availability.',
+    requestedDate: request.date,
+    matchedDate: request.date,
+    productionAvailability: false
+  }
+  return {
+    dataFreshnessLabel: 'Historical route data',
+    dataFreshnessDetail: 'Provider result is older than 3 days. It can inform route intelligence only, not itinerary availability.',
+    dataFreshnessRule: 'cached-provider-historical',
+    dataFreshnessWarning: 'Historical route data only — not current availability.',
+    requestedDate: request.date,
+    matchedDate: request.date,
+    productionAvailability: false
+  }
+}
+
+function applyProviderCacheConfidence(itineraries: ItineraryResult[], band: ProviderCacheFreshnessBand) {
+  const reduction = band === 'reduced-6-24h' ? 4 : band === 'yellow-1-3d' ? 14 : band === 'historical-over-3d' ? 28 : 0
+  return itineraries.map((itinerary) => ({
+    ...itinerary,
+    score: Math.max(1, itinerary.score - reduction),
+    legs: itinerary.legs.map((leg) => ({ ...leg, score: Math.max(1, leg.score - reduction) }))
+  }))
+}
+
+function providerCacheDebug(result?: ProviderCacheLookupResult, fetched = 0, usableItineraries = 0, freshnessBand: ProviderCacheFreshnessBand = 'none'): ProviderCacheDebug {
+  return {
+    table: providerResultTableName,
+    storageMode: result?.storageMode || 'disabled',
+    status: result?.status || 'miss',
+    fetched,
+    usableItineraries,
+    freshnessBand,
+    detail: result?.detail || 'Provider cache lookup not attempted.'
+  }
+}
+
 function addProviderBadges(itineraries: ItineraryResult[], source: 'flightaware' | 'supabase' | 'aviationstack', enriched: boolean, freshness: FreshnessAnnotation = {}) {
   return itineraries.map((itinerary) => ({
     ...itinerary,
@@ -331,6 +450,10 @@ function deduplicationSummary(itineraries: ItineraryResult[], providerLabel: str
 
 function freshnessRuleExplanation(rule: NonNullable<ItineraryResult['dataFreshnessRule']>) {
   if (rule === 'exact-requested-date') return 'Exact requested date: itinerary rows match the requested travel date. Stored Supabase rows remain stored data, not live provider API availability.'
+  if (rule === 'cached-provider-current') return 'Recent provider cache: cached provider rows were checked within 0–6 hours. These are cached provider results, not a fresh live API response.'
+  if (rule === 'cached-provider-reduced') return 'Recent provider cache: cached provider rows were checked within 6–24 hours. Confidence is slightly reduced and the data is not presented as current live availability.'
+  if (rule === 'cached-provider-yellow') return 'Older provider cache: cached provider rows were checked within 1–3 days. Confidence is yellow/conservative and the data is not current live availability.'
+  if (rule === 'cached-provider-historical') return 'Historical provider cache: cached provider rows are older than 3 days. They can inform route intelligence only, not itinerary availability.'
   if (rule === 'nearest-date-testing-match') return 'Nearest-date testing match: Personal Testing Mode substituted the nearest available stored/test date. These cards are blocked from production availability claims.'
   if (rule === 'stored-historical-data') return 'Stored historical data: itinerary cards come from persisted data outside a strict requested-date live provider response.'
   return 'Demo fallback: no usable live provider API or stored itinerary rows were available, so scaffold/demo guidance is shown.'
@@ -719,9 +842,36 @@ async function routeCoverageFallbackGuidance(request: ReturnType<typeof normaliz
   }
 
   const provider = createFlightAwareScheduleProvider()
+  const providerCache = createProviderResultRepository()
   const lookupSuggestions = baseSuggestions.slice(0, 6)
   const lookupResults = await Promise.all(lookupSuggestions.map(async (suggestion) => {
     try {
+      const cached = await providerCache.findCachedResults({
+        origin: suggestion.via || suggestion.origin,
+        destination: suggestion.destination,
+        date: request.date,
+        carrier: request.carrier,
+        maxAgeHours: 72,
+        limit: 5
+      })
+      if (cached.records.length) {
+        return applyRouteCoverageLookupResult(suggestion, {
+          status: 'provider_rows_found',
+          providerResultCount: cached.records.length,
+          providerDetail: `${cached.records.length} cached provider row${cached.records.length === 1 ? '' : 's'} found for this alternate route; verify live availability before acting.`
+        })
+      }
+
+      const historical = await providerCache.findCachedResults({
+        origin: suggestion.via || suggestion.origin,
+        destination: suggestion.destination,
+        date: request.date,
+        carrier: request.carrier,
+        maxAgeHours: 24 * 365,
+        limit: 5
+      })
+      const historicalRecords = historical.records.filter((record) => sourceCheckedAtAgeHours(record.source_checked_at || record.cached_at) > 72)
+
       const response = await provider.searchSchedules({
         origin: suggestion.via || suggestion.origin,
         destination: suggestion.destination,
@@ -740,7 +890,10 @@ async function routeCoverageFallbackGuidance(request: ReturnType<typeof normaliz
       return applyRouteCoverageLookupResult(suggestion, {
         status,
         providerResultCount: response.results.length,
-        providerDetail: response.detail || warning || 'FlightAware alternate route lookup completed.'
+        providerDetail: [
+          response.detail || warning || 'FlightAware alternate route lookup completed.',
+          historicalRecords.length ? `${historicalRecords.length} historical provider cache row${historicalRecords.length === 1 ? '' : 's'} also support this as route intelligence only.` : undefined
+        ].filter(Boolean).join(' ')
       })
     } catch {
       return applyRouteCoverageLookupResult(suggestion, {
@@ -813,6 +966,7 @@ function buildDebugMetadata({
   apiResponseCounts,
   routeMatching,
   supabaseQueryPath,
+  providerCache = providerCacheDebug(),
   providerFallbackOrder,
   emptyResults,
   rateLimits,
@@ -839,6 +993,7 @@ function buildDebugMetadata({
   apiResponseCounts: ApiResponseCounts
   routeMatching: RouteMatchingSummary
   supabaseQueryPath: SupabaseQueryDiagnostics
+  providerCache?: ProviderCacheDebug
   providerFallbackOrder: string[]
   emptyResults: string[]
   rateLimits: string[]
@@ -873,6 +1028,7 @@ function buildDebugMetadata({
     apiResponseCounts,
     routeMatching,
     supabaseQueryPath,
+    providerCache,
     providerFallbackOrder,
     emptyResults,
     rateLimits,
@@ -988,6 +1144,87 @@ export async function GET(request: Request) {
       debug,
       count: 0,
       itineraries: []
+    })
+  }
+
+  const providerCacheLookup = await createProviderResultRepository().findCachedResults({
+    origin: effectiveRequest.origin,
+    destination: effectiveRequest.destination,
+    date: effectiveRequest.date,
+    carrier: effectiveRequest.carrier,
+    maxAgeHours: 72,
+    limit: 100
+  })
+  const providerCacheFreshness = providerCacheFreshnessBand(providerCacheLookup.records)
+  const providerCacheFlights = providerCacheRecordsToFlightRecords(providerCacheLookup.records)
+  counts.providerCacheFetched = providerCacheFlights.length
+  const providerCacheRouteMatching = summarizeRouteMatching(providerCacheFlights, effectiveRequest)
+  const providerCacheItineraries = buildItinerariesFromFlights(providerCacheFlights, effectiveRequest)
+  counts.providerCacheItineraries = providerCacheItineraries.length
+  if (providerCacheLookup.status === 'unavailable') warnings.push(providerCacheLookup.detail)
+  if (providerCacheLookup.status === 'miss') emptyResults.push('Recent provider cache returned no matching rows.')
+  if (providerCacheFlights.length > 0 && providerCacheItineraries.length === 0) emptyResults.push('Recent provider cache returned rows, but none matched itinerary assembly rules.')
+
+  if (providerCacheItineraries.length > 0 && providerCacheFreshness !== 'historical-over-3d') {
+    const cacheFreshness = providerCacheFreshnessAnnotation(providerCacheFreshness, effectiveRequest)
+    const itineraries = addProviderBadges(applyProviderCacheConfidence(providerCacheItineraries, providerCacheFreshness), 'supabase', false, cacheFreshness)
+      .map((itinerary) => ({
+        ...itinerary,
+        source: itinerary.source || 'provider-cache',
+        sourceProvider: 'provider-cache',
+        providerBadges: ['Cached provider data', cacheFreshness.dataFreshnessLabel || 'Provider cache']
+      }))
+    counts.finalItineraries = itineraries.length
+    const cacheDeduplication = deduplicationSummary(itineraries, 'provider cache')
+    if (cacheDeduplication.notes.length) warnings.push(...cacheDeduplication.notes)
+    const skippedSupabaseQueryPath = skippedSupabaseDiagnostics('skipped; recent provider cache returned itinerary results')
+    const debug = buildDebugMetadata({
+      parsedRequest: effectiveRequest,
+      supabaseResultCount: 0,
+      aviationstackFallbackStatus: 'skipped; recent provider cache returned itinerary results',
+      flightAwareEnrichmentStatus: 'skipped; recent provider cache returned itinerary results before live provider calls',
+      finalItineraryCount: itineraries.length,
+      apiResponseCounts: counts,
+      routeMatching: providerCacheRouteMatching,
+      supabaseQueryPath: skippedSupabaseQueryPath,
+      providerCache: providerCacheDebug(providerCacheLookup, providerCacheFlights.length, itineraries.length, providerCacheFreshness),
+      emptyResults,
+      rateLimits,
+      invalidAirportCodes,
+      unsupportedAirportCodes,
+      invalidDates,
+      providerFallbackOrder: activeProviderFallbackOrder,
+      providerStatuses: [
+        providerStatus('supabase', 'success', `${itineraries.length} itinerary result${itineraries.length === 1 ? '' : 's'} found in recent provider cache table ${providerResultTableName}; live provider calls skipped.`),
+        providerStatus('flightaware', 'skipped', 'Skipped because recent provider cache produced itinerary results.'),
+        providerStatus('aviationstack', 'skipped', 'Skipped because recent provider cache produced itinerary results.'),
+        providerStatus('planning', 'skipped', 'Skipped because cached provider results are available.')
+      ],
+      trueLiveDataAvailable: false,
+      trueLiveDataUnavailableReason: 'Recent provider cache produced route results; these are cached provider rows, not a fresh live API response.',
+      dataFreshnessMode: 'provider-cache',
+      dataFreshnessExplanation: freshnessExplanationsForItineraries(itineraries, cacheFreshness.dataFreshnessRule || 'cached-provider-current'),
+      testDataModeEnabled: envTestDataModeEnabled,
+      safeErrors: uniqueMessages(warnings),
+      deduplicationNotes: cacheDeduplication.notes,
+      deduplicatedRowsRemoved: cacheDeduplication.removed
+    })
+
+    return NextResponse.json({
+      ok: true,
+      request: effectiveRequest,
+      source: 'provider-cache-first',
+      sourceLabel: 'Cached provider route data',
+      dataMode: 'provider-cache',
+      source_provider: 'provider-cache',
+      source_checked_at: itineraries[0]?.sourceCheckedAt,
+      statusMessage: `${itineraries.length} cached route result${itineraries.length === 1 ? '' : 's'} found.`,
+      enrichedWithFlightAware: false,
+      providerBadges: ['Cached provider data'],
+      warnings: uniqueMessages(warnings),
+      debug,
+      count: itineraries.length,
+      itineraries
     })
   }
 

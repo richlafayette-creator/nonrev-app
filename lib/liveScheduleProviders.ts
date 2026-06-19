@@ -502,6 +502,7 @@ export function createAviationstackScheduleProvider(apiKey = process.env.AVIATIO
       }))
 
       const uniqueResults = uniqueScheduleResults(results)
+      await createProviderResultRepository().storeNormalizedResults(uniqueResults)
       return {
         provider: 'aviationstack',
         results: uniqueResults,

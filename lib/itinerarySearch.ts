@@ -207,10 +207,47 @@ const airportAliases: Record<string, string> = {
   vegas: 'LAS',
   las: 'LAS',
   sandiego: 'SAN',
-  san: 'SAN'
+  san: 'SAN',
+  minneapolis: 'MSP',
+  saintpaul: 'MSP',
+  stpaul: 'MSP',
+  msp: 'MSP',
+  fargo: 'FAR',
+  far: 'FAR',
+  portland: 'PDX',
+  pdx: 'PDX',
+  redmond: 'RDM',
+  bend: 'RDM',
+  rdm: 'RDM',
+  philadelphia: 'PHL',
+  philly: 'PHL',
+  phl: 'PHL',
+  london: 'LHR',
+  heathrow: 'LHR',
+  lhr: 'LHR',
+  charlotte: 'CLT',
+  clt: 'CLT',
+  asheville: 'AVL',
+  avl: 'AVL',
+  kona: 'KOA',
+  koa: 'KOA',
+  washingtondc: 'DCA',
+  dc: 'DCA',
+  dca: 'DCA',
+  charlottesville: 'CHO',
+  cho: 'CHO',
+  anchorage: 'ANC',
+  anc: 'ANC',
+  orlando: 'MCO',
+  mco: 'MCO',
+  rome: 'FCO',
+  fiumicino: 'FCO',
+  fco: 'FCO',
+  paris: 'CDG',
+  cdg: 'CDG'
 }
 
-const fillerRouteWords = new Set(['get', 'me', 'the', 'to', 'for', 'from', 'out', 'of', 'leaving', 'departing', 'via', 'and', 'non', 'rev', 'nonrev', 'path', 'cheapest', 'open', 'flights', 'flight', 'best', 'route'])
+const fillerRouteWords = new Set(['get', 'me', 'the', 'to', 'for', 'from', 'out', 'of', 'leaving', 'departing', 'via', 'and', 'non', 'rev', 'nonrev', 'path', 'cheapest', 'open', 'flights', 'flight', 'best', 'route', 'way', 'home'])
 
 function airportCode(value?: string | null) {
   const match = value?.toUpperCase().match(/\b[A-Z]{3}\b/)
@@ -235,6 +272,10 @@ function airportFromPhrase(value?: string | null) {
     if (code) return code
   }
   return undefined
+}
+
+function isHomeIntent(value?: string | null) {
+  return Boolean(value?.toLowerCase().match(/\b(?:home|get\s+me\s+home|way\s+home)\b/))
 }
 
 function addDays(date: Date, days: number) {
@@ -274,6 +315,7 @@ function dateFromRelative(value: string, now = new Date()) {
   const date = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
   if (normalized.includes('today') || normalized.includes('tonight')) return date.toISOString().slice(0, 10)
   if (normalized.includes('tomorrow')) return addDays(date, 1).toISOString().slice(0, 10)
+  if (normalized.includes('next week')) return addDays(date, 7).toISOString().slice(0, 10)
   if (normalized.includes('this weekend') || normalized.includes('weekend')) {
     const daysUntilSaturday = (6 - date.getUTCDay() + 7) % 7
     return addDays(date, daysUntilSaturday || 7).toISOString().slice(0, 10)
@@ -456,8 +498,10 @@ export function normalizeItineraryRequest(searchParams: URLSearchParams, now = n
   const explicitOrigin = airportCode(searchParams.get('origin'))
   const explicitDestination = airportCode(searchParams.get('destination'))
   const explicitCarrier = searchParams.get('carrier')
+  const promptHasHomeIntent = isHomeIntent(prompt)
+  const homeAirportDestination = promptHasHomeIntent && parsed.origin && !parsed.destination ? explicitDestination || explicitOrigin : undefined
   const origin = parsed.origin || explicitOrigin
-  const destination = parsed.destination || explicitDestination
+  const destination = parsed.destination || explicitDestination || homeAirportDestination
   const date = searchParams.get('date') || parsed.date
   const carrier = explicitCarrier && explicitCarrier !== 'all' ? explicitCarrier : parsed.carrier || explicitCarrier || 'all'
   const usedExplicitOrigin = parsed.origin ? undefined : explicitOrigin

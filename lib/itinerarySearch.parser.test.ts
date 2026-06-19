@@ -68,6 +68,58 @@ describe('itinerary natural language parser', () => {
     assert.equal(parsed.parserFallbackApplied, false)
   })
 
+  it('parses regional, Europe, and backup routes from common airport codes', () => {
+    for (const [query, origin, destination] of [
+      ['Delta Connection MSP to FAR tomorrow', 'MSP', 'FAR'],
+      ['Alaska PDX to RDM tomorrow', 'PDX', 'RDM'],
+      ['American PHL to LHR next Friday', 'PHL', 'LHR'],
+      ['American Eagle CLT to AVL tomorrow', 'CLT', 'AVL'],
+      ['best backup from KOA to HNL tomorrow', 'KOA', 'HNL'],
+      ['American Eagle DCA to CHO tomorrow', 'DCA', 'CHO']
+    ] as const) {
+      const parsed = parseItineraryPrompt(query, fixedNow)
+      assert.equal(parsed.origin, origin, query)
+      assert.equal(parsed.destination, destination, query)
+      assert.equal(parsed.parserFallbackApplied, false, query)
+    }
+  })
+
+  it('parses origin-only and flights-out-of phrases with city names', () => {
+    const parsed = parseItineraryPrompt('Flights out of Las Vegas today', fixedNow)
+    assert.equal(parsed.origin, 'LAS')
+    assert.equal(parsed.destination, undefined)
+    assert.equal(parsed.date, '2026-06-04')
+    assert.equal(parsed.parserFallbackApplied, true)
+  })
+
+  it('uses supplied home airport context for get-me-home phrasing', () => {
+    const request = normalizeItineraryRequest(new URLSearchParams({ q: 'Best way home from Tokyo Sunday', origin: 'LAX' }), fixedNow)
+    assert.equal(request.origin, 'HND')
+    assert.equal(request.destination, 'LAX')
+    assert.equal(request.date, '2026-06-07')
+    assert.equal(request.parserFallbackApplied, false)
+  })
+
+  it('parses common final-smoke city names and reverse wording', () => {
+    const rome = parseItineraryPrompt('LAX to Rome tomorrow', fixedNow)
+    assert.equal(rome.origin, 'LAX')
+    assert.equal(rome.destination, 'FCO')
+    assert.equal(rome.date, '2026-06-05')
+
+    const reversed = parseItineraryPrompt('get me to Orlando from Las Vegas this weekend', fixedNow)
+    assert.equal(reversed.origin, 'LAS')
+    assert.equal(reversed.destination, 'MCO')
+    assert.equal(reversed.date, '2026-06-06')
+  })
+
+  it('parses bare next-week travel windows conservatively', () => {
+    const parsed = parseItineraryPrompt('United SFO to NRT next week', fixedNow)
+    assert.equal(parsed.origin, 'SFO')
+    assert.equal(parsed.destination, 'NRT')
+    assert.equal(parsed.date, '2026-06-11')
+    assert.equal(parsed.parserFallbackApplied, false)
+  })
+
   it('parses month-day and numeric dates without needing form fields', () => {
     assert.equal(parseItineraryPrompt('SEA to HNL June 20', fixedNow).date, '2026-06-20')
     assert.equal(parseItineraryPrompt('SEA to HNL 6/20', fixedNow).date, '2026-06-20')

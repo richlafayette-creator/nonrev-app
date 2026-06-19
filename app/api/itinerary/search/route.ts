@@ -1362,12 +1362,14 @@ export async function GET(request: Request) {
 
   const routeCoverageSuggestions = await routeCoverageFallbackGuidance(effectiveRequest, rateLimits)
   const routeCoverageMessage = routeCoverageSuggestions.length
-    ? 'Route coverage fallback suggestions are shown as search guidance only, not live availability.'
+    ? 'Additional route options found. These are route guidance only, not live availability.'
     : undefined
-  const noResultsMessage = envTestDataModeEnabled
-    ? 'No live provider API, stored Supabase, or fallback-provider flights found for this search. Showing fallback demo guidance.'
-    : 'No current live itinerary availability found for this search. Production-safe mode is active, so nearest-date testing and demo fallback cards are hidden.'
-  const finalWarnings = uniqueMessages([...warnings, routeCoverageMessage, noResultsMessage])
+  const noResultsMessage = routeCoverageSuggestions.length
+    ? 'Additional route options found'
+    : envTestDataModeEnabled
+      ? 'No live provider API, stored Supabase, or fallback-provider flights found for this search. Showing fallback demo guidance.'
+      : 'No current live itinerary availability found for this search. Production-safe mode is active, so nearest-date testing and demo fallback cards are hidden.'
+  const finalWarnings = uniqueMessages([...warnings, routeCoverageMessage, routeCoverageSuggestions.length ? undefined : noResultsMessage])
   const debug = buildDebugMetadata({
     parsedRequest: effectiveRequest,
     supabaseResultCount: 0,
@@ -1392,7 +1394,9 @@ export async function GET(request: Request) {
     ],
     providerFallbackOrder: activeProviderFallbackOrder,
     trueLiveDataAvailable: false,
-    trueLiveDataUnavailableReason: envTestDataModeEnabled ? trueLiveUnavailableReason('planning') : 'No current live provider API or exact-date stored Supabase data was available; production-safe mode hid nearest-date testing and demo fallback availability.',
+    trueLiveDataUnavailableReason: routeCoverageSuggestions.length
+      ? 'No exact live itinerary availability was available; route intelligence returned additional route guidance without displaying unavailable flights.'
+      : envTestDataModeEnabled ? trueLiveUnavailableReason('planning') : 'No current live provider API or exact-date stored Supabase data was available; production-safe mode hid nearest-date testing and demo fallback availability.',
     dataFreshnessMode: envTestDataModeEnabled ? 'demo-fallback' : 'no-current-live-data',
     dataFreshnessExplanation: envTestDataModeEnabled
       ? [freshnessRuleExplanation('demo-fallback')]
@@ -1406,14 +1410,14 @@ export async function GET(request: Request) {
     ok: true,
     request: effectiveRequest,
     source: 'planning-fallback',
-    sourceLabel: envTestDataModeEnabled ? sourceLabel('planning', false) : 'No current live data',
+    sourceLabel: routeCoverageSuggestions.length ? 'Route intelligence guidance' : envTestDataModeEnabled ? sourceLabel('planning', false) : 'No current live data',
     dataMode: envTestDataModeEnabled ? 'fallback' : 'no-current-live-data',
     source_provider: envTestDataModeEnabled ? 'demo' : 'none',
     source_checked_at: undefined,
     statusMessage: noResultsMessage,
     errorMessage: noResultsMessage,
     enrichedWithFlightAware: false,
-    providerBadges: envTestDataModeEnabled ? [providerLabels.planning] : ['Production-safe mode'],
+    providerBadges: routeCoverageSuggestions.length ? ['Route guidance only'] : envTestDataModeEnabled ? [providerLabels.planning] : ['Production-safe mode'],
     warnings: finalWarnings,
     debug,
     routeCoverageSuggestions,

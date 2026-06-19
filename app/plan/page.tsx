@@ -3115,7 +3115,8 @@ function routeCoverageStatusLabel(suggestion: RouteCoverageSuggestion) {
 }
 
 function ProductionEmptyState({ reasons, origin, suggestions = [] }: { reasons: string[]; origin?: string; suggestions?: RouteCoverageSuggestion[] }) {
-  const positioningHubs = origin ? smallAirportPositioningHubs[origin] || [] : []
+  void origin
+  const hasRouteOptions = suggestions.length > 0
   const routeIdeas = suggestions.length
     ? suggestions
     : ['LAX-HND', 'SFO-HND', 'LAX-NRT'].map((route) => ({
@@ -3134,15 +3135,10 @@ function ProductionEmptyState({ reasons, origin, suggestions = [] }: { reasons: 
   return (
     <section className="nonrevy-production-empty" aria-live="polite">
       <p className="nonrevy-production-empty__eyebrow">Search results</p>
-      <h2>We couldn't find live results for this search right now.</h2>
+      <h2>{hasRouteOptions ? 'Additional route options found' : "We couldn't find live results for this search right now."}</h2>
       <p className="nonrevy-production-empty__subtext">
         Try another date, search from a larger nearby airport, or request community loads.
       </p>
-      {positioningHubs.length ? (
-        <p className="nonrevy-production-empty__positioning">
-          Try positioning to {positioningHubs.join(' or ')} first.
-        </p>
-      ) : null}
       <p className="nonrevy-production-empty__guidance-note">
         Suggested ways to search are route guidance only — they are not live seat availability.
       </p>
@@ -3173,11 +3169,6 @@ function ProductionEmptyState({ reasons, origin, suggestions = [] }: { reasons: 
         <ul>
           {reasons.map((reason) => <li key={reason}>{reason}</li>)}
         </ul>
-        {suggestions.length ? (
-          <ul>
-            {suggestions.slice(0, 3).map((suggestion) => <li key={suggestion.id}>{suggestion.basis}</li>)}
-          </ul>
-        ) : null}
       </details>
     </section>
   )
@@ -4014,9 +4005,14 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
           ? (data?.debug?.testDataModeEnabled === false ? 'No current live data' : 'Demo fallback data')
           : 'Live provider API data')
       setItineraryDebug(data?.debug || null)
+      const routeCoverageSuggestions = Array.isArray(data?.routeCoverageSuggestions)
+        ? data.routeCoverageSuggestions
+        : Array.isArray(data?.debug?.routeCoverageSuggestions) ? data.debug.routeCoverageSuggestions : []
       setItineraryStatus(itineraries.length
         ? `${itineraries.length} live itinerary result${itineraries.length === 1 ? '' : 's'} found for ${data?.request?.origin || 'any origin'} → ${data?.request?.destination || 'any destination'}.`
-        : "We couldn't find live results for this search right now."
+        : routeCoverageSuggestions.length
+          ? 'Additional route options found'
+          : "We couldn't find live results for this search right now."
       )
     } catch {
       setLiveItineraries([])

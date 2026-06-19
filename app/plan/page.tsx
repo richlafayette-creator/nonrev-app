@@ -281,6 +281,21 @@ type RouteMatchingSummary = {
   rejectedCandidates: FlightRouteMatchDiagnostics[]
 }
 
+type RouteCoverageSuggestion = {
+  id: string
+  kind: 'hub-positioning' | 'destination-airport-group' | 'hub-to-destination-group'
+  label: string
+  searchQuery: string
+  origin: string
+  destination: string
+  via?: string
+  confidence: 'Conservative'
+  basis: string
+  lookupStatus: 'not_checked' | 'provider_rows_found' | 'provider_no_rows' | 'provider_warning' | 'skipped_rate_limited'
+  providerResultCount: number
+  providerDetail?: string
+}
+
 type ItineraryDebugMetadata = {
   parsedOrigin?: string
   parsedDestination?: string
@@ -324,6 +339,7 @@ type ItineraryDebugMetadata = {
   }
   deduplicationNotes?: string[]
   deduplicatedRowsRemoved?: number
+  routeCoverageSuggestions?: RouteCoverageSuggestion[]
   safeErrors: string[]
 }
 
@@ -3090,9 +3106,30 @@ function CopilotPanel({
 }
 
 
-function ProductionEmptyState({ reasons, origin }: { reasons: string[]; origin?: string }) {
+function routeCoverageStatusLabel(suggestion: RouteCoverageSuggestion) {
+  if (suggestion.lookupStatus === 'provider_rows_found') return 'Schedule rows may exist — verify live loads'
+  if (suggestion.lookupStatus === 'skipped_rate_limited') return 'Lookup skipped safely'
+  if (suggestion.lookupStatus === 'provider_warning') return 'Lookup unavailable'
+  if (suggestion.lookupStatus === 'provider_no_rows') return 'No schedule rows confirmed'
+  return 'Guidance only'
+}
+
+function ProductionEmptyState({ reasons, origin, suggestions = [] }: { reasons: string[]; origin?: string; suggestions?: RouteCoverageSuggestion[] }) {
   const positioningHubs = origin ? smallAirportPositioningHubs[origin] || [] : []
-  const routeIdeas = ['LAX-HND', 'SFO-HND', 'LAX-NRT']
+  const routeIdeas = suggestions.length
+    ? suggestions
+    : ['LAX-HND', 'SFO-HND', 'LAX-NRT'].map((route) => ({
+        id: route,
+        label: `Try ${route}`,
+        searchQuery: route,
+        basis: 'Search a larger gateway as route guidance only; verify live availability before travel.',
+        lookupStatus: 'not_checked' as const,
+        providerResultCount: 0,
+        confidence: 'Conservative' as const,
+        kind: 'hub-to-destination-group' as const,
+        origin: route.slice(0, 3),
+        destination: route.slice(-3)
+      }))
 
   return (
     <section className="nonrevy-production-empty" aria-live="polite">
@@ -3106,6 +3143,9 @@ function ProductionEmptyState({ reasons, origin }: { reasons: string[]; origin?:
           Try positioning to {positioningHubs.join(' or ')} first.
         </p>
       ) : null}
+      <p className="nonrevy-production-empty__guidance-note">
+        Suggested ways to search are route guidance only — they are not live seat availability.
+      </p>
       <div className="nonrevy-production-empty__grid">
         <section>
           <strong>Next actions</strong>
@@ -3117,9 +3157,14 @@ function ProductionEmptyState({ reasons, origin }: { reasons: string[]; origin?:
           </ul>
         </section>
         <section>
-          <strong>Try a bigger gateway</strong>
-          <ul>
-            {routeIdeas.map((idea) => <li key={idea}><a href={travelerSearchUrl(idea)}>Try {idea}</a></li>)}
+          <strong>Route options to try</strong>
+          <ul className="nonrevy-production-empty__suggestions">
+            {routeIdeas.map((idea) => (
+              <li key={idea.id}>
+                <a href={travelerSearchUrl(idea.searchQuery)}>{idea.label}</a>
+                <span>{routeCoverageStatusLabel(idea)}</span>
+              </li>
+            ))}
           </ul>
         </section>
       </div>
@@ -3128,6 +3173,11 @@ function ProductionEmptyState({ reasons, origin }: { reasons: string[]; origin?:
         <ul>
           {reasons.map((reason) => <li key={reason}>{reason}</li>)}
         </ul>
+        {suggestions.length ? (
+          <ul>
+            {suggestions.slice(0, 3).map((suggestion) => <li key={suggestion.id}>{suggestion.basis}</li>)}
+          </ul>
+        ) : null}
       </details>
     </section>
   )
@@ -4196,7 +4246,7 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
           {travelDateError ? <p className="nonrevy-results-page__warning">{travelDateError}</p> : null}
 
           {itineraryLoading ? <PlannerSkeletonLoaders /> : null}
-          {showProductionEmptyState ? <ProductionEmptyState reasons={productionEmptyReasons} origin={itineraryDebug?.parsedOrigin} /> : null}
+          {showProductionEmptyState ? <ProductionEmptyState reasons={productionEmptyReasons} origin={itineraryDebug?.parsedOrigin} suggestions={itineraryDebug?.routeCoverageSuggestions} /> : null}
           {itineraryComparisons.length > 0 ? <ItineraryComparisonPanel comparisons={itineraryComparisons} travelDate={travelWindow} communityLoads={communityLoads} onCommunityLoadsUpdated={() => setCommunityLoads(loadCommunityLoads())} trustReceipt={{ dataMode: itineraryDataMode, source: itinerarySource, status: itineraryStatus, warnings: itineraryWarnings, debug: itineraryDebug }} /> : null}
 
           {developerMode ? (
@@ -4329,7 +4379,7 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
             <p style={{ color: '#facc15' }}>{itineraryStatus}</p>
           ) : null}
           {itineraryLoading ? <PlannerSkeletonLoaders /> : null}
-          {showProductionEmptyState ? <ProductionEmptyState reasons={productionEmptyReasons} origin={itineraryDebug?.parsedOrigin} /> : null}
+          {showProductionEmptyState ? <ProductionEmptyState reasons={productionEmptyReasons} origin={itineraryDebug?.parsedOrigin} suggestions={itineraryDebug?.routeCoverageSuggestions} /> : null}
           {itineraryComparisons.length > 0 ? <ItineraryComparisonPanel comparisons={itineraryComparisons} travelDate={travelWindow} communityLoads={communityLoads} onCommunityLoadsUpdated={() => setCommunityLoads(loadCommunityLoads())} trustReceipt={{ dataMode: itineraryDataMode, source: itinerarySource, status: itineraryStatus, warnings: itineraryWarnings, debug: itineraryDebug }} /> : null}
         </section>
 

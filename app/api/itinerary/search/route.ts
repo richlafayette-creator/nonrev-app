@@ -3,6 +3,7 @@ import { airportScaffoldFor } from '../../../../lib/airportMapScaffold'
 import { buildItinerariesFromFlights, closestAvailableFlightDates, flightMatchesRequest, normalizeFlightRouteForDiagnostics, normalizeItineraryRequest, summarizeRouteMatching, type ItineraryResult, type ParsedItineraryRequest, type RouteMatchingSummary } from '../../../../lib/itinerarySearch'
 import { mvpRouteSeedDate, mvpRouteSeedFlightsForRequest } from '../../../../lib/mvpRouteSeedData'
 import { createAviationstackScheduleProvider, createFlightAwareScheduleProvider, getLiveScheduleProviderReadiness, scheduleResultsToFlightRecords, type ScheduleProviderReadiness } from '../../../../lib/liveScheduleProviders'
+import { applyRouteCoverageLookupResult, buildRouteCoverageFallbackSuggestions, type RouteCoverageLookupStatus, type RouteCoverageSuggestion } from '../../../../lib/routeCoverageFallback'
 
 export const dynamic = 'force-dynamic'
 
@@ -89,6 +90,7 @@ type ItineraryDebugMetadata = {
   safeErrors: string[]
   deduplicationNotes: string[]
   deduplicatedRowsRemoved: number
+  routeCoverageSuggestions: RouteCoverageSuggestion[]
   normalizedFlightAwareItinerarySample?: SafeNormalizedItinerarySample
 }
 
@@ -706,6 +708,55 @@ async function fetchFlightAwareScheduleFlights(request: ReturnType<typeof normal
   }
 }
 
+async function routeCoverageFallbackGuidance(request: ReturnType<typeof normalizeItineraryRequest>, rateLimits: string[]) {
+  const baseSuggestions = buildRouteCoverageFallbackSuggestions(request)
+  if (!baseSuggestions.length) return []
+  if (rateLimits.some((message) => message.toLowerCase().includes('flightaware'))) {
+    return baseSuggestions.map((suggestion) => applyRouteCoverageLookupResult(suggestion, {
+      status: 'skipped_rate_limited',
+      providerDetail: 'FlightAware quota/rate-limit already affected the exact search, so alternate route lookups were not retried.'
+    }))
+  }
+
+  const provider = createFlightAwareScheduleProvider()
+  const lookupSuggestions = baseSuggestions.slice(0, 6)
+  const lookupResults = await Promise.all(lookupSuggestions.map(async (suggestion) => {
+    try {
+      const response = await provider.searchSchedules({
+        origin: suggestion.via || suggestion.origin,
+        destination: suggestion.destination,
+        date: request.date,
+        carrier: request.carrier,
+        maxResults: 5
+      })
+      const warning = response.warning || ''
+      const status: RouteCoverageLookupStatus = response.results.length
+        ? 'provider_rows_found'
+        : rateLimitMessage('FlightAware', undefined, warning)
+          ? 'skipped_rate_limited'
+          : response.status === 'warning' || response.status === 'error'
+            ? 'provider_warning'
+            : 'provider_no_rows'
+      return applyRouteCoverageLookupResult(suggestion, {
+        status,
+        providerResultCount: response.results.length,
+        providerDetail: response.detail || warning || 'FlightAware alternate route lookup completed.'
+      })
+    } catch {
+      return applyRouteCoverageLookupResult(suggestion, {
+        status: 'provider_warning',
+        providerDetail: 'Alternate route lookup failed safely; keep this as route guidance only.'
+      })
+    }
+  }))
+
+  const checkedIds = new Set(lookupResults.map((suggestion) => suggestion.id))
+  return [
+    ...lookupResults,
+    ...baseSuggestions.filter((suggestion) => !checkedIds.has(suggestion.id))
+  ]
+}
+
 function skippedSupabaseDiagnostics(reason: string): SupabaseQueryDiagnostics {
   return {
     attemptedPath: reason,
@@ -777,6 +828,7 @@ function buildDebugMetadata({
   safeErrors,
   deduplicationNotes = [],
   deduplicatedRowsRemoved = 0,
+  routeCoverageSuggestions = [],
   normalizedFlightAwareItinerarySample
 }: {
   parsedRequest: ReturnType<typeof normalizeItineraryRequest>
@@ -802,6 +854,7 @@ function buildDebugMetadata({
   safeErrors: string[]
   deduplicationNotes?: string[]
   deduplicatedRowsRemoved?: number
+  routeCoverageSuggestions?: RouteCoverageSuggestion[]
   normalizedFlightAwareItinerarySample?: SafeNormalizedItinerarySample
 }): ItineraryDebugMetadata {
   const mergedProviderStatuses = mergeProviderStatuses(providerStatuses)
@@ -838,6 +891,7 @@ function buildDebugMetadata({
     safeErrors,
     deduplicationNotes,
     deduplicatedRowsRemoved,
+    routeCoverageSuggestions,
     normalizedFlightAwareItinerarySample
   }
 }
@@ -1306,10 +1360,14 @@ export async function GET(request: Request) {
     })
   }
 
+  const routeCoverageSuggestions = await routeCoverageFallbackGuidance(effectiveRequest, rateLimits)
+  const routeCoverageMessage = routeCoverageSuggestions.length
+    ? 'Route coverage fallback suggestions are shown as search guidance only, not live availability.'
+    : undefined
   const noResultsMessage = envTestDataModeEnabled
     ? 'No live provider API, stored Supabase, or fallback-provider flights found for this search. Showing fallback demo guidance.'
     : 'No current live itinerary availability found for this search. Production-safe mode is active, so nearest-date testing and demo fallback cards are hidden.'
-  const finalWarnings = uniqueMessages([...warnings, noResultsMessage])
+  const finalWarnings = uniqueMessages([...warnings, routeCoverageMessage, noResultsMessage])
   const debug = buildDebugMetadata({
     parsedRequest: effectiveRequest,
     supabaseResultCount: 0,
@@ -1340,7 +1398,8 @@ export async function GET(request: Request) {
       ? [freshnessRuleExplanation('demo-fallback')]
       : ['Production-safe mode: no live provider API or exact requested-date stored Supabase itinerary was available, so nearest-date testing and demo fallback cards are hidden.'],
     testDataModeEnabled: envTestDataModeEnabled,
-    safeErrors: finalWarnings
+    safeErrors: finalWarnings,
+    routeCoverageSuggestions
   })
 
   return NextResponse.json({
@@ -1357,6 +1416,7 @@ export async function GET(request: Request) {
     providerBadges: envTestDataModeEnabled ? [providerLabels.planning] : ['Production-safe mode'],
     warnings: finalWarnings,
     debug,
+    routeCoverageSuggestions,
     count: 0,
     itineraries: []
   })

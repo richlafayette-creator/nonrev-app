@@ -3347,10 +3347,16 @@ body {
 }
 
 .nonrevy-production-empty__subtext,
-.nonrevy-production-empty__positioning {
+.nonrevy-production-empty__positioning,
+.nonrevy-production-empty__guidance-note {
   margin: 0 0 12px;
   color: #cbd5e1;
   line-height: 1.55;
+}
+
+.nonrevy-production-empty__guidance-note {
+  color: #bae6fd;
+  font-size: 0.94rem;
 }
 
 .nonrevy-production-empty__positioning {
@@ -3387,6 +3393,16 @@ body {
 
 .nonrevy-production-empty li {
   margin: 4px 0;
+}
+
+.nonrevy-production-empty__suggestions li {
+  display: grid;
+  gap: 2px;
+}
+
+.nonrevy-production-empty__suggestions span {
+  color: #94a3b8;
+  font-size: 0.82rem;
 }
 
 .nonrevy-production-empty a {

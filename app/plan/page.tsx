@@ -444,10 +444,23 @@ function productionEmptyStateReasons({
   const reasons = new Set<string>()
   if (travelDateError) reasons.add(travelDateError)
   if (debug?.trueLiveDataUnavailableReason) reasons.add(debug.trueLiveDataUnavailableReason)
-  if (dataMode.includes('No current') || status.toLowerCase().includes('no current live data')) reasons.add('Provider data unavailable')
-  if (hasRequestedDate && (dataMode.includes('No current') || debug?.routeMatching?.dateCoverage?.requestedSearchDate)) reasons.add('Date outside available schedule range')
-  if (!reasons.size) reasons.add('Provider data unavailable')
+  if (dataMode.includes('No current') || status.toLowerCase().includes('no current live data')) reasons.add('Live schedule results were not available for this search.')
+  if (hasRequestedDate && (dataMode.includes('No current') || debug?.routeMatching?.dateCoverage?.requestedSearchDate)) reasons.add('The selected date may not have usable live results yet.')
+  if (!reasons.size) reasons.add('Live schedule results were not available for this search.')
   return Array.from(reasons)
+}
+
+const smallAirportPositioningHubs: Record<string, string[]> = {
+  SBP: ['LAX', 'SFO'],
+  SBA: ['LAX', 'SFO'],
+  RDM: ['PDX', 'SFO'],
+  AVL: ['CLT', 'ATL'],
+  CHO: ['IAD', 'DCA'],
+  FAR: ['MSP', 'ORD']
+}
+
+function travelerSearchUrl(query: string) {
+  return `/results?q=${encodeURIComponent(query)}`
 }
 
 function ProviderBadge({ label }: { label: string }) {
@@ -3077,29 +3090,45 @@ function CopilotPanel({
 }
 
 
-function ProductionEmptyState({ reasons }: { reasons: string[] }) {
+function ProductionEmptyState({ reasons, origin }: { reasons: string[]; origin?: string }) {
+  const positioningHubs = origin ? smallAirportPositioningHubs[origin] || [] : []
+  const routeIdeas = ['LAX-HND', 'SFO-HND', 'LAX-NRT']
+
   return (
     <section className="nonrevy-production-empty" aria-live="polite">
-      <p className="nonrevy-production-empty__eyebrow">Production data only</p>
-      <h2>No live itinerary data available</h2>
+      <p className="nonrevy-production-empty__eyebrow">Search results</p>
+      <h2>We couldn't find live results for this search right now.</h2>
+      <p className="nonrevy-production-empty__subtext">
+        Try another date, search from a larger nearby airport, or request community loads.
+      </p>
+      {positioningHubs.length ? (
+        <p className="nonrevy-production-empty__positioning">
+          Try positioning to {positioningHubs.join(' or ')} first.
+        </p>
+      ) : null}
       <div className="nonrevy-production-empty__grid">
         <section>
-          <strong>Reasons</strong>
+          <strong>Next actions</strong>
           <ul>
-            {reasons.map((reason) => <li key={reason}>{reason}</li>)}
+            <li>Try another date</li>
+            <li><a href="/best-routes">Search from a nearby airport</a></li>
+            <li><a href="/load-reports">Request loads</a></li>
+            <li><a href="/intelligence">View route intelligence</a></li>
           </ul>
         </section>
         <section>
-          <strong>Options</strong>
+          <strong>Try a bigger gateway</strong>
           <ul>
-            <li>Try another date</li>
-            <li><a href="/load-reports">Request loads</a></li>
-            <li><a href="/intelligence">View route intelligence</a></li>
-            <li><a href="/best-routes">View nearby airport alternatives</a></li>
+            {routeIdeas.map((idea) => <li key={idea}><a href={travelerSearchUrl(idea)}>Try {idea}</a></li>)}
           </ul>
         </section>
       </div>
-      <p>Demo and testing itineraries are hidden here so recommendations stay trustworthy.</p>
+      <details className="nonrevy-production-empty__details">
+        <summary>Why no results?</summary>
+        <ul>
+          {reasons.map((reason) => <li key={reason}>{reason}</li>)}
+        </ul>
+      </details>
     </section>
   )
 }
@@ -3767,6 +3796,7 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
   const [aiPlannerStatus, setAiPlannerStatus] = useState('AI planner scaffold ready for natural language trip requests.')
   const [copilotPrompt, setCopilotPrompt] = useState('Get me to Tokyo tomorrow.')
   const [copilotStatus, setCopilotStatus] = useState('Copilot ready. Ask for a route, cabin, risk preference, or backup strategy.')
+  const [developerMode, setDeveloperMode] = useState(false)
   const voiceInput = useVoiceInput({
     onTranscript: (transcript) => {
       setTripGoal(transcript)
@@ -3778,6 +3808,8 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
+    const operatorMode = ['1', 'true', 'yes'].includes((params.get('operator') || params.get('developer') || params.get('debug') || '').toLowerCase()) || window.localStorage.getItem('nonrevyDeveloperMode') === 'true'
+    setDeveloperMode(operatorMode)
     const initialQuery = params.get('q') || ''
     const initialAiTrip = params.get('aiTrip') || ''
     setQuery(initialQuery || initialAiTrip)
@@ -3934,14 +3966,14 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
       setItineraryDebug(data?.debug || null)
       setItineraryStatus(itineraries.length
         ? `${itineraries.length} live itinerary result${itineraries.length === 1 ? '' : 's'} found for ${data?.request?.origin || 'any origin'} → ${data?.request?.destination || 'any destination'}.`
-        : 'No live itinerary data available for this search.'
+        : "We couldn't find live results for this search right now."
       )
     } catch {
       setLiveItineraries([])
       setItineraryDebug(null)
-      setItineraryStatus('Itinerary search failed. No current live data is shown while production-safe mode cannot be confirmed.')
+      setItineraryStatus("We couldn't find live results for this search right now.")
       setItineraryDataMode('No current live data')
-      setItineraryWarnings(['Itinerary API request failed'])
+      setItineraryWarnings(['Live results were unavailable for this search.'])
     } finally {
       setItineraryLoading(false)
     }
@@ -4164,33 +4196,35 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
           {travelDateError ? <p className="nonrevy-results-page__warning">{travelDateError}</p> : null}
 
           {itineraryLoading ? <PlannerSkeletonLoaders /> : null}
-          {showProductionEmptyState ? <ProductionEmptyState reasons={productionEmptyReasons} /> : null}
+          {showProductionEmptyState ? <ProductionEmptyState reasons={productionEmptyReasons} origin={itineraryDebug?.parsedOrigin} /> : null}
           {itineraryComparisons.length > 0 ? <ItineraryComparisonPanel comparisons={itineraryComparisons} travelDate={travelWindow} communityLoads={communityLoads} onCommunityLoadsUpdated={() => setCommunityLoads(loadCommunityLoads())} trustReceipt={{ dataMode: itineraryDataMode, source: itinerarySource, status: itineraryStatus, warnings: itineraryWarnings, debug: itineraryDebug }} /> : null}
 
-          <details className="nonrevy-results-page__below">
-            <summary>Copilot, search settings, and diagnostics</summary>
-            <CopilotPanel
-              prompt={copilotPrompt}
-              setPrompt={setCopilotPrompt}
-              status={copilotStatus}
-              loading={itineraryLoading}
-              comparisons={itineraryComparisons}
-              travelerProfile={travelerProfile}
-              onSubmit={submitCopilotPrompt}
-            />
-            <UniversalSearchPanel
-              query={query || tripGoal || aiTripPrompt || copilotPrompt}
-              comparisons={itineraryComparisons}
-              flights={flights}
-              travelerProfile={travelerProfile}
-              onChoose={runUniversalSearchChoice}
-            />
-            <details style={{ border: '1px solid #334155', borderRadius: 14, padding: 12, background: '#020617', marginTop: 12 }}>
-              <summary style={{ color: '#67e8f9', cursor: 'pointer', fontWeight: 'bold' }}>Developer Diagnostics</summary>
-              <p style={{ color: '#94a3b8' }}>Source: {itinerarySource} · Mode: {itineraryDataMode} · Max legs: 2 default · Status: {itineraryStatus}</p>
-              {itineraryDebug ? <pre style={{ whiteSpace: 'pre-wrap', color: '#cbd5e1', fontSize: 12 }}>{JSON.stringify(itineraryDebug, null, 2)}</pre> : null}
+          {developerMode ? (
+            <details className="nonrevy-results-page__below">
+              <summary>Operator tools and diagnostics</summary>
+              <CopilotPanel
+                prompt={copilotPrompt}
+                setPrompt={setCopilotPrompt}
+                status={copilotStatus}
+                loading={itineraryLoading}
+                comparisons={itineraryComparisons}
+                travelerProfile={travelerProfile}
+                onSubmit={submitCopilotPrompt}
+              />
+              <UniversalSearchPanel
+                query={query || tripGoal || aiTripPrompt || copilotPrompt}
+                comparisons={itineraryComparisons}
+                flights={flights}
+                travelerProfile={travelerProfile}
+                onChoose={runUniversalSearchChoice}
+              />
+              <details style={{ border: '1px solid #334155', borderRadius: 14, padding: 12, background: '#020617', marginTop: 12 }}>
+                <summary style={{ color: '#67e8f9', cursor: 'pointer', fontWeight: 'bold' }}>Developer Diagnostics</summary>
+                <p style={{ color: '#94a3b8' }}>Source: {itinerarySource} · Mode: {itineraryDataMode} · Max legs: 2 default · Status: {itineraryStatus}</p>
+                {itineraryDebug ? <pre style={{ whiteSpace: 'pre-wrap', color: '#cbd5e1', fontSize: 12 }}>{JSON.stringify(itineraryDebug, null, 2)}</pre> : null}
+              </details>
             </details>
-          </details>
+          ) : null}
         </section>
       </main>
     )
@@ -4295,30 +4329,32 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
             <p style={{ color: '#facc15' }}>{itineraryStatus}</p>
           ) : null}
           {itineraryLoading ? <PlannerSkeletonLoaders /> : null}
-          {showProductionEmptyState ? <ProductionEmptyState reasons={productionEmptyReasons} /> : null}
+          {showProductionEmptyState ? <ProductionEmptyState reasons={productionEmptyReasons} origin={itineraryDebug?.parsedOrigin} /> : null}
           {itineraryComparisons.length > 0 ? <ItineraryComparisonPanel comparisons={itineraryComparisons} travelDate={travelWindow} communityLoads={communityLoads} onCommunityLoadsUpdated={() => setCommunityLoads(loadCommunityLoads())} trustReceipt={{ dataMode: itineraryDataMode, source: itinerarySource, status: itineraryStatus, warnings: itineraryWarnings, debug: itineraryDebug }} /> : null}
         </section>
 
-        <CopilotPanel
-          prompt={copilotPrompt}
-          setPrompt={setCopilotPrompt}
-          status={copilotStatus}
-          loading={itineraryLoading}
-          comparisons={itineraryComparisons}
-          travelerProfile={travelerProfile}
-          onSubmit={submitCopilotPrompt}
-        />
+        {developerMode ? (
+          <>
+            <CopilotPanel
+              prompt={copilotPrompt}
+              setPrompt={setCopilotPrompt}
+              status={copilotStatus}
+              loading={itineraryLoading}
+              comparisons={itineraryComparisons}
+              travelerProfile={travelerProfile}
+              onSubmit={submitCopilotPrompt}
+            />
 
-        <UniversalSearchPanel
-          query={query || tripGoal || aiTripPrompt || copilotPrompt}
-          comparisons={itineraryComparisons}
-          flights={flights}
-          travelerProfile={travelerProfile}
-          onChoose={runUniversalSearchChoice}
-        />
+            <UniversalSearchPanel
+              query={query || tripGoal || aiTripPrompt || copilotPrompt}
+              comparisons={itineraryComparisons}
+              flights={flights}
+              travelerProfile={travelerProfile}
+              onChoose={runUniversalSearchChoice}
+            />
 
-        <details style={{ border: '1px solid #334155', borderRadius: 20, padding: 16, background: '#0f172a', marginTop: 18 }}>
-          <summary style={{ color: '#67e8f9', cursor: 'pointer', fontWeight: 'bold' }}>Refine search settings, carrier scope, and voice input</summary>
+            <details style={{ border: '1px solid #334155', borderRadius: 20, padding: 16, background: '#0f172a', marginTop: 18 }}>
+              <summary style={{ color: '#67e8f9', cursor: 'pointer', fontWeight: 'bold' }}>Operator search settings, carrier scope, and voice input</summary>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))', gap: 18, marginTop: 16 }}>
           <form
             onSubmit={submitPlanRequest}
@@ -4464,8 +4500,8 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
           </div>
         </details>
 
-        <section style={{ marginTop: 30 }}>
-          <h2 style={{ fontSize: 24, marginBottom: 10 }}>Additional provider details</h2>
+            <section style={{ marginTop: 30 }}>
+              <h2 style={{ fontSize: 24, marginBottom: 10 }}>Additional provider details</h2>
           <details className="nonrevy-premium-details" style={{ border: '1px solid #334155', borderRadius: 16, padding: 14, background: '#020617', marginBottom: 16 }}>
             <summary style={{ color: '#38bdf8', cursor: 'pointer', fontWeight: 'bold' }}>Developer Diagnostics</summary>
             <p style={{ color: '#94a3b8', marginTop: 12 }}>{itineraryStatus} · Source: {itinerarySource}</p>
@@ -4839,7 +4875,9 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
               </p>
             </div>
           )}
-        </section>
+            </section>
+          </>
+        ) : null}
 
         <details className="nonrevy-premium-details" style={{ border: '1px solid #334155', borderRadius: 18, padding: 16, background: '#0f172a', color: '#cbd5e1', marginTop: 18 }}>
           <summary style={{ color: '#38bdf8', cursor: 'pointer', fontWeight: 'bold' }}>Advanced Details: scoring engine, route intelligence, and profile signals</summary>

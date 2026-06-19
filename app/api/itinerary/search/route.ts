@@ -5,6 +5,7 @@ import { mvpRouteSeedDate, mvpRouteSeedFlightsForRequest } from '../../../../lib
 import { createAviationstackScheduleProvider, createFlightAwareScheduleProvider, getLiveScheduleProviderReadiness, scheduleResultsToFlightRecords, type ScheduleProviderReadiness } from '../../../../lib/liveScheduleProviders'
 import { createProviderResultRepository, providerResultTableName, type ProviderCacheLookupResult, type ProviderResultRecord } from '../../../../lib/providerResultRepository'
 import { applyRouteCoverageLookupResult, buildRouteCoverageFallbackSuggestions, type RouteCoverageLookupStatus, type RouteCoverageSuggestion } from '../../../../lib/routeCoverageFallback'
+import { blendRecoveryIntoItineraryScores, buildRecoveryIntelligence, type RecoveryIntelligence } from '../../../../lib/recoveryIntelligence'
 
 export const dynamic = 'force-dynamic'
 
@@ -107,6 +108,7 @@ type ItineraryDebugMetadata = {
   deduplicationNotes: string[]
   deduplicatedRowsRemoved: number
   routeCoverageSuggestions: RouteCoverageSuggestion[]
+  recoveryIntelligence?: RecoveryIntelligence
   normalizedFlightAwareItinerarySample?: SafeNormalizedItinerarySample
 }
 
@@ -417,6 +419,41 @@ function providerCacheDebug(result?: ProviderCacheLookupResult, fetched = 0, usa
     usableItineraries,
     freshnessBand,
     detail: result?.detail || 'Provider cache lookup not attempted.'
+  }
+}
+
+function applyRecoveryIntelligenceToResults({
+  request,
+  itineraries,
+  routeCoverageSuggestions = [],
+  exactFlightCount = 0,
+  candidateFlightCount = 0,
+  providerCacheCount = 0,
+  historicalAvailabilityCount = 0,
+  communityReportCount = 0
+}: {
+  request: ParsedItineraryRequest
+  itineraries: ItineraryResult[]
+  routeCoverageSuggestions?: RouteCoverageSuggestion[]
+  exactFlightCount?: number
+  candidateFlightCount?: number
+  providerCacheCount?: number
+  historicalAvailabilityCount?: number
+  communityReportCount?: number
+}) {
+  const recoveryIntelligence = buildRecoveryIntelligence({
+    request,
+    itineraries,
+    routeCoverageSuggestions,
+    exactFlightCount,
+    candidateFlightCount,
+    providerCacheCount,
+    historicalAvailabilityCount,
+    communityReportCount
+  })
+  return {
+    recoveryIntelligence,
+    itineraries: blendRecoveryIntoItineraryScores(itineraries, recoveryIntelligence)
   }
 }
 
@@ -983,6 +1020,7 @@ function buildDebugMetadata({
   deduplicationNotes = [],
   deduplicatedRowsRemoved = 0,
   routeCoverageSuggestions = [],
+  recoveryIntelligence,
   normalizedFlightAwareItinerarySample
 }: {
   parsedRequest: ReturnType<typeof normalizeItineraryRequest>
@@ -1010,6 +1048,7 @@ function buildDebugMetadata({
   deduplicationNotes?: string[]
   deduplicatedRowsRemoved?: number
   routeCoverageSuggestions?: RouteCoverageSuggestion[]
+  recoveryIntelligence?: RecoveryIntelligence
   normalizedFlightAwareItinerarySample?: SafeNormalizedItinerarySample
 }): ItineraryDebugMetadata {
   const mergedProviderStatuses = mergeProviderStatuses(providerStatuses)
@@ -1048,6 +1087,7 @@ function buildDebugMetadata({
     deduplicationNotes,
     deduplicatedRowsRemoved,
     routeCoverageSuggestions,
+    recoveryIntelligence,
     normalizedFlightAwareItinerarySample
   }
 }
@@ -1167,13 +1207,22 @@ export async function GET(request: Request) {
 
   if (providerCacheItineraries.length > 0 && providerCacheFreshness !== 'historical-over-3d') {
     const cacheFreshness = providerCacheFreshnessAnnotation(providerCacheFreshness, effectiveRequest)
-    const itineraries = addProviderBadges(applyProviderCacheConfidence(providerCacheItineraries, providerCacheFreshness), 'supabase', false, cacheFreshness)
+    const cacheItineraries = addProviderBadges(applyProviderCacheConfidence(providerCacheItineraries, providerCacheFreshness), 'supabase', false, cacheFreshness)
       .map((itinerary) => ({
         ...itinerary,
         source: itinerary.source || 'provider-cache',
         sourceProvider: 'provider-cache',
         providerBadges: ['Cached provider data', cacheFreshness.dataFreshnessLabel || 'Provider cache']
       }))
+    const recoveryApplied = applyRecoveryIntelligenceToResults({
+      request: effectiveRequest,
+      itineraries: cacheItineraries,
+      exactFlightCount: providerCacheFlights.length,
+      candidateFlightCount: providerCacheFlights.length,
+      providerCacheCount: providerCacheFlights.length,
+      historicalAvailabilityCount: providerCacheFlights.length
+    })
+    const itineraries = recoveryApplied.itineraries
     counts.finalItineraries = itineraries.length
     const cacheDeduplication = deduplicationSummary(itineraries, 'provider cache')
     if (cacheDeduplication.notes.length) warnings.push(...cacheDeduplication.notes)
@@ -1207,7 +1256,8 @@ export async function GET(request: Request) {
       testDataModeEnabled: envTestDataModeEnabled,
       safeErrors: uniqueMessages(warnings),
       deduplicationNotes: cacheDeduplication.notes,
-      deduplicatedRowsRemoved: cacheDeduplication.removed
+      deduplicatedRowsRemoved: cacheDeduplication.removed,
+      recoveryIntelligence: recoveryApplied.recoveryIntelligence
     })
 
     return NextResponse.json({
@@ -1223,6 +1273,7 @@ export async function GET(request: Request) {
       providerBadges: ['Cached provider data'],
       warnings: uniqueMessages(warnings),
       debug,
+      recoveryIntelligence: recoveryApplied.recoveryIntelligence,
       count: itineraries.length,
       itineraries
     })
@@ -1242,7 +1293,7 @@ export async function GET(request: Request) {
   counts.flightAwareScheduleItineraries = flightAwareItineraries.length
   if (flightAwareScheduleFlights.length > 0 && flightAwareItineraries.length === 0) emptyResults.push('FlightAware returned live schedule rows, but none matched itinerary assembly rules.')
   if (flightAwareItineraries.length > 0) {
-    const itineraries = addProviderBadges(flightAwareItineraries, 'flightaware', false, {
+    const flightAwareScoredItineraries = addProviderBadges(flightAwareItineraries, 'flightaware', false, {
       dataFreshnessLabel: 'Live provider API data',
       dataFreshnessDetail: effectiveRequest.date ? `FlightAware live provider API schedule result checked for requested date ${effectiveRequest.date}.` : 'FlightAware live provider API schedule result checked for the current schedule window.',
       dataFreshnessRule: 'exact-requested-date',
@@ -1250,6 +1301,15 @@ export async function GET(request: Request) {
       matchedDate: effectiveRequest.date,
       productionAvailability: true
     })
+    const recoveryApplied = applyRecoveryIntelligenceToResults({
+      request: effectiveRequest,
+      itineraries: flightAwareScoredItineraries,
+      exactFlightCount: flightAwareScheduleFlights.length,
+      candidateFlightCount: flightAwareScheduleFlights.length,
+      providerCacheCount: providerCacheFlights.length,
+      historicalAvailabilityCount: providerCacheFlights.length
+    })
+    const itineraries = recoveryApplied.itineraries
     counts.finalItineraries = itineraries.length
     const flightAwareDeduplication = deduplicationSummary(itineraries, 'FlightAware')
     if (flightAwareDeduplication.notes.length) warnings.push(...flightAwareDeduplication.notes)
@@ -1283,6 +1343,7 @@ export async function GET(request: Request) {
       safeErrors: uniqueMessages(warnings),
       deduplicationNotes: flightAwareDeduplication.notes,
       deduplicatedRowsRemoved: flightAwareDeduplication.removed,
+      recoveryIntelligence: recoveryApplied.recoveryIntelligence,
       normalizedFlightAwareItinerarySample: safeNormalizedItinerarySample(itineraries[0])
     })
 
@@ -1299,6 +1360,7 @@ export async function GET(request: Request) {
       providerBadges: [providerLabels.flightaware],
       warnings: uniqueMessages(warnings),
       debug,
+      recoveryIntelligence: recoveryApplied.recoveryIntelligence,
       count: itineraries.length,
       itineraries
     })
@@ -1377,7 +1439,16 @@ export async function GET(request: Request) {
           matchedDate: routeMatching.dateCoverage.effectiveMatchDate,
           productionAvailability: false
         }
-    const itineraries = addProviderBadges(enrichedItineraries.length ? enrichedItineraries : supabaseItineraries, 'supabase', enriched, supabaseFreshness)
+    const supabaseScoredItineraries = addProviderBadges(enrichedItineraries.length ? enrichedItineraries : supabaseItineraries, 'supabase', enriched, supabaseFreshness)
+    const recoveryApplied = applyRecoveryIntelligenceToResults({
+      request: effectiveRequest,
+      itineraries: supabaseScoredItineraries,
+      exactFlightCount: supabaseMatchedFlights.length,
+      candidateFlightCount: supabaseFlights.length,
+      providerCacheCount: providerCacheFlights.length,
+      historicalAvailabilityCount: Math.max(providerCacheFlights.length, supabaseMatchedFlights.length)
+    })
+    const itineraries = recoveryApplied.itineraries
     counts.finalItineraries = itineraries.length
     const supabaseDeduplication = deduplicationSummary(itineraries, 'Supabase')
     if (supabaseDeduplication.notes.length) warnings.push(...supabaseDeduplication.notes)
@@ -1411,7 +1482,8 @@ export async function GET(request: Request) {
       testDataModeEnabled: envTestDataModeEnabled,
       safeErrors: uniqueMessages(warnings),
       deduplicationNotes: supabaseDeduplication.notes,
-      deduplicatedRowsRemoved: supabaseDeduplication.removed
+      deduplicatedRowsRemoved: supabaseDeduplication.removed,
+      recoveryIntelligence: recoveryApplied.recoveryIntelligence
     })
     return NextResponse.json({
       ok: true,
@@ -1428,6 +1500,7 @@ export async function GET(request: Request) {
       providerBadges: enriched ? [providerLabels.supabase, providerLabels.flightaware] : [providerLabels.supabase],
       warnings: uniqueMessages(warnings),
       debug,
+      recoveryIntelligence: recoveryApplied.recoveryIntelligence,
       count: itineraries.length,
       itineraries
     })
@@ -1454,7 +1527,7 @@ export async function GET(request: Request) {
     if (flightAwareLimit) rateLimits.push(flightAwareLimit)
     const enrichedItineraries = buildItinerariesFromFlights(aviationstackFlights, effectiveRequest, enrichments)
     const enriched = Object.keys(enrichments).length > 0
-    const itineraries = addProviderBadges(enrichedItineraries.length ? enrichedItineraries : aviationstackItineraries, 'aviationstack', enriched, {
+    const aviationstackScoredItineraries = addProviderBadges(enrichedItineraries.length ? enrichedItineraries : aviationstackItineraries, 'aviationstack', enriched, {
       dataFreshnessLabel: 'Live provider API data',
       dataFreshnessDetail: effectiveRequest.date ? `Aviationstack live provider API fallback result for requested date ${effectiveRequest.date}.` : 'Aviationstack live provider API fallback result; no strict requested date was supplied.',
       dataFreshnessRule: 'exact-requested-date',
@@ -1462,6 +1535,15 @@ export async function GET(request: Request) {
       matchedDate: effectiveRequest.date,
       productionAvailability: true
     })
+    const recoveryApplied = applyRecoveryIntelligenceToResults({
+      request: effectiveRequest,
+      itineraries: aviationstackScoredItineraries,
+      exactFlightCount: aviationstackFlights.length,
+      candidateFlightCount: aviationstackFlights.length,
+      providerCacheCount: providerCacheFlights.length,
+      historicalAvailabilityCount: providerCacheFlights.length
+    })
+    const itineraries = recoveryApplied.itineraries
     counts.finalItineraries = itineraries.length
     const aviationstackDeduplication = deduplicationSummary(itineraries, 'Aviationstack')
     if (aviationstackDeduplication.notes.length) warnings.push(...aviationstackDeduplication.notes)
@@ -1494,7 +1576,8 @@ export async function GET(request: Request) {
       testDataModeEnabled: envTestDataModeEnabled,
       safeErrors: uniqueMessages(warnings),
       deduplicationNotes: aviationstackDeduplication.notes,
-      deduplicatedRowsRemoved: aviationstackDeduplication.removed
+      deduplicatedRowsRemoved: aviationstackDeduplication.removed,
+      recoveryIntelligence: recoveryApplied.recoveryIntelligence
     })
 
     return NextResponse.json({
@@ -1510,6 +1593,7 @@ export async function GET(request: Request) {
       providerBadges: enriched ? [providerLabels.aviationstack, providerLabels.flightaware] : [providerLabels.aviationstack],
       warnings: uniqueMessages(warnings),
       debug,
+      recoveryIntelligence: recoveryApplied.recoveryIntelligence,
       count: itineraries.length,
       itineraries
     })
@@ -1531,7 +1615,7 @@ export async function GET(request: Request) {
       nearestDateApplied: seedNearestDateMatch.nearestDateApplied,
       nearestDateToleranceDays: personalTestingMode ? personalTestingToleranceDays : undefined
     })
-    const itineraries = addProviderBadges(mvpSeedItineraries, 'supabase', false, {
+    const seedScoredItineraries = addProviderBadges(mvpSeedItineraries, 'supabase', false, {
       dataFreshnessLabel: seedRouteMatching.dateCoverage.nearestDateApplied ? 'Nearest-date testing data' : 'Demo fallback data',
       dataFreshnessDetail: seedRouteMatching.dateCoverage.nearestDateApplied
         ? `Requested ${seedRouteMatching.dateCoverage.requestedSearchDate}; matched static test-data date ${seedRouteMatching.dateCoverage.effectiveMatchDate}. This is nearest-date testing data, not live provider API data.`
@@ -1544,6 +1628,15 @@ export async function GET(request: Request) {
       matchedDate: seedRouteMatching.dateCoverage.effectiveMatchDate || mvpRouteSeedDate,
       productionAvailability: false
     })
+    const recoveryApplied = applyRecoveryIntelligenceToResults({
+      request: effectiveRequest,
+      itineraries: seedScoredItineraries,
+      exactFlightCount: 0,
+      candidateFlightCount: mvpSeedFlights.length,
+      providerCacheCount: providerCacheFlights.length,
+      historicalAvailabilityCount: providerCacheFlights.length
+    })
+    const itineraries = recoveryApplied.itineraries
     counts.finalItineraries = itineraries.length
     const seedMessage = seedRouteMatching.dateCoverage.nearestDateApplied
       ? `Showing ${itineraries.length} MVP test-data nearest-date itinerary card${itineraries.length === 1 ? '' : 's'} for ${seedRouteMatching.dateCoverage.effectiveMatchDate}; requested ${seedRouteMatching.dateCoverage.requestedSearchDate}. These static seed rows are not live flight data.`
@@ -1592,14 +1685,24 @@ export async function GET(request: Request) {
       providerBadges: ['MVP test data'],
       warnings: finalWarnings,
       debug,
+      recoveryIntelligence: recoveryApplied.recoveryIntelligence,
       count: itineraries.length,
       itineraries
     })
   }
 
   const routeCoverageSuggestions = await routeCoverageFallbackGuidance(effectiveRequest, rateLimits)
+  const recoveryIntelligence = buildRecoveryIntelligence({
+    request: effectiveRequest,
+    itineraries: [],
+    routeCoverageSuggestions,
+    exactFlightCount: 0,
+    candidateFlightCount: supabaseFlights.length + aviationstackFlights.length + flightAwareScheduleFlights.length,
+    providerCacheCount: providerCacheFlights.length,
+    historicalAvailabilityCount: Math.max(providerCacheFlights.length, routeCoverageSuggestions.reduce((total, suggestion) => total + suggestion.providerResultCount, 0))
+  })
   const routeCoverageMessage = routeCoverageSuggestions.length
-    ? 'Additional route options found. These are route guidance only, not live availability.'
+    ? `${recoveryIntelligence.explanation} These are route guidance only, not live availability.`
     : undefined
   const noResultsMessage = routeCoverageSuggestions.length
     ? 'Additional route options found'
@@ -1640,7 +1743,8 @@ export async function GET(request: Request) {
       : ['Production-safe mode: no live provider API or exact requested-date stored Supabase itinerary was available, so nearest-date testing and demo fallback cards are hidden.'],
     testDataModeEnabled: envTestDataModeEnabled,
     safeErrors: finalWarnings,
-    routeCoverageSuggestions
+    routeCoverageSuggestions,
+    recoveryIntelligence
   })
 
   return NextResponse.json({
@@ -1658,6 +1762,7 @@ export async function GET(request: Request) {
     warnings: finalWarnings,
     debug,
     routeCoverageSuggestions,
+    recoveryIntelligence,
     count: 0,
     itineraries: []
   })

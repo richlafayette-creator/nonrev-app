@@ -67,6 +67,17 @@ export type ItineraryResult = {
   matchedDate?: string
   productionAvailability?: boolean
   duplicateCount?: number
+  recoveryStrength?: number
+  recoveryExplanation?: string
+  recoveryFactors?: Record<string, number | string>
+  suggestedRecoveryPaths?: Array<{
+    id: string
+    label: string
+    route?: string
+    kind: string
+    confidence: 'Conservative'
+    note: string
+  }>
 }
 
 export type FlightRouteNormalization = {

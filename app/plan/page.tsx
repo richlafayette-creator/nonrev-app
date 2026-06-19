@@ -146,6 +146,22 @@ type LiveItineraryLeg = {
   duplicateCount?: number
 }
 
+type SuggestedRecoveryPath = {
+  id: string
+  label: string
+  route?: string
+  kind: string
+  confidence: 'Conservative'
+  note: string
+}
+
+type RecoveryIntelligence = {
+  recoveryStrength: number
+  label: string
+  explanation: string
+  suggestedRecoveryPaths: SuggestedRecoveryPath[]
+}
+
 type LiveItineraryResult = {
   id: string
   route: string
@@ -169,12 +185,15 @@ type LiveItineraryResult = {
   providerBadges?: string[]
   dataFreshnessLabel?: string
   dataFreshnessDetail?: string
-  dataFreshnessRule?: 'exact-requested-date' | 'nearest-date-testing-match' | 'stored-historical-data' | 'demo-fallback'
+  dataFreshnessRule?: 'exact-requested-date' | 'cached-provider-current' | 'cached-provider-reduced' | 'cached-provider-yellow' | 'cached-provider-historical' | 'nearest-date-testing-match' | 'stored-historical-data' | 'demo-fallback'
   dataFreshnessWarning?: string
   requestedDate?: string
   matchedDate?: string
   productionAvailability?: boolean
   duplicateCount?: number
+  recoveryStrength?: number
+  recoveryExplanation?: string
+  suggestedRecoveryPaths?: SuggestedRecoveryPath[]
 }
 
 type ProviderStatus = {
@@ -321,7 +340,7 @@ type ItineraryDebugMetadata = {
   trueLiveDataUnavailableReason?: string
   activeDataMode?: 'production-safe' | 'test-data'
   testDataModeEnabled?: boolean
-  dataFreshnessMode?: 'live-current-api' | 'stored-supabase' | 'nearest-date-testing' | 'demo-fallback' | 'mvp-test-data' | 'no-current-live-data'
+  dataFreshnessMode?: 'live-current-api' | 'provider-cache' | 'stored-supabase' | 'nearest-date-testing' | 'demo-fallback' | 'mvp-test-data' | 'no-current-live-data'
   dataFreshnessExplanation?: string[]
   scheduleProviderReadiness?: ScheduleProviderReadiness[]
   normalizedFlightAwareItinerarySample?: {
@@ -340,6 +359,7 @@ type ItineraryDebugMetadata = {
   deduplicationNotes?: string[]
   deduplicatedRowsRemoved?: number
   routeCoverageSuggestions?: RouteCoverageSuggestion[]
+  recoveryIntelligence?: RecoveryIntelligence
   safeErrors: string[]
 }
 
@@ -3114,23 +3134,13 @@ function routeCoverageStatusLabel(suggestion: RouteCoverageSuggestion) {
   return 'Guidance only'
 }
 
-function ProductionEmptyState({ reasons, origin, suggestions = [] }: { reasons: string[]; origin?: string; suggestions?: RouteCoverageSuggestion[] }) {
+function ProductionEmptyState({ reasons, origin, suggestions = [], recovery }: { reasons: string[]; origin?: string; suggestions?: RouteCoverageSuggestion[]; recovery?: RecoveryIntelligence }) {
   void origin
-  const hasRouteOptions = suggestions.length > 0
+  const recoveryPaths = recovery?.suggestedRecoveryPaths || []
+  const hasRouteOptions = suggestions.length > 0 || recoveryPaths.length > 0
   const routeIdeas = suggestions.length
-    ? suggestions
-    : ['LAX-HND', 'SFO-HND', 'LAX-NRT'].map((route) => ({
-        id: route,
-        label: `Try ${route}`,
-        searchQuery: route,
-        basis: 'Search a larger gateway as route guidance only; verify live availability before travel.',
-        lookupStatus: 'not_checked' as const,
-        providerResultCount: 0,
-        confidence: 'Conservative' as const,
-        kind: 'hub-to-destination-group' as const,
-        origin: route.slice(0, 3),
-        destination: route.slice(-3)
-      }))
+    ? suggestions.map((suggestion) => ({ id: suggestion.id, label: suggestion.label, searchQuery: suggestion.searchQuery, status: routeCoverageStatusLabel(suggestion) }))
+    : recoveryPaths.map((path) => ({ id: path.id, label: path.label, searchQuery: path.route || path.label, status: 'Recovery guidance only' }))
 
   return (
     <section className="nonrevy-production-empty" aria-live="polite">
@@ -3140,7 +3150,7 @@ function ProductionEmptyState({ reasons, origin, suggestions = [] }: { reasons: 
         Try another date, search from a larger nearby airport, or request community loads.
       </p>
       <p className="nonrevy-production-empty__guidance-note">
-        Suggested ways to search are route guidance only — they are not live seat availability.
+        {recovery ? `${recovery.explanation} Recovery strength: ${recovery.recoveryStrength}/100.` : 'Suggested ways to search are route guidance only — they are not live seat availability.'}
       </p>
       <div className="nonrevy-production-empty__grid">
         <section>
@@ -3158,7 +3168,7 @@ function ProductionEmptyState({ reasons, origin, suggestions = [] }: { reasons: 
             {routeIdeas.map((idea) => (
               <li key={idea.id}>
                 <a href={travelerSearchUrl(idea.searchQuery)}>{idea.label}</a>
-                <span>{routeCoverageStatusLabel(idea)}</span>
+                <span>{idea.status}</span>
               </li>
             ))}
           </ul>
@@ -4242,7 +4252,7 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
           {travelDateError ? <p className="nonrevy-results-page__warning">{travelDateError}</p> : null}
 
           {itineraryLoading ? <PlannerSkeletonLoaders /> : null}
-          {showProductionEmptyState ? <ProductionEmptyState reasons={productionEmptyReasons} origin={itineraryDebug?.parsedOrigin} suggestions={itineraryDebug?.routeCoverageSuggestions} /> : null}
+          {showProductionEmptyState ? <ProductionEmptyState reasons={productionEmptyReasons} origin={itineraryDebug?.parsedOrigin} suggestions={itineraryDebug?.routeCoverageSuggestions} recovery={itineraryDebug?.recoveryIntelligence} /> : null}
           {itineraryComparisons.length > 0 ? <ItineraryComparisonPanel comparisons={itineraryComparisons} travelDate={travelWindow} communityLoads={communityLoads} onCommunityLoadsUpdated={() => setCommunityLoads(loadCommunityLoads())} trustReceipt={{ dataMode: itineraryDataMode, source: itinerarySource, status: itineraryStatus, warnings: itineraryWarnings, debug: itineraryDebug }} /> : null}
 
           {developerMode ? (
@@ -4375,7 +4385,7 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
             <p style={{ color: '#facc15' }}>{itineraryStatus}</p>
           ) : null}
           {itineraryLoading ? <PlannerSkeletonLoaders /> : null}
-          {showProductionEmptyState ? <ProductionEmptyState reasons={productionEmptyReasons} origin={itineraryDebug?.parsedOrigin} suggestions={itineraryDebug?.routeCoverageSuggestions} /> : null}
+          {showProductionEmptyState ? <ProductionEmptyState reasons={productionEmptyReasons} origin={itineraryDebug?.parsedOrigin} suggestions={itineraryDebug?.routeCoverageSuggestions} recovery={itineraryDebug?.recoveryIntelligence} /> : null}
           {itineraryComparisons.length > 0 ? <ItineraryComparisonPanel comparisons={itineraryComparisons} travelDate={travelWindow} communityLoads={communityLoads} onCommunityLoadsUpdated={() => setCommunityLoads(loadCommunityLoads())} trustReceipt={{ dataMode: itineraryDataMode, source: itinerarySource, status: itineraryStatus, warnings: itineraryWarnings, debug: itineraryDebug }} /> : null}
         </section>
 

@@ -110,6 +110,52 @@ describe('itinerary natural language parser', () => {
     assert.equal(reversed.origin, 'LAS')
     assert.equal(reversed.destination, 'MCO')
     assert.equal(reversed.date, '2026-06-06')
+
+    const commuterCity = parseItineraryPrompt('United San Francisco to Santa Barbara tomorrow', fixedNow)
+    assert.equal(commuterCity.origin, 'SFO')
+    assert.equal(commuterCity.destination, 'SBA')
+    assert.equal(commuterCity.date, '2026-06-05')
+
+    const europeCity = parseItineraryPrompt('Delta New York to Amsterdam next Friday', fixedNow)
+    assert.equal(europeCity.origin, 'JFK')
+    assert.equal(europeCity.destination, 'AMS')
+    assert.equal(europeCity.date, '2026-06-05')
+
+    const reverseEuropeCity = parseItineraryPrompt('United to Frankfurt from Newark next Friday', fixedNow)
+    assert.equal(reverseEuropeCity.origin, 'EWR')
+    assert.equal(reverseEuropeCity.destination, 'FRA')
+    assert.equal(reverseEuropeCity.date, '2026-06-05')
+  })
+
+  it('parses all private-beta smoke matrix natural-language routes', () => {
+    for (const [query, origin, destination, date] of [
+      ['United SFO to HNL tomorrow', 'SFO', 'HNL', '2026-06-05'],
+      ['United DEN to ORD tomorrow morning', 'DEN', 'ORD', '2026-06-05'],
+      ['United Express SFO to SBA tomorrow', 'SFO', 'SBA', '2026-06-05'],
+      ['Delta JFK to AMS next Friday', 'JFK', 'AMS', '2026-06-05'],
+      ['Delta ATL to LAX tomorrow', 'ATL', 'LAX', '2026-06-05'],
+      ['Delta Connection MSP to FAR tomorrow', 'MSP', 'FAR', '2026-06-05'],
+      ['Alaska SEA to SFO tomorrow', 'SEA', 'SFO', '2026-06-05'],
+      ['Alaska SEA to OGG next Saturday', 'SEA', 'OGG', '2026-06-06'],
+      ['Alaska PDX to RDM tomorrow', 'PDX', 'RDM', '2026-06-05'],
+      ['American DFW to HNL tomorrow', 'DFW', 'HNL', '2026-06-05'],
+      ['American PHL to LHR next Friday', 'PHL', 'LHR', '2026-06-05'],
+      ['American Eagle CLT to AVL tomorrow', 'CLT', 'AVL', '2026-06-05'],
+      ['Hawaiian HNL to OGG tomorrow morning', 'HNL', 'OGG', '2026-06-05'],
+      ['Hawaiian HNL to LAX next Friday', 'HNL', 'LAX', '2026-06-05'],
+      ['best backup from KOA to HNL tomorrow', 'KOA', 'HNL', '2026-06-05'],
+      ['United SFO to NRT next week', 'SFO', 'NRT', '2026-06-11'],
+      ['Delta SEA to HND next Friday', 'SEA', 'HND', '2026-06-05'],
+      ['United EWR to FRA next Friday', 'EWR', 'FRA', '2026-06-05'],
+      ['Delta ATL to CDG next Friday', 'ATL', 'CDG', '2026-06-05'],
+      ['American Eagle DCA to CHO tomorrow', 'DCA', 'CHO', '2026-06-05']
+    ] as const) {
+      const parsed = parseItineraryPrompt(query, fixedNow)
+      assert.equal(parsed.origin, origin, query)
+      assert.equal(parsed.destination, destination, query)
+      assert.equal(parsed.date, date, query)
+      assert.equal(parsed.parserFallbackApplied, false, query)
+    }
   })
 
   it('parses bare next-week travel windows conservatively', () => {

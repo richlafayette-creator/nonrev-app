@@ -208,6 +208,8 @@ const airportAliases: Record<string, string> = {
   las: 'LAS',
   sandiego: 'SAN',
   san: 'SAN',
+  santabarbara: 'SBA',
+  sba: 'SBA',
   minneapolis: 'MSP',
   saintpaul: 'MSP',
   stpaul: 'MSP',
@@ -225,6 +227,10 @@ const airportAliases: Record<string, string> = {
   london: 'LHR',
   heathrow: 'LHR',
   lhr: 'LHR',
+  amsterdam: 'AMS',
+  ams: 'AMS',
+  frankfurt: 'FRA',
+  fra: 'FRA',
   charlotte: 'CLT',
   clt: 'CLT',
   asheville: 'AVL',
@@ -267,6 +273,12 @@ function airportFromPhrase(value?: string | null) {
   const direct = normalizePlaceToken(value)
   if (direct) return direct
   const words = value.toLowerCase().match(/[a-z]+/g) || []
+  for (let size = words.length; size >= 2; size -= 1) {
+    for (let index = 0; index <= words.length - size; index += 1) {
+      const code = airportAliases[words.slice(index, index + size).join('')]
+      if (code) return code
+    }
+  }
   for (const word of words) {
     const code = airportAliases[word]
     if (code) return code

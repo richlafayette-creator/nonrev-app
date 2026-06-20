@@ -3585,7 +3585,7 @@ function renderFlightBoardRow(comparison: ItineraryComparison) {
                   <strong className="nonrevy-flight-board-row__flight-number">{flightNumber}</strong>
                 </span>
                 <span className="nonrevy-flight-board-row__route">{comparison.route}</span>
-                <span className="nonrevy-flight-board-row__score" title="Confidence score">Confidence {confidenceScore}</span>
+                <span className="nonrevy-flight-board-row__score" title="Confidence score">Score {confidenceScore}</span>
               </div>
               <div className="nonrevy-flight-board-row__time-line" aria-label={`Depart ${depTime}, arrive ${arrivalDisplay}`}>
                 <span className="nonrevy-flight-board-row__time-item">

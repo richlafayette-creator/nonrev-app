@@ -4686,3 +4686,161 @@ main:has(> nav) {
     white-space: normal !important;
   }
 }
+
+/* Product simplification: beta search and compact itinerary defaults */
+.nonrevy-home__hero--simple {
+  min-height: calc(100vh - 80px);
+  padding: clamp(16px, 5vw, 48px) 0;
+}
+
+.nonrevy-home__content--simple {
+  width: min(100%, 680px);
+}
+
+.nonrevy-home__search-card--simple {
+  display: grid;
+  gap: 12px;
+}
+
+.nonrevy-home__input--simple,
+.nonrevy-home__date-input {
+  box-sizing: border-box;
+  padding-left: 24px !important;
+  padding-right: 24px !important;
+}
+
+.nonrevy-home__date-label {
+  margin-top: 4px;
+}
+
+.nonrevy-home__date-input {
+  min-height: 58px !important;
+  border-radius: 18px !important;
+}
+
+.nonrevy-flight-board__header {
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.nonrevy-flight-board-row__content {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+}
+
+.nonrevy-flight-board-row__flight-data {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+}
+
+.nonrevy-flight-board-row__primary-line,
+.nonrevy-flight-board-row__time-line,
+.nonrevy-flight-board-row__secondary-line {
+  gap: 5px !important;
+  min-width: 0 !important;
+  overflow: hidden !important;
+}
+
+.nonrevy-flight-board-row__airline,
+.nonrevy-flight-board-row__flight-number,
+.nonrevy-flight-board-row__times,
+.nonrevy-flight-board-row__stops,
+.nonrevy-flight-board-row__duration,
+.nonrevy-flight-board-row__score {
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+.nonrevy-flight-board-row__airline {
+  color: #f8fafc;
+  font-size: clamp(0.78rem, 2.6vw, 0.94rem);
+  font-weight: 920;
+}
+
+.nonrevy-flight-board-row__flight-number {
+  flex: 0 0 auto;
+}
+
+.nonrevy-flight-board-row__score {
+  color: var(--score-color) !important;
+  background: rgba(2, 6, 23, 0.48);
+  border: 1px solid color-mix(in srgb, var(--score-color) 42%, transparent);
+  padding: 2px 6px !important;
+  opacity: 1 !important;
+}
+
+.nonrevy-flight-board-row__actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+
+.nonrevy-flight-board-row__actions button {
+  min-height: 30px !important;
+  padding: 4px 8px !important;
+  font-size: 0.72rem !important;
+  opacity: 0.96 !important;
+  white-space: nowrap;
+}
+
+@media (max-width: 760px) {
+  .nonrevy-flight-board-row__content {
+    grid-template-columns: 1fr;
+  }
+
+  .nonrevy-flight-board-row__flight-data {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .nonrevy-flight-board-row__secondary-line {
+    grid-column: 1 / -1;
+  }
+
+  .nonrevy-flight-board-row__actions {
+    justify-content: stretch;
+  }
+
+  .nonrevy-flight-board-row__actions button {
+    flex: 1 1 0;
+  }
+}
+
+@media (max-width: 430px) {
+  .nonrevy-home__search-card--simple {
+    padding: 14px !important;
+    border-radius: 22px;
+  }
+
+  .nonrevy-home__input--simple,
+  .nonrevy-home__date-input {
+    min-height: 56px !important;
+    font-size: 1rem !important;
+  }
+
+  .nonrevy-flight-board-row__flight-data {
+    grid-template-columns: 1fr;
+    gap: 3px;
+  }
+
+  .nonrevy-flight-board-row__secondary-line {
+    grid-column: auto;
+  }
+
+  .nonrevy-flight-board-row__actions {
+    gap: 4px !important;
+  }
+
+  .nonrevy-flight-board-row__actions button {
+    padding: 5px 4px !important;
+    font-size: 0.66rem !important;
+  }
+}

@@ -6,30 +6,22 @@ import { supabase } from '../lib/supabase'
 
 const menuItems = [
   ['Home', '/'],
-  ['Dashboard', '/dashboard'],
-  ['Plan', '/plan'],
-  ['Opportunities', '/opportunities'],
-  ['Open Requests', '/requests'],
-  ['My Requests', '/my-requests'],
-  ['Best Routes', '/best-routes'],
-  ['Historical Routes', '/historical-routes'],
-  ['Intelligence', '/intelligence'],
-  ['Load Reports', '/load-reports'],
-  ['Outcomes', '/outcomes'],
-  ['Notifications', '/notifications'],
-  ['Alerts', '/alerts'],
-  ['Reminders', '/reminders'],
-  ['Agent', '/agent']
+  ['Search', '/results'],
+  ['Plan', '/plan']
 ]
 
 const drawerItems = [
-  ['Profile', '/profile'],
+  ['Watchlist', '/watchlist'],
+  ['Alerts', '/alerts'],
+  ['Trips', '/outcomes'],
+  ['Community', '/load-reports'],
+  ['Route Intelligence', '/intelligence'],
+  ['Settings', '/notification-preferences'],
+  ['AI Search', '/agent'],
+  ['Beta Feedback', '/beta-feedback'],
   ['Saved Searches', '/saved-searches'],
-  ['Watchlists', '/watchlist'],
-  ['Data Health', '/data-health'],
-  ['Billing', '/billing'],
-  ['Membership', '/membership'],
-  ['Settings', '/notification-preferences']
+  ['Profile', '/profile'],
+  ['Account', '/account']
 ]
 
 export default function AppNavigation() {

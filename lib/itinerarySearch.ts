@@ -61,7 +61,7 @@ export type ItineraryResult = {
   providerBadges?: string[]
   dataFreshnessLabel?: string
   dataFreshnessDetail?: string
-  dataFreshnessRule?: 'exact-requested-date' | 'cached-provider-current' | 'cached-provider-reduced' | 'cached-provider-yellow' | 'cached-provider-historical' | 'nearest-date-testing-match' | 'stored-historical-data' | 'demo-fallback'
+  dataFreshnessRule?: 'exact-requested-date' | 'cached-provider-current' | 'cached-provider-reduced' | 'cached-provider-yellow' | 'cached-provider-historical' | 'nearest-date-testing-match' | 'stored-historical-data' | 'demo-fallback' | 'route-framework'
   dataFreshnessWarning?: string
   requestedDate?: string
   matchedDate?: string

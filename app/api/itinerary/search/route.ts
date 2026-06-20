@@ -4,7 +4,7 @@ import { buildItinerariesFromFlights, closestAvailableFlightDates, flightMatches
 import { mvpRouteSeedDate, mvpRouteSeedFlightsForRequest } from '../../../../lib/mvpRouteSeedData'
 import { createAviationstackScheduleProvider, createFlightAwareScheduleProvider, getLiveScheduleProviderReadiness, scheduleResultsToFlightRecords, type ScheduleProviderReadiness } from '../../../../lib/liveScheduleProviders'
 import { createProviderResultRepository, providerResultTableName, type ProviderCacheLookupResult, type ProviderResultRecord } from '../../../../lib/providerResultRepository'
-import { applyRouteCoverageLookupResult, buildRouteCoverageFallbackSuggestions, type RouteCoverageLookupStatus, type RouteCoverageSuggestion } from '../../../../lib/routeCoverageFallback'
+import { applyRouteCoverageLookupResult, buildRouteCoverageFallbackSuggestions, destinationAirportGroup, positioningHubsForOrigin, type RouteCoverageLookupStatus, type RouteCoverageSuggestion } from '../../../../lib/routeCoverageFallback'
 import { blendRecoveryIntoItineraryScores, buildRecoveryIntelligence, type RecoveryIntelligence } from '../../../../lib/recoveryIntelligence'
 import { buildHistoricalRouteIntelligence, blendHistoricalIntelligenceIntoItineraryScores, type HistoricalRouteIntelligence } from '../../../../lib/historicalIntelligence'
 import { listAccountBetaRecords } from '../../../../lib/accountBetaStore'
@@ -497,7 +497,162 @@ function applyRouteIntelligenceToResults({
     recoveryIntelligence,
     historicalIntelligence,
     itineraries: blendHistoricalIntelligenceIntoItineraryScores(recoveryItineraries, historicalIntelligence)
+      .sort((a, b) => (b.compositeRouteScore || b.score) - (a.compositeRouteScore || a.score))
+      .slice(0, 5)
   }
+}
+
+const routeFrameworkHubProfiles: Record<string, { carrier: string; score: number }> = {
+  LAX: { carrier: 'United / Alaska / Delta hub routing', score: 82 },
+  SFO: { carrier: 'United hub routing', score: 84 },
+  SEA: { carrier: 'Alaska / Delta hub routing', score: 80 },
+  DEN: { carrier: 'United hub routing', score: 78 },
+  PHX: { carrier: 'American / Alaska partner routing', score: 72 },
+  ORD: { carrier: 'United / American hub routing', score: 76 },
+  ATL: { carrier: 'Delta hub routing', score: 82 },
+  MSP: { carrier: 'Delta hub routing', score: 76 },
+  CLT: { carrier: 'American partner hub routing', score: 74 },
+  IAD: { carrier: 'United hub routing', score: 76 },
+  DFW: { carrier: 'American / Alaska partner routing', score: 74 }
+}
+
+const destinationHubPatterns: Record<string, string[]> = {
+  BOS: ['LAX', 'SFO', 'SEA', 'DEN', 'ORD', 'ATL'],
+  JFK: ['LAX', 'SFO', 'SEA', 'DEN', 'ATL'],
+  EWR: ['SFO', 'LAX', 'DEN', 'ORD'],
+  HND: ['SFO', 'LAX', 'SEA'],
+  NRT: ['SFO', 'LAX', 'SEA'],
+  HNL: ['LAX', 'SFO', 'SEA'],
+  OGG: ['LAX', 'SFO', 'SEA']
+}
+
+function routeFrameworkClamp(value: number, min = 0, max = 100) {
+  return Math.max(min, Math.min(max, Math.round(value)))
+}
+
+function uniqueAirportCodes(codes: string[]) {
+  return [...new Set(codes.map((code) => code.trim().toUpperCase()).filter((code) => /^[A-Z]{3}$/.test(code)))]
+}
+
+function routeFrameworkProviderEvidence(records: ProviderResultRecord[], from: string, to: string) {
+  return records.filter((record) => record.origin === from && record.destination === to)
+}
+
+function historicalPatternHubs(records: ProviderResultRecord[], origin: string, destination: string) {
+  return uniqueAirportCodes([
+    ...records.filter((record) => record.origin === origin && record.destination !== destination).map((record) => record.destination),
+    ...records.filter((record) => record.destination === destination && record.origin !== origin).map((record) => record.origin)
+  ]).filter((hub) => hub !== origin && hub !== destination)
+}
+
+function routeFrameworkPaths(request: ParsedItineraryRequest, suggestions: RouteCoverageSuggestion[], records: ProviderResultRecord[]) {
+  const origin = request.origin
+  const destination = request.destination
+  if (!origin || !destination) return []
+  const destinationOptions = destinationAirportGroup(destination).filter((code) => code !== origin)
+  const primaryDestination = destinationOptions.includes(destination) ? destination : destinationOptions[0] || destination
+  const suggestionPaths = suggestions
+    .filter((suggestion) => suggestion.origin === origin && (suggestion.via || suggestion.destination))
+    .map((suggestion) => suggestion.via ? [origin, suggestion.via, suggestion.destination] : [suggestion.origin, suggestion.destination])
+  const hubs = uniqueAirportCodes([
+    ...positioningHubsForOrigin(origin),
+    ...(destinationHubPatterns[destination] || []),
+    ...historicalPatternHubs(records, origin, destination)
+  ]).filter((hub) => hub !== origin && hub !== primaryDestination)
+  const hubPaths = hubs.map((hub) => [origin, hub, primaryDestination])
+  const destinationAlternatePaths = destinationOptions
+    .filter((code) => code !== primaryDestination)
+    .flatMap((alternate) => hubs.slice(0, 3).map((hub) => [origin, hub, alternate]))
+  return [...new Map([...suggestionPaths, ...hubPaths, ...destinationAlternatePaths].map((path) => [path.join(' → '), path])).values()]
+}
+
+function routeFrameworkLeg(path: string[], index: number, records: ProviderResultRecord[]): ItineraryResult['legs'][number] {
+  const origin = path[index]
+  const destination = path[index + 1]
+  const record = routeFrameworkProviderEvidence(records, origin, destination).sort((a, b) => Date.parse(b.source_checked_at || b.cached_at) - Date.parse(a.source_checked_at || a.cached_at))[0]
+  const hubProfile = routeFrameworkHubProfiles[destination] || routeFrameworkHubProfiles[origin]
+  return {
+    id: record ? `${record.flight_number}-${origin}-${destination}` : `framework-${origin}-${destination}`,
+    route: `${origin} → ${destination}`,
+    origin,
+    destination,
+    carrier: record?.airline || record?.carrier || hubProfile?.carrier || 'Alliance partner routing',
+    flightNumber: record?.flight_number || 'Flight numbers unavailable',
+    operatingFlightNumber: record?.flight_number || undefined,
+    marketingFlightNumbers: [],
+    departureTime: record?.departure_time || 'Pending live schedule',
+    arrivalTime: record?.arrival_time || 'Pending live schedule',
+    duration: record ? 'Stored provider timing' : 'Live availability unavailable',
+    aircraft: record?.aircraft || 'Unknown until live schedule returns',
+    status: record ? 'Stored provider route evidence' : 'Waiting for live loads',
+    score: 50,
+    risk: 'Medium',
+    source: record ? 'provider-cache-route-evidence' : 'route-framework',
+    sourceProvider: record?.source_provider || 'route-framework',
+    sourceCheckedAt: record?.source_checked_at
+  }
+}
+
+function routeFrameworkItinerary({ path, score, historical, community, sampleSize, recovery, basis, records }: { path: string[]; score: number; historical: number; community: number; sampleSize: number; recovery: number; basis: string; records: ProviderResultRecord[] }): ItineraryResult {
+  const legs = path.slice(0, -1).map((_, index) => routeFrameworkLeg(path, index, records))
+  const knownFlightNumbers = legs.map((leg) => leg.operatingFlightNumber).filter(Boolean) as string[]
+  return {
+    id: `route-framework-${path.join('-')}`.toLowerCase(),
+    route: path.join(' → '),
+    legs,
+    carrier: routeFrameworkHubProfiles[path[1]]?.carrier || 'Alliance partner routing',
+    flightNumber: knownFlightNumbers.length ? knownFlightNumbers.join(' / ') : 'Flight numbers unavailable',
+    operatingFlightNumber: knownFlightNumbers.length ? knownFlightNumbers.join(' / ') : undefined,
+    marketingFlightNumbers: [],
+    departureTime: legs[0]?.departureTime || 'Pending live schedule',
+    arrivalTime: legs[legs.length - 1]?.arrivalTime || 'Pending live schedule',
+    duration: legs.every((leg) => leg.duration === 'Stored provider timing') ? 'Stored provider timing' : 'Live availability unavailable',
+    aircraft: [...new Set(legs.map((leg) => leg.aircraft))].join(' + '),
+    status: 'Live availability unavailable. Waiting for live loads.',
+    score,
+    risk: score >= 72 ? 'Medium-Low' : score >= 55 ? 'Medium' : 'High',
+    source: 'route-framework',
+    sourceProvider: 'route-framework',
+    providerBadges: ['Route framework only', 'Live availability unavailable'],
+    dataFreshnessLabel: 'Live availability unavailable',
+    dataFreshnessDetail: basis,
+    dataFreshnessRule: 'route-framework',
+    dataFreshnessWarning: 'Route framework only. Flight numbers, times, and loads are shown only when provider data returns them.',
+    productionAvailability: false,
+    recoveryStrength: recovery,
+    recoveryExplanation: basis,
+    historicalSuccessScore: historical,
+    historicalConfidence: routeFrameworkClamp(Math.min(sampleSize, 12) * 7),
+    historicalSampleSize: sampleSize,
+    communityLoadTrustScore: community,
+    compositeRouteScore: score,
+    historicalFactors: { liveAvailabilityScore: 18, historicalSuccessScore: historical, communityLoadScore: community, recoveryStrength: recovery, sampleSizeScore: routeFrameworkClamp(Math.min(sampleSize, 12) * 7), basis }
+  }
+}
+
+function buildCompleteRouteFrameworkItineraries({ request, routeCoverageSuggestions = [], providerRecords = [], recoveryIntelligence, historicalIntelligence, limit = 5 }: { request: ParsedItineraryRequest; routeCoverageSuggestions?: RouteCoverageSuggestion[]; providerRecords?: ProviderResultRecord[]; recoveryIntelligence?: RecoveryIntelligence; historicalIntelligence?: HistoricalRouteIntelligence; limit?: number }) {
+  const historical = historicalIntelligence?.historicalSuccess.score || 50
+  const sampleSize = historicalIntelligence?.historicalSuccess.sampleSize || 0
+  const community = historicalIntelligence?.loadReportTrust.score || 50
+  const recovery = recoveryIntelligence?.recoveryStrength || 45
+  return routeFrameworkPaths(request, routeCoverageSuggestions, providerRecords)
+    .map((path) => {
+      const suggestion = routeCoverageSuggestions.find((item) => item.searchQuery === path.join(' → ') || (item.via && path.includes(item.via)))
+      const hubScore = routeFrameworkHubProfiles[path[1]]?.score || 64
+      const providerEvidence = path.slice(0, -1).reduce((total, airport, index) => total + routeFrameworkProviderEvidence(providerRecords, airport, path[index + 1]).length, 0)
+      const routeConfidence = routeFrameworkClamp(hubScore + Math.min(providerEvidence * 3, 12) + (suggestion?.lookupStatus === 'provider_rows_found' ? 8 : 0) - Math.max(0, path.length - 2) * 4, 35, 92)
+      const sampleSizeScore = routeFrameworkClamp(Math.min(sampleSize, 12) * 7 + (historicalIntelligence?.historicalSuccess.confidence || 8) * 0.25, 8, 100)
+      const liveAvailabilityScore = suggestion?.lookupStatus === 'provider_rows_found' ? routeFrameworkClamp(45 + Math.min(suggestion.providerResultCount, 8) * 4) : 18
+      const score = routeFrameworkClamp(liveAvailabilityScore * 0.2 + historical * 0.25 + routeConfidence * 0.22 + community * 0.13 + recovery * 0.12 + sampleSizeScore * 0.08, 20, 92)
+      const basis = [
+        routeFrameworkHubProfiles[path[1]]?.carrier || 'Alliance partner routing',
+        suggestion?.basis,
+        'Live availability unavailable; waiting for live loads before showing flight numbers or seat availability.'
+      ].filter(Boolean).join(' · ')
+      return routeFrameworkItinerary({ path, score, historical, community, sampleSize, recovery, basis, records: providerRecords })
+    })
+    .sort((a, b) => (b.compositeRouteScore || b.score) - (a.compositeRouteScore || a.score) || a.route.localeCompare(b.route))
+    .slice(0, limit)
 }
 
 function addProviderBadges(itineraries: ItineraryResult[], source: 'flightaware' | 'supabase' | 'aviationstack', enriched: boolean, freshness: FreshnessAnnotation = {}) {
@@ -536,6 +691,7 @@ function freshnessRuleExplanation(rule: NonNullable<ItineraryResult['dataFreshne
   if (rule === 'cached-provider-historical') return 'Historical provider cache: cached provider rows are older than 3 days. They can inform route intelligence only, not itinerary availability.'
   if (rule === 'nearest-date-testing-match') return 'Nearest-date testing match: Personal Testing Mode substituted the nearest available stored/test date. These cards are blocked from production availability claims.'
   if (rule === 'stored-historical-data') return 'Stored historical data: itinerary cards come from persisted data outside a strict requested-date live provider response.'
+  if (rule === 'route-framework') return 'Route framework: no live itinerary availability was available, so NONREVY is returning ranked complete route frameworks only. Flight numbers, times, and loads remain unavailable until provider data returns them.'
   return 'Demo fallback: no usable live provider API or stored itinerary rows were available, so scaffold/demo guidance is shown.'
 }
 
@@ -552,7 +708,7 @@ function trueLiveUnavailableReason(source: 'flightaware' | 'supabase' | 'aviatio
     return 'FlightAware live schedules were unavailable or returned no usable itinerary, so stored Supabase rows produced itinerary cards; these rows are persisted database records, not a current provider API response.'
   }
   if (source === 'mvp-test-data') return 'Live provider API data was unavailable from FlightAware/Supabase/Aviationstack, so static MVP test data is being used.'
-  return 'Live provider API data was unavailable from configured providers and stored schedules had no usable itinerary, so demo fallback guidance is being shown.'
+  return 'Live provider API data was unavailable from configured providers and stored schedules had no usable itinerary, so ranked complete route frameworks are being shown without flight availability claims.'
 }
 
 function safeProviderMessage(provider: string, status: number, fallback: string) {
@@ -1776,21 +1932,30 @@ export async function GET(request: Request) {
     communityLoadReports: historicalContext.communityLoadReports,
     recoveryIntelligence
   })
-  const routeCoverageMessage = routeCoverageSuggestions.length
-    ? `${recoveryIntelligence.explanation} These are route guidance only, not live availability.`
+  const routeFrameworkItineraries = buildCompleteRouteFrameworkItineraries({
+    request: effectiveRequest,
+    routeCoverageSuggestions,
+    providerRecords: providerCacheLookup.records,
+    recoveryIntelligence,
+    historicalIntelligence,
+    limit: 5
+  })
+  counts.finalItineraries = routeFrameworkItineraries.length
+  const routeCoverageMessage = routeFrameworkItineraries.length
+    ? `${routeFrameworkItineraries.length} complete route framework${routeFrameworkItineraries.length === 1 ? '' : 's'} ranked for ${effectiveRequest.origin} → ${effectiveRequest.destination}. Live availability unavailable.`
     : undefined
-  const noResultsMessage = routeCoverageSuggestions.length
-    ? 'Additional route options found'
+  const noResultsMessage = routeFrameworkItineraries.length
+    ? 'Top route frameworks currently available'
     : envTestDataModeEnabled
-      ? 'No live provider API, stored Supabase, or fallback-provider flights found for this search. Showing fallback demo guidance.'
-      : 'No current live itinerary availability found for this search. Production-safe mode is active, so nearest-date testing and demo fallback cards are hidden.'
-  const finalWarnings = uniqueMessages([...warnings, routeCoverageMessage, routeCoverageSuggestions.length ? undefined : noResultsMessage])
+      ? 'No live provider API, stored Supabase, fallback-provider flights, or complete route frameworks found for this search.'
+      : 'No current live itinerary availability or complete route frameworks found for this search.'
+  const finalWarnings = uniqueMessages([...warnings, routeCoverageMessage, routeFrameworkItineraries.length ? undefined : noResultsMessage])
   const debug = buildDebugMetadata({
     parsedRequest: effectiveRequest,
     supabaseResultCount: 0,
     aviationstackFallbackStatus,
     flightAwareEnrichmentStatus: 'skipped; no known live flight numbers available to enrich',
-    finalItineraryCount: 0,
+    finalItineraryCount: routeFrameworkItineraries.length,
     apiResponseCounts: counts,
     routeMatching,
     supabaseQueryPath,
@@ -1803,19 +1968,23 @@ export async function GET(request: Request) {
       providerStatus('supabase', supabaseWarning ? 'warning' : 'skipped', supabaseWarning || 'No Supabase itineraries matched this request.'),
       providerStatus('aviationstack', aviationstackWarning ? 'warning' : 'skipped', aviationstackFallbackStatus),
       providerStatus('flightaware', flightAwareScheduleWarning ? 'warning' : 'skipped', `${flightAwareScheduleDetail}; no later provider returned known flight numbers to enrich.`),
-      providerStatus('planning', envTestDataModeEnabled ? 'success' : 'skipped', envTestDataModeEnabled
-        ? 'Clearly marked demo fallback cards are active in the UI for personal testing.'
-        : 'Demo fallback cards are disabled because NONREVY_TEST_DATA_MODE is not true.')
+      providerStatus('planning', routeFrameworkItineraries.length ? 'success' : envTestDataModeEnabled ? 'success' : 'skipped', routeFrameworkItineraries.length
+        ? `${routeFrameworkItineraries.length} complete route framework${routeFrameworkItineraries.length === 1 ? '' : 's'} returned as planning guidance without live availability claims.`
+        : envTestDataModeEnabled
+          ? 'Clearly marked demo fallback cards are active in the UI for personal testing.'
+          : 'Demo fallback cards are disabled because NONREVY_TEST_DATA_MODE is not true.')
     ],
     providerFallbackOrder: activeProviderFallbackOrder,
     trueLiveDataAvailable: false,
-    trueLiveDataUnavailableReason: routeCoverageSuggestions.length
-      ? 'No exact live itinerary availability was available; route intelligence returned additional route guidance without displaying unavailable flights.'
+    trueLiveDataUnavailableReason: routeFrameworkItineraries.length
+      ? 'No exact live itinerary availability was available; route solution planner returned complete ranked route frameworks without displaying unavailable flights.'
       : envTestDataModeEnabled ? trueLiveUnavailableReason('planning') : 'No current live provider API or exact-date stored Supabase data was available; production-safe mode hid nearest-date testing and demo fallback availability.',
-    dataFreshnessMode: envTestDataModeEnabled ? 'demo-fallback' : 'no-current-live-data',
-    dataFreshnessExplanation: envTestDataModeEnabled
-      ? [freshnessRuleExplanation('demo-fallback')]
-      : ['Production-safe mode: no live provider API or exact requested-date stored Supabase itinerary was available, so nearest-date testing and demo fallback cards are hidden.'],
+    dataFreshnessMode: routeFrameworkItineraries.length ? 'no-current-live-data' : envTestDataModeEnabled ? 'demo-fallback' : 'no-current-live-data',
+    dataFreshnessExplanation: routeFrameworkItineraries.length
+      ? [freshnessRuleExplanation('route-framework')]
+      : envTestDataModeEnabled
+        ? [freshnessRuleExplanation('demo-fallback')]
+        : ['Production-safe mode: no live provider API or exact requested-date stored Supabase itinerary was available, so nearest-date testing and demo fallback cards are hidden.'],
     testDataModeEnabled: envTestDataModeEnabled,
     safeErrors: finalWarnings,
     routeCoverageSuggestions,
@@ -1827,20 +1996,20 @@ export async function GET(request: Request) {
     ok: true,
     request: effectiveRequest,
     source: 'planning-fallback',
-    sourceLabel: routeCoverageSuggestions.length ? 'Route intelligence guidance' : envTestDataModeEnabled ? sourceLabel('planning', false) : 'No current live data',
-    dataMode: envTestDataModeEnabled ? 'fallback' : 'no-current-live-data',
-    source_provider: envTestDataModeEnabled ? 'demo' : 'none',
+    sourceLabel: routeFrameworkItineraries.length ? 'Complete route frameworks' : envTestDataModeEnabled ? sourceLabel('planning', false) : 'No current live data',
+    dataMode: routeFrameworkItineraries.length ? 'route-frameworks' : envTestDataModeEnabled ? 'fallback' : 'no-current-live-data',
+    source_provider: routeFrameworkItineraries.length ? 'route-framework' : envTestDataModeEnabled ? 'demo' : 'none',
     source_checked_at: undefined,
     statusMessage: noResultsMessage,
     errorMessage: noResultsMessage,
     enrichedWithFlightAware: false,
-    providerBadges: routeCoverageSuggestions.length ? ['Route guidance only'] : envTestDataModeEnabled ? [providerLabels.planning] : ['Production-safe mode'],
+    providerBadges: routeFrameworkItineraries.length ? ['Route framework only', 'Live availability unavailable'] : envTestDataModeEnabled ? [providerLabels.planning] : ['Production-safe mode'],
     warnings: finalWarnings,
     debug,
     routeCoverageSuggestions,
     recoveryIntelligence,
     historicalIntelligence,
-    count: 0,
-    itineraries: []
+    count: routeFrameworkItineraries.length,
+    itineraries: routeFrameworkItineraries
   })
 }

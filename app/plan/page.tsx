@@ -215,7 +215,7 @@ type LiveItineraryResult = {
   providerBadges?: string[]
   dataFreshnessLabel?: string
   dataFreshnessDetail?: string
-  dataFreshnessRule?: 'exact-requested-date' | 'cached-provider-current' | 'cached-provider-reduced' | 'cached-provider-yellow' | 'cached-provider-historical' | 'nearest-date-testing-match' | 'stored-historical-data' | 'demo-fallback'
+  dataFreshnessRule?: 'exact-requested-date' | 'cached-provider-current' | 'cached-provider-reduced' | 'cached-provider-yellow' | 'cached-provider-historical' | 'nearest-date-testing-match' | 'stored-historical-data' | 'demo-fallback' | 'route-framework'
   dataFreshnessWarning?: string
   requestedDate?: string
   matchedDate?: string
@@ -424,6 +424,7 @@ function riskColor(risk: string) {
 function providerBadgeStyle(label: string) {
   if (label.includes('Live provider API data') || label.includes('Freshness: Live') || label.includes('Exact requested date') || label.includes('Freshness: Exact')) return { border: '#22c55e', text: '#bbf7d0', background: 'rgba(34, 197, 94, 0.12)' }
   if (label.includes('Stored Supabase flight data') || label.includes('Stored Supabase data') || label.includes('Stored historical') || label.includes('Freshness: Stored')) return { border: '#38bdf8', text: '#bae6fd', background: 'rgba(56, 189, 248, 0.12)' }
+  if (label.includes('Route framework') || label.includes('Live availability unavailable')) return { border: '#facc15', text: '#fef3c7', background: 'rgba(250, 204, 21, 0.12)' }
   if (label.includes('Nearest-date') || label.includes('Demo fallback') || label.includes('MVP test data') || label.includes('Freshness: Demo')) return { border: '#facc15', text: '#fef3c7', background: 'rgba(250, 204, 21, 0.12)' }
   if (label.includes('Supabase')) return { border: '#22c55e', text: '#bbf7d0', background: 'rgba(34, 197, 94, 0.12)' }
   if (label.includes('Aviationstack')) return { border: '#38bdf8', text: '#bae6fd', background: 'rgba(56, 189, 248, 0.12)' }
@@ -436,6 +437,7 @@ function sourceBadgeLabel(source?: string, sourceProvider?: string) {
   if (value.includes('flightaware')) return 'Source: FlightAware live API'
   if (value.includes('aviationstack')) return 'Source: Aviationstack live API'
   if (value.includes('supabase')) return 'Source: Stored Supabase'
+  if (value.includes('route-framework')) return 'Source: Route framework only'
   if (value.includes('mvp') || value.includes('test-data')) return 'Source: MVP test data'
   if (value.includes('demo') || value.includes('planning')) return 'Source: Demo fallback'
   return 'Source: Unknown'
@@ -573,6 +575,7 @@ type ItineraryComparison = {
   providerBadges: string[]
   dataFreshnessLabel?: string
   dataFreshnessDetail?: string
+  dataFreshnessRule?: LiveItineraryResult['dataFreshnessRule']
   disruption: DisruptionIntelligence
   routeConfidence: RouteConfidence
   successPrediction: SuccessPrediction
@@ -1307,6 +1310,7 @@ function buildLiveItineraryComparison(
     providerBadges: itinerary.providerBadges?.length ? itinerary.providerBadges : [itinerary.source.includes('aviationstack') || itinerary.source.includes('flightaware') ? 'Live provider API data' : 'Stored Supabase flight data', ...(itinerary.source.includes('flightaware') ? ['FlightAware enriched'] : [])],
     dataFreshnessLabel: itinerary.dataFreshnessLabel,
     dataFreshnessDetail: itinerary.dataFreshnessDetail,
+    dataFreshnessRule: itinerary.dataFreshnessRule,
     disruption,
     routeConfidence,
     successPrediction,
@@ -3188,9 +3192,9 @@ function ProductionEmptyState({ reasons, origin, suggestions = [], recovery }: {
   return (
     <section className="nonrevy-production-empty" aria-live="polite">
       <p className="nonrevy-production-empty__eyebrow">Search results</p>
-      <h2>{hasRouteOptions ? 'Additional route options found' : "We couldn't find live results for this search right now."}</h2>
+      <h2>{hasRouteOptions ? 'Top route frameworks currently available' : "We couldn't find live results for this search right now."}</h2>
       <p className="nonrevy-production-empty__subtext">
-        Try another date, search from a larger nearby airport, or request community loads.
+        Live availability unavailable. Use the ranked route frameworks, then request loads before acting.
       </p>
       <p className="nonrevy-production-empty__guidance-note">
         {recovery ? `${recovery.explanation} Recovery strength: ${recovery.recoveryStrength}/100.` : 'Suggested ways to search are route guidance only — they are not live seat availability.'}
@@ -3199,8 +3203,7 @@ function ProductionEmptyState({ reasons, origin, suggestions = [], recovery }: {
         <section>
           <strong>Next actions</strong>
           <ul>
-            <li>Try another date</li>
-            <li><a href="/best-routes">Search from a nearby airport</a></li>
+            <li>Review the top route frameworks</li>
             <li><a href="/load-reports">Request loads</a></li>
             <li><a href="/intelligence">View route intelligence</a></li>
           </ul>
@@ -3544,9 +3547,10 @@ function renderFlightBoardRow(comparison: ItineraryComparison) {
         onClick={() => openDetails(comparison)}
       >
         <div className="nonrevy-flight-board-row__main">
-          <div className="nonrevy-flight-board-row__content" aria-label={`${airlineName} ${flightNumber} ${depTime} to ${arrTime} ${compactStopsLabel(comparison.connections)} ${comparison.totalTravelTime} confidence ${confidenceScore}/100`}>
+          <div className="nonrevy-flight-board-row__content" aria-label={`${comparison.route} ${airlineName} ${flightNumber} ${depTime} to ${arrTime} ${compactStopsLabel(comparison.connections)} ${comparison.totalTravelTime} confidence ${confidenceScore}/100`}>
             <div className="nonrevy-flight-board-row__flight-data">
               <div className="nonrevy-flight-board-row__primary-line">
+                <span className="nonrevy-flight-board-row__route">{comparison.route}</span>
                 <span className="nonrevy-flight-board-row__airline">{airlineName}</span>
                 <strong className="nonrevy-flight-board-row__flight-number">{flightNumber}</strong>
               </div>
@@ -3557,7 +3561,7 @@ function renderFlightBoardRow(comparison: ItineraryComparison) {
               </div>
               <div className="nonrevy-flight-board-row__secondary-line">
                 <span className="nonrevy-flight-board-row__stops">{compactStopsLabel(comparison.connections)}</span>
-                <span className="nonrevy-flight-board-row__duration">{compactDurationLabel(comparison.totalTravelTime)}</span>
+                <span className="nonrevy-flight-board-row__duration">{comparison.dataFreshnessRule === 'route-framework' ? 'Live availability unavailable' : compactDurationLabel(comparison.totalTravelTime)}</span>
                 <span className="nonrevy-flight-board-row__score" title="Confidence score">Confidence {confidenceScore}/100</span>
               </div>
             </div>
@@ -4004,7 +4008,9 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
       const apiWarnings = Array.isArray(data?.warnings) ? data.warnings : []
       setItineraryWarnings(data?.errorMessage ? [...new Set([...apiWarnings, data.errorMessage])] : apiWarnings)
       setItinerarySource(data?.sourceLabel || (data?.enrichedWithFlightAware ? 'Stored Supabase flight data + FlightAware enrichment' : 'Stored Supabase flight data'))
-      setItineraryDataMode(data?.dataMode === 'no-current-live-data'
+      setItineraryDataMode(data?.dataMode === 'route-frameworks'
+        ? 'Route frameworks · live availability unavailable'
+        : data?.dataMode === 'no-current-live-data'
         ? 'No current live data'
         : data?.dataMode === 'nearest-date-testing'
         ? 'Nearest-date testing data'
@@ -4020,9 +4026,11 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
         ? data.routeCoverageSuggestions
         : Array.isArray(data?.debug?.routeCoverageSuggestions) ? data.debug.routeCoverageSuggestions : []
       setItineraryStatus(itineraries.length
-        ? `${itineraries.length} live itinerary result${itineraries.length === 1 ? '' : 's'} found for ${data?.request?.origin || 'any origin'} → ${data?.request?.destination || 'any destination'}.`
+        ? data?.dataMode === 'route-frameworks'
+          ? `Top route frameworks currently available for ${data?.request?.origin || 'any origin'} → ${data?.request?.destination || 'any destination'}. Live availability unavailable.`
+          : `${itineraries.length} live itinerary result${itineraries.length === 1 ? '' : 's'} found for ${data?.request?.origin || 'any origin'} → ${data?.request?.destination || 'any destination'}.`
         : routeCoverageSuggestions.length
-          ? 'Additional route options found'
+          ? 'Top route frameworks currently available'
           : "We couldn't find live results for this search right now."
       )
     } catch {

@@ -503,9 +503,9 @@ function applyRouteIntelligenceToResults({
 }
 
 const routeFrameworkHubProfiles: Record<string, { carrier: string; score: number }> = {
-  LAX: { carrier: 'United / Alaska / Delta hub routing', score: 82 },
+  LAX: { carrier: 'United / Alaska / Delta hub routing', score: 84 },
   SFO: { carrier: 'United hub routing', score: 84 },
-  SEA: { carrier: 'Alaska / Delta hub routing', score: 80 },
+  SEA: { carrier: 'Alaska / Delta hub routing', score: 82 },
   DEN: { carrier: 'United hub routing', score: 78 },
   PHX: { carrier: 'American / Alaska partner routing', score: 72 },
   ORD: { carrier: 'United / American hub routing', score: 76 },
@@ -513,17 +513,53 @@ const routeFrameworkHubProfiles: Record<string, { carrier: string; score: number
   MSP: { carrier: 'Delta hub routing', score: 76 },
   CLT: { carrier: 'American partner hub routing', score: 74 },
   IAD: { carrier: 'United hub routing', score: 76 },
-  DFW: { carrier: 'American / Alaska partner routing', score: 74 }
+  DFW: { carrier: 'American / Alaska partner routing', score: 76 },
+  JFK: { carrier: 'Transatlantic gateway routing', score: 82 },
+  EWR: { carrier: 'United transatlantic gateway routing', score: 78 },
+  BOS: { carrier: 'Northeast gateway routing', score: 76 },
+  FRA: { carrier: 'Star Alliance Europe gateway routing', score: 80 },
+  LHR: { carrier: 'Oneworld / transatlantic gateway routing', score: 78 },
+  CDG: { carrier: 'SkyTeam Europe gateway routing', score: 78 },
+  AMS: { carrier: 'SkyTeam Europe gateway routing', score: 78 },
+  HND: { carrier: 'Tokyo gateway routing', score: 84 },
+  NRT: { carrier: 'Tokyo gateway routing', score: 82 },
+  HNL: { carrier: 'Hawaii gateway routing', score: 82 },
+  ANC: { carrier: 'Alaska gateway routing', score: 80 },
+  MCO: { carrier: 'Florida trunk routing', score: 76 },
+  DUB: { carrier: 'Transatlantic Ireland gateway routing', score: 76 },
+  FCO: { carrier: 'Italy gateway routing', score: 78 },
+  MIA: { carrier: 'American / Florida gateway routing', score: 76 },
+  PDX: { carrier: 'Alaska / Pacific Northwest routing', score: 72 },
+  FAI: { carrier: 'Alaska intra-Alaska routing', score: 68 },
+  JNU: { carrier: 'Alaska intra-Alaska routing', score: 66 }
 }
 
 const destinationHubPatterns: Record<string, string[]> = {
   BOS: ['LAX', 'SFO', 'SEA', 'DEN', 'ORD', 'ATL'],
   JFK: ['LAX', 'SFO', 'SEA', 'DEN', 'ATL'],
   EWR: ['SFO', 'LAX', 'DEN', 'ORD'],
-  HND: ['SFO', 'LAX', 'SEA'],
-  NRT: ['SFO', 'LAX', 'SEA'],
-  HNL: ['LAX', 'SFO', 'SEA'],
-  OGG: ['LAX', 'SFO', 'SEA']
+  HND: ['LAX', 'SFO', 'SEA', 'HNL'],
+  NRT: ['LAX', 'SFO', 'SEA', 'HND'],
+  HNL: ['LAX', 'SFO', 'SEA', 'PHX'],
+  OGG: ['LAX', 'SFO', 'SEA'],
+  CDG: ['JFK', 'LAX', 'SFO', 'SEA', 'ATL', 'FRA'],
+  FCO: ['JFK', 'LAX', 'SFO', 'FRA', 'CDG', 'LHR'],
+  DUB: ['JFK', 'BOS', 'ATL', 'LHR', 'AMS'],
+  ANC: ['SEA', 'PDX', 'SFO', 'LAX', 'FAI'],
+  MCO: ['ATL', 'DFW', 'CLT', 'DEN', 'MIA']
+}
+
+const preferredRouteFrameworkPaths: Record<string, string[][]> = {
+  'SBP-BOS': [['SBP', 'LAX', 'BOS'], ['SBP', 'SFO', 'BOS'], ['SBP', 'SEA', 'BOS'], ['SBP', 'DEN', 'BOS'], ['SBP', 'PHX', 'BOS']],
+  'SBP-HNL': [['SBP', 'LAX', 'HNL'], ['SBP', 'SFO', 'HNL'], ['SBP', 'SEA', 'HNL'], ['SBP', 'PHX', 'LAX', 'HNL'], ['SBP', 'DEN', 'LAX', 'HNL']],
+  'SBP-NRT': [['SBP', 'LAX', 'HND', 'NRT'], ['SBP', 'SFO', 'HND', 'NRT'], ['SBP', 'SEA', 'NRT'], ['SBP', 'LAX', 'NRT'], ['SBP', 'SFO', 'NRT']],
+  'SBP-CDG': [['SBP', 'LAX', 'CDG'], ['SBP', 'SFO', 'CDG'], ['SBP', 'SEA', 'CDG'], ['SBP', 'LAX', 'JFK', 'CDG'], ['SBP', 'SFO', 'FRA', 'CDG']],
+  'SBP-FCO': [['SBP', 'LAX', 'FCO'], ['SBP', 'LAX', 'JFK', 'FCO'], ['SBP', 'SFO', 'FRA', 'FCO'], ['SBP', 'SFO', 'FCO'], ['SBP', 'SEA', 'FCO']],
+  'LAX-HND': [['LAX', 'HND'], ['LAX', 'SFO', 'HND'], ['LAX', 'SEA', 'HND'], ['LAX', 'HNL', 'HND'], ['LAX', 'ORD', 'HND']],
+  'SEA-ANC': [['SEA', 'ANC'], ['SEA', 'FAI', 'ANC'], ['SEA', 'JNU', 'ANC'], ['SEA', 'PDX', 'ANC'], ['SEA', 'SFO', 'ANC']],
+  'LAS-MCO': [['LAS', 'MCO'], ['LAS', 'ATL', 'MCO'], ['LAS', 'DFW', 'MCO'], ['LAS', 'CLT', 'MCO'], ['LAS', 'DEN', 'MCO']],
+  'ATL-DUB': [['ATL', 'DUB'], ['ATL', 'JFK', 'DUB'], ['ATL', 'BOS', 'DUB'], ['ATL', 'LHR', 'DUB'], ['ATL', 'AMS', 'DUB']],
+  'JFK-FCO': [['JFK', 'FCO'], ['JFK', 'LHR', 'FCO'], ['JFK', 'CDG', 'FCO'], ['JFK', 'FRA', 'FCO'], ['JFK', 'AMS', 'FCO']]
 }
 
 function routeFrameworkClamp(value: number, min = 0, max = 100) {
@@ -551,19 +587,20 @@ function routeFrameworkPaths(request: ParsedItineraryRequest, suggestions: Route
   if (!origin || !destination) return []
   const destinationOptions = destinationAirportGroup(destination).filter((code) => code !== origin)
   const primaryDestination = destinationOptions.includes(destination) ? destination : destinationOptions[0] || destination
+  const preferredPaths = preferredRouteFrameworkPaths[`${origin}-${destination}`] || []
   const suggestionPaths = suggestions
-    .filter((suggestion) => suggestion.origin === origin && (suggestion.via || suggestion.destination))
+    .filter((suggestion) => suggestion.kind !== 'hub-positioning' && suggestion.origin === origin && (suggestion.via || suggestion.destination))
     .map((suggestion) => suggestion.via ? [origin, suggestion.via, suggestion.destination] : [suggestion.origin, suggestion.destination])
   const hubs = uniqueAirportCodes([
     ...positioningHubsForOrigin(origin),
     ...(destinationHubPatterns[destination] || []),
     ...historicalPatternHubs(records, origin, destination)
-  ]).filter((hub) => hub !== origin && hub !== primaryDestination)
+  ]).filter((hub) => hub !== origin && hub !== primaryDestination && !destinationOptions.includes(hub))
   const hubPaths = hubs.map((hub) => [origin, hub, primaryDestination])
   const destinationAlternatePaths = destinationOptions
     .filter((code) => code !== primaryDestination)
     .flatMap((alternate) => hubs.slice(0, 3).map((hub) => [origin, hub, alternate]))
-  return [...new Map([...suggestionPaths, ...hubPaths, ...destinationAlternatePaths].map((path) => [path.join(' → '), path])).values()]
+  return [...new Map([...preferredPaths, ...suggestionPaths, ...hubPaths, ...destinationAlternatePaths].map((path) => [path.join(' → '), path])).values()]
 }
 
 function routeFrameworkLeg(path: string[], index: number, records: ProviderResultRecord[]): ItineraryResult['legs'][number] {
@@ -635,15 +672,17 @@ function buildCompleteRouteFrameworkItineraries({ request, routeCoverageSuggesti
   const sampleSize = historicalIntelligence?.historicalSuccess.sampleSize || 0
   const community = historicalIntelligence?.loadReportTrust.score || 50
   const recovery = recoveryIntelligence?.recoveryStrength || 45
+  const preferredPathKeys = new Set((preferredRouteFrameworkPaths[`${request.origin}-${request.destination}`] || []).map((path) => path.join(' → ')))
   return routeFrameworkPaths(request, routeCoverageSuggestions, providerRecords)
     .map((path) => {
-      const suggestion = routeCoverageSuggestions.find((item) => item.searchQuery === path.join(' → ') || (item.via && path.includes(item.via)))
+      const pathKey = path.join(' → ')
+      const suggestion = routeCoverageSuggestions.find((item) => item.searchQuery === pathKey || (item.via && path.includes(item.via)))
       const hubScore = routeFrameworkHubProfiles[path[1]]?.score || 64
       const providerEvidence = path.slice(0, -1).reduce((total, airport, index) => total + routeFrameworkProviderEvidence(providerRecords, airport, path[index + 1]).length, 0)
       const routeConfidence = routeFrameworkClamp(hubScore + Math.min(providerEvidence * 3, 12) + (suggestion?.lookupStatus === 'provider_rows_found' ? 8 : 0) - Math.max(0, path.length - 2) * 4, 35, 92)
       const sampleSizeScore = routeFrameworkClamp(Math.min(sampleSize, 12) * 7 + (historicalIntelligence?.historicalSuccess.confidence || 8) * 0.25, 8, 100)
       const liveAvailabilityScore = suggestion?.lookupStatus === 'provider_rows_found' ? routeFrameworkClamp(45 + Math.min(suggestion.providerResultCount, 8) * 4) : 18
-      const score = routeFrameworkClamp(liveAvailabilityScore * 0.2 + historical * 0.25 + routeConfidence * 0.22 + community * 0.13 + recovery * 0.12 + sampleSizeScore * 0.08, 20, 92)
+      const score = routeFrameworkClamp(liveAvailabilityScore * 0.2 + historical * 0.25 + routeConfidence * 0.22 + community * 0.13 + recovery * 0.12 + sampleSizeScore * 0.08 + (preferredPathKeys.has(pathKey) ? 16 : 0), 20, 92)
       const basis = [
         routeFrameworkHubProfiles[path[1]]?.carrier || 'Alliance partner routing',
         suggestion?.basis,
@@ -1416,7 +1455,8 @@ export async function GET(request: Request) {
         ...itinerary,
         source: itinerary.source || 'provider-cache',
         sourceProvider: 'provider-cache',
-        providerBadges: ['Cached provider data', cacheFreshness.dataFreshnessLabel || 'Provider cache']
+        providerBadges: ['Cached provider data', cacheFreshness.dataFreshnessLabel || 'Provider cache', 'Live availability unavailable'],
+        dataFreshnessWarning: itinerary.dataFreshnessWarning || 'Cached provider row only. Live availability unavailable until a fresh provider response confirms it.'
       }))
     const recoveryApplied = applyRouteIntelligenceToResults({
       request: effectiveRequest,
@@ -1428,7 +1468,17 @@ export async function GET(request: Request) {
       providerCacheCount: providerCacheFlights.length,
       historicalAvailabilityCount: providerCacheFlights.length
     })
-    const itineraries = recoveryApplied.itineraries
+    const frameworkFillItineraries = recoveryApplied.itineraries.length < 5
+      ? buildCompleteRouteFrameworkItineraries({
+        request: effectiveRequest,
+        routeCoverageSuggestions: buildRouteCoverageFallbackSuggestions(effectiveRequest, 10),
+        providerRecords: providerCacheLookup.records,
+        recoveryIntelligence: recoveryApplied.recoveryIntelligence,
+        historicalIntelligence: recoveryApplied.historicalIntelligence,
+        limit: 5
+      }).filter((itinerary) => !new Set(recoveryApplied.itineraries.map((cachedItinerary) => cachedItinerary.route)).has(itinerary.route)).slice(0, 5 - recoveryApplied.itineraries.length)
+      : []
+    const itineraries = [...recoveryApplied.itineraries, ...frameworkFillItineraries].slice(0, 5)
     counts.finalItineraries = itineraries.length
     const cacheDeduplication = deduplicationSummary(itineraries, 'provider cache')
     if (cacheDeduplication.notes.length) warnings.push(...cacheDeduplication.notes)
@@ -1450,10 +1500,10 @@ export async function GET(request: Request) {
       invalidDates,
       providerFallbackOrder: activeProviderFallbackOrder,
       providerStatuses: [
-        providerStatus('supabase', 'success', `${itineraries.length} itinerary result${itineraries.length === 1 ? '' : 's'} found in recent provider cache table ${providerResultTableName}; live provider calls skipped.`),
+        providerStatus('supabase', 'success', `${recoveryApplied.itineraries.length} itinerary result${recoveryApplied.itineraries.length === 1 ? '' : 's'} found in recent provider cache table ${providerResultTableName}; live provider calls skipped.`),
         providerStatus('flightaware', 'skipped', 'Skipped because recent provider cache produced itinerary results.'),
         providerStatus('aviationstack', 'skipped', 'Skipped because recent provider cache produced itinerary results.'),
-        providerStatus('planning', 'skipped', 'Skipped because cached provider results are available.')
+        providerStatus('planning', frameworkFillItineraries.length ? 'success' : 'skipped', frameworkFillItineraries.length ? `${frameworkFillItineraries.length} route framework fill row${frameworkFillItineraries.length === 1 ? '' : 's'} added because cached provider rows produced fewer than five complete options.` : 'Skipped because cached provider results are available.')
       ],
       trueLiveDataAvailable: false,
       trueLiveDataUnavailableReason: 'Recent provider cache produced route results; these are cached provider rows, not a fresh live API response.',
@@ -1475,7 +1525,7 @@ export async function GET(request: Request) {
       dataMode: 'provider-cache',
       source_provider: 'provider-cache',
       source_checked_at: itineraries[0]?.sourceCheckedAt,
-      statusMessage: `${itineraries.length} cached route result${itineraries.length === 1 ? '' : 's'} found.`,
+      statusMessage: frameworkFillItineraries.length ? `${itineraries.length} route option${itineraries.length === 1 ? '' : 's'} found from cached route evidence plus route frameworks. Live availability unavailable.` : `${itineraries.length} cached route result${itineraries.length === 1 ? '' : 's'} found. Live availability unavailable.`,
       enrichedWithFlightAware: false,
       providerBadges: ['Cached provider data'],
       warnings: uniqueMessages(warnings),

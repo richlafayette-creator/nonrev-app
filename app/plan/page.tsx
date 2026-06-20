@@ -3566,10 +3566,10 @@ function renderFlightBoardRow(comparison: ItineraryComparison) {
               </div>
             </div>
 
-            <div className="nonrevy-flight-board-row__actions" onClick={(event) => event.stopPropagation()} aria-label="Itinerary actions">
-              <button type="button" onClick={() => openLoadRequestForm(comparison)} title="Request Loads" aria-label="Request loads">Request Loads</button>
-              <button type="button" onClick={() => saveForComparison(comparison)} title="Save" aria-label="Save itinerary">Save</button>
-              <button type="button" onClick={() => void shareItinerary(comparison)} title="Share" aria-label="Share itinerary">Share</button>
+            <div className="nonrevy-flight-board-row__actions nonrevy-primary-actions" onClick={(event) => event.stopPropagation()} aria-label="Itinerary actions">
+              <button className="nonrevy-primary-action nonrevy-primary-action--request-loads" type="button" onClick={() => openLoadRequestForm(comparison)} title="Request Loads" aria-label="Request loads">Request Loads</button>
+              <button className="nonrevy-primary-action nonrevy-primary-action--save" type="button" onClick={() => saveForComparison(comparison)} title="Save" aria-label="Save itinerary">Save</button>
+              <button className="nonrevy-primary-action nonrevy-primary-action--share" type="button" onClick={() => void shareItinerary(comparison)} title="Share" aria-label="Share itinerary">Share</button>
             </div>
           </div>
         </div>
@@ -3636,7 +3636,7 @@ function renderFlightBoardRow(comparison: ItineraryComparison) {
               )}
               <div className="nonrevy-community-loads__quick-actions">
                 <button type="button" className="nonrevy-community-loads__submit-toggle" onClick={() => openLoadRequestForm(comparison)}>{requestLoadOpen ? 'Close Request' : 'Request Load'}</button>
-                <button type="button" className="nonrevy-community-loads__submit-toggle" onClick={() => openCommunityLoadForm(comparison)}>{submitLoadOpen ? 'Close Submit' : 'Submit Load'}</button>
+                <button type="button" className="nonrevy-community-loads__submit-toggle nonrevy-secondary-action" onClick={() => openCommunityLoadForm(comparison)}>{submitLoadOpen ? 'Close Submit' : 'Community reports'}</button>
               </div>
               {requestLoadOpen ? (
                 <div className="nonrevy-community-loads__request">
@@ -3766,15 +3766,15 @@ function renderFlightBoardRow(comparison: ItineraryComparison) {
           <p style={{ color: '#cbd5e1' }}>Status: {trustReceipt.status}</p>
         </details>
         <details className="nonrevy-premium-details" style={{ marginTop: 8 }}>
-          <summary style={{ color: '#67e8f9', cursor: 'pointer', fontWeight: 'bold' }}>Route intelligence</summary>
+          <summary className="nonrevy-secondary-action" style={{ color: '#67e8f9', cursor: 'pointer', fontWeight: 'bold' }}>Route intelligence</summary>
           <RouteIntelligenceSection insights={routeInsights} />
         </details>
         <details className="nonrevy-premium-details" style={{ marginTop: 8 }}>
-          <summary style={{ color: '#67e8f9', cursor: 'pointer', fontWeight: 'bold' }}>Nearby airports</summary>
+          <summary className="nonrevy-secondary-action" style={{ color: '#67e8f9', cursor: 'pointer', fontWeight: 'bold' }}>Nearby airports</summary>
           <AirportIntelligenceSection comparisons={compactItineraries} />
         </details>
         <details className="nonrevy-premium-details" style={{ marginTop: 8 }}>
-          <summary style={{ color: '#67e8f9', cursor: 'pointer', fontWeight: 'bold' }}>Historical data</summary>
+          <summary className="nonrevy-secondary-action" style={{ color: '#67e8f9', cursor: 'pointer', fontWeight: 'bold' }}>Historical trends</summary>
           {trustReceipt.debug?.historicalIntelligence ? (
             <p style={{ color: '#cbd5e1' }}>Historical success {trustReceipt.debug.historicalIntelligence.historicalSuccess.score}/100 · confidence {trustReceipt.debug.historicalIntelligence.historicalSuccess.confidence}/100 · sample size {trustReceipt.debug.historicalIntelligence.historicalSuccess.sampleSize}.</p>
           ) : (
@@ -4259,7 +4259,7 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
               onBlur={(event) => setTravelDateError(validateTravelDate(event.target.value))}
               aria-label="Travel date"
             />
-            <button type="submit" disabled={itineraryLoading}>{itineraryLoading ? 'Searching…' : 'Search'}</button>
+            <button className="nonrevy-primary-action nonrevy-primary-action--search" type="submit" disabled={itineraryLoading}>{itineraryLoading ? 'Searching…' : 'Search'}</button>
           </form>
 
           {travelDateError ? <p className="nonrevy-results-page__warning">{travelDateError}</p> : null}

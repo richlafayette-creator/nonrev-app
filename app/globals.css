@@ -4844,3 +4844,147 @@ main:has(> nav) {
     font-size: 0.66rem !important;
   }
 }
+
+/* Beta usability pass: readable, touch-sized action hierarchy without global color changes */
+.nonrevy-results-page .nonrevy-primary-action,
+.nonrevy-flight-board-row__actions .nonrevy-primary-action {
+  min-height: 42px !important;
+  width: auto !important;
+  min-width: 86px !important;
+  max-width: none !important;
+  height: auto !important;
+  max-height: none !important;
+  padding: 11px 16px !important;
+  border: 1px solid rgba(254, 240, 138, 0.72) !important;
+  border-radius: 14px !important;
+  background: linear-gradient(135deg, #facc15, #fb923c) !important;
+  color: #020617 !important;
+  box-shadow: 0 12px 24px rgba(250, 204, 21, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.38) !important;
+  font-size: clamp(0.95rem, 2.6vw, 1.05rem) !important;
+  font-weight: 950 !important;
+  letter-spacing: 0 !important;
+  line-height: 1.1 !important;
+  opacity: 1 !important;
+  text-decoration: none !important;
+  cursor: pointer !important;
+  white-space: nowrap !important;
+}
+
+.nonrevy-results-page .nonrevy-primary-action:disabled,
+.nonrevy-flight-board-row__actions .nonrevy-primary-action:disabled {
+  border-color: rgba(148, 163, 184, 0.48) !important;
+  background: #475569 !important;
+  color: #f8fafc !important;
+  box-shadow: none !important;
+  cursor: not-allowed !important;
+}
+
+.nonrevy-results-page .nonrevy-primary-action:hover,
+.nonrevy-results-page .nonrevy-primary-action:focus-visible,
+.nonrevy-flight-board-row__actions .nonrevy-primary-action:hover,
+.nonrevy-flight-board-row__actions .nonrevy-primary-action:focus-visible {
+  border-color: #fef08a !important;
+  background: linear-gradient(135deg, #fde047, #f97316) !important;
+  color: #020617 !important;
+  opacity: 1 !important;
+  outline: 3px solid rgba(250, 204, 21, 0.34) !important;
+  outline-offset: 2px !important;
+}
+
+.nonrevy-results-page .nonrevy-primary-action--search,
+.nonrevy-results-search button.nonrevy-primary-action--search {
+  min-width: 96px !important;
+  min-height: 44px !important;
+  font-size: clamp(1rem, 2.8vw, 1.12rem) !important;
+}
+
+.nonrevy-flight-board-row__actions.nonrevy-primary-actions {
+  display: flex !important;
+  grid-template-columns: none !important;
+  flex-wrap: wrap !important;
+  justify-content: flex-start !important;
+  align-items: center !important;
+  gap: 8px !important;
+  margin-top: 10px !important;
+  width: 100% !important;
+}
+
+.nonrevy-secondary-action,
+.nonrevy-premium-details > summary.nonrevy-secondary-action,
+.nonrevy-community-loads__submit-toggle.nonrevy-secondary-action {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-height: 36px !important;
+  width: auto !important;
+  min-width: 0 !important;
+  padding: 8px 12px !important;
+  border: 1px solid rgba(186, 230, 253, 0.62) !important;
+  border-radius: 999px !important;
+  background: rgba(15, 23, 42, 0.92) !important;
+  color: #e0f2fe !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08) !important;
+  font-size: clamp(0.84rem, 2.4vw, 0.94rem) !important;
+  font-weight: 900 !important;
+  line-height: 1.1 !important;
+  text-decoration: none !important;
+  cursor: pointer !important;
+}
+
+.nonrevy-secondary-action:hover,
+.nonrevy-secondary-action:focus-visible,
+.nonrevy-premium-details > summary.nonrevy-secondary-action:hover,
+.nonrevy-premium-details > summary.nonrevy-secondary-action:focus-visible,
+.nonrevy-community-loads__submit-toggle.nonrevy-secondary-action:hover,
+.nonrevy-community-loads__submit-toggle.nonrevy-secondary-action:focus-visible {
+  border-color: #f8fafc !important;
+  background: rgba(30, 41, 59, 0.98) !important;
+  color: #ffffff !important;
+  outline: 3px solid rgba(125, 211, 252, 0.28) !important;
+  outline-offset: 2px !important;
+}
+
+@media (max-width: 760px) {
+  .nonrevy-flight-board-row__actions.nonrevy-primary-actions {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 7px !important;
+  }
+
+  .nonrevy-flight-board-row__actions .nonrevy-primary-action {
+    min-width: 0 !important;
+    width: 100% !important;
+    padding: 11px 8px !important;
+    font-size: clamp(0.9rem, 3.2vw, 1rem) !important;
+  }
+}
+
+@media (max-width: 430px) {
+  .nonrevy-results-search {
+    gap: 8px !important;
+    padding: 8px !important;
+  }
+
+  .nonrevy-results-search button.nonrevy-primary-action--search {
+    min-height: 44px !important;
+    min-width: 92px !important;
+    padding-inline: 14px !important;
+  }
+
+  .nonrevy-flight-board-row__actions.nonrevy-primary-actions {
+    grid-template-columns: 1fr !important;
+  }
+
+  .nonrevy-flight-board-row__actions .nonrevy-primary-action {
+    min-height: 44px !important;
+    font-size: 1rem !important;
+  }
+
+  .nonrevy-secondary-action,
+  .nonrevy-premium-details > summary.nonrevy-secondary-action,
+  .nonrevy-community-loads__submit-toggle.nonrevy-secondary-action {
+    min-height: 38px !important;
+    padding: 9px 12px !important;
+    font-size: 0.92rem !important;
+  }
+}

@@ -4,6 +4,9 @@ export type ProviderResultRecord = {
   source_provider: string
   source_checked_at: string
   cached_at: string
+  search_timestamp: string
+  day_of_week: number
+  month: number
   origin: string
   destination: string
   departure_time: string
@@ -66,12 +69,24 @@ function cacheTimestamp() {
   return new Date().toISOString()
 }
 
+function historicalDateParts(departureTime?: string, fallbackTimestamp = cacheTimestamp()) {
+  const parsed = Date.parse(departureTime || '')
+  const date = Number.isFinite(parsed) ? new Date(parsed) : new Date(fallbackTimestamp)
+  return {
+    search_timestamp: fallbackTimestamp,
+    day_of_week: date.getUTCDay(),
+    month: date.getUTCMonth() + 1
+  }
+}
+
 export function normalizedResultToProviderResultRecord(result: NormalizedScheduleResult): ProviderResultRecord {
   const checkedAt = result.sourceCheckedAt || cacheTimestamp()
+  const cachedAt = cacheTimestamp()
   return {
     source_provider: cleanValue(result.source),
     source_checked_at: checkedAt,
-    cached_at: cacheTimestamp(),
+    cached_at: cachedAt,
+    ...historicalDateParts(result.departureTime, cachedAt),
     origin: cleanValue(result.origin),
     destination: cleanValue(result.destination),
     departure_time: cleanValue(result.departureTime),
@@ -215,6 +230,9 @@ function normalizeSupabaseRecord(raw: Record<string, unknown>): ProviderResultRe
     source_provider: cleanValue(String(raw.source_provider || raw.provider || 'provider-cache')),
     source_checked_at: checkedAt,
     cached_at: cleanValue(String(raw.cached_at || raw.created_at || checkedAt)),
+    search_timestamp: cleanValue(String(raw.search_timestamp || raw.cached_at || raw.created_at || checkedAt)),
+    day_of_week: Number(raw.day_of_week ?? historicalDateParts(String(raw.departure_time || raw.departure_date || ''), checkedAt).day_of_week),
+    month: Number(raw.month ?? historicalDateParts(String(raw.departure_time || raw.departure_date || ''), checkedAt).month),
     origin: cleanValue(String(raw.origin || '')),
     destination: cleanValue(String(raw.destination || '')),
     departure_time: cleanValue(String(raw.departure_time || raw.departure_date || '')),

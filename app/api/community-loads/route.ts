@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { communityLoadFreshness, communityScoringSignalArchitecture, normalizeCommunityFlightNumber, type CommunityLoadReport } from '../../../lib/communityLoads'
+import { addServerCommunityLoadReport, findServerCommunityLoadReports } from '../../../lib/communityLoadServerStore'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,8 +22,6 @@ type CommunityLoadRequest = {
   contributorId?: string
   contributorTrustScore?: number
 }
-
-const inMemoryCommunityLoads: CommunityLoadReport[] = []
 
 function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, Math.round(value)))
@@ -54,11 +53,14 @@ export async function GET(request: Request) {
   const flightNumber = normalizeCommunityFlightNumber(searchParams.get('flightNumber') || '')
   const route = (searchParams.get('route') || '').toUpperCase()
   const date = searchParams.get('date') || ''
-  const reports = inMemoryCommunityLoads.filter((report) => {
-    const flightMatches = !flightNumber || report.flightNumber === flightNumber
-    const routeMatches = !route || report.route === route || report.route.includes(route) || route.includes(report.route)
-    const dateMatches = !date || report.date === date
-    return flightMatches && routeMatches && dateMatches
+  const airports = routeAirports(route)
+  const reports = findServerCommunityLoadReports({
+    flightNumber,
+    route,
+    origin: searchParams.get('origin') || airports.origin,
+    destination: searchParams.get('destination') || airports.destination,
+    date,
+    carrier: searchParams.get('carrier') || undefined
   })
 
   return NextResponse.json({
@@ -108,7 +110,7 @@ export async function POST(request: Request) {
     sourceTrustScore: sourceTrustScore(body),
     createdAt
   }
-  inMemoryCommunityLoads.unshift(report)
+  addServerCommunityLoadReport(report)
 
   return NextResponse.json({
     report,

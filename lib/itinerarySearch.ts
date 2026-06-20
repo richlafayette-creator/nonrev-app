@@ -78,6 +78,12 @@ export type ItineraryResult = {
     confidence: 'Conservative'
     note: string
   }>
+  historicalSuccessScore?: number
+  historicalConfidence?: number
+  historicalSampleSize?: number
+  communityLoadTrustScore?: number
+  compositeRouteScore?: number
+  historicalFactors?: Record<string, number | string>
 }
 
 export type FlightRouteNormalization = {

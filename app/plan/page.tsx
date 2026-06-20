@@ -162,6 +162,36 @@ type RecoveryIntelligence = {
   suggestedRecoveryPaths: SuggestedRecoveryPath[]
 }
 
+type HistoricalRouteIntelligence = {
+  historicalSuccess: {
+    score: number
+    confidence: number
+    successfulOutcomes: number
+    failedOutcomes: number
+    sampleSize: number
+    recencyScore: number
+  }
+  loadReportTrust: {
+    score: number
+    confidence: number
+    reportCount: number
+    reporterReliabilityScore: number
+    priorReportScore: number
+    outcomeAgreementScore: number
+    recencyScore: number
+    singleReportCapApplied: boolean
+  }
+  compositeRouteScore: {
+    score: number
+    liveAvailabilityScore: number
+    historicalSuccessScore: number
+    communityLoadScore: number
+    recoveryStrength: number
+    sampleSizeScore: number
+    confidence: number
+  }
+}
+
 type LiveItineraryResult = {
   id: string
   route: string
@@ -194,6 +224,12 @@ type LiveItineraryResult = {
   recoveryStrength?: number
   recoveryExplanation?: string
   suggestedRecoveryPaths?: SuggestedRecoveryPath[]
+  historicalSuccessScore?: number
+  historicalConfidence?: number
+  historicalSampleSize?: number
+  communityLoadTrustScore?: number
+  compositeRouteScore?: number
+  historicalFactors?: Record<string, number | string>
 }
 
 type ProviderStatus = {
@@ -360,6 +396,7 @@ type ItineraryDebugMetadata = {
   deduplicatedRowsRemoved?: number
   routeCoverageSuggestions?: RouteCoverageSuggestion[]
   recoveryIntelligence?: RecoveryIntelligence
+  historicalIntelligence?: HistoricalRouteIntelligence
   safeErrors: string[]
 }
 

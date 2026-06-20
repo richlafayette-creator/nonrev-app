@@ -6,6 +6,11 @@ import { createAviationstackScheduleProvider, createFlightAwareScheduleProvider,
 import { createProviderResultRepository, providerResultTableName, type ProviderCacheLookupResult, type ProviderResultRecord } from '../../../../lib/providerResultRepository'
 import { applyRouteCoverageLookupResult, buildRouteCoverageFallbackSuggestions, type RouteCoverageLookupStatus, type RouteCoverageSuggestion } from '../../../../lib/routeCoverageFallback'
 import { blendRecoveryIntoItineraryScores, buildRecoveryIntelligence, type RecoveryIntelligence } from '../../../../lib/recoveryIntelligence'
+import { buildHistoricalRouteIntelligence, blendHistoricalIntelligenceIntoItineraryScores, type HistoricalRouteIntelligence } from '../../../../lib/historicalIntelligence'
+import { listAccountBetaRecords } from '../../../../lib/accountBetaStore'
+import { persistentUserId } from '../../../../lib/apiIdentity'
+import { findServerCommunityLoadReports } from '../../../../lib/communityLoadServerStore'
+import type { TripOutcome } from '../../../../lib/outcomeRepository'
 
 export const dynamic = 'force-dynamic'
 
@@ -109,6 +114,7 @@ type ItineraryDebugMetadata = {
   deduplicatedRowsRemoved: number
   routeCoverageSuggestions: RouteCoverageSuggestion[]
   recoveryIntelligence?: RecoveryIntelligence
+  historicalIntelligence?: HistoricalRouteIntelligence
   normalizedFlightAwareItinerarySample?: SafeNormalizedItinerarySample
 }
 
@@ -422,24 +428,51 @@ function providerCacheDebug(result?: ProviderCacheLookupResult, fetched = 0, usa
   }
 }
 
-function applyRecoveryIntelligenceToResults({
+type HistoricalContext = {
+  outcomes: TripOutcome[]
+  communityLoadReports: ReturnType<typeof findServerCommunityLoadReports>
+  detail: string
+}
+
+function emptyHistoricalContext(): HistoricalContext {
+  return { outcomes: [], communityLoadReports: [], detail: 'Historical context unavailable; using conservative neutral scoring.' }
+}
+
+async function historicalContextForRequest(apiRequest: Request, parsedRequest: ParsedItineraryRequest): Promise<HistoricalContext> {
+  const outcomeResult = await listAccountBetaRecords('outcomes', persistentUserId(apiRequest), 500)
+  const communityLoadReports = findServerCommunityLoadReports({
+    origin: parsedRequest.origin,
+    destination: parsedRequest.destination,
+    date: parsedRequest.date,
+    carrier: parsedRequest.carrier
+  })
+  return {
+    outcomes: outcomeResult.data,
+    communityLoadReports,
+    detail: `${outcomeResult.detail} ${communityLoadReports.length} server community load report${communityLoadReports.length === 1 ? '' : 's'} matched this route/date.`
+  }
+}
+
+function applyRouteIntelligenceToResults({
   request,
   itineraries,
+  historicalContext = emptyHistoricalContext(),
+  providerRecords = [],
   routeCoverageSuggestions = [],
   exactFlightCount = 0,
   candidateFlightCount = 0,
   providerCacheCount = 0,
-  historicalAvailabilityCount = 0,
-  communityReportCount = 0
+  historicalAvailabilityCount = 0
 }: {
   request: ParsedItineraryRequest
   itineraries: ItineraryResult[]
+  historicalContext?: HistoricalContext
+  providerRecords?: ProviderResultRecord[]
   routeCoverageSuggestions?: RouteCoverageSuggestion[]
   exactFlightCount?: number
   candidateFlightCount?: number
   providerCacheCount?: number
   historicalAvailabilityCount?: number
-  communityReportCount?: number
 }) {
   const recoveryIntelligence = buildRecoveryIntelligence({
     request,
@@ -449,11 +482,21 @@ function applyRecoveryIntelligenceToResults({
     candidateFlightCount,
     providerCacheCount,
     historicalAvailabilityCount,
-    communityReportCount
+    communityReportCount: historicalContext.communityLoadReports.length
+  })
+  const recoveryItineraries = blendRecoveryIntoItineraryScores(itineraries, recoveryIntelligence)
+  const historicalIntelligence = buildHistoricalRouteIntelligence({
+    request,
+    itineraries: recoveryItineraries,
+    providerRecords,
+    outcomes: historicalContext.outcomes,
+    communityLoadReports: historicalContext.communityLoadReports,
+    recoveryIntelligence
   })
   return {
     recoveryIntelligence,
-    itineraries: blendRecoveryIntoItineraryScores(itineraries, recoveryIntelligence)
+    historicalIntelligence,
+    itineraries: blendHistoricalIntelligenceIntoItineraryScores(recoveryItineraries, historicalIntelligence)
   }
 }
 
@@ -1021,6 +1064,7 @@ function buildDebugMetadata({
   deduplicatedRowsRemoved = 0,
   routeCoverageSuggestions = [],
   recoveryIntelligence,
+  historicalIntelligence,
   normalizedFlightAwareItinerarySample
 }: {
   parsedRequest: ReturnType<typeof normalizeItineraryRequest>
@@ -1049,6 +1093,7 @@ function buildDebugMetadata({
   deduplicatedRowsRemoved?: number
   routeCoverageSuggestions?: RouteCoverageSuggestion[]
   recoveryIntelligence?: RecoveryIntelligence
+  historicalIntelligence?: HistoricalRouteIntelligence
   normalizedFlightAwareItinerarySample?: SafeNormalizedItinerarySample
 }): ItineraryDebugMetadata {
   const mergedProviderStatuses = mergeProviderStatuses(providerStatuses)
@@ -1088,6 +1133,7 @@ function buildDebugMetadata({
     deduplicatedRowsRemoved,
     routeCoverageSuggestions,
     recoveryIntelligence,
+    historicalIntelligence,
     normalizedFlightAwareItinerarySample
   }
 }
@@ -1187,6 +1233,8 @@ export async function GET(request: Request) {
     })
   }
 
+  const historicalContext = await historicalContextForRequest(request, effectiveRequest)
+
   const providerCacheLookup = await createProviderResultRepository().findCachedResults({
     origin: effectiveRequest.origin,
     destination: effectiveRequest.destination,
@@ -1214,9 +1262,11 @@ export async function GET(request: Request) {
         sourceProvider: 'provider-cache',
         providerBadges: ['Cached provider data', cacheFreshness.dataFreshnessLabel || 'Provider cache']
       }))
-    const recoveryApplied = applyRecoveryIntelligenceToResults({
+    const recoveryApplied = applyRouteIntelligenceToResults({
       request: effectiveRequest,
       itineraries: cacheItineraries,
+      historicalContext,
+      providerRecords: providerCacheLookup.records,
       exactFlightCount: providerCacheFlights.length,
       candidateFlightCount: providerCacheFlights.length,
       providerCacheCount: providerCacheFlights.length,
@@ -1257,7 +1307,8 @@ export async function GET(request: Request) {
       safeErrors: uniqueMessages(warnings),
       deduplicationNotes: cacheDeduplication.notes,
       deduplicatedRowsRemoved: cacheDeduplication.removed,
-      recoveryIntelligence: recoveryApplied.recoveryIntelligence
+      recoveryIntelligence: recoveryApplied.recoveryIntelligence,
+      historicalIntelligence: recoveryApplied.historicalIntelligence
     })
 
     return NextResponse.json({
@@ -1274,6 +1325,7 @@ export async function GET(request: Request) {
       warnings: uniqueMessages(warnings),
       debug,
       recoveryIntelligence: recoveryApplied.recoveryIntelligence,
+      historicalIntelligence: recoveryApplied.historicalIntelligence,
       count: itineraries.length,
       itineraries
     })
@@ -1301,9 +1353,11 @@ export async function GET(request: Request) {
       matchedDate: effectiveRequest.date,
       productionAvailability: true
     })
-    const recoveryApplied = applyRecoveryIntelligenceToResults({
+    const recoveryApplied = applyRouteIntelligenceToResults({
       request: effectiveRequest,
       itineraries: flightAwareScoredItineraries,
+      historicalContext,
+      providerRecords: providerCacheLookup.records,
       exactFlightCount: flightAwareScheduleFlights.length,
       candidateFlightCount: flightAwareScheduleFlights.length,
       providerCacheCount: providerCacheFlights.length,
@@ -1361,6 +1415,7 @@ export async function GET(request: Request) {
       warnings: uniqueMessages(warnings),
       debug,
       recoveryIntelligence: recoveryApplied.recoveryIntelligence,
+      historicalIntelligence: recoveryApplied.historicalIntelligence,
       count: itineraries.length,
       itineraries
     })
@@ -1440,9 +1495,11 @@ export async function GET(request: Request) {
           productionAvailability: false
         }
     const supabaseScoredItineraries = addProviderBadges(enrichedItineraries.length ? enrichedItineraries : supabaseItineraries, 'supabase', enriched, supabaseFreshness)
-    const recoveryApplied = applyRecoveryIntelligenceToResults({
+    const recoveryApplied = applyRouteIntelligenceToResults({
       request: effectiveRequest,
       itineraries: supabaseScoredItineraries,
+      historicalContext,
+      providerRecords: providerCacheLookup.records,
       exactFlightCount: supabaseMatchedFlights.length,
       candidateFlightCount: supabaseFlights.length,
       providerCacheCount: providerCacheFlights.length,
@@ -1483,7 +1540,8 @@ export async function GET(request: Request) {
       safeErrors: uniqueMessages(warnings),
       deduplicationNotes: supabaseDeduplication.notes,
       deduplicatedRowsRemoved: supabaseDeduplication.removed,
-      recoveryIntelligence: recoveryApplied.recoveryIntelligence
+      recoveryIntelligence: recoveryApplied.recoveryIntelligence,
+      historicalIntelligence: recoveryApplied.historicalIntelligence
     })
     return NextResponse.json({
       ok: true,
@@ -1501,6 +1559,7 @@ export async function GET(request: Request) {
       warnings: uniqueMessages(warnings),
       debug,
       recoveryIntelligence: recoveryApplied.recoveryIntelligence,
+      historicalIntelligence: recoveryApplied.historicalIntelligence,
       count: itineraries.length,
       itineraries
     })
@@ -1535,9 +1594,11 @@ export async function GET(request: Request) {
       matchedDate: effectiveRequest.date,
       productionAvailability: true
     })
-    const recoveryApplied = applyRecoveryIntelligenceToResults({
+    const recoveryApplied = applyRouteIntelligenceToResults({
       request: effectiveRequest,
       itineraries: aviationstackScoredItineraries,
+      historicalContext,
+      providerRecords: providerCacheLookup.records,
       exactFlightCount: aviationstackFlights.length,
       candidateFlightCount: aviationstackFlights.length,
       providerCacheCount: providerCacheFlights.length,
@@ -1577,7 +1638,8 @@ export async function GET(request: Request) {
       safeErrors: uniqueMessages(warnings),
       deduplicationNotes: aviationstackDeduplication.notes,
       deduplicatedRowsRemoved: aviationstackDeduplication.removed,
-      recoveryIntelligence: recoveryApplied.recoveryIntelligence
+      recoveryIntelligence: recoveryApplied.recoveryIntelligence,
+      historicalIntelligence: recoveryApplied.historicalIntelligence
     })
 
     return NextResponse.json({
@@ -1594,6 +1656,7 @@ export async function GET(request: Request) {
       warnings: uniqueMessages(warnings),
       debug,
       recoveryIntelligence: recoveryApplied.recoveryIntelligence,
+      historicalIntelligence: recoveryApplied.historicalIntelligence,
       count: itineraries.length,
       itineraries
     })
@@ -1628,9 +1691,11 @@ export async function GET(request: Request) {
       matchedDate: seedRouteMatching.dateCoverage.effectiveMatchDate || mvpRouteSeedDate,
       productionAvailability: false
     })
-    const recoveryApplied = applyRecoveryIntelligenceToResults({
+    const recoveryApplied = applyRouteIntelligenceToResults({
       request: effectiveRequest,
       itineraries: seedScoredItineraries,
+      historicalContext,
+      providerRecords: providerCacheLookup.records,
       exactFlightCount: 0,
       candidateFlightCount: mvpSeedFlights.length,
       providerCacheCount: providerCacheFlights.length,
@@ -1686,6 +1751,7 @@ export async function GET(request: Request) {
       warnings: finalWarnings,
       debug,
       recoveryIntelligence: recoveryApplied.recoveryIntelligence,
+      historicalIntelligence: recoveryApplied.historicalIntelligence,
       count: itineraries.length,
       itineraries
     })
@@ -1699,7 +1765,16 @@ export async function GET(request: Request) {
     exactFlightCount: 0,
     candidateFlightCount: supabaseFlights.length + aviationstackFlights.length + flightAwareScheduleFlights.length,
     providerCacheCount: providerCacheFlights.length,
-    historicalAvailabilityCount: Math.max(providerCacheFlights.length, routeCoverageSuggestions.reduce((total, suggestion) => total + suggestion.providerResultCount, 0))
+    historicalAvailabilityCount: Math.max(providerCacheFlights.length, routeCoverageSuggestions.reduce((total, suggestion) => total + suggestion.providerResultCount, 0)),
+    communityReportCount: historicalContext.communityLoadReports.length
+  })
+  const historicalIntelligence = buildHistoricalRouteIntelligence({
+    request: effectiveRequest,
+    itineraries: [],
+    providerRecords: providerCacheLookup.records,
+    outcomes: historicalContext.outcomes,
+    communityLoadReports: historicalContext.communityLoadReports,
+    recoveryIntelligence
   })
   const routeCoverageMessage = routeCoverageSuggestions.length
     ? `${recoveryIntelligence.explanation} These are route guidance only, not live availability.`
@@ -1744,7 +1819,8 @@ export async function GET(request: Request) {
     testDataModeEnabled: envTestDataModeEnabled,
     safeErrors: finalWarnings,
     routeCoverageSuggestions,
-    recoveryIntelligence
+    recoveryIntelligence,
+    historicalIntelligence
   })
 
   return NextResponse.json({
@@ -1763,6 +1839,7 @@ export async function GET(request: Request) {
     debug,
     routeCoverageSuggestions,
     recoveryIntelligence,
+    historicalIntelligence,
     count: 0,
     itineraries: []
   })

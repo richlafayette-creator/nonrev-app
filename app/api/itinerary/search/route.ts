@@ -550,6 +550,7 @@ const destinationHubPatterns: Record<string, string[]> = {
 }
 
 const preferredRouteFrameworkPaths: Record<string, string[][]> = {
+  'SBP-PDX': [['SBP', 'PDX'], ['SBP', 'SEA', 'PDX'], ['SBP', 'SFO', 'PDX'], ['SBP', 'LAX', 'PDX'], ['SBP', 'DEN', 'PDX'], ['SBP', 'PHX', 'PDX'], ['SBP', 'SLC', 'PDX'], ['SBP', 'LAS', 'PDX']],
   'SBP-BOS': [['SBP', 'LAX', 'BOS'], ['SBP', 'SFO', 'BOS'], ['SBP', 'SEA', 'BOS'], ['SBP', 'DEN', 'BOS'], ['SBP', 'PHX', 'BOS']],
   'SBP-HNL': [['SBP', 'LAX', 'HNL'], ['SBP', 'SFO', 'HNL'], ['SBP', 'SEA', 'HNL'], ['SBP', 'PHX', 'LAX', 'HNL'], ['SBP', 'DEN', 'LAX', 'HNL']],
   'SBP-NRT': [['SBP', 'LAX', 'HND', 'NRT'], ['SBP', 'SFO', 'HND', 'NRT'], ['SBP', 'SEA', 'NRT'], ['SBP', 'LAX', 'NRT'], ['SBP', 'SFO', 'NRT']],
@@ -692,6 +693,25 @@ function buildCompleteRouteFrameworkItineraries({ request, routeCoverageSuggesti
     })
     .sort((a, b) => (b.compositeRouteScore || b.score) - (a.compositeRouteScore || a.score) || a.route.localeCompare(b.route))
     .slice(0, limit)
+}
+
+function frameworkOptionCountLabel(count: number) {
+  return `${count} route framework option${count === 1 ? '' : 's'}`
+}
+
+function appendRouteFrameworkOptions({ request, itineraries, routeCoverageSuggestions, providerRecords, recoveryIntelligence, historicalIntelligence, limit = 10 }: { request: ParsedItineraryRequest; itineraries: ItineraryResult[]; routeCoverageSuggestions?: RouteCoverageSuggestion[]; providerRecords?: ProviderResultRecord[]; recoveryIntelligence?: RecoveryIntelligence; historicalIntelligence?: HistoricalRouteIntelligence; limit?: number }) {
+  const dedupedItineraries = [...new Map(itineraries.map((itinerary) => [itinerary.route, itinerary])).values()]
+  const existingRoutes = new Set(dedupedItineraries.map((itinerary) => itinerary.route))
+  const frameworkItineraries = buildCompleteRouteFrameworkItineraries({
+    request,
+    routeCoverageSuggestions: routeCoverageSuggestions || buildRouteCoverageFallbackSuggestions(request, limit),
+    providerRecords: providerRecords || [],
+    recoveryIntelligence,
+    historicalIntelligence,
+    limit
+  }).filter((itinerary) => !existingRoutes.has(itinerary.route))
+
+  return [...dedupedItineraries, ...frameworkItineraries].slice(0, limit)
 }
 
 function addProviderBadges(itineraries: ItineraryResult[], source: 'flightaware' | 'supabase' | 'aviationstack', enriched: boolean, freshness: FreshnessAnnotation = {}) {
@@ -1468,17 +1488,16 @@ export async function GET(request: Request) {
       providerCacheCount: providerCacheFlights.length,
       historicalAvailabilityCount: providerCacheFlights.length
     })
-    const frameworkFillItineraries = recoveryApplied.itineraries.length < 5
-      ? buildCompleteRouteFrameworkItineraries({
-        request: effectiveRequest,
-        routeCoverageSuggestions: buildRouteCoverageFallbackSuggestions(effectiveRequest, 10),
-        providerRecords: providerCacheLookup.records,
-        recoveryIntelligence: recoveryApplied.recoveryIntelligence,
-        historicalIntelligence: recoveryApplied.historicalIntelligence,
-        limit: 5
-      }).filter((itinerary) => !new Set(recoveryApplied.itineraries.map((cachedItinerary) => cachedItinerary.route)).has(itinerary.route)).slice(0, 5 - recoveryApplied.itineraries.length)
-      : []
-    const itineraries = [...recoveryApplied.itineraries, ...frameworkFillItineraries].slice(0, 5)
+    const itineraries = appendRouteFrameworkOptions({
+      request: effectiveRequest,
+      itineraries: recoveryApplied.itineraries,
+      routeCoverageSuggestions: buildRouteCoverageFallbackSuggestions(effectiveRequest, 10),
+      providerRecords: providerCacheLookup.records,
+      recoveryIntelligence: recoveryApplied.recoveryIntelligence,
+      historicalIntelligence: recoveryApplied.historicalIntelligence,
+      limit: 10
+    })
+    const frameworkFillItineraries = itineraries.filter((itinerary) => itinerary.dataFreshnessRule === 'route-framework')
     counts.finalItineraries = itineraries.length
     const cacheDeduplication = deduplicationSummary(itineraries, 'provider cache')
     if (cacheDeduplication.notes.length) warnings.push(...cacheDeduplication.notes)
@@ -1569,7 +1588,15 @@ export async function GET(request: Request) {
       providerCacheCount: providerCacheFlights.length,
       historicalAvailabilityCount: providerCacheFlights.length
     })
-    const itineraries = recoveryApplied.itineraries
+    const itineraries = appendRouteFrameworkOptions({
+      request: effectiveRequest,
+      itineraries: recoveryApplied.itineraries,
+      routeCoverageSuggestions: buildRouteCoverageFallbackSuggestions(effectiveRequest, 10),
+      providerRecords: providerCacheLookup.records,
+      recoveryIntelligence: recoveryApplied.recoveryIntelligence,
+      historicalIntelligence: recoveryApplied.historicalIntelligence,
+      limit: 10
+    })
     counts.finalItineraries = itineraries.length
     const flightAwareDeduplication = deduplicationSummary(itineraries, 'FlightAware')
     if (flightAwareDeduplication.notes.length) warnings.push(...flightAwareDeduplication.notes)
@@ -1593,7 +1620,7 @@ export async function GET(request: Request) {
         providerStatus('flightaware', 'success', `${flightAwareItineraries.length} itinerary result${flightAwareItineraries.length === 1 ? '' : 's'} found from ${flightAwareScheduleFlights.length} live FlightAware schedule row${flightAwareScheduleFlights.length === 1 ? '' : 's'}.`),
         providerStatus('supabase', 'skipped', 'Skipped because FlightAware live schedules produced itinerary results.'),
         providerStatus('aviationstack', 'skipped', 'Skipped because FlightAware live schedules produced itinerary results.'),
-        providerStatus('planning', 'skipped', 'Skipped because live provider results are available.')
+        providerStatus('planning', itineraries.length > recoveryApplied.itineraries.length ? 'success' : 'skipped', itineraries.length > recoveryApplied.itineraries.length ? `${frameworkOptionCountLabel(itineraries.length - recoveryApplied.itineraries.length)} added after live rows without flight numbers or times.` : 'Skipped because live provider results already filled the route option list.')
       ],
       trueLiveDataAvailable: true,
       trueLiveDataUnavailableReason: '',
@@ -1615,7 +1642,7 @@ export async function GET(request: Request) {
       dataMode: 'live',
       source_provider: 'flightaware',
       source_checked_at: itineraries[0]?.sourceCheckedAt,
-      statusMessage: `${itineraries.length} live itinerary result${itineraries.length === 1 ? '' : 's'} found through FlightAware.`,
+      statusMessage: `${recoveryApplied.itineraries.length} live itinerary result${recoveryApplied.itineraries.length === 1 ? '' : 's'} found through FlightAware; ${frameworkOptionCountLabel(itineraries.length - recoveryApplied.itineraries.length)} added without flight numbers or times.`,
       enrichedWithFlightAware: true,
       providerBadges: [providerLabels.flightaware],
       warnings: uniqueMessages(warnings),
@@ -1711,7 +1738,15 @@ export async function GET(request: Request) {
       providerCacheCount: providerCacheFlights.length,
       historicalAvailabilityCount: Math.max(providerCacheFlights.length, supabaseMatchedFlights.length)
     })
-    const itineraries = recoveryApplied.itineraries
+    const itineraries = appendRouteFrameworkOptions({
+      request: effectiveRequest,
+      itineraries: recoveryApplied.itineraries,
+      routeCoverageSuggestions: buildRouteCoverageFallbackSuggestions(effectiveRequest, 10),
+      providerRecords: providerCacheLookup.records,
+      recoveryIntelligence: recoveryApplied.recoveryIntelligence,
+      historicalIntelligence: recoveryApplied.historicalIntelligence,
+      limit: 10
+    })
     counts.finalItineraries = itineraries.length
     const supabaseDeduplication = deduplicationSummary(itineraries, 'Supabase')
     if (supabaseDeduplication.notes.length) warnings.push(...supabaseDeduplication.notes)
@@ -1736,7 +1771,7 @@ export async function GET(request: Request) {
           : `${supabaseItineraries.length} connecting itinerary result${supabaseItineraries.length === 1 ? '' : 's'} assembled from Supabase candidate rows, but no single direct row matched the normalized route. ${routeMatching.matchExplanation}`),
         providerStatus('aviationstack', 'skipped', 'Skipped because stored Supabase data produced itinerary results.'),
         providerStatus('flightaware', enriched ? 'success' : flightAwareScheduleWarning ? 'warning' : 'skipped', `${flightAwareScheduleDetail}; stored-result enrichment status: ${flightAwareStatus}.`),
-        providerStatus('planning', 'skipped', 'Skipped because stored provider results are available.')
+        providerStatus('planning', itineraries.length > recoveryApplied.itineraries.length ? 'success' : 'skipped', itineraries.length > recoveryApplied.itineraries.length ? `${frameworkOptionCountLabel(itineraries.length - recoveryApplied.itineraries.length)} added after stored rows without flight numbers or times.` : 'Skipped because stored provider results already filled the route option list.')
       ],
       trueLiveDataAvailable: false,
       trueLiveDataUnavailableReason: trueLiveUnavailableReason('supabase', routeMatching),
@@ -1758,8 +1793,8 @@ export async function GET(request: Request) {
       source_provider: 'supabase',
       source_checked_at: itineraries[0]?.sourceCheckedAt,
       statusMessage: routeMatching.dateCoverage.nearestDateApplied
-        ? `${itineraries.length} nearest-date testing itinerary result${itineraries.length === 1 ? '' : 's'} found in stored Supabase data for ${routeMatching.dateCoverage.effectiveMatchDate}; requested ${routeMatching.dateCoverage.requestedSearchDate}.`
-        : `${itineraries.length} itinerary result${itineraries.length === 1 ? '' : 's'} found in stored Supabase data.`,
+        ? `${recoveryApplied.itineraries.length} nearest-date testing itinerary result${recoveryApplied.itineraries.length === 1 ? '' : 's'} found in stored Supabase data for ${routeMatching.dateCoverage.effectiveMatchDate}; requested ${routeMatching.dateCoverage.requestedSearchDate}. ${frameworkOptionCountLabel(itineraries.length - recoveryApplied.itineraries.length)} added without flight numbers or times.`
+        : `${recoveryApplied.itineraries.length} itinerary result${recoveryApplied.itineraries.length === 1 ? '' : 's'} found in stored Supabase data; ${frameworkOptionCountLabel(itineraries.length - recoveryApplied.itineraries.length)} added without flight numbers or times.`,
       enrichedWithFlightAware: enriched,
       providerBadges: enriched ? [providerLabels.supabase, providerLabels.flightaware] : [providerLabels.supabase],
       warnings: uniqueMessages(warnings),
@@ -1810,7 +1845,15 @@ export async function GET(request: Request) {
       providerCacheCount: providerCacheFlights.length,
       historicalAvailabilityCount: providerCacheFlights.length
     })
-    const itineraries = recoveryApplied.itineraries
+    const itineraries = appendRouteFrameworkOptions({
+      request: effectiveRequest,
+      itineraries: recoveryApplied.itineraries,
+      routeCoverageSuggestions: buildRouteCoverageFallbackSuggestions(effectiveRequest, 10),
+      providerRecords: providerCacheLookup.records,
+      recoveryIntelligence: recoveryApplied.recoveryIntelligence,
+      historicalIntelligence: recoveryApplied.historicalIntelligence,
+      limit: 10
+    })
     counts.finalItineraries = itineraries.length
     const aviationstackDeduplication = deduplicationSummary(itineraries, 'Aviationstack')
     if (aviationstackDeduplication.notes.length) warnings.push(...aviationstackDeduplication.notes)
@@ -1834,7 +1877,7 @@ export async function GET(request: Request) {
         providerStatus('supabase', supabaseWarning ? 'warning' : 'skipped', supabaseWarning || 'No Supabase itineraries matched this request.'),
         providerStatus('aviationstack', 'success', `${aviationstackItineraries.length} matching itinerary result${aviationstackItineraries.length === 1 ? '' : 's'} found through fallback.`),
         providerStatus('flightaware', enriched ? 'success' : flightAwareScheduleWarning ? 'warning' : 'skipped', `${flightAwareScheduleDetail}; Aviationstack-result enrichment status: ${flightAwareStatus}.`),
-        providerStatus('planning', 'skipped', 'Skipped because Aviationstack produced itinerary results.')
+        providerStatus('planning', itineraries.length > recoveryApplied.itineraries.length ? 'success' : 'skipped', itineraries.length > recoveryApplied.itineraries.length ? `${frameworkOptionCountLabel(itineraries.length - recoveryApplied.itineraries.length)} added after Aviationstack rows without flight numbers or times.` : 'Skipped because Aviationstack results already filled the route option list.')
       ],
       trueLiveDataAvailable: true,
       trueLiveDataUnavailableReason: '',
@@ -1856,7 +1899,7 @@ export async function GET(request: Request) {
       dataMode: 'live',
       source_provider: 'aviationstack',
       source_checked_at: itineraries[0]?.sourceCheckedAt,
-      statusMessage: `${itineraries.length} itinerary result${itineraries.length === 1 ? '' : 's'} found through Aviationstack fallback.`,
+      statusMessage: `${recoveryApplied.itineraries.length} itinerary result${recoveryApplied.itineraries.length === 1 ? '' : 's'} found through Aviationstack fallback; ${frameworkOptionCountLabel(itineraries.length - recoveryApplied.itineraries.length)} added without flight numbers or times.`,
       enrichedWithFlightAware: enriched,
       providerBadges: enriched ? [providerLabels.aviationstack, providerLabels.flightaware] : [providerLabels.aviationstack],
       warnings: uniqueMessages(warnings),
@@ -1988,7 +2031,7 @@ export async function GET(request: Request) {
     providerRecords: providerCacheLookup.records,
     recoveryIntelligence,
     historicalIntelligence,
-    limit: 5
+    limit: 10
   })
   counts.finalItineraries = routeFrameworkItineraries.length
   const routeCoverageMessage = routeFrameworkItineraries.length

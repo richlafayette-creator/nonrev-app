@@ -1806,6 +1806,18 @@ function itineraryDepartureSortValue(comparison: ItineraryComparison) {
   return parseScheduleTime(comparison.departureDateTime) ?? Number.MAX_SAFE_INTEGER
 }
 
+function itineraryArrivalSortValue(comparison: ItineraryComparison) {
+  return parseScheduleTime(comparison.arrivalDateTime) ?? Number.MAX_SAFE_INTEGER
+}
+
+function sortMoreRouteItineraries(comparisons: ItineraryComparison[]) {
+  return [...comparisons].sort((a, b) =>
+    itineraryArrivalSortValue(a) - itineraryArrivalSortValue(b) ||
+    itineraryDepartureSortValue(a) - itineraryDepartureSortValue(b) ||
+    a.route.localeCompare(b.route)
+  )
+}
+
 function sortCompactItineraries(comparisons: ItineraryComparison[]) {
   return [...comparisons].sort((a, b) =>
     b.personalSuccessPrediction.probability - a.personalSuccessPrediction.probability ||
@@ -3453,6 +3465,8 @@ function ItineraryComparisonPanel({ comparisons, travelDate, communityLoads, onC
   }
 
   const compactItineraries = sortCompactItineraries(comparisons)
+  const topRouteItineraries = compactItineraries.slice(0, 5)
+  const moreRouteItineraries = sortMoreRouteItineraries(compactItineraries.slice(5))
   const routeInsights = buildRouteIntelligenceInsights(compactItineraries)
 
 function searchTrustReceiptTone(dataMode: string, debug: ItineraryDebugMetadata | null) {
@@ -3585,8 +3599,9 @@ function renderFlightBoardRow(comparison: ItineraryComparison) {
               </div>
               <div className="nonrevy-flight-board-row__secondary-line">
                 <span className="nonrevy-flight-board-row__stops">{compactStopsLabel(comparison.connections)}</span>
-                <span className="nonrevy-flight-board-row__duration">{compactDurationLabel(comparison.totalTravelTime)}</span>
-                {comparison.dataFreshnessRule === 'route-framework' ? <span className="nonrevy-flight-board-row__availability">Live availability unavailable</span> : null}
+                {comparison.dataFreshnessRule === 'route-framework'
+                  ? <span className="nonrevy-flight-board-row__availability">Live time unavailable</span>
+                  : <span className="nonrevy-flight-board-row__duration">{compactDurationLabel(comparison.totalTravelTime)}</span>}
               </div>
             </div>
 
@@ -3769,14 +3784,25 @@ function renderFlightBoardRow(comparison: ItineraryComparison) {
   return (
     <section className="nonrevy-results-shell nonrevy-compact-results nonrevy-flight-board" style={{ border: '1px solid rgba(56, 189, 248, 0.35)', borderRadius: 14, padding: 'clamp(6px, 2vw, 10px)', background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.96), rgba(30, 41, 59, 0.86))', marginBottom: 16 }}>
       <div className="nonrevy-flight-board__header">
-        <strong>Itineraries</strong>
+        <strong>Top 5 routes</strong>
+        {moreRouteItineraries.length ? <span>{moreRouteItineraries.length} more route{moreRouteItineraries.length === 1 ? '' : 's'}</span> : null}
       </div>
 
       {compareStatus && <p className="nonrevy-compact-results__status nonrevy-compact-results__status--save">{compareStatus}</p>}
 
-      <div className="nonrevy-flight-board__list" aria-label="All feasible itineraries">
-        {compactItineraries.map((comparison) => renderFlightBoardRow(comparison))}
+      <div className="nonrevy-flight-board__list" aria-label="Top 5 route options">
+        {topRouteItineraries.map((comparison) => renderFlightBoardRow(comparison))}
       </div>
+
+      {moreRouteItineraries.length ? (
+        <details className="nonrevy-more-routes" style={{ marginTop: 8, border: '1px solid #334155', borderRadius: 10, padding: 8, background: '#020617' }}>
+          <summary style={{ color: '#67e8f9', cursor: 'pointer', fontWeight: 'bold' }}>More routes · sorted by earliest arrival when times exist</summary>
+          <p style={{ color: '#94a3b8', margin: '8px 0' }}>Timed routes appear first by arrival time. Route frameworks without live times are labeled “Live time unavailable.”</p>
+          <div className="nonrevy-flight-board__list" aria-label="More route options">
+            {moreRouteItineraries.map((comparison) => renderFlightBoardRow(comparison))}
+          </div>
+        </details>
+      ) : null}
 
       <details className="nonrevy-premium-details" style={{ marginTop: 8, border: '1px solid #334155', borderRadius: 10, padding: 8, background: '#020617' }}>
         <summary style={{ color: '#c084fc', cursor: 'pointer', fontWeight: 'bold' }}>Advanced sections</summary>
@@ -3981,7 +4007,9 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
   async function runItinerarySearch(searchText: string, overrides: ItinerarySearchOverrides = {}) {
     const trimmedSearch = searchText.trim()
     const originAirport = (overrides.homeAirport ?? homeAirport).trim().toUpperCase()
-    const requestedTravelWindow = (overrides.travelWindow ?? travelWindow).trim()
+    const parsedSearchDate = parseItineraryPrompt(trimmedSearch).date
+    const requestedTravelWindow = (parsedSearchDate || overrides.travelWindow || travelWindow).trim()
+    if (parsedSearchDate && parsedSearchDate !== travelWindow) setTravelWindow(parsedSearchDate)
     const requestedCarrier = overrides.carrier ?? carrier
     const requestedMaxLegs = overrides.maxLegs ?? maxLegs
     const dateError = validateTravelDate(requestedTravelWindow)
@@ -4071,8 +4099,11 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
   async function submitPlanRequest(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setSubmitted(true)
-    const dateError = validateTravelDate(travelWindow)
+    const parsedSearchDate = parseItineraryPrompt(tripGoal).date
+    const effectiveTravelWindow = parsedSearchDate || travelWindow
+    const dateError = validateTravelDate(effectiveTravelWindow)
     setTravelDateError(dateError)
+    if (parsedSearchDate && parsedSearchDate !== travelWindow) setTravelWindow(parsedSearchDate)
     if (dateError) {
       setItineraryStatus(dateError)
       setItineraryDataMode('Awaiting valid date')
@@ -4082,15 +4113,15 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
       setQuery(tripGoal.trim())
       if (!compactResultsMode) {
         const params = new URLSearchParams({ q: tripGoal.trim() })
-        if (travelWindow.trim()) params.set('date', travelWindow.trim())
+        if (effectiveTravelWindow.trim()) params.set('date', effectiveTravelWindow.trim())
         window.location.href = `/results?${params.toString()}`
         return
       }
       const params = new URLSearchParams({ q: tripGoal.trim() })
-      if (travelWindow.trim()) params.set('date', travelWindow.trim())
+      if (effectiveTravelWindow.trim()) params.set('date', effectiveTravelWindow.trim())
       window.history.replaceState(null, '', `/results?${params.toString()}`)
     }
-    await runItinerarySearch(tripGoal, { maxLegs: '2' })
+    await runItinerarySearch(tripGoal, { maxLegs: '2', travelWindow: effectiveTravelWindow })
   }
 
   function handleCarrierChange(nextCarrier: string) {
@@ -4136,14 +4167,18 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
     setQuery(prompt)
     setCopilotPrompt(prompt)
     setSubmitted(true)
+    const parsedSearchDate = parseItineraryPrompt(prompt).date
+    if (parsedSearchDate) setTravelWindow(parsedSearchDate)
     setAiPlannerStatus('AI planner scaffold generated route guidance and refreshed itinerary results.')
     setCopilotStatus('Copilot is using the refreshed itinerary, route intelligence, and recovery results.')
+    const params = new URLSearchParams({ aiTrip: prompt })
+    if (parsedSearchDate) params.set('date', parsedSearchDate)
     if (!compactResultsMode) {
-      window.location.href = `/results?aiTrip=${encodeURIComponent(prompt)}`
+      window.location.href = `/results?${params.toString()}`
       return
     }
-    window.history.replaceState(null, '', `/results?aiTrip=${encodeURIComponent(prompt)}`)
-    await runItinerarySearch(prompt, { maxLegs: '2' })
+    window.history.replaceState(null, '', `/results?${params.toString()}`)
+    await runItinerarySearch(prompt, { maxLegs: '2', travelWindow: parsedSearchDate || travelWindow })
   }
 
   async function submitCopilotPrompt(event: FormEvent<HTMLFormElement>) {
@@ -4158,13 +4193,17 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
     setQuery(prompt)
     setAiTripPrompt(prompt)
     setSubmitted(true)
+    const parsedSearchDate = parseItineraryPrompt(prompt).date
+    if (parsedSearchDate) setTravelWindow(parsedSearchDate)
     setCopilotStatus('Copilot translated your request into a planner search.')
+    const params = new URLSearchParams({ aiTrip: prompt })
+    if (parsedSearchDate) params.set('date', parsedSearchDate)
     if (!compactResultsMode) {
-      window.location.href = `/results?aiTrip=${encodeURIComponent(prompt)}`
+      window.location.href = `/results?${params.toString()}`
       return
     }
-    window.history.replaceState(null, '', `/results?aiTrip=${encodeURIComponent(prompt)}`)
-    await runItinerarySearch(prompt, { maxLegs: '2' })
+    window.history.replaceState(null, '', `/results?${params.toString()}`)
+    await runItinerarySearch(prompt, { maxLegs: '2', travelWindow: parsedSearchDate || travelWindow })
   }
 
 
@@ -4178,12 +4217,16 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
     setSubmitted(true)
     setAiPlannerStatus('Universal search interpreted your airport, route, flight, cabin, or open-ended request.')
     setCopilotStatus('Copilot is using the universal search interpretation with current route intelligence and recovery signals.')
+    const parsedSearchDate = parseItineraryPrompt(prompt).date
+    if (parsedSearchDate) setTravelWindow(parsedSearchDate)
+    const params = new URLSearchParams({ aiTrip: prompt })
+    if (parsedSearchDate) params.set('date', parsedSearchDate)
     if (!compactResultsMode) {
-      window.location.href = `/results?aiTrip=${encodeURIComponent(prompt)}`
+      window.location.href = `/results?${params.toString()}`
       return
     }
-    window.history.replaceState(null, '', `/results?aiTrip=${encodeURIComponent(prompt)}`)
-    void runItinerarySearch(prompt, { maxLegs: '2' })
+    window.history.replaceState(null, '', `/results?${params.toString()}`)
+    void runItinerarySearch(prompt, { maxLegs: '2', travelWindow: parsedSearchDate || travelWindow })
   }
 
   const matchingFlights = useMemo(

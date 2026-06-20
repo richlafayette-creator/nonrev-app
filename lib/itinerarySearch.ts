@@ -382,7 +382,7 @@ function dateFromRelative(value: string, now = new Date()) {
   const bareWeekday = normalized.match(/\b(sunday|monday|tuesday|wednesday|thursday|friday|saturday)\b/)
   if (bareWeekday) {
     const target = weekdays.indexOf(bareWeekday[1])
-    const diff = (target - date.getUTCDay() + 7) % 7
+    const diff = (target - date.getUTCDay() + 7) % 7 || 7
     return addDays(date, diff).toISOString().slice(0, 10)
   }
   const isoDate = normalized.match(/\b(20\d{2}-\d{2}-\d{2})\b/)
@@ -415,7 +415,7 @@ function carrierFromText(value: string) {
 }
 
 function routePhraseStopPattern() {
-  return '(?:today|tonight|tomorrow|next\\s+\\w+|this\\s+weekend|weekend|on\\s+\\w+|with\\s+\\w+|united|delta|alaska|hawaiian|ua|dl|as|ha|polaris|first|business|economy)'
+  return '(?:today|tonight|tomorrow|sunday|monday|tuesday|wednesday|thursday|friday|saturday|next\\s+\\w+|this\\s+weekend|weekend|on\\s+\\w+|with\\s+\\w+|united|delta|alaska|hawaiian|ua|dl|as|ha|polaris|first|business|economy)'
 }
 
 function routeFromText(value: string) {
@@ -442,13 +442,13 @@ function routeFromText(value: string) {
     if (origin || destination) return { origin, destination, routePhraseFound: true }
   }
 
-  const originOnly = normalized.match(/\b(?:from|leaving|departing|out\s+of)\s+([A-Za-z]{3}|[A-Za-z][A-Za-z\s]+?)(?:\s+(?:today|tonight|tomorrow|next\s+\w+|this\s+weekend|weekend|on\s+\w+|with\s+\w+|united|delta|alaska|hawaiian|ua|dl|as|ha|open|flights|flight)\b|$)/i)
+  const originOnly = normalized.match(/\b(?:from|leaving|departing|out\s+of)\s+([A-Za-z]{3}|[A-Za-z][A-Za-z\s]+?)(?:\s+(?:today|tonight|tomorrow|sunday|monday|tuesday|wednesday|thursday|friday|saturday|next\s+\w+|this\s+weekend|weekend|on\s+\w+|with\s+\w+|united|delta|alaska|hawaiian|ua|dl|as|ha|open|flights|flight)\b|$)/i)
   if (originOnly) {
     const origin = airportFromPhrase(originOnly[1])
     if (origin) return { origin, routePhraseFound: true }
   }
 
-  const destinationOnly = normalized.match(/\b(?:to|for)\s+([A-Za-z]{3}|[A-Za-z][A-Za-z\s]+?)(?:\s+(?:today|tonight|tomorrow|next\s+\w+|this\s+weekend|weekend|on\s+\w+|with\s+\w+|united|delta|alaska|hawaiian|ua|dl|as|ha|polaris|first|business|economy)\b|$)/i)
+  const destinationOnly = normalized.match(/\b(?:to|for)\s+([A-Za-z]{3}|[A-Za-z][A-Za-z\s]+?)(?:\s+(?:today|tonight|tomorrow|sunday|monday|tuesday|wednesday|thursday|friday|saturday|next\s+\w+|this\s+weekend|weekend|on\s+\w+|with\s+\w+|united|delta|alaska|hawaiian|ua|dl|as|ha|polaris|first|business|economy)\b|$)/i)
   if (destinationOnly) {
     const destination = airportFromPhrase(destinationOnly[1])
     if (destination) return { destination, routePhraseFound: true }

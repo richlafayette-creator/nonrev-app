@@ -1566,6 +1566,18 @@ const AIRLINE_NAME_BY_CODE: Record<string, string> = {
   DL: 'Delta Air Lines',
   AS: 'Alaska Airlines',
   HA: 'Hawaiian Airlines',
+  WN: 'Southwest Airlines',
+  B6: 'JetBlue Airways',
+  F9: 'Frontier Airlines',
+  NK: 'Spirit Airlines',
+  AC: 'Air Canada',
+  BA: 'British Airways',
+  AF: 'Air France',
+  KL: 'KLM Royal Dutch Airlines',
+  LH: 'Lufthansa',
+  JL: 'Japan Airlines',
+  KE: 'Korean Air',
+  QF: 'Qantas',
   OO: 'SkyWest Airlines'
 }
 
@@ -1574,7 +1586,7 @@ function airlineNameForCarrier(carrier: string, carrierCode: string) {
   const normalizedCode = carrierCode.trim().toUpperCase()
   const mappedName = AIRLINE_NAME_BY_CODE[normalizedCode]
 
-  if (normalizedCarrier && !new RegExp(`^${normalizedCode}$`, 'i').test(normalizedCarrier)) {
+  if (normalizedCarrier && !/unknown carrier/i.test(normalizedCarrier) && !new RegExp(`^${normalizedCode}$`, 'i').test(normalizedCarrier)) {
     const carrierWithoutCode = normalizedCarrier.replace(new RegExp(`^${normalizedCode}\\s*[-–—:]?\\s*`, 'i'), '').trim()
     if (carrierWithoutCode && !/^[A-Z0-9]{2,3}$/i.test(carrierWithoutCode)) return carrierWithoutCode
     if (!/^[A-Z0-9]{2,3}$/i.test(normalizedCarrier)) return normalizedCarrier
@@ -1583,11 +1595,14 @@ function airlineNameForCarrier(carrier: string, carrierCode: string) {
   return mappedName || 'Unknown carrier'
 }
 
-function compactCarrierCode(carrier: string) {
+function compactCarrierCode(carrier: string, flightNumber = '') {
+  const normalizedFlight = flightNumber.replace(/\s+/g, '').toUpperCase()
+  const flightCode = normalizedFlight.match(/^([A-Z]{1,2}|[A-Z]\d|\d[A-Z])\d{1,4}$/)?.[1]
   const words = carrier.trim().split(/\s+/).filter(Boolean)
-  if (!words.length) return 'AIR'
-  const knownCode = words.find((word) => /^[A-Z0-9]{2,3}$/.test(word))
-  if (knownCode) return knownCode.slice(0, 3)
+  const knownCode = words.find((word) => /^[A-Z0-9]{2,3}$/.test(word) && !/^UNKNOWN$/i.test(word))
+  if (knownCode) return knownCode.slice(0, 3).toUpperCase()
+  if (flightCode) return flightCode.slice(0, 3).toUpperCase()
+  if (!words.length || /unknown carrier/i.test(carrier)) return 'AIR'
   return words.map((word) => word[0]).join('').slice(0, 3).toUpperCase()
 }
 
@@ -1669,9 +1684,10 @@ function compactScoreIcon(comparison: ItineraryComparison) {
 }
 
 function trafficLightScoreColor(value: number) {
-  if (value >= 72) return '#22c55e'
-  if (value >= 55) return '#facc15'
-  return '#f87171'
+  if (value >= 80) return '#22c55e'
+  if (value >= 60) return '#facc15'
+  if (value >= 40) return '#fb923c'
+  return '#94a3b8'
 }
 
 function compactConfidenceIndicator(comparison: ItineraryComparison) {
@@ -3523,7 +3539,7 @@ function renderFlightBoardRow(comparison: ItineraryComparison) {
     const legCount = comparison.connections + 1
     const isSelected = selectedComparisonId === comparison.id
     const isExpanded = expandedDetailIds.includes(comparison.id)
-    const carrierCode = compactCarrierCode(comparison.carrier)
+    const carrierCode = compactCarrierCode(comparison.carrier, comparison.flightNumber)
     const airlineName = airlineNameForCarrier(comparison.carrier, carrierCode)
     const flightNumber = compactFlightNumberLabel(comparison.flightNumber, carrierCode)
     const depTime = compactFlightBoardDateTime(comparison.departureDateTime, routeAirports[0])
@@ -3543,33 +3559,41 @@ function renderFlightBoardRow(comparison: ItineraryComparison) {
       <article
         key={`row-${comparison.id}`}
         className={`nonrevy-flight-board-row ${isSelected ? 'nonrevy-flight-board-row--selected' : ''}`}
-        style={{ '--score-color': scoreColor } as CSSProperties}
+        style={{ '--score-color': scoreColor, '--confidence-color': scoreColor } as CSSProperties}
         onClick={() => openDetails(comparison)}
       >
         <div className="nonrevy-flight-board-row__main">
           <div className="nonrevy-flight-board-row__content" aria-label={`${comparison.route} ${airlineName} ${flightNumber} ${depTime} to ${arrTime} ${compactStopsLabel(comparison.connections)} ${comparison.totalTravelTime} confidence ${confidenceScore}/100`}>
             <div className="nonrevy-flight-board-row__flight-data">
               <div className="nonrevy-flight-board-row__primary-line">
+                <span className="nonrevy-flight-board-row__flight-id" title={airlineName} aria-label={`${airlineName} ${flightNumber}`}>
+                  <span className="nonrevy-flight-board-row__carrier-badge">{carrierCode}</span>
+                  <strong className="nonrevy-flight-board-row__flight-number">{flightNumber}</strong>
+                </span>
                 <span className="nonrevy-flight-board-row__route">{comparison.route}</span>
-                <span className="nonrevy-flight-board-row__airline">{airlineName}</span>
-                <strong className="nonrevy-flight-board-row__flight-number">{flightNumber}</strong>
+                <span className="nonrevy-flight-board-row__score" title="Confidence score">Confidence {confidenceScore}</span>
               </div>
-              <div className="nonrevy-flight-board-row__time-line">
-                <span className="nonrevy-flight-board-row__times">
-                  {depTime} <span aria-hidden="true">→</span> {arrivalDisplay}{arrivalOffset > 0 ? <span className="nonrevy-flight-board-row__overnight">+{arrivalOffset}</span> : null}
+              <div className="nonrevy-flight-board-row__time-line" aria-label={`Depart ${depTime}, arrive ${arrivalDisplay}`}>
+                <span className="nonrevy-flight-board-row__time-item">
+                  <span className="nonrevy-flight-board-row__time-label">Depart</span>
+                  <strong className="nonrevy-flight-board-row__time-value">{depTime}</strong>
+                </span>
+                <span className="nonrevy-flight-board-row__time-item">
+                  <span className="nonrevy-flight-board-row__time-label">Arrive</span>
+                  <strong className="nonrevy-flight-board-row__time-value">{arrivalDisplay}{arrivalOffset > 0 ? <span className="nonrevy-flight-board-row__overnight">+{arrivalOffset}</span> : null}</strong>
                 </span>
               </div>
               <div className="nonrevy-flight-board-row__secondary-line">
                 <span className="nonrevy-flight-board-row__stops">{compactStopsLabel(comparison.connections)}</span>
-                <span className="nonrevy-flight-board-row__duration">{comparison.dataFreshnessRule === 'route-framework' ? 'Live availability unavailable' : compactDurationLabel(comparison.totalTravelTime)}</span>
-                <span className="nonrevy-flight-board-row__score" title="Confidence score">Confidence {confidenceScore}/100</span>
+                <span className="nonrevy-flight-board-row__duration">{compactDurationLabel(comparison.totalTravelTime)}</span>
+                {comparison.dataFreshnessRule === 'route-framework' ? <span className="nonrevy-flight-board-row__availability">Live availability unavailable</span> : null}
               </div>
             </div>
 
             <div className="nonrevy-flight-board-row__actions nonrevy-primary-actions" onClick={(event) => event.stopPropagation()} aria-label="Itinerary actions">
               <button className="nonrevy-primary-action nonrevy-primary-action--request-loads" type="button" onClick={() => openLoadRequestForm(comparison)} title="Request Loads" aria-label="Request loads">Request Loads</button>
-              <button className="nonrevy-primary-action nonrevy-primary-action--save" type="button" onClick={() => saveForComparison(comparison)} title="Save" aria-label="Save itinerary">Save</button>
-              <button className="nonrevy-primary-action nonrevy-primary-action--share" type="button" onClick={() => void shareItinerary(comparison)} title="Share" aria-label="Share itinerary">Share</button>
+              <button className="nonrevy-row-action-pill" type="button" onClick={() => saveForComparison(comparison)} title="Save" aria-label="Save itinerary">Save</button>
+              <button className="nonrevy-row-action-pill" type="button" onClick={() => void shareItinerary(comparison)} title="Share" aria-label="Share itinerary">Share</button>
             </div>
           </div>
         </div>

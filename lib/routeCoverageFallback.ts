@@ -138,33 +138,11 @@ export function buildRouteCoverageFallbackSuggestions(request: RouteCoverageFall
           origin,
           via: hub,
           destination: destinationOption,
-          label: `Try ${hub} to ${destinationOption}`,
-          basis: `Search the long-haul or trunk segment separately after positioning to ${hub}. Keep confidence conservative until live results appear.`
+          label: `Try ${origin} → ${hub} → ${destinationOption}`,
+          basis: `Search this as a complete route framework: position from ${origin} to ${hub}, then continue to ${destinationOption}. Keep confidence conservative until live results appear.`
         }))
       })
     })
-  }
-
-  if (origin && destinationGroup.length) {
-    destinationGroup
-      .filter((alternateDestination) => alternateDestination !== destination)
-      .forEach((alternateDestination) => suggestions.push(createSuggestion({
-        kind: 'destination-airport-group',
-        origin,
-        destination: alternateDestination,
-        label: `Try ${origin} to ${alternateDestination}`,
-        basis: 'Nearby international airport in the same destination market. Search this as route guidance only until live availability is confirmed.'
-      })))
-  }
-
-  if (origin && hubs.length) {
-    hubs.forEach((hub) => suggestions.push(createSuggestion({
-      kind: 'hub-positioning',
-      origin,
-      destination: hub,
-      label: `Position to ${hub}`,
-      basis: `${origin} is better covered by searching common positioning hubs first. This does not imply seat availability.`
-    })))
   }
 
   const deduped = new Map<string, RouteCoverageSuggestion>()

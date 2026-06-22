@@ -5,6 +5,7 @@ import { mvpRouteSeedDate, mvpRouteSeedFlightsForRequest } from '../../../../lib
 import { createAviationstackScheduleProvider, createFlightAwareScheduleProvider, getLiveScheduleProviderReadiness, scheduleResultsToFlightRecords, type ScheduleProviderReadiness } from '../../../../lib/liveScheduleProviders'
 import { createProviderResultRepository, providerResultTableName, type ProviderCacheLookupResult, type ProviderResultRecord } from '../../../../lib/providerResultRepository'
 import { applyRouteCoverageLookupResult, buildRouteCoverageFallbackSuggestions, destinationAirportGroup, positioningHubsForOrigin, type RouteCoverageLookupStatus, type RouteCoverageSuggestion } from '../../../../lib/routeCoverageFallback'
+import { enforceItineraryEndpointIntegrity, enforceItineraryListEndpointIntegrity } from '../../../../lib/itineraryIntegrity'
 import { blendRecoveryIntoItineraryScores, buildRecoveryIntelligence, type RecoveryIntelligence } from '../../../../lib/recoveryIntelligence'
 import { buildHistoricalRouteIntelligence, blendHistoricalIntelligenceIntoItineraryScores, type HistoricalRouteIntelligence } from '../../../../lib/historicalIntelligence'
 import { listAccountBetaRecords } from '../../../../lib/accountBetaStore'
@@ -534,21 +535,6 @@ const routeFrameworkHubProfiles: Record<string, { carrier: string; score: number
   JNU: { carrier: 'Alaska intra-Alaska routing', score: 66 }
 }
 
-const destinationHubPatterns: Record<string, string[]> = {
-  BOS: ['LAX', 'SFO', 'SEA', 'DEN', 'ORD', 'ATL'],
-  JFK: ['LAX', 'SFO', 'SEA', 'DEN', 'ATL'],
-  EWR: ['SFO', 'LAX', 'DEN', 'ORD'],
-  HND: ['LAX', 'SFO', 'SEA', 'HNL'],
-  NRT: ['LAX', 'SFO', 'SEA', 'HND'],
-  HNL: ['LAX', 'SFO', 'SEA', 'PHX'],
-  OGG: ['LAX', 'SFO', 'SEA'],
-  CDG: ['JFK', 'LAX', 'SFO', 'SEA', 'ATL', 'FRA'],
-  FCO: ['JFK', 'LAX', 'SFO', 'FRA', 'CDG', 'LHR'],
-  DUB: ['JFK', 'BOS', 'ATL', 'LHR', 'AMS'],
-  ANC: ['SEA', 'PDX', 'SFO', 'LAX', 'FAI'],
-  MCO: ['ATL', 'DFW', 'CLT', 'DEN', 'MIA']
-}
-
 const preferredRouteFrameworkPaths: Record<string, string[][]> = {
   'SBP-PDX': [['SBP', 'PDX'], ['SBP', 'SEA', 'PDX'], ['SBP', 'SFO', 'PDX'], ['SBP', 'LAX', 'PDX'], ['SBP', 'DEN', 'PDX'], ['SBP', 'PHX', 'PDX'], ['SBP', 'SLC', 'PDX'], ['SBP', 'LAS', 'PDX']],
   'SBP-BOS': [['SBP', 'LAX', 'BOS'], ['SBP', 'SFO', 'BOS'], ['SBP', 'SEA', 'BOS'], ['SBP', 'DEN', 'BOS'], ['SBP', 'PHX', 'BOS']],
@@ -575,10 +561,6 @@ function routeFrameworkProviderEvidence(records: ProviderResultRecord[], from: s
   return records.filter((record) => record.origin === from && record.destination === to)
 }
 
-function routeAirportCodes(route?: string) {
-  return uniqueAirportCodes((route || '').split('→').map((part) => part.trim().match(/[A-Z]{3}/)?.[0] || ''))
-}
-
 function routeFrameworkPathWithRequestedOrigin(path: string[], request: ParsedItineraryRequest) {
   const origin = request.origin?.trim().toUpperCase()
   if (!origin) return uniqueAirportCodes(path)
@@ -589,24 +571,8 @@ function routeFrameworkPathWithRequestedOrigin(path: string[], request: ParsedIt
   if (originIndex >= 0) return cleanPath.slice(originIndex)
   const firstAirport = cleanPath[0]
   const originHubs = positioningHubsForOrigin(origin)
-  const destinationHubs = request.destination ? destinationHubPatterns[request.destination] || [] : []
-  const canPositionToFirstAirport = originHubs.includes(firstAirport) || destinationHubs.includes(firstAirport) || Boolean(routeFrameworkHubProfiles[firstAirport])
+  const canPositionToFirstAirport = originHubs.includes(firstAirport)
   return canPositionToFirstAirport ? [origin, ...cleanPath] : []
-}
-
-function itineraryBeginsWithRequestedOrigin(itinerary: ItineraryResult, request: ParsedItineraryRequest) {
-  const origin = request.origin?.trim().toUpperCase()
-  if (!origin) return true
-  const routeOrigin = routeAirportCodes(itinerary.route)[0]
-  const firstLegOrigin = itinerary.legs?.[0]?.origin?.trim().toUpperCase()
-  return routeOrigin === origin || firstLegOrigin === origin
-}
-
-function historicalPatternHubs(records: ProviderResultRecord[], origin: string, destination: string) {
-  return uniqueAirportCodes([
-    ...records.filter((record) => record.origin === origin && record.destination !== destination).map((record) => record.destination),
-    ...records.filter((record) => record.destination === destination && record.origin !== origin).map((record) => record.origin)
-  ]).filter((hub) => hub !== origin && hub !== destination)
 }
 
 function routeFrameworkPaths(request: ParsedItineraryRequest, suggestions: RouteCoverageSuggestion[], records: ProviderResultRecord[]) {
@@ -614,21 +580,15 @@ function routeFrameworkPaths(request: ParsedItineraryRequest, suggestions: Route
   const destination = request.destination
   if (!origin || !destination) return []
   const destinationOptions = destinationAirportGroup(destination).filter((code) => code !== origin)
-  const primaryDestination = destinationOptions.includes(destination) ? destination : destinationOptions[0] || destination
+  const primaryDestination = destination
   const preferredPaths = preferredRouteFrameworkPaths[`${origin}-${destination}`] || []
   const suggestionPaths = suggestions
     .filter((suggestion) => suggestion.kind !== 'hub-positioning' && suggestion.origin === origin && (suggestion.via || suggestion.destination))
     .map((suggestion) => suggestion.via ? [origin, suggestion.via, suggestion.destination] : [suggestion.origin, suggestion.destination])
-  const hubs = uniqueAirportCodes([
-    ...positioningHubsForOrigin(origin),
-    ...(destinationHubPatterns[destination] || []),
-    ...historicalPatternHubs(records, origin, destination)
-  ]).filter((hub) => hub !== origin && hub !== primaryDestination && !destinationOptions.includes(hub))
+  const hubs = uniqueAirportCodes(positioningHubsForOrigin(origin))
+    .filter((hub) => hub !== origin && hub !== primaryDestination && !destinationOptions.includes(hub))
   const hubPaths = hubs.map((hub) => [origin, hub, primaryDestination])
-  const destinationAlternatePaths = destinationOptions
-    .filter((code) => code !== primaryDestination)
-    .flatMap((alternate) => hubs.slice(0, 3).map((hub) => [origin, hub, alternate]))
-  const normalizedPaths = [...preferredPaths, ...suggestionPaths, ...hubPaths, ...destinationAlternatePaths]
+  const normalizedPaths = [...preferredPaths, ...suggestionPaths, ...hubPaths]
     .map((path) => routeFrameworkPathWithRequestedOrigin(path, request))
     .filter((path) => path.length >= 2 && path[0] === origin)
   return [...new Map(normalizedPaths.map((path) => [path.join(' → '), path])).values()]
@@ -721,6 +681,8 @@ function buildCompleteRouteFrameworkItineraries({ request, routeCoverageSuggesti
       ].filter(Boolean).join(' · ')
       return routeFrameworkItinerary({ path, score, historical, community, sampleSize, recovery, basis, records: providerRecords })
     })
+    .map((itinerary) => enforceItineraryEndpointIntegrity(itinerary, request))
+    .filter((itinerary): itinerary is ItineraryResult => Boolean(itinerary))
     .sort((a, b) => (b.compositeRouteScore || b.score) - (a.compositeRouteScore || a.score) || a.route.localeCompare(b.route))
     .slice(0, limit)
 }
@@ -730,12 +692,12 @@ function frameworkOptionCountLabel(count: number) {
 }
 
 function appendedFrameworkCount(itineraries: ItineraryResult[], baseItineraries: ItineraryResult[], request: ParsedItineraryRequest) {
-  const displayedBaseCount = baseItineraries.filter((itinerary) => itineraryBeginsWithRequestedOrigin(itinerary, request)).length
+  const displayedBaseCount = enforceItineraryListEndpointIntegrity(baseItineraries, request).length
   return Math.max(0, itineraries.length - displayedBaseCount)
 }
 
 function appendRouteFrameworkOptions({ request, itineraries, routeCoverageSuggestions, providerRecords, recoveryIntelligence, historicalIntelligence, limit = 10 }: { request: ParsedItineraryRequest; itineraries: ItineraryResult[]; routeCoverageSuggestions?: RouteCoverageSuggestion[]; providerRecords?: ProviderResultRecord[]; recoveryIntelligence?: RecoveryIntelligence; historicalIntelligence?: HistoricalRouteIntelligence; limit?: number }) {
-  const dedupedItineraries = [...new Map(itineraries.filter((itinerary) => itineraryBeginsWithRequestedOrigin(itinerary, request)).map((itinerary) => [itinerary.route, itinerary])).values()]
+  const dedupedItineraries = enforceItineraryListEndpointIntegrity(itineraries, request)
   const existingRoutes = new Set(dedupedItineraries.map((itinerary) => itinerary.route))
   const frameworkItineraries = buildCompleteRouteFrameworkItineraries({
     request,
@@ -1985,7 +1947,7 @@ export async function GET(request: Request) {
       providerCacheCount: providerCacheFlights.length,
       historicalAvailabilityCount: providerCacheFlights.length
     })
-    const itineraries = recoveryApplied.itineraries
+    const itineraries = enforceItineraryListEndpointIntegrity(recoveryApplied.itineraries, effectiveRequest)
     counts.finalItineraries = itineraries.length
     const seedMessage = seedRouteMatching.dateCoverage.nearestDateApplied
       ? `Showing ${itineraries.length} MVP test-data nearest-date itinerary card${itineraries.length === 1 ? '' : 's'} for ${seedRouteMatching.dateCoverage.effectiveMatchDate}; requested ${seedRouteMatching.dateCoverage.requestedSearchDate}. These static seed rows are not live flight data.`

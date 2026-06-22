@@ -1,8 +1,24 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --nonrevy-bg: #071424;
+  --nonrevy-bg-deep: #04101f;
+  --nonrevy-bg-soft: #0b1b31;
+  --nonrevy-card: rgba(13, 29, 52, 0.74);
+  --nonrevy-card-strong: rgba(15, 35, 63, 0.9);
+  --nonrevy-border: rgba(132, 184, 255, 0.18);
+  --nonrevy-border-strong: rgba(125, 211, 252, 0.34);
+  --nonrevy-text: #f6f9ff;
+  --nonrevy-text-muted: #9fb3cb;
+  --nonrevy-accent-blue: #2f9bff;
+  --nonrevy-accent-blue-bright: #60c7ff;
+  --nonrevy-success: #32d583;
+  --nonrevy-warning: #f5c542;
+  --nonrevy-danger: #fb923c;
+  --nonrevy-shadow: 0 20px 70px rgba(0, 8, 22, 0.36);
+  --nonrevy-glass-blur: blur(22px) saturate(145%);
+  --background: var(--nonrevy-bg);
+  --foreground: var(--nonrevy-text);
 }
 
 @theme inline {
@@ -14,14 +30,14 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: var(--nonrevy-bg);
+    --foreground: var(--nonrevy-text);
   }
 }
 
 html {
   min-height: 100%;
-  background: #020617;
+  background: var(--nonrevy-bg-deep);
   overscroll-behavior-y: none;
   -webkit-text-size-adjust: 100%;
 }
@@ -468,12 +484,12 @@ main > nav {
 
 /* NONREVY visual refresh: premium airline/travel intelligence surface */
 :root {
-  --background: #020617;
-  --foreground: #f8fafc;
-  --nonrevy-sky: #38bdf8;
-  --nonrevy-aqua: #67e8f9;
-  --nonrevy-violet: #a78bfa;
-  --nonrevy-line: rgba(148, 163, 184, 0.24);
+  --background: var(--nonrevy-bg);
+  --foreground: var(--nonrevy-text);
+  --nonrevy-sky: var(--nonrevy-accent-blue);
+  --nonrevy-aqua: var(--nonrevy-accent-blue-bright);
+  --nonrevy-violet: #7c8cff;
+  --nonrevy-line: var(--nonrevy-border);
 }
 
 html { color-scheme: dark; }
@@ -946,18 +962,15 @@ img[alt="NONREVY"] { filter: drop-shadow(0 24px 60px rgba(56, 189, 248, 0.28)); 
 
 /* Premium UX polish pass */
 :root {
-  --nonrevy-bg: #020617;
-  --nonrevy-panel: rgba(15, 23, 42, 0.82);
-  --nonrevy-panel-strong: rgba(2, 6, 23, 0.88);
-  --nonrevy-border: rgba(148, 163, 184, 0.22);
-  --nonrevy-aqua: #67e8f9;
-  --nonrevy-sky: #38bdf8;
-  --nonrevy-purple: #a78bfa;
+  --nonrevy-panel: var(--nonrevy-card);
+  --nonrevy-panel-strong: var(--nonrevy-card-strong);
+  --nonrevy-aqua: var(--nonrevy-accent-blue-bright);
+  --nonrevy-sky: var(--nonrevy-accent-blue);
+  --nonrevy-purple: #7c8cff;
   --nonrevy-pink: #fb7185;
-  --nonrevy-green: #22c55e;
-  --nonrevy-gold: #facc15;
-  --nonrevy-text: #f8fafc;
-  --nonrevy-muted: #94a3b8;
+  --nonrevy-green: var(--nonrevy-success);
+  --nonrevy-gold: var(--nonrevy-warning);
+  --nonrevy-muted: var(--nonrevy-text-muted);
 }
 
 body {
@@ -5522,5 +5535,351 @@ main:has(> nav) {
     min-height: 19px !important;
     padding: 2px 5px !important;
     font-size: 0.58rem !important;
+  }
+}
+
+/* App theme implementation: Midnight Blue / Apple x Flighty x Airbnb */
+html,
+body {
+  background:
+    radial-gradient(circle at 18% -10%, rgba(47, 155, 255, 0.2), transparent 32%),
+    radial-gradient(circle at 86% 4%, rgba(96, 199, 255, 0.13), transparent 30%),
+    linear-gradient(180deg, var(--nonrevy-bg-soft), var(--nonrevy-bg-deep) 54%, #030b16) !important;
+  color: var(--nonrevy-text) !important;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    linear-gradient(135deg, rgba(255,255,255,0.035), transparent 30%),
+    radial-gradient(circle at 50% 0%, rgba(96, 199, 255, 0.08), transparent 45%);
+}
+
+.app-shell,
+main.app-shell,
+.nonrevy-plan-shell,
+.nonrevy-results-page,
+.nonrevy-home {
+  background:
+    radial-gradient(circle at 18% 0%, rgba(47, 155, 255, 0.16), transparent 34%),
+    linear-gradient(180deg, rgba(9, 25, 45, 0.96), var(--nonrevy-bg-deep)) !important;
+  color: var(--nonrevy-text) !important;
+}
+
+main,
+section,
+article,
+aside,
+details,
+form,
+nav,
+.mini-card,
+.flight-card,
+.nonrevy-results-shell,
+.nonrevy-planner-card,
+.nonrevy-premium-details,
+.nonrevy-results-page__below,
+.nonrevy-production-empty,
+.nonrevy-route-intel,
+.nonrevy-intel-card,
+.nonrevy-copilot-panel,
+.nonrevy-search-trust-receipt,
+.nonrevy-itinerary-intel-panel,
+.nonrevy-community-loads__card,
+.nonrevy-community-loads__request,
+.nonrevy-community-loads__profile,
+.nonrevy-beta-feedback__card,
+.nonrevy-beta-feedback__hero,
+.nonrevy-beta-feedback__history,
+.nonrevy-beta-feedback__empty,
+.nonrevy-home__search-card,
+.nonrevy-home__setup,
+.nonrevy-more-routes {
+  border-color: var(--nonrevy-border) !important;
+}
+
+.mini-card,
+.flight-card,
+.nonrevy-results-shell,
+.nonrevy-planner-card,
+.nonrevy-premium-details,
+.nonrevy-results-page__below,
+.nonrevy-production-empty,
+.nonrevy-route-intel,
+.nonrevy-intel-card,
+.nonrevy-copilot-panel,
+.nonrevy-search-trust-receipt,
+.nonrevy-itinerary-intel-panel,
+.nonrevy-community-loads__card,
+.nonrevy-community-loads__request,
+.nonrevy-community-loads__profile,
+.nonrevy-beta-feedback__card,
+.nonrevy-beta-feedback__hero,
+.nonrevy-beta-feedback__history,
+.nonrevy-beta-feedback__empty,
+.nonrevy-home__search-card,
+.nonrevy-home__setup,
+.nonrevy-more-routes {
+  background:
+    linear-gradient(145deg, rgba(18, 42, 74, 0.78), rgba(7, 20, 36, 0.7)) !important;
+  box-shadow: var(--nonrevy-shadow), inset 0 1px 0 rgba(255,255,255,0.055) !important;
+  backdrop-filter: var(--nonrevy-glass-blur) !important;
+  -webkit-backdrop-filter: var(--nonrevy-glass-blur) !important;
+}
+
+.top-nav,
+main > nav,
+.app-menu__summary,
+.app-menu__drawer,
+.account-menu,
+.nonrevy-results-search,
+.nonrevy-home__brand-row {
+  border-color: rgba(132, 184, 255, 0.18) !important;
+  background: rgba(7, 20, 36, 0.72) !important;
+  box-shadow: 0 16px 50px rgba(0, 8, 22, 0.24), inset 0 1px 0 rgba(255,255,255,0.06) !important;
+  backdrop-filter: var(--nonrevy-glass-blur) !important;
+  -webkit-backdrop-filter: var(--nonrevy-glass-blur) !important;
+}
+
+.top-nav a,
+main > nav a,
+.app-menu a,
+.account-menu a,
+.nonrevy-home__wordmark,
+.nonrevy-results-search__brand {
+  color: var(--nonrevy-text) !important;
+}
+
+p,
+li,
+span,
+label,
+summary,
+small,
+.nonrevy-home__subhead,
+.nonrevy-home__eyebrow,
+.nonrevy-home__proof,
+.nonrevy-results-page__notice,
+.nonrevy-results-page__below,
+.nonrevy-production-empty__subtext,
+.nonrevy-production-empty__details,
+.nonrevy-flight-board-row__secondary-line,
+.nonrevy-community-loads__status {
+  color: var(--nonrevy-text-muted) !important;
+}
+
+h1,
+h2,
+h3,
+strong,
+.nonrevy-home__headline,
+.nonrevy-flight-board__header strong,
+.nonrevy-flight-board-row__route,
+.nonrevy-flight-board-row__time-value,
+.nonrevy-flight-board-row__flight-number {
+  color: var(--nonrevy-text) !important;
+}
+
+a:not(.nonrevy-results-search__brand):not(.nonrevy-home__primary):not(.nonrevy-home__secondary),
+summary,
+.nonrevy-home__search-label,
+.nonrevy-production-empty strong,
+.nonrevy-flight-board__header span {
+  color: var(--nonrevy-accent-blue-bright) !important;
+}
+
+input,
+textarea,
+select,
+.nonrevy-home__input,
+.nonrevy-results-search input,
+.nonrevy-community-loads__form input,
+.nonrevy-community-loads__form textarea {
+  border-color: rgba(132, 184, 255, 0.22) !important;
+  background: rgba(5, 16, 31, 0.72) !important;
+  color: var(--nonrevy-text) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.045) !important;
+}
+
+input::placeholder,
+textarea::placeholder,
+.nonrevy-home__input::placeholder {
+  color: rgba(159, 179, 203, 0.72) !important;
+}
+
+input:focus,
+textarea:focus,
+select:focus,
+.nonrevy-home__input:focus,
+.nonrevy-results-search input:focus {
+  border-color: var(--nonrevy-accent-blue-bright) !important;
+  outline: 2px solid rgba(47, 155, 255, 0.28) !important;
+  outline-offset: 2px !important;
+}
+
+button,
+.nonrevy-home__primary,
+.nonrevy-results-page .nonrevy-primary-action,
+.nonrevy-flight-board-row__actions .nonrevy-primary-action,
+.nonrevy-community-loads__submit-toggle {
+  border-color: rgba(96, 199, 255, 0.42) !important;
+  background: linear-gradient(135deg, var(--nonrevy-accent-blue-bright), var(--nonrevy-accent-blue)) !important;
+  color: #04101f !important;
+  box-shadow: 0 10px 28px rgba(47, 155, 255, 0.22), inset 0 1px 0 rgba(255,255,255,0.4) !important;
+}
+
+button:hover,
+button:focus-visible,
+.nonrevy-home__primary:hover,
+.nonrevy-results-page .nonrevy-primary-action:hover,
+.nonrevy-results-page .nonrevy-primary-action:focus-visible {
+  background: linear-gradient(135deg, #8bd8ff, #3aa7ff) !important;
+  outline-color: rgba(96, 199, 255, 0.28) !important;
+}
+
+.nonrevy-home__secondary,
+.nonrevy-home__chip,
+.nonrevy-home__quick-pill,
+.nonrevy-secondary-action,
+.nonrevy-results-page .nonrevy-row-action-pill,
+.nonrevy-flight-board__expand-actions button,
+.app-menu__links a,
+.app-menu__account-actions a,
+.app-menu__account-actions button {
+  border-color: rgba(132, 184, 255, 0.2) !important;
+  background: rgba(13, 29, 52, 0.62) !important;
+  color: var(--nonrevy-text) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.055) !important;
+}
+
+.nonrevy-results-page .nonrevy-row-action-pill {
+  color: rgba(246, 249, 255, 0.84) !important;
+  opacity: 0.78 !important;
+}
+
+.nonrevy-flight-board {
+  background: linear-gradient(145deg, rgba(18, 42, 74, 0.76), rgba(7, 20, 36, 0.72)) !important;
+  border-color: rgba(96, 199, 255, 0.24) !important;
+  box-shadow: 0 18px 56px rgba(0, 8, 22, 0.3), inset 0 1px 0 rgba(255,255,255,0.06) !important;
+}
+
+.nonrevy-results-page .nonrevy-flight-board-row,
+.nonrevy-flight-board-row,
+.nonrevy-skeleton-card {
+  background: linear-gradient(145deg, rgba(16, 36, 65, 0.86), rgba(8, 22, 40, 0.8)) !important;
+  border-color: rgba(132, 184, 255, 0.18) !important;
+  box-shadow: 0 10px 30px rgba(0, 8, 22, 0.24), inset 0 1px 0 rgba(255,255,255,0.055) !important;
+}
+
+.nonrevy-flight-board-row--selected,
+.nonrevy-flight-board-row:hover {
+  border-color: rgba(96, 199, 255, 0.44) !important;
+  background: linear-gradient(145deg, rgba(24, 55, 94, 0.9), rgba(9, 27, 50, 0.84)) !important;
+}
+
+.nonrevy-results-page .nonrevy-flight-board-row__carrier-badge {
+  border-color: rgba(96, 199, 255, 0.64) !important;
+  background: linear-gradient(135deg, rgba(47, 155, 255, 0.95), rgba(7, 20, 36, 0.72)) !important;
+  color: #ffffff !important;
+}
+
+.nonrevy-results-page .nonrevy-flight-board-row__time-label {
+  color: #8ecfff !important;
+}
+
+.nonrevy-results-page .nonrevy-flight-board-row__time-value {
+  color: #ffffff !important;
+}
+
+.nonrevy-results-page .nonrevy-flight-board-row__score,
+.nonrevy-score-dial__ring {
+  background: rgba(5, 16, 31, 0.66) !important;
+}
+
+.nonrevy-results-page .nonrevy-flight-board-row__availability,
+.nonrevy-results-page__warning,
+.nonrevy-production-empty__guidance-note {
+  color: var(--nonrevy-warning) !important;
+}
+
+.nonrevy-production-empty__positioning,
+.nonrevy-results-page__warning,
+.nonrevy-results-page__notice {
+  border-color: rgba(245, 197, 66, 0.24) !important;
+  background: rgba(89, 61, 13, 0.18) !important;
+}
+
+.nonrevy-route-map__line {
+  background: linear-gradient(90deg, var(--nonrevy-accent-blue), rgba(96, 199, 255, 0.18)) !important;
+}
+
+.nonrevy-route-map__dot,
+.nonrevy-route-map__dot--terminal {
+  border-color: rgba(96, 199, 255, 0.72) !important;
+  background: var(--nonrevy-accent-blue-bright) !important;
+}
+
+.nonrevy-skeleton {
+  background: linear-gradient(90deg, rgba(132, 184, 255, 0.08), rgba(96, 199, 255, 0.2), rgba(132, 184, 255, 0.08)) !important;
+}
+
+.nonrevy-success,
+[class*="success"],
+[class*="confirmed"] {
+  color: var(--nonrevy-success) !important;
+}
+
+.nonrevy-warning,
+[class*="warning"],
+[class*="waiting"] {
+  color: var(--nonrevy-warning) !important;
+}
+
+.nonrevy-danger,
+[class*="danger"],
+[class*="error"],
+[class*="inaccurate"] {
+  color: var(--nonrevy-danger) !important;
+}
+
+@media (max-width: 760px) {
+  .app-shell,
+  main.app-shell {
+    padding-inline: clamp(8px, 3vw, 14px) !important;
+  }
+
+  .mini-card,
+  .flight-card,
+  .nonrevy-premium-details,
+  .nonrevy-production-empty,
+  .nonrevy-home__search-card,
+  .nonrevy-results-shell {
+    border-radius: 18px !important;
+  }
+
+  button,
+  .nonrevy-home__primary,
+  .nonrevy-home__secondary,
+  .nonrevy-secondary-action {
+    min-height: 34px !important;
+  }
+}
+
+@media (max-width: 430px) {
+  .mini-card,
+  .flight-card,
+  .nonrevy-production-empty,
+  .nonrevy-home__search-card,
+  .nonrevy-results-shell {
+    border-radius: 16px !important;
+  }
+
+  .nonrevy-results-page .nonrevy-flight-board-row,
+  .nonrevy-flight-board-row {
+    border-radius: 10px !important;
   }
 }

@@ -3209,13 +3209,30 @@ function routeCoverageStatusLabel(suggestion: RouteCoverageSuggestion) {
   return 'Guidance only'
 }
 
-function ProductionEmptyState({ reasons, origin, suggestions = [], recovery }: { reasons: string[]; origin?: string; suggestions?: RouteCoverageSuggestion[]; recovery?: RecoveryIntelligence }) {
-  void origin
+function routeAirportCodes(route?: string) {
+  return (route || '')
+    .split('→')
+    .map((part) => part.trim().match(/[A-Za-z]{3}/)?.[0]?.toUpperCase())
+    .filter((code): code is string => Boolean(code))
+}
+
+function routeMatchesRequestedEndpoints(route: string | undefined, origin?: string, destination?: string) {
+  if (!origin || !destination || !route) return false
+  const codes = routeAirportCodes(route)
+  return codes.length >= 2 && codes[0] === origin && codes[codes.length - 1] === destination
+}
+
+function ProductionEmptyState({ reasons, origin, destination, suggestions = [], recovery }: { reasons: string[]; origin?: string; destination?: string; suggestions?: RouteCoverageSuggestion[]; recovery?: RecoveryIntelligence }) {
   const recoveryPaths = recovery?.suggestedRecoveryPaths || []
-  const hasRouteOptions = suggestions.length > 0 || recoveryPaths.length > 0
-  const routeIdeas = suggestions.length
-    ? suggestions.map((suggestion) => ({ id: suggestion.id, label: suggestion.label, searchQuery: suggestion.searchQuery, status: routeCoverageStatusLabel(suggestion) }))
-    : recoveryPaths.map((path) => ({ id: path.id, label: path.label, searchQuery: path.route || path.label, status: 'Recovery guidance only' }))
+  const routeIdeas = suggestions
+    .filter((suggestion) => routeMatchesRequestedEndpoints(suggestion.searchQuery, origin, destination))
+    .map((suggestion) => ({ id: suggestion.id, label: suggestion.searchQuery, searchQuery: suggestion.searchQuery, status: routeCoverageStatusLabel(suggestion) }))
+  if (!routeIdeas.length) {
+    recoveryPaths
+      .filter((path) => routeMatchesRequestedEndpoints(path.route, origin, destination))
+      .forEach((path) => routeIdeas.push({ id: path.id, label: path.route || path.label, searchQuery: path.route || path.label, status: 'Recovery guidance only' }))
+  }
+  const hasRouteOptions = routeIdeas.length > 0
 
   return (
     <section className="nonrevy-production-empty" aria-live="polite">
@@ -4332,7 +4349,7 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
           {travelDateError ? <p className="nonrevy-results-page__warning">{travelDateError}</p> : null}
 
           {itineraryLoading ? <PlannerSkeletonLoaders /> : null}
-          {showProductionEmptyState ? <ProductionEmptyState reasons={productionEmptyReasons} origin={itineraryDebug?.parsedOrigin} suggestions={itineraryDebug?.routeCoverageSuggestions} recovery={itineraryDebug?.recoveryIntelligence} /> : null}
+          {showProductionEmptyState ? <ProductionEmptyState reasons={productionEmptyReasons} origin={itineraryDebug?.parsedOrigin} destination={itineraryDebug?.parsedDestination} suggestions={itineraryDebug?.routeCoverageSuggestions} recovery={itineraryDebug?.recoveryIntelligence} /> : null}
           {itineraryComparisons.length > 0 ? <ItineraryComparisonPanel comparisons={itineraryComparisons} travelDate={travelWindow} communityLoads={communityLoads} onCommunityLoadsUpdated={() => setCommunityLoads(loadCommunityLoads())} trustReceipt={{ dataMode: itineraryDataMode, source: itinerarySource, status: itineraryStatus, warnings: itineraryWarnings, debug: itineraryDebug }} /> : null}
 
           {developerMode ? (
@@ -4458,7 +4475,7 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
             <p style={{ color: '#facc15' }}>{itineraryStatus}</p>
           ) : null}
           {itineraryLoading ? <PlannerSkeletonLoaders /> : null}
-          {showProductionEmptyState ? <ProductionEmptyState reasons={productionEmptyReasons} origin={itineraryDebug?.parsedOrigin} suggestions={itineraryDebug?.routeCoverageSuggestions} recovery={itineraryDebug?.recoveryIntelligence} /> : null}
+          {showProductionEmptyState ? <ProductionEmptyState reasons={productionEmptyReasons} origin={itineraryDebug?.parsedOrigin} destination={itineraryDebug?.parsedDestination} suggestions={itineraryDebug?.routeCoverageSuggestions} recovery={itineraryDebug?.recoveryIntelligence} /> : null}
           {itineraryComparisons.length > 0 ? <ItineraryComparisonPanel comparisons={itineraryComparisons} travelDate={travelWindow} communityLoads={communityLoads} onCommunityLoadsUpdated={() => setCommunityLoads(loadCommunityLoads())} trustReceipt={{ dataMode: itineraryDataMode, source: itinerarySource, status: itineraryStatus, warnings: itineraryWarnings, debug: itineraryDebug }} /> : null}
         </section>
 

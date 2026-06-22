@@ -124,24 +124,20 @@ export function buildRouteCoverageFallbackSuggestions(request: RouteCoverageFall
   const destination = airportCode(request.destination)
   if (!origin && !destination) return []
 
-  const destinationGroup = destinationAirportGroup(destination).filter((code) => code !== origin)
   const hubs = positioningHubsForOrigin(origin).filter((hub) => hub !== destination)
   const suggestions: RouteCoverageSuggestion[] = []
 
   if (origin && destination && hubs.length) {
-    const destinationOptions = destinationGroup.length ? destinationGroup : [destination]
     hubs.slice(0, 5).forEach((hub) => {
-      destinationOptions.slice(0, 2).forEach((destinationOption) => {
-        if (hub === destinationOption) return
-        suggestions.push(createSuggestion({
-          kind: 'hub-to-destination-group',
-          origin,
-          via: hub,
-          destination: destinationOption,
-          label: `Try ${origin} → ${hub} → ${destinationOption}`,
-          basis: `Search this as a complete route framework: position from ${origin} to ${hub}, then continue to ${destinationOption}. Keep confidence conservative until live results appear.`
-        }))
-      })
+      if (hub === destination) return
+      suggestions.push(createSuggestion({
+        kind: 'hub-to-destination-group',
+        origin,
+        via: hub,
+        destination,
+        label: `${origin} → ${hub} → ${destination}`,
+        basis: `Search this as a complete route framework: position from ${origin} to ${hub}, then continue to ${destination}. Keep confidence conservative until live results appear.`
+      }))
     })
   }
 

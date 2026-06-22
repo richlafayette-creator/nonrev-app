@@ -421,10 +421,17 @@ function routePhraseStopPattern() {
 function routeFromText(value: string) {
   const normalized = value.trim()
   const stop = routePhraseStopPattern()
-  const codeRoute = normalized.match(/\b([A-Za-z]{3})\s*(?:-|→)\s*([A-Za-z]{3})\b/)
-  if (codeRoute) {
-    const origin = airportFromPhrase(codeRoute[1])
-    const destination = airportFromPhrase(codeRoute[2])
+  const viaRoute = normalized.match(/\b([A-Za-z]{3})\s+(?:to|for)\s+([A-Za-z]{3})\b.*\bvia\s+([A-Za-z]{3})\b/i)
+  if (viaRoute) {
+    const origin = airportFromPhrase(viaRoute[1])
+    const destination = airportFromPhrase(viaRoute[2])
+    if (origin || destination) return { origin, destination, routePhraseFound: true }
+  }
+
+  const routeCodeSequence = normalized.match(/\b[A-Za-z]{3}\b/g) || []
+  if (routeCodeSequence.length >= 2 && /(?:-|→|\bto\b)/i.test(normalized)) {
+    const origin = airportFromPhrase(routeCodeSequence[0])
+    const destination = airportFromPhrase(routeCodeSequence[routeCodeSequence.length - 1])
     if (origin || destination) return { origin, destination, routePhraseFound: true }
   }
 

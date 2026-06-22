@@ -85,37 +85,11 @@ function pathFromSuggestion(suggestion: RouteCoverageSuggestion): SuggestedRecov
   }
 }
 
-function buildSuggestedPaths(input: RecoveryInput, routeSuggestions: RouteCoverageSuggestion[], hubs: string[], destinationAlternates: string[]) {
+function buildSuggestedPaths(input: RecoveryInput, routeSuggestions: RouteCoverageSuggestion[], _hubs: string[], _destinationAlternates: string[]) {
   const paths: SuggestedRecoveryPath[] = []
   routeSuggestions.slice(0, 6).forEach((suggestion) => paths.push(pathFromSuggestion(suggestion)))
 
-  const origin = input.request.origin
-  const destination = input.request.destination
   const dayAfter = nextDay(input.request.date)
-
-  hubs.slice(0, 3).forEach((hub) => {
-    if (!origin || hub === origin) return
-    paths.push({
-      id: `recovery-position-${origin}-${hub}`.toLowerCase(),
-      label: `Position to ${hub}${dayAfter ? ' before the next departure window' : ''}`,
-      route: `${origin} → ${hub}`,
-      kind: 'positioning',
-      confidence: 'Conservative',
-      note: 'Positioning guidance only; this does not imply seat or flight availability.'
-    })
-  })
-
-  destinationAlternates.slice(0, 3).forEach((alternate) => {
-    if (!origin || alternate === destination) return
-    paths.push({
-      id: `recovery-destination-${origin}-${alternate}`.toLowerCase(),
-      label: `Check ${origin} to ${alternate}`,
-      route: `${origin} → ${alternate}`,
-      kind: 'nearby-destination',
-      confidence: 'Conservative',
-      note: 'Nearby destination-airport guidance only; verify live availability.'
-    })
-  })
 
   if (dayAfter) {
     paths.push({

@@ -590,7 +590,7 @@ function routeFrameworkPaths(request: ParsedItineraryRequest, suggestions: Route
   const hubPaths = hubs.map((hub) => [origin, hub, primaryDestination])
   const normalizedPaths = [...preferredPaths, ...suggestionPaths, ...hubPaths]
     .map((path) => routeFrameworkPathWithRequestedOrigin(path, request))
-    .filter((path) => path.length >= 2 && path[0] === origin)
+    .filter((path) => path.length >= 2 && path[0] === origin && path[path.length - 1] === primaryDestination)
   return [...new Map(normalizedPaths.map((path) => [path.join(' → '), path])).values()]
 }
 

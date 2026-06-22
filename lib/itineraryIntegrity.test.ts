@@ -2,6 +2,8 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 // @ts-expect-error Node's experimental TypeScript test runner resolves the .ts extension directly.
 import { enforceItineraryEndpointIntegrity, enforceItineraryListEndpointIntegrity } from './itineraryIntegrity.ts'
+// @ts-expect-error Node's experimental TypeScript test runner resolves the .ts extension directly.
+import { parseItineraryPrompt } from './itinerarySearch.ts'
 import type { ItineraryResult, ParsedItineraryRequest } from './itinerarySearch.ts'
 
 function request(destination: string): ParsedItineraryRequest {
@@ -81,6 +83,29 @@ describe('itinerary endpoint integrity', () => {
 
   it('discards routes ending at destination-market alternates instead of the requested destination', () => {
     assert.equal(enforceItineraryEndpointIntegrity(providerItinerary('LAX', 'HND'), request('NRT')), null)
+  })
+
+
+
+  it('parses chained route prompts using the final airport as the requested destination', () => {
+    const parsed = parseItineraryPrompt('SBP → LAX → BOS')
+    assert.equal(parsed.origin, 'SBP')
+    assert.equal(parsed.destination, 'BOS')
+
+    const viaParsed = parseItineraryPrompt('SBP to BOS via LAX')
+    assert.equal(viaParsed.origin, 'SBP')
+    assert.equal(viaParsed.destination, 'BOS')
+  })
+
+  it('discards complete-looking routes that end before the requested destination', () => {
+    const invalidPartialRoutes = [
+      providerItinerary('SBP', 'LAX'),
+      providerItinerary('SBP', 'BUR'),
+      providerItinerary('SFO', 'LAX'),
+      providerItinerary('SEA', 'BUR'),
+      providerItinerary('DEN', 'LAX')
+    ]
+    assert.deepEqual(enforceItineraryListEndpointIntegrity(invalidPartialRoutes, request('BOS')), [])
   })
 
   it('keeps every displayed SBP route anchored to requested endpoints for launch-blocker routes', () => {

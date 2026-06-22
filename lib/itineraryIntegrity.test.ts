@@ -4,6 +4,10 @@ import { describe, it } from 'node:test'
 import { enforceItineraryEndpointIntegrity, enforceItineraryListEndpointIntegrity } from './itineraryIntegrity.ts'
 // @ts-expect-error Node's experimental TypeScript test runner resolves the .ts extension directly.
 import { parseItineraryPrompt } from './itinerarySearch.ts'
+// @ts-expect-error Node's experimental TypeScript test runner resolves the .ts extension directly.
+import { buildRecoveryIntelligence } from './recoveryIntelligence.ts'
+// @ts-expect-error Node's experimental TypeScript test runner resolves the .ts extension directly.
+import { buildRouteCoverageFallbackSuggestions } from './routeCoverageFallback.ts'
 import type { ItineraryResult, ParsedItineraryRequest } from './itinerarySearch.ts'
 
 function request(destination: string): ParsedItineraryRequest {
@@ -106,6 +110,33 @@ describe('itinerary endpoint integrity', () => {
       providerItinerary('DEN', 'LAX')
     ]
     assert.deepEqual(enforceItineraryListEndpointIntegrity(invalidPartialRoutes, request('BOS')), [])
+  })
+
+
+
+  it('keeps Top Routes complete and isolates Recovery Airports for required launch routes', () => {
+    const destinations = ['BOS', 'PDX', 'HNL', 'NRT', 'FCO']
+    destinations.forEach((destination) => {
+      const routeRequest = request(destination)
+      const topRoutes = buildRouteCoverageFallbackSuggestions(routeRequest, 10)
+      assert.ok(topRoutes.length > 0)
+      topRoutes.forEach((suggestion) => {
+        const route = suggestion.searchQuery.split('→').map((part) => part.trim())
+        assert.equal(route[0], 'SBP', `${suggestion.searchQuery} must start with SBP`)
+        assert.equal(route[route.length - 1], destination, `${suggestion.searchQuery} must end with ${destination}`)
+        assert.equal(suggestion.label.includes('Search '), false)
+      })
+
+      const recovery = buildRecoveryIntelligence({ request: routeRequest, routeCoverageSuggestions: topRoutes })
+      const recoveryAirports = recovery.suggestedRecoveryPaths.filter((path) => path.kind === 'positioning' || path.kind === 'nearby-destination')
+      assert.ok(recoveryAirports.length > 0)
+      recoveryAirports.forEach((path) => {
+        const route = (path.route || '').split('→').map((part) => part.trim()).filter(Boolean)
+        assert.equal(path.label.startsWith('Position to '), true)
+        assert.equal(path.note, 'Recovery guidance only')
+        assert.notEqual(route[route.length - 1], destination, `${path.label} must not be treated as a ${destination} itinerary`)
+      })
+    })
   })
 
   it('keeps every displayed SBP route anchored to requested endpoints for launch-blocker routes', () => {

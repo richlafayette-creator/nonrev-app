@@ -3210,10 +3210,7 @@ function routeCoverageStatusLabel(suggestion: RouteCoverageSuggestion) {
 }
 
 function routeAirportCodes(route?: string) {
-  return (route || '')
-    .split('→')
-    .map((part) => part.trim().match(/[A-Za-z]{3}/)?.[0]?.toUpperCase())
-    .filter((code): code is string => Boolean(code))
+  return (route || '').match(/\b[A-Za-z]{3}\b/g)?.map((code) => code.toUpperCase()) || []
 }
 
 function routeMatchesRequestedEndpoints(route: string | undefined, origin?: string, destination?: string) {
@@ -3222,47 +3219,69 @@ function routeMatchesRequestedEndpoints(route: string | undefined, origin?: stri
   return codes.length >= 2 && codes[0] === origin && codes[codes.length - 1] === destination
 }
 
+function isRecoveryAirportPath(path: SuggestedRecoveryPath, origin?: string, destination?: string) {
+  if (path.kind !== 'positioning' && path.kind !== 'nearby-destination') return false
+  return !routeMatchesRequestedEndpoints(path.route, origin, destination)
+}
+
 function ProductionEmptyState({ reasons, origin, destination, suggestions = [], recovery }: { reasons: string[]; origin?: string; destination?: string; suggestions?: RouteCoverageSuggestion[]; recovery?: RecoveryIntelligence }) {
   const recoveryPaths = recovery?.suggestedRecoveryPaths || []
-  const routeIdeas = suggestions
+  const topRoutes = suggestions
     .filter((suggestion) => routeMatchesRequestedEndpoints(suggestion.searchQuery, origin, destination))
     .map((suggestion) => ({ id: suggestion.id, label: suggestion.searchQuery, searchQuery: suggestion.searchQuery, status: routeCoverageStatusLabel(suggestion) }))
-  if (!routeIdeas.length) {
-    recoveryPaths
-      .filter((path) => routeMatchesRequestedEndpoints(path.route, origin, destination))
-      .forEach((path) => routeIdeas.push({ id: path.id, label: path.route || path.label, searchQuery: path.route || path.label, status: 'Recovery guidance only' }))
-  }
-  const hasRouteOptions = routeIdeas.length > 0
+  const recoveryAirports = recoveryPaths
+    .filter((path) => isRecoveryAirportPath(path, origin, destination))
+    .map((path) => ({ id: path.id, label: path.label, status: 'Recovery guidance only' }))
+  const hasTopRoutes = topRoutes.length > 0
 
   return (
     <section className="nonrevy-production-empty" aria-live="polite">
       <p className="nonrevy-production-empty__eyebrow">Search results</p>
-      <h2>{hasRouteOptions ? 'Top route frameworks currently available' : "We couldn't find live results for this search right now."}</h2>
+      <h2>{hasTopRoutes ? 'Top route frameworks currently available' : "We couldn't find live results for this search right now."}</h2>
       <p className="nonrevy-production-empty__subtext">
-        Live availability unavailable. Use the ranked route frameworks, then request loads before acting.
+        Live availability unavailable. Top Routes are complete origin-to-destination frameworks; Recovery Airports are positioning guidance only.
       </p>
       <p className="nonrevy-production-empty__guidance-note">
-        {recovery ? `${recovery.explanation} Recovery strength: ${recovery.recoveryStrength}/100.` : 'Suggested ways to search are route guidance only — they are not live seat availability.'}
+        {recovery ? `${recovery.explanation} Recovery strength: ${recovery.recoveryStrength}/100.` : 'Route frameworks and recovery guidance are separated because recovery airports are not itineraries.'}
       </p>
       <div className="nonrevy-production-empty__grid">
         <section>
           <strong>Next actions</strong>
           <ul>
-            <li>Review the top route frameworks</li>
+            <li>Review Top Routes only as complete frameworks</li>
             <li><a href="/load-reports">Request loads</a></li>
             <li><a href="/intelligence">View route intelligence</a></li>
           </ul>
         </section>
         <section>
-          <strong>Route options to try</strong>
-          <ul className="nonrevy-production-empty__suggestions">
-            {routeIdeas.map((idea) => (
-              <li key={idea.id}>
-                <a href={travelerSearchUrl(idea.searchQuery)}>{idea.label}</a>
-                <span>{idea.status}</span>
-              </li>
-            ))}
-          </ul>
+          <strong>Top Routes</strong>
+          {topRoutes.length ? (
+            <ul className="nonrevy-production-empty__suggestions">
+              {topRoutes.map((route) => (
+                <li key={route.id}>
+                  <a href={travelerSearchUrl(route.searchQuery)}>{route.label}</a>
+                  <span>{route.status}</span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="nonrevy-production-empty__muted">No complete {origin || 'origin'} → {destination || 'destination'} frameworks are available right now.</p>
+          )}
+        </section>
+        <section>
+          <strong>Recovery Airports</strong>
+          {recoveryAirports.length ? (
+            <ul className="nonrevy-production-empty__suggestions">
+              {recoveryAirports.map((airport) => (
+                <li key={airport.id}>
+                  <span>{airport.label}</span>
+                  <span>{airport.status}</span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="nonrevy-production-empty__muted">No separate positioning airports are suggested for this search.</p>
+          )}
         </section>
       </div>
       <details className="nonrevy-production-empty__details">

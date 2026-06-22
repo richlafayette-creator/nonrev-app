@@ -71,23 +71,41 @@ function carrierCodes(itineraries: ItineraryResult[] = []) {
   return unique(itineraries.flatMap((itinerary) => [itinerary.carrier, ...itinerary.legs.map((leg) => leg.carrier)]))
 }
 
-function pathFromSuggestion(suggestion: RouteCoverageSuggestion): SuggestedRecoveryPath {
-  const isPositioningConnection = Boolean(suggestion.via)
+function routeFromSuggestion(suggestion: RouteCoverageSuggestion): SuggestedRecoveryPath {
   return {
-    id: `recovery-${suggestion.id}`,
-    label: isPositioningConnection ? `Search ${suggestion.searchQuery}` : suggestion.label,
+    id: `recovery-route-${suggestion.id}`,
+    label: suggestion.searchQuery,
     route: suggestion.searchQuery,
-    kind: isPositioningConnection ? 'positioning-connection' : suggestion.kind === 'destination-airport-group' ? 'nearby-destination' : 'positioning',
+    kind: 'positioning-connection',
     confidence: 'Conservative',
     note: suggestion.providerResultCount > 0
       ? `${suggestion.providerResultCount} provider/cache row${suggestion.providerResultCount === 1 ? '' : 's'} support checking this path, but it is still route guidance only.`
-      : 'Route guidance only. Search live availability before acting.'
+      : 'Complete route framework only. Search live availability before acting.'
   }
 }
 
-function buildSuggestedPaths(input: RecoveryInput, routeSuggestions: RouteCoverageSuggestion[], _hubs: string[], _destinationAlternates: string[]) {
+function recoveryAirportPath(origin: string | undefined, airport: string, kind: SuggestedRecoveryPath['kind']): SuggestedRecoveryPath {
+  return {
+    id: `recovery-airport-${origin || 'any'}-${airport}`.toLowerCase(),
+    label: `Position to ${airport}`,
+    route: origin ? `${origin} → ${airport}` : airport,
+    kind,
+    confidence: 'Conservative',
+    note: 'Recovery guidance only'
+  }
+}
+
+function buildSuggestedPaths(input: RecoveryInput, routeSuggestions: RouteCoverageSuggestion[], hubs: string[], destinationAlternates: string[]) {
   const paths: SuggestedRecoveryPath[] = []
-  routeSuggestions.slice(0, 6).forEach((suggestion) => paths.push(pathFromSuggestion(suggestion)))
+  routeSuggestions.slice(0, 6).forEach((suggestion) => paths.push(routeFromSuggestion(suggestion)))
+
+  const recoveryAirportCandidates = unique([
+    ...hubs.slice(0, 5).flatMap((hub) => [hub, ...destinationAirportGroup(hub).filter((alternate) => alternate !== hub)]),
+    ...destinationAlternates.slice(0, 3)
+  ])
+  recoveryAirportCandidates.forEach((airport) => {
+    if (airport !== input.request.origin && airport !== input.request.destination) paths.push(recoveryAirportPath(input.request.origin, airport, 'positioning'))
+  })
 
   const dayAfter = nextDay(input.request.date)
 

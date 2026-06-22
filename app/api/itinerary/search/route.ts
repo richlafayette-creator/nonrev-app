@@ -575,6 +575,33 @@ function routeFrameworkProviderEvidence(records: ProviderResultRecord[], from: s
   return records.filter((record) => record.origin === from && record.destination === to)
 }
 
+function routeAirportCodes(route?: string) {
+  return uniqueAirportCodes((route || '').split('→').map((part) => part.trim().match(/[A-Z]{3}/)?.[0] || ''))
+}
+
+function routeFrameworkPathWithRequestedOrigin(path: string[], request: ParsedItineraryRequest) {
+  const origin = request.origin?.trim().toUpperCase()
+  if (!origin) return uniqueAirportCodes(path)
+  const cleanPath = uniqueAirportCodes(path)
+  if (!cleanPath.length) return []
+  if (cleanPath[0] === origin) return cleanPath
+  const originIndex = cleanPath.indexOf(origin)
+  if (originIndex >= 0) return cleanPath.slice(originIndex)
+  const firstAirport = cleanPath[0]
+  const originHubs = positioningHubsForOrigin(origin)
+  const destinationHubs = request.destination ? destinationHubPatterns[request.destination] || [] : []
+  const canPositionToFirstAirport = originHubs.includes(firstAirport) || destinationHubs.includes(firstAirport) || Boolean(routeFrameworkHubProfiles[firstAirport])
+  return canPositionToFirstAirport ? [origin, ...cleanPath] : []
+}
+
+function itineraryBeginsWithRequestedOrigin(itinerary: ItineraryResult, request: ParsedItineraryRequest) {
+  const origin = request.origin?.trim().toUpperCase()
+  if (!origin) return true
+  const routeOrigin = routeAirportCodes(itinerary.route)[0]
+  const firstLegOrigin = itinerary.legs?.[0]?.origin?.trim().toUpperCase()
+  return routeOrigin === origin || firstLegOrigin === origin
+}
+
 function historicalPatternHubs(records: ProviderResultRecord[], origin: string, destination: string) {
   return uniqueAirportCodes([
     ...records.filter((record) => record.origin === origin && record.destination !== destination).map((record) => record.destination),
@@ -601,7 +628,10 @@ function routeFrameworkPaths(request: ParsedItineraryRequest, suggestions: Route
   const destinationAlternatePaths = destinationOptions
     .filter((code) => code !== primaryDestination)
     .flatMap((alternate) => hubs.slice(0, 3).map((hub) => [origin, hub, alternate]))
-  return [...new Map([...preferredPaths, ...suggestionPaths, ...hubPaths, ...destinationAlternatePaths].map((path) => [path.join(' → '), path])).values()]
+  const normalizedPaths = [...preferredPaths, ...suggestionPaths, ...hubPaths, ...destinationAlternatePaths]
+    .map((path) => routeFrameworkPathWithRequestedOrigin(path, request))
+    .filter((path) => path.length >= 2 && path[0] === origin)
+  return [...new Map(normalizedPaths.map((path) => [path.join(' → '), path])).values()]
 }
 
 function routeFrameworkLeg(path: string[], index: number, records: ProviderResultRecord[]): ItineraryResult['legs'][number] {
@@ -699,8 +729,13 @@ function frameworkOptionCountLabel(count: number) {
   return `${count} route framework option${count === 1 ? '' : 's'}`
 }
 
+function appendedFrameworkCount(itineraries: ItineraryResult[], baseItineraries: ItineraryResult[], request: ParsedItineraryRequest) {
+  const displayedBaseCount = baseItineraries.filter((itinerary) => itineraryBeginsWithRequestedOrigin(itinerary, request)).length
+  return Math.max(0, itineraries.length - displayedBaseCount)
+}
+
 function appendRouteFrameworkOptions({ request, itineraries, routeCoverageSuggestions, providerRecords, recoveryIntelligence, historicalIntelligence, limit = 10 }: { request: ParsedItineraryRequest; itineraries: ItineraryResult[]; routeCoverageSuggestions?: RouteCoverageSuggestion[]; providerRecords?: ProviderResultRecord[]; recoveryIntelligence?: RecoveryIntelligence; historicalIntelligence?: HistoricalRouteIntelligence; limit?: number }) {
-  const dedupedItineraries = [...new Map(itineraries.map((itinerary) => [itinerary.route, itinerary])).values()]
+  const dedupedItineraries = [...new Map(itineraries.filter((itinerary) => itineraryBeginsWithRequestedOrigin(itinerary, request)).map((itinerary) => [itinerary.route, itinerary])).values()]
   const existingRoutes = new Set(dedupedItineraries.map((itinerary) => itinerary.route))
   const frameworkItineraries = buildCompleteRouteFrameworkItineraries({
     request,
@@ -1620,7 +1655,7 @@ export async function GET(request: Request) {
         providerStatus('flightaware', 'success', `${flightAwareItineraries.length} itinerary result${flightAwareItineraries.length === 1 ? '' : 's'} found from ${flightAwareScheduleFlights.length} live FlightAware schedule row${flightAwareScheduleFlights.length === 1 ? '' : 's'}.`),
         providerStatus('supabase', 'skipped', 'Skipped because FlightAware live schedules produced itinerary results.'),
         providerStatus('aviationstack', 'skipped', 'Skipped because FlightAware live schedules produced itinerary results.'),
-        providerStatus('planning', itineraries.length > recoveryApplied.itineraries.length ? 'success' : 'skipped', itineraries.length > recoveryApplied.itineraries.length ? `${frameworkOptionCountLabel(itineraries.length - recoveryApplied.itineraries.length)} added after live rows without flight numbers or times.` : 'Skipped because live provider results already filled the route option list.')
+        providerStatus('planning', appendedFrameworkCount(itineraries, recoveryApplied.itineraries, effectiveRequest) > 0 ? 'success' : 'skipped', appendedFrameworkCount(itineraries, recoveryApplied.itineraries, effectiveRequest) > 0 ? `${frameworkOptionCountLabel(appendedFrameworkCount(itineraries, recoveryApplied.itineraries, effectiveRequest))} added after live rows without flight numbers or times.` : 'Skipped because live provider results already filled the route option list.')
       ],
       trueLiveDataAvailable: true,
       trueLiveDataUnavailableReason: '',
@@ -1642,7 +1677,7 @@ export async function GET(request: Request) {
       dataMode: 'live',
       source_provider: 'flightaware',
       source_checked_at: itineraries[0]?.sourceCheckedAt,
-      statusMessage: `${recoveryApplied.itineraries.length} live itinerary result${recoveryApplied.itineraries.length === 1 ? '' : 's'} found through FlightAware; ${frameworkOptionCountLabel(itineraries.length - recoveryApplied.itineraries.length)} added without flight numbers or times.`,
+      statusMessage: `${recoveryApplied.itineraries.length} live itinerary result${recoveryApplied.itineraries.length === 1 ? '' : 's'} found through FlightAware; ${frameworkOptionCountLabel(appendedFrameworkCount(itineraries, recoveryApplied.itineraries, effectiveRequest))} added without flight numbers or times.`,
       enrichedWithFlightAware: true,
       providerBadges: [providerLabels.flightaware],
       warnings: uniqueMessages(warnings),
@@ -1771,7 +1806,7 @@ export async function GET(request: Request) {
           : `${supabaseItineraries.length} connecting itinerary result${supabaseItineraries.length === 1 ? '' : 's'} assembled from Supabase candidate rows, but no single direct row matched the normalized route. ${routeMatching.matchExplanation}`),
         providerStatus('aviationstack', 'skipped', 'Skipped because stored Supabase data produced itinerary results.'),
         providerStatus('flightaware', enriched ? 'success' : flightAwareScheduleWarning ? 'warning' : 'skipped', `${flightAwareScheduleDetail}; stored-result enrichment status: ${flightAwareStatus}.`),
-        providerStatus('planning', itineraries.length > recoveryApplied.itineraries.length ? 'success' : 'skipped', itineraries.length > recoveryApplied.itineraries.length ? `${frameworkOptionCountLabel(itineraries.length - recoveryApplied.itineraries.length)} added after stored rows without flight numbers or times.` : 'Skipped because stored provider results already filled the route option list.')
+        providerStatus('planning', appendedFrameworkCount(itineraries, recoveryApplied.itineraries, effectiveRequest) > 0 ? 'success' : 'skipped', appendedFrameworkCount(itineraries, recoveryApplied.itineraries, effectiveRequest) > 0 ? `${frameworkOptionCountLabel(appendedFrameworkCount(itineraries, recoveryApplied.itineraries, effectiveRequest))} added after stored rows without flight numbers or times.` : 'Skipped because stored provider results already filled the route option list.')
       ],
       trueLiveDataAvailable: false,
       trueLiveDataUnavailableReason: trueLiveUnavailableReason('supabase', routeMatching),
@@ -1793,8 +1828,8 @@ export async function GET(request: Request) {
       source_provider: 'supabase',
       source_checked_at: itineraries[0]?.sourceCheckedAt,
       statusMessage: routeMatching.dateCoverage.nearestDateApplied
-        ? `${recoveryApplied.itineraries.length} nearest-date testing itinerary result${recoveryApplied.itineraries.length === 1 ? '' : 's'} found in stored Supabase data for ${routeMatching.dateCoverage.effectiveMatchDate}; requested ${routeMatching.dateCoverage.requestedSearchDate}. ${frameworkOptionCountLabel(itineraries.length - recoveryApplied.itineraries.length)} added without flight numbers or times.`
-        : `${recoveryApplied.itineraries.length} itinerary result${recoveryApplied.itineraries.length === 1 ? '' : 's'} found in stored Supabase data; ${frameworkOptionCountLabel(itineraries.length - recoveryApplied.itineraries.length)} added without flight numbers or times.`,
+        ? `${recoveryApplied.itineraries.length} nearest-date testing itinerary result${recoveryApplied.itineraries.length === 1 ? '' : 's'} found in stored Supabase data for ${routeMatching.dateCoverage.effectiveMatchDate}; requested ${routeMatching.dateCoverage.requestedSearchDate}. ${frameworkOptionCountLabel(appendedFrameworkCount(itineraries, recoveryApplied.itineraries, effectiveRequest))} added without flight numbers or times.`
+        : `${recoveryApplied.itineraries.length} itinerary result${recoveryApplied.itineraries.length === 1 ? '' : 's'} found in stored Supabase data; ${frameworkOptionCountLabel(appendedFrameworkCount(itineraries, recoveryApplied.itineraries, effectiveRequest))} added without flight numbers or times.`,
       enrichedWithFlightAware: enriched,
       providerBadges: enriched ? [providerLabels.supabase, providerLabels.flightaware] : [providerLabels.supabase],
       warnings: uniqueMessages(warnings),
@@ -1877,7 +1912,7 @@ export async function GET(request: Request) {
         providerStatus('supabase', supabaseWarning ? 'warning' : 'skipped', supabaseWarning || 'No Supabase itineraries matched this request.'),
         providerStatus('aviationstack', 'success', `${aviationstackItineraries.length} matching itinerary result${aviationstackItineraries.length === 1 ? '' : 's'} found through fallback.`),
         providerStatus('flightaware', enriched ? 'success' : flightAwareScheduleWarning ? 'warning' : 'skipped', `${flightAwareScheduleDetail}; Aviationstack-result enrichment status: ${flightAwareStatus}.`),
-        providerStatus('planning', itineraries.length > recoveryApplied.itineraries.length ? 'success' : 'skipped', itineraries.length > recoveryApplied.itineraries.length ? `${frameworkOptionCountLabel(itineraries.length - recoveryApplied.itineraries.length)} added after Aviationstack rows without flight numbers or times.` : 'Skipped because Aviationstack results already filled the route option list.')
+        providerStatus('planning', appendedFrameworkCount(itineraries, recoveryApplied.itineraries, effectiveRequest) > 0 ? 'success' : 'skipped', appendedFrameworkCount(itineraries, recoveryApplied.itineraries, effectiveRequest) > 0 ? `${frameworkOptionCountLabel(appendedFrameworkCount(itineraries, recoveryApplied.itineraries, effectiveRequest))} added after Aviationstack rows without flight numbers or times.` : 'Skipped because Aviationstack results already filled the route option list.')
       ],
       trueLiveDataAvailable: true,
       trueLiveDataUnavailableReason: '',
@@ -1899,7 +1934,7 @@ export async function GET(request: Request) {
       dataMode: 'live',
       source_provider: 'aviationstack',
       source_checked_at: itineraries[0]?.sourceCheckedAt,
-      statusMessage: `${recoveryApplied.itineraries.length} itinerary result${recoveryApplied.itineraries.length === 1 ? '' : 's'} found through Aviationstack fallback; ${frameworkOptionCountLabel(itineraries.length - recoveryApplied.itineraries.length)} added without flight numbers or times.`,
+      statusMessage: `${recoveryApplied.itineraries.length} itinerary result${recoveryApplied.itineraries.length === 1 ? '' : 's'} found through Aviationstack fallback; ${frameworkOptionCountLabel(appendedFrameworkCount(itineraries, recoveryApplied.itineraries, effectiveRequest))} added without flight numbers or times.`,
       enrichedWithFlightAware: enriched,
       providerBadges: enriched ? [providerLabels.aviationstack, providerLabels.flightaware] : [providerLabels.aviationstack],
       warnings: uniqueMessages(warnings),

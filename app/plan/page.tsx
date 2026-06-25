@@ -230,6 +230,11 @@ type LiveItineraryResult = {
   communityLoadTrustScore?: number
   compositeRouteScore?: number
   historicalFactors?: Record<string, number | string>
+  topRouteRank?: number
+  topRouteLabel?: string
+  topRouteScore?: number
+  topRouteWhy?: string[]
+  topRouteRankingFactors?: Record<string, number | string>
 }
 
 type ProviderStatus = {
@@ -589,6 +594,11 @@ type ItineraryComparison = {
   explanation: ScoringExplanation
   nextGenSuccess: NonrevSuccessScore
   communityIntelligence: CommunityLoadIntelligence | null
+  topRouteRank?: number
+  topRouteLabel?: string
+  topRouteScore?: number
+  topRouteWhy?: string[]
+  topRouteRankingFactors?: Record<string, number | string>
 }
 
 type ScoringExplanation = {
@@ -1321,6 +1331,11 @@ function buildLiveItineraryComparison(
     communityReports: routeReports,
     communityReportSummary: communityIntelligence ? `${communityLoadCompactRowText(communityIntelligence) || `Community intelligence: ${communityIntelligence.averageAvailableSeats ?? '—'} open, ${communityIntelligence.averageStandbyCount ?? '—'} listed, ${communityIntelligence.reportCount} reports, ${communityIntelligence.communityConfidence} confidence.`} ${communityLoadImpactSummary(communityIntelligence)}` : reportTrustAndRecencySummary(routeReports),
     communityIntelligence,
+    topRouteRank: itinerary.topRouteRank,
+    topRouteLabel: itinerary.topRouteLabel,
+    topRouteScore: itinerary.topRouteScore,
+    topRouteWhy: itinerary.topRouteWhy,
+    topRouteRankingFactors: itinerary.topRouteRankingFactors,
     why: [
       `Blends provider itinerary score ${itinerary.score}/100 with probability engine baseline ${predictionEngine.successProbability}%.`,
       `Route confidence engine scores this option ${routeConfidence.score}/100 (${routeConfidence.badge}) with a ${routeConfidence.trend} trend.`,
@@ -1810,8 +1825,14 @@ function itineraryArrivalSortValue(comparison: ItineraryComparison) {
   return parseScheduleTime(comparison.arrivalDateTime) ?? Number.MAX_SAFE_INTEGER
 }
 
+function topRouteRankSortValue(comparison: ItineraryComparison) {
+  return comparison.topRouteRank || Number.MAX_SAFE_INTEGER
+}
+
 function sortMoreRouteItineraries(comparisons: ItineraryComparison[]) {
   return [...comparisons].sort((a, b) =>
+    topRouteRankSortValue(a) - topRouteRankSortValue(b) ||
+    (b.topRouteScore || 0) - (a.topRouteScore || 0) ||
     itineraryArrivalSortValue(a) - itineraryArrivalSortValue(b) ||
     itineraryDepartureSortValue(a) - itineraryDepartureSortValue(b) ||
     a.route.localeCompare(b.route)
@@ -1820,6 +1841,8 @@ function sortMoreRouteItineraries(comparisons: ItineraryComparison[]) {
 
 function sortCompactItineraries(comparisons: ItineraryComparison[]) {
   return [...comparisons].sort((a, b) =>
+    topRouteRankSortValue(a) - topRouteRankSortValue(b) ||
+    (b.topRouteScore || 0) - (a.topRouteScore || 0) ||
     b.personalSuccessPrediction.probability - a.personalSuccessPrediction.probability ||
     b.nextGenSuccess.score - a.nextGenSuccess.score ||
     b.successPrediction.probability - a.successPrediction.probability ||
@@ -3604,6 +3627,7 @@ function renderFlightBoardRow(comparison: ItineraryComparison) {
     const submitLoadOpen = activeCommunityLoadId === comparison.id
     const requestLoadOpen = activeLoadRequestId === comparison.id
     const contributor = loadCommunityContributorReputation()
+    const routePresentationLabel = comparison.topRouteLabel || `${rankIndex === 0 ? '#1 Recommended' : `#${rankIndex + 1}`} ${comparison.route}`
 
     return (
       <article
@@ -3620,7 +3644,7 @@ function renderFlightBoardRow(comparison: ItineraryComparison) {
                   <span className="nonrevy-flight-board-row__carrier-badge">{carrierCode}</span>
                   <strong className="nonrevy-flight-board-row__flight-number">{flightNumber}</strong>
                 </span>
-                <span className="nonrevy-flight-board-row__route">{comparison.route}</span>
+                <span className="nonrevy-flight-board-row__route">{routePresentationLabel}</span>
                 <span className="nonrevy-flight-board-row__score" title="Confidence score">Score {confidenceScore}</span>
               </div>
               <div className="nonrevy-flight-board-row__time-line" aria-label={`Depart ${depTime}, arrive ${arrivalDisplay}`}>
@@ -3663,6 +3687,11 @@ function renderFlightBoardRow(comparison: ItineraryComparison) {
             <section>
               <strong>{compactRankingLabel(rankIndex, comparison)}</strong>
               <p>{plainEnglishRationale(comparison, rankIndex)}</p>
+              {comparison.topRouteWhy?.length ? (
+                <ul>
+                  {comparison.topRouteWhy.map((reason) => <li key={`${comparison.id}-top-route-${reason}`}>{reason}</li>)}
+                </ul>
+              ) : null}
               <ItineraryIntelligenceDetailPanel comparison={comparison} backup={nextBackup} />
             </section>
             <section className="nonrevy-community-loads">
@@ -3787,12 +3816,6 @@ function renderFlightBoardRow(comparison: ItineraryComparison) {
             </section>
 
             <section>
-              <strong>Recovery plan</strong>
-              <p>{keyRiskNote(comparison)}</p>
-              <RecoveryStrategySection comparison={comparison} comparisons={compactItineraries} />
-            </section>
-
-            <section>
               <strong>Aircraft/details</strong>
               <p>{comparison.aircraftDetails}</p>
               <p>Duration {comparison.totalTravelTime} · {legCount} leg{comparison.connections === 0 ? '' : 's'} · {comparison.airportIntelligence.connectionRiskScore}/100 connection risk</p>
@@ -3832,8 +3855,8 @@ function renderFlightBoardRow(comparison: ItineraryComparison) {
 
       {moreRouteItineraries.length ? (
         <details className="nonrevy-more-routes" style={{ marginTop: 8, border: '1px solid #334155', borderRadius: 10, padding: 8, background: '#020617' }}>
-          <summary style={{ color: '#67e8f9', cursor: 'pointer', fontWeight: 'bold' }}>More routes · sorted by earliest arrival when times exist</summary>
-          <p style={{ color: '#94a3b8', margin: '8px 0' }}>Timed routes appear first by arrival time. Route frameworks without live times are labeled “Live time unavailable.”</p>
+          <summary style={{ color: '#67e8f9', cursor: 'pointer', fontWeight: 'bold' }}>More Routes ▼</summary>
+          <p style={{ color: '#94a3b8', margin: '8px 0' }}>Routes 6–20 stay ranked by the Top Routes recommendation score. Route frameworks without live times are labeled “Live time unavailable.”</p>
           <div className="nonrevy-flight-board__list" aria-label="More route options">
             {moreRouteItineraries.map((comparison) => renderFlightBoardRow(comparison))}
           </div>
@@ -3854,6 +3877,17 @@ function renderFlightBoardRow(comparison: ItineraryComparison) {
         <details className="nonrevy-premium-details" style={{ marginTop: 8 }}>
           <summary className="nonrevy-secondary-action" style={{ color: '#67e8f9', cursor: 'pointer', fontWeight: 'bold' }}>Route intelligence</summary>
           <RouteIntelligenceSection insights={routeInsights} />
+        </details>
+        <details className="nonrevy-premium-details" style={{ marginTop: 8 }}>
+          <summary className="nonrevy-secondary-action" style={{ color: '#67e8f9', cursor: 'pointer', fontWeight: 'bold' }}>Recovery guidance</summary>
+          <p style={{ color: '#cbd5e1' }}>Recovery guidance is separated from Top Routes so positioning and recovery moves are not presented as ranked itineraries.</p>
+          {topRouteItineraries.slice(0, 3).map((comparison) => (
+            <section key={`${comparison.id}-recovery-guidance`} style={{ marginTop: 8 }}>
+              <strong>{comparison.route}</strong>
+              <p style={{ color: '#cbd5e1' }}>{keyRiskNote(comparison)}</p>
+              <RecoveryStrategySection comparison={comparison} comparisons={compactItineraries} />
+            </section>
+          ))}
         </details>
         <details className="nonrevy-premium-details" style={{ marginTop: 8 }}>
           <summary className="nonrevy-secondary-action" style={{ color: '#67e8f9', cursor: 'pointer', fontWeight: 'bold' }}>Nearby airports</summary>

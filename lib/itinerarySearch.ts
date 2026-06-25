@@ -84,6 +84,11 @@ export type ItineraryResult = {
   communityLoadTrustScore?: number
   compositeRouteScore?: number
   historicalFactors?: Record<string, number | string>
+  topRouteRank?: number
+  topRouteLabel?: string
+  topRouteScore?: number
+  topRouteWhy?: string[]
+  topRouteRankingFactors?: Record<string, number | string>
 }
 
 export type FlightRouteNormalization = {

@@ -424,6 +424,37 @@ function routePhraseStopPattern() {
   return '(?:today|tonight|tomorrow|sunday|monday|tuesday|wednesday|thursday|friday|saturday|next\\s+\\w+|this\\s+weekend|weekend|on\\s+\\w+|with\\s+\\w+|united|delta|alaska|hawaiian|ua|dl|as|ha|polaris|first|business|economy)'
 }
 
+function safeRoutePlaceToken(value?: string | null) {
+  if (!value) return undefined
+  const trimmed = value.trim().replace(/^[^A-Za-z]+|[^A-Za-z]+$/g, '')
+  if (!trimmed) return undefined
+  const compact = trimmed.toLowerCase().replace(/[^a-z]/g, '')
+  const alias = airportAliases[compact]
+  if (alias) return alias
+  return /^[A-Z]{3}$/.test(trimmed) ? trimmed : undefined
+}
+
+function airportFromRouteSegment(value: string, preferredEdge: 'start' | 'end') {
+  const words = value.match(/[A-Za-z]+/g) || []
+  if (!words.length) return undefined
+
+  const phraseCandidates: string[] = []
+  if (preferredEdge === 'start') {
+    for (let end = words.length; end >= 1; end -= 1) phraseCandidates.push(words.slice(0, end).join(' '))
+    for (let index = 1; index < words.length; index += 1) phraseCandidates.push(words[index])
+  } else {
+    for (let start = 0; start < words.length; start += 1) phraseCandidates.push(words.slice(start).join(' '))
+    for (let index = words.length - 2; index >= 0; index -= 1) phraseCandidates.push(words[index])
+  }
+
+  for (const candidate of phraseCandidates) {
+    const code = safeRoutePlaceToken(candidate)
+    if (code) return code
+  }
+
+  return undefined
+}
+
 function routeFromText(value: string) {
   const normalized = value.trim()
   const stop = routePhraseStopPattern()
@@ -434,24 +465,24 @@ function routeFromText(value: string) {
     if (origin || destination) return { origin, destination, routePhraseFound: true }
   }
 
-  const routeCodeSequence = normalized.match(/\b[A-Za-z]{3}\b/g) || []
-  if (routeCodeSequence.length >= 2 && /(?:-|→|\bto\b)/i.test(normalized)) {
-    const origin = airportFromPhrase(routeCodeSequence[0])
-    const destination = airportFromPhrase(routeCodeSequence[routeCodeSequence.length - 1])
-    if (origin || destination) return { origin, destination, routePhraseFound: true }
-  }
-
   const toFromRoute = normalized.match(new RegExp(`\\b(?:to|for)\\s+([A-Za-z]{3}|[A-Za-z][A-Za-z\\s]+?)\\s+from\\s+([A-Za-z]{3}|[A-Za-z][A-Za-z\\s]+?)(?:\\s+${stop}\\b|$)`, 'i'))
   if (toFromRoute) {
-    const destination = airportFromPhrase(toFromRoute[1])
-    const origin = airportFromPhrase(toFromRoute[2])
+    const destination = airportFromRouteSegment(toFromRoute[1], 'start')
+    const origin = airportFromRouteSegment(toFromRoute[2], 'start')
     if (origin || destination) return { origin, destination, routePhraseFound: true }
   }
 
-  const fromToRoute = normalized.match(new RegExp(`\\b(?:from|leaving|departing|out\\s+of)?\\s*([A-Za-z]{3}|[A-Za-z][A-Za-z\\s]+?)\\s*(?:-|→|to|for)\\s+([A-Za-z]{3}|[A-Za-z][A-Za-z\\s]+?)(?:\\s+${stop}\\b|$)`, 'i'))
+  const fromToRoute = normalized.match(new RegExp(`\\b(?:from|leaving|departing|out\\s+of)\\s+([A-Za-z]{3}|[A-Za-z][A-Za-z\\s]+?)\\s*(?:-|→|to|for)\\s+([A-Za-z]{3}|[A-Za-z][A-Za-z\\s]+?)(?:\\s+${stop}\\b|$)`, 'i'))
   if (fromToRoute) {
-    const origin = airportFromPhrase(fromToRoute[1])
-    const destination = airportFromPhrase(fromToRoute[2])
+    const origin = airportFromRouteSegment(fromToRoute[1], 'start')
+    const destination = airportFromRouteSegment(fromToRoute[2], 'start')
+    if (origin || destination) return { origin, destination, routePhraseFound: true }
+  }
+
+  const delimitedRouteParts = normalized.split(/\s*(?:-|→|\bto\b|\bfor\b)\s*/i).filter((part) => part.trim())
+  if (delimitedRouteParts.length >= 2) {
+    const origin = airportFromRouteSegment(delimitedRouteParts[0], 'end')
+    const destination = airportFromRouteSegment(delimitedRouteParts[delimitedRouteParts.length - 1], 'start')
     if (origin || destination) return { origin, destination, routePhraseFound: true }
   }
 

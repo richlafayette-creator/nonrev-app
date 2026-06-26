@@ -235,6 +235,7 @@ type LiveItineraryResult = {
   topRouteScore?: number
   topRouteWhy?: string[]
   topRouteRankingFactors?: Record<string, number | string>
+  whyThisRoute?: string
 }
 
 type ProviderStatus = {
@@ -402,6 +403,7 @@ type ItineraryDebugMetadata = {
   routeCoverageSuggestions?: RouteCoverageSuggestion[]
   recoveryIntelligence?: RecoveryIntelligence
   historicalIntelligence?: HistoricalRouteIntelligence
+  noResultsExplanation?: string[]
   safeErrors: string[]
 }
 
@@ -599,6 +601,8 @@ type ItineraryComparison = {
   topRouteScore?: number
   topRouteWhy?: string[]
   topRouteRankingFactors?: Record<string, number | string>
+  whyThisRoute?: string
+  suggestedRecoveryPaths?: SuggestedRecoveryPath[]
 }
 
 type ScoringExplanation = {
@@ -1336,6 +1340,8 @@ function buildLiveItineraryComparison(
     topRouteScore: itinerary.topRouteScore,
     topRouteWhy: itinerary.topRouteWhy,
     topRouteRankingFactors: itinerary.topRouteRankingFactors,
+    whyThisRoute: itinerary.whyThisRoute,
+    suggestedRecoveryPaths: itinerary.suggestedRecoveryPaths,
     why: [
       `Blends provider itinerary score ${itinerary.score}/100 with probability engine baseline ${predictionEngine.successProbability}%.`,
       `Route confidence engine scores this option ${routeConfidence.score}/100 (${routeConfidence.badge}) with a ${routeConfidence.trend} trend.`,
@@ -3003,6 +3009,13 @@ function RecoveryStrategySection({ comparison, comparisons }: { comparison: Itin
         ))}
       </div>
       <div style={{ display: 'grid', gap: 10, marginTop: 12 }}>
+        {comparison.suggestedRecoveryPaths?.map((path) => (
+          <article key={`${comparison.id}-suggested-${path.id}`} style={{ border: '1px solid #334155', borderRadius: 12, padding: 12, background: '#0f172a' }}>
+            <strong style={{ color: '#f8fafc' }}>Backup option · {path.label}</strong>
+            {path.route ? <p style={{ color: '#38bdf8', margin: '6px 0', fontWeight: 'bold' }}>{path.route}</p> : null}
+            <p style={{ color: '#cbd5e1', margin: 0 }}>{path.note}</p>
+          </article>
+        ))}
         {recovery.plans.map((plan) => (
           <article key={`${comparison.id}-${plan.label}`} style={{ border: '1px solid #334155', borderRadius: 12, padding: 12, background: '#0f172a' }}>
             <strong style={{ color: '#f8fafc' }}>{plan.label}</strong>
@@ -3686,7 +3699,7 @@ function renderFlightBoardRow(comparison: ItineraryComparison) {
             </section>
             <section>
               <strong>{compactRankingLabel(rankIndex, comparison)}</strong>
-              <p>{plainEnglishRationale(comparison, rankIndex)}</p>
+              <p>{comparison.whyThisRoute || plainEnglishRationale(comparison, rankIndex)}</p>
               {comparison.topRouteWhy?.length ? (
                 <ul>
                   {comparison.topRouteWhy.map((reason) => <li key={`${comparison.id}-top-route-${reason}`}>{reason}</li>)}
@@ -3856,7 +3869,7 @@ function renderFlightBoardRow(comparison: ItineraryComparison) {
       {moreRouteItineraries.length ? (
         <details className="nonrevy-more-routes" style={{ marginTop: 8, border: '1px solid #334155', borderRadius: 10, padding: 8, background: '#020617' }}>
           <summary style={{ color: '#67e8f9', cursor: 'pointer', fontWeight: 'bold' }}>More Routes ▼</summary>
-          <p style={{ color: '#94a3b8', margin: '8px 0' }}>Routes 6–20 stay ranked by the Top Routes recommendation score. Route frameworks without live times are labeled “Live time unavailable.”</p>
+          <p style={{ color: '#94a3b8', margin: '8px 0' }}>Routes 6+ stay ranked by the Top Routes recommendation score. Route frameworks without live times are labeled “Live time unavailable.”</p>
           <div className="nonrevy-flight-board__list" aria-label="More route options">
             {moreRouteItineraries.map((comparison) => renderFlightBoardRow(comparison))}
           </div>

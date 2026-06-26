@@ -89,6 +89,7 @@ export type ItineraryResult = {
   topRouteScore?: number
   topRouteWhy?: string[]
   topRouteRankingFactors?: Record<string, number | string>
+  whyThisRoute?: string
 }
 
 export type FlightRouteNormalization = {
@@ -558,7 +559,7 @@ export function parseItineraryPrompt(prompt: string, now = new Date()): Partial<
 export function normalizeItineraryRequest(searchParams: URLSearchParams, now = new Date()): ParsedItineraryRequest {
   const prompt = searchParams.get('q') || searchParams.get('query') || searchParams.get('prompt') || searchParams.get('aiTrip') || undefined
   const parsed = prompt ? parseItineraryPrompt(prompt, now) : {}
-  const maxLegs = Number(searchParams.get('maxLegs') || '2')
+  const maxLegs = Number(searchParams.get('maxLegs') || '3')
   const explicitOrigin = airportCode(searchParams.get('origin'))
   const explicitDestination = airportCode(searchParams.get('destination'))
   const explicitCarrier = searchParams.get('carrier')
@@ -1057,9 +1058,29 @@ export function buildItinerariesFromFlights(flights: Record<string, unknown>[], 
       .map((secondLeg) => itineraryFromLegs([firstLeg, secondLeg]))
     )
 
-  return dedupeItineraries([...directItineraries, ...connectionItineraries])
+  const twoStopItineraries = request.maxLegs < 3 ? [] : firstLegs
+    .flatMap((firstLeg) => candidateLegs
+      .filter((middleLeg) =>
+        middleLeg.origin === firstLeg.destination &&
+        middleLeg.destination !== request.destination &&
+        middleLeg.destination !== request.origin &&
+        middleLeg.destination !== firstLeg.origin &&
+        isFeasibleConnection(firstLeg, middleLeg)
+      )
+      .flatMap((middleLeg) => secondLegs
+        .filter((finalLeg) =>
+          finalLeg.origin === middleLeg.destination &&
+          finalLeg.destination === request.destination &&
+          finalLeg.origin !== firstLeg.origin &&
+          finalLeg.origin !== firstLeg.destination &&
+          isFeasibleConnection(middleLeg, finalLeg)
+        )
+        .map((finalLeg) => itineraryFromLegs([firstLeg, middleLeg, finalLeg]))
+      )
+    )
+
+  return dedupeItineraries([...directItineraries, ...connectionItineraries, ...twoStopItineraries])
     .sort((a, b) => a.legs.length - b.legs.length || (Date.parse(a.departureTime) || Number.MAX_SAFE_INTEGER) - (Date.parse(b.departureTime) || Number.MAX_SAFE_INTEGER) || b.score - a.score)
-    .slice(0, 12)
 }
 
 function itineraryFromLegs(legs: ItineraryLeg[]): ItineraryResult {

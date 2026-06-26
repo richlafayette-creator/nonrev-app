@@ -117,6 +117,7 @@ type ItineraryDebugMetadata = {
   recoveryIntelligence?: RecoveryIntelligence
   historicalIntelligence?: HistoricalRouteIntelligence
   normalizedFlightAwareItinerarySample?: SafeNormalizedItinerarySample
+  noResultsExplanation?: string[]
 }
 
 type AviationstackFlight = {
@@ -749,7 +750,7 @@ function topRouteRecommendationScore(request: ParsedItineraryRequest, itinerary:
   }
 }
 
-function applyTopRouteRecommendations(request: ParsedItineraryRequest, itineraries: ItineraryResult[], limit = 20) {
+function applyTopRouteRecommendations(request: ParsedItineraryRequest, itineraries: ItineraryResult[], limit = Number.MAX_SAFE_INTEGER) {
   const cleanItineraries = enforceItineraryListEndpointIntegrity(itineraries, request)
     .filter((itinerary) => !/^Position to /i.test(itinerary.route) && !/recovery guidance/i.test(itinerary.route))
   const deduped = [...new Map(cleanItineraries.map((itinerary) => [itinerary.route, itinerary])).values()]
@@ -769,6 +770,7 @@ function applyTopRouteRecommendations(request: ParsedItineraryRequest, itinerari
         ...itinerary,
         topRouteScore: recommendation.topRouteScore,
         topRouteRankingFactors: recommendation.factors,
+        whyThisRoute: `Ranked ${recommendation.topRouteScore}/100 because it balances ${itineraryConnectionCount(itinerary)} connection${itineraryConnectionCount(itinerary) === 1 ? '' : 's'}, route quality ${recommendation.factors.historicalRouteQuality}/100, airport desirability ${recommendation.factors.airportDesirability}/100, and reliability ${recommendation.factors.routeReliabilityScore}/100.`,
         topRouteWhy: [
           `Recommendation score ${recommendation.topRouteScore}/100 blends earliest arrival, connection count, historical route quality, airport desirability, positioning complexity, total travel time, and reliability.`,
           `${itineraryConnectionCount(itinerary)} connection${itineraryConnectionCount(itinerary) === 1 ? '' : 's'}; route reliability ${recommendation.factors.routeReliabilityScore}/100; airport desirability ${recommendation.factors.airportDesirability}/100.`
@@ -790,7 +792,7 @@ function applyTopRouteRecommendations(request: ParsedItineraryRequest, itinerari
     }))
 }
 
-function topRouteItinerariesForResponse({ request, scheduledItineraries, routeCoverageSuggestions, providerRecords, recoveryIntelligence, historicalIntelligence, limit = 20 }: { request: ParsedItineraryRequest; scheduledItineraries: ItineraryResult[]; routeCoverageSuggestions?: RouteCoverageSuggestion[]; providerRecords?: ProviderResultRecord[]; recoveryIntelligence?: RecoveryIntelligence; historicalIntelligence?: HistoricalRouteIntelligence; limit?: number }) {
+function topRouteItinerariesForResponse({ request, scheduledItineraries, routeCoverageSuggestions, providerRecords, recoveryIntelligence, historicalIntelligence, limit = Number.MAX_SAFE_INTEGER }: { request: ParsedItineraryRequest; scheduledItineraries: ItineraryResult[]; routeCoverageSuggestions?: RouteCoverageSuggestion[]; providerRecords?: ProviderResultRecord[]; recoveryIntelligence?: RecoveryIntelligence; historicalIntelligence?: HistoricalRouteIntelligence; limit?: number }) {
   const withFrameworks = appendRouteFrameworkOptions({
     request,
     itineraries: scheduledItineraries,
@@ -803,7 +805,7 @@ function topRouteItinerariesForResponse({ request, scheduledItineraries, routeCo
   return applyTopRouteRecommendations(request, withFrameworks, limit)
 }
 
-function buildCompleteRouteFrameworkItineraries({ request, routeCoverageSuggestions = [], providerRecords = [], recoveryIntelligence, historicalIntelligence, limit = 5 }: { request: ParsedItineraryRequest; routeCoverageSuggestions?: RouteCoverageSuggestion[]; providerRecords?: ProviderResultRecord[]; recoveryIntelligence?: RecoveryIntelligence; historicalIntelligence?: HistoricalRouteIntelligence; limit?: number }) {
+function buildCompleteRouteFrameworkItineraries({ request, routeCoverageSuggestions = [], providerRecords = [], recoveryIntelligence, historicalIntelligence, limit = Number.MAX_SAFE_INTEGER }: { request: ParsedItineraryRequest; routeCoverageSuggestions?: RouteCoverageSuggestion[]; providerRecords?: ProviderResultRecord[]; recoveryIntelligence?: RecoveryIntelligence; historicalIntelligence?: HistoricalRouteIntelligence; limit?: number }) {
   const historical = historicalIntelligence?.historicalSuccess.score || 50
   const sampleSize = historicalIntelligence?.historicalSuccess.sampleSize || 0
   const community = historicalIntelligence?.loadReportTrust.score || 50
@@ -841,7 +843,7 @@ function appendedFrameworkCount(itineraries: ItineraryResult[], baseItineraries:
   return Math.max(0, itineraries.length - displayedBaseCount)
 }
 
-function appendRouteFrameworkOptions({ request, itineraries, routeCoverageSuggestions, providerRecords, recoveryIntelligence, historicalIntelligence, limit = 10 }: { request: ParsedItineraryRequest; itineraries: ItineraryResult[]; routeCoverageSuggestions?: RouteCoverageSuggestion[]; providerRecords?: ProviderResultRecord[]; recoveryIntelligence?: RecoveryIntelligence; historicalIntelligence?: HistoricalRouteIntelligence; limit?: number }) {
+function appendRouteFrameworkOptions({ request, itineraries, routeCoverageSuggestions, providerRecords, recoveryIntelligence, historicalIntelligence, limit = Number.MAX_SAFE_INTEGER }: { request: ParsedItineraryRequest; itineraries: ItineraryResult[]; routeCoverageSuggestions?: RouteCoverageSuggestion[]; providerRecords?: ProviderResultRecord[]; recoveryIntelligence?: RecoveryIntelligence; historicalIntelligence?: HistoricalRouteIntelligence; limit?: number }) {
   const dedupedItineraries = enforceItineraryListEndpointIntegrity(itineraries, request)
   const existingRoutes = new Set(dedupedItineraries.map((itinerary) => itinerary.route))
   const frameworkItineraries = buildCompleteRouteFrameworkItineraries({
@@ -856,7 +858,7 @@ function appendRouteFrameworkOptions({ request, itineraries, routeCoverageSugges
   return [...dedupedItineraries, ...frameworkItineraries].slice(0, limit)
 }
 
-function scheduleItinerariesOnly(itineraries: ItineraryResult[], request: ParsedItineraryRequest, limit = 10) {
+function scheduleItinerariesOnly(itineraries: ItineraryResult[], request: ParsedItineraryRequest, limit = Number.MAX_SAFE_INTEGER) {
   return enforceItineraryListEndpointIntegrity(itineraries, request)
     .filter((itinerary) => itinerary.dataFreshnessRule !== 'route-framework' && itinerary.legs.some((leg) => leg.flightNumber && !/unavailable/i.test(leg.flightNumber) && leg.departureTime && !/pending|unavailable/i.test(leg.departureTime) && leg.arrivalTime && !/pending|unavailable/i.test(leg.arrivalTime)))
     .slice(0, limit)
@@ -1432,7 +1434,8 @@ function buildDebugMetadata({
   routeCoverageSuggestions = [],
   recoveryIntelligence,
   historicalIntelligence,
-  normalizedFlightAwareItinerarySample
+  normalizedFlightAwareItinerarySample,
+  noResultsExplanation = []
 }: {
   parsedRequest: ReturnType<typeof normalizeItineraryRequest>
   supabaseResultCount: number
@@ -1462,6 +1465,7 @@ function buildDebugMetadata({
   recoveryIntelligence?: RecoveryIntelligence
   historicalIntelligence?: HistoricalRouteIntelligence
   normalizedFlightAwareItinerarySample?: SafeNormalizedItinerarySample
+  noResultsExplanation?: string[]
 }): ItineraryDebugMetadata {
   const mergedProviderStatuses = mergeProviderStatuses(providerStatuses)
   return {
@@ -1501,8 +1505,22 @@ function buildDebugMetadata({
     routeCoverageSuggestions,
     recoveryIntelligence,
     historicalIntelligence,
-    normalizedFlightAwareItinerarySample
+    normalizedFlightAwareItinerarySample,
+    noResultsExplanation
   }
+}
+
+function exactNoResultsExplanation({ emptyResults, rateLimits, invalidAirportCodes, unsupportedAirportCodes, invalidDates, providerStatuses, routeCoverageSuggestions, fallback }: { emptyResults: string[]; rateLimits: string[]; invalidAirportCodes: string[]; unsupportedAirportCodes: string[]; invalidDates: string[]; providerStatuses: ProviderStatus[]; routeCoverageSuggestions?: RouteCoverageSuggestion[]; fallback: string }) {
+  return uniqueMessages([
+    ...invalidAirportCodes.map((message) => `Invalid airport input: ${message}.`),
+    ...invalidDates,
+    ...unsupportedAirportCodes,
+    ...emptyResults,
+    ...rateLimits.map((message) => `Provider limit: ${message}.`),
+    ...providerStatuses.filter((status) => status.state === 'warning' || status.state === 'error' || status.state === 'skipped').map((status) => `${status.label}: ${status.detail}`),
+    routeCoverageSuggestions?.length === 0 ? 'Route framework generator found no complete endpoint-safe route frameworks for the requested origin and destination.' : undefined,
+    fallback
+  ].filter(Boolean) as string[])
 }
 
 export async function GET(request: Request) {
@@ -1653,14 +1671,13 @@ export async function GET(request: Request) {
       providerCacheCount: providerCacheFlights.length,
       historicalAvailabilityCount: providerCacheFlights.length
     })
-    const scheduledItineraries = scheduleItinerariesOnly(recoveryApplied.itineraries, effectiveRequest, 10)
+    const scheduledItineraries = scheduleItinerariesOnly(recoveryApplied.itineraries, effectiveRequest)
     const itineraries = topRouteItinerariesForResponse({
       request: effectiveRequest,
       scheduledItineraries,
       providerRecords: providerCacheLookup.records,
       recoveryIntelligence: recoveryApplied.recoveryIntelligence,
       historicalIntelligence: recoveryApplied.historicalIntelligence,
-      limit: 20
     })
     counts.finalItineraries = itineraries.length
     const flightAwareDeduplication = deduplicationSummary(itineraries, 'FlightAware')
@@ -1739,14 +1756,13 @@ export async function GET(request: Request) {
       providerCacheCount: providerCacheFlights.length,
       historicalAvailabilityCount: providerCacheFlights.length
     })
-    const scheduledItineraries = scheduleItinerariesOnly(recoveryApplied.itineraries, effectiveRequest, 10)
+    const scheduledItineraries = scheduleItinerariesOnly(recoveryApplied.itineraries, effectiveRequest)
     const itineraries = topRouteItinerariesForResponse({
       request: effectiveRequest,
       scheduledItineraries,
       providerRecords: providerCacheLookup.records,
       recoveryIntelligence: recoveryApplied.recoveryIntelligence,
       historicalIntelligence: recoveryApplied.historicalIntelligence,
-      limit: 20
     })
     counts.finalItineraries = itineraries.length
     const cacheDeduplication = deduplicationSummary(itineraries, 'provider cache')
@@ -1881,14 +1897,13 @@ export async function GET(request: Request) {
       providerCacheCount: providerCacheFlights.length,
       historicalAvailabilityCount: Math.max(providerCacheFlights.length, supabaseMatchedFlights.length)
     })
-    const scheduledItineraries = scheduleItinerariesOnly(recoveryApplied.itineraries, effectiveRequest, 10)
+    const scheduledItineraries = scheduleItinerariesOnly(recoveryApplied.itineraries, effectiveRequest)
     const itineraries = topRouteItinerariesForResponse({
       request: effectiveRequest,
       scheduledItineraries,
       providerRecords: providerCacheLookup.records,
       recoveryIntelligence: recoveryApplied.recoveryIntelligence,
       historicalIntelligence: recoveryApplied.historicalIntelligence,
-      limit: 20
     })
     counts.finalItineraries = itineraries.length
     const supabaseDeduplication = deduplicationSummary(itineraries, 'Supabase')
@@ -1988,14 +2003,13 @@ export async function GET(request: Request) {
       providerCacheCount: providerCacheFlights.length,
       historicalAvailabilityCount: providerCacheFlights.length
     })
-    const scheduledItineraries = scheduleItinerariesOnly(recoveryApplied.itineraries, effectiveRequest, 10)
+    const scheduledItineraries = scheduleItinerariesOnly(recoveryApplied.itineraries, effectiveRequest)
     const itineraries = topRouteItinerariesForResponse({
       request: effectiveRequest,
       scheduledItineraries,
       providerRecords: providerCacheLookup.records,
       recoveryIntelligence: recoveryApplied.recoveryIntelligence,
       historicalIntelligence: recoveryApplied.historicalIntelligence,
-      limit: 20
     })
     counts.finalItineraries = itineraries.length
     const aviationstackDeduplication = deduplicationSummary(itineraries, 'Aviationstack')
@@ -2091,14 +2105,13 @@ export async function GET(request: Request) {
       providerCacheCount: providerCacheFlights.length,
       historicalAvailabilityCount: providerCacheFlights.length
     })
-    const scheduledItineraries = scheduleItinerariesOnly(recoveryApplied.itineraries, effectiveRequest, 10)
+    const scheduledItineraries = scheduleItinerariesOnly(recoveryApplied.itineraries, effectiveRequest)
     const itineraries = topRouteItinerariesForResponse({
       request: effectiveRequest,
       scheduledItineraries,
       providerRecords: providerCacheLookup.records,
       recoveryIntelligence: recoveryApplied.recoveryIntelligence,
       historicalIntelligence: recoveryApplied.historicalIntelligence,
-      limit: 20
     })
     counts.finalItineraries = itineraries.length
     const seedMessage = seedRouteMatching.dateCoverage.nearestDateApplied
@@ -2180,8 +2193,7 @@ export async function GET(request: Request) {
     providerRecords: providerCacheLookup.records,
     recoveryIntelligence,
     historicalIntelligence,
-    limit: 20
-  }), 20)
+  }))
   counts.finalItineraries = routeFrameworkItineraries.length
   const routeCoverageMessage = routeFrameworkItineraries.length
     ? `${routeFrameworkItineraries.length} complete route framework${routeFrameworkItineraries.length === 1 ? '' : 's'} ranked for ${effectiveRequest.origin} → ${effectiveRequest.destination}. Live availability unavailable.`
@@ -2192,6 +2204,26 @@ export async function GET(request: Request) {
       ? 'No live provider API, stored Supabase, fallback-provider flights, or complete route frameworks found for this search.'
       : 'No current live itinerary availability or complete route frameworks found for this search.'
   const finalWarnings = uniqueMessages([...warnings, routeCoverageMessage, routeFrameworkItineraries.length ? undefined : noResultsMessage])
+  const finalProviderStatuses = [
+    providerStatus('supabase', supabaseWarning ? 'warning' : 'skipped', supabaseWarning || 'No Supabase itineraries matched this request.'),
+    providerStatus('aviationstack', aviationstackWarning ? 'warning' : 'skipped', aviationstackFallbackStatus),
+    providerStatus('flightaware', flightAwareScheduleWarning ? 'warning' : 'skipped', `${flightAwareScheduleDetail}; no later provider returned known flight numbers to enrich.`),
+    providerStatus('planning', routeFrameworkItineraries.length ? 'success' : envTestDataModeEnabled ? 'success' : 'skipped', routeFrameworkItineraries.length
+      ? `${routeFrameworkItineraries.length} complete route framework${routeFrameworkItineraries.length === 1 ? '' : 's'} returned as planning guidance without live availability claims.`
+      : envTestDataModeEnabled
+        ? 'Clearly marked demo fallback cards are active in the UI for personal testing.'
+        : 'Demo fallback cards are disabled because NONREVY_TEST_DATA_MODE is not true.')
+  ]
+  const noResultsExplanation = routeFrameworkItineraries.length ? [] : exactNoResultsExplanation({
+    emptyResults,
+    rateLimits,
+    invalidAirportCodes,
+    unsupportedAirportCodes,
+    invalidDates,
+    providerStatuses: finalProviderStatuses,
+    routeCoverageSuggestions,
+    fallback: noResultsMessage
+  })
   const debug = buildDebugMetadata({
     parsedRequest: effectiveRequest,
     supabaseResultCount: 0,
@@ -2206,16 +2238,7 @@ export async function GET(request: Request) {
     invalidAirportCodes,
     unsupportedAirportCodes,
     invalidDates,
-    providerStatuses: [
-      providerStatus('supabase', supabaseWarning ? 'warning' : 'skipped', supabaseWarning || 'No Supabase itineraries matched this request.'),
-      providerStatus('aviationstack', aviationstackWarning ? 'warning' : 'skipped', aviationstackFallbackStatus),
-      providerStatus('flightaware', flightAwareScheduleWarning ? 'warning' : 'skipped', `${flightAwareScheduleDetail}; no later provider returned known flight numbers to enrich.`),
-      providerStatus('planning', routeFrameworkItineraries.length ? 'success' : envTestDataModeEnabled ? 'success' : 'skipped', routeFrameworkItineraries.length
-        ? `${routeFrameworkItineraries.length} complete route framework${routeFrameworkItineraries.length === 1 ? '' : 's'} returned as planning guidance without live availability claims.`
-        : envTestDataModeEnabled
-          ? 'Clearly marked demo fallback cards are active in the UI for personal testing.'
-          : 'Demo fallback cards are disabled because NONREVY_TEST_DATA_MODE is not true.')
-    ],
+    providerStatuses: finalProviderStatuses,
     providerFallbackOrder: activeProviderFallbackOrder,
     trueLiveDataAvailable: false,
     trueLiveDataUnavailableReason: routeFrameworkItineraries.length
@@ -2231,7 +2254,8 @@ export async function GET(request: Request) {
     safeErrors: finalWarnings,
     routeCoverageSuggestions,
     recoveryIntelligence,
-    historicalIntelligence
+    historicalIntelligence,
+    noResultsExplanation
   })
 
   return NextResponse.json({
@@ -2242,8 +2266,8 @@ export async function GET(request: Request) {
     dataMode: routeFrameworkItineraries.length ? 'route-frameworks' : envTestDataModeEnabled ? 'fallback' : 'no-current-live-data',
     source_provider: routeFrameworkItineraries.length ? 'route-framework' : envTestDataModeEnabled ? 'demo' : 'none',
     source_checked_at: undefined,
-    statusMessage: noResultsMessage,
-    errorMessage: noResultsMessage,
+    statusMessage: noResultsExplanation.length ? noResultsExplanation.join(' ') : noResultsMessage,
+    errorMessage: noResultsExplanation.length ? noResultsExplanation.join(' ') : noResultsMessage,
     enrichedWithFlightAware: false,
     providerBadges: routeFrameworkItineraries.length ? ['Route framework only', 'Live availability unavailable'] : envTestDataModeEnabled ? [providerLabels.planning] : ['Production-safe mode'],
     warnings: finalWarnings,

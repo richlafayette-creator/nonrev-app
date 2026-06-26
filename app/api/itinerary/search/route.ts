@@ -500,7 +500,6 @@ function applyRouteIntelligenceToResults({
     historicalIntelligence,
     itineraries: blendHistoricalIntelligenceIntoItineraryScores(recoveryItineraries, historicalIntelligence)
       .sort((a, b) => (b.compositeRouteScore || b.score) - (a.compositeRouteScore || a.score))
-      .slice(0, 5)
   }
 }
 
@@ -583,13 +582,14 @@ function routeFrameworkPaths(request: ParsedItineraryRequest, suggestions: Route
   const destinationOptions = destinationAirportGroup(destination).filter((code) => code !== origin)
   const primaryDestination = destination
   const preferredPaths = preferredRouteFrameworkPaths[`${origin}-${destination}`] || []
+  const reversePreferredPaths = (preferredRouteFrameworkPaths[`${destination}-${origin}`] || []).map((path) => [...path].reverse())
   const suggestionPaths = suggestions
     .filter((suggestion) => suggestion.kind !== 'hub-positioning' && suggestion.origin === origin && (suggestion.via || suggestion.destination))
     .map((suggestion) => suggestion.via ? [origin, suggestion.via, suggestion.destination] : [suggestion.origin, suggestion.destination])
   const hubs = uniqueAirportCodes(positioningHubsForOrigin(origin))
     .filter((hub) => hub !== origin && hub !== primaryDestination && !destinationOptions.includes(hub))
   const hubPaths = hubs.map((hub) => [origin, hub, primaryDestination])
-  const normalizedPaths = [...preferredPaths, ...suggestionPaths, ...hubPaths]
+  const normalizedPaths = [...preferredPaths, ...reversePreferredPaths, ...suggestionPaths, ...hubPaths]
     .map((path) => routeFrameworkPathWithRequestedOrigin(path, request))
     .filter((path) => path.length >= 2 && path[0] === origin && path[path.length - 1] === primaryDestination)
   return [...new Map(normalizedPaths.map((path) => [path.join(' → '), path])).values()]
@@ -753,7 +753,13 @@ function topRouteRecommendationScore(request: ParsedItineraryRequest, itinerary:
 function applyTopRouteRecommendations(request: ParsedItineraryRequest, itineraries: ItineraryResult[], limit = Number.MAX_SAFE_INTEGER) {
   const cleanItineraries = enforceItineraryListEndpointIntegrity(itineraries, request)
     .filter((itinerary) => !/^Position to /i.test(itinerary.route) && !/recovery guidance/i.test(itinerary.route))
-  const deduped = [...new Map(cleanItineraries.map((itinerary) => [itinerary.route, itinerary])).values()]
+  const deduped = [...new Map(cleanItineraries.map((itinerary, index) => [itinerary.legs.map((leg) => [
+    leg.origin,
+    leg.destination,
+    leg.operatingFlightNumber || leg.flightNumber,
+    leg.departureTime,
+    leg.arrivalTime
+  ].join('|')).join('||') || `${itinerary.route}-${index}`, itinerary])).values()]
   const arrivals = deduped.map((itinerary) => itineraryParsedTime(itinerary.legs[itinerary.legs.length - 1]?.arrivalTime || itinerary.arrivalTime)).filter((value): value is number => value !== null)
   const durations = deduped.map(itineraryTravelMinutes).filter((value): value is number => value !== null)
   const context = {

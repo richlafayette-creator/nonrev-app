@@ -504,6 +504,7 @@ function isProductionItinerary(itinerary: LiveItineraryResult) {
     ...(itinerary.providerBadges || [])
   ].filter(Boolean).join(' ').toLowerCase()
 
+  if (itinerary.dataFreshnessRule === 'route-framework') return true
   if (itinerary.productionAvailability === false) return false
   if (itinerary.dataFreshnessRule === 'demo-fallback' || itinerary.dataFreshnessRule === 'nearest-date-testing-match') return false
   if (haystack.includes('demo') || haystack.includes('test data') || haystack.includes('testing') || haystack.includes('planning fallback')) return false
@@ -1837,23 +1838,25 @@ function topRouteRankSortValue(comparison: ItineraryComparison) {
 
 function sortMoreRouteItineraries(comparisons: ItineraryComparison[]) {
   return [...comparisons].sort((a, b) =>
-    topRouteRankSortValue(a) - topRouteRankSortValue(b) ||
-    (b.topRouteScore || 0) - (a.topRouteScore || 0) ||
     itineraryArrivalSortValue(a) - itineraryArrivalSortValue(b) ||
     itineraryDepartureSortValue(a) - itineraryDepartureSortValue(b) ||
+    topRouteRankSortValue(a) - topRouteRankSortValue(b) ||
+    (b.topRouteScore || 0) - (a.topRouteScore || 0) ||
     a.route.localeCompare(b.route)
   )
 }
 
 function sortCompactItineraries(comparisons: ItineraryComparison[]) {
   return [...comparisons].sort((a, b) =>
+    itineraryArrivalSortValue(a) - itineraryArrivalSortValue(b) ||
+    itineraryDepartureSortValue(a) - itineraryDepartureSortValue(b) ||
     topRouteRankSortValue(a) - topRouteRankSortValue(b) ||
     (b.topRouteScore || 0) - (a.topRouteScore || 0) ||
     b.personalSuccessPrediction.probability - a.personalSuccessPrediction.probability ||
     b.nextGenSuccess.score - a.nextGenSuccess.score ||
     b.successPrediction.probability - a.successPrediction.probability ||
     b.routeConfidence.score - a.routeConfidence.score ||
-    itineraryDepartureSortValue(a) - itineraryDepartureSortValue(b)
+    a.route.localeCompare(b.route)
   )
 }
 
@@ -3856,7 +3859,7 @@ function renderFlightBoardRow(comparison: ItineraryComparison) {
   return (
     <section className="nonrevy-results-shell nonrevy-compact-results nonrevy-flight-board" style={{ border: '1px solid rgba(56, 189, 248, 0.35)', borderRadius: 14, padding: 'clamp(6px, 2vw, 10px)', background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.96), rgba(30, 41, 59, 0.86))', marginBottom: 16 }}>
       <div className="nonrevy-flight-board__header">
-        <strong>Top 5 routes</strong>
+        <strong>Top 5 Routes</strong>
         {moreRouteItineraries.length ? <span>{moreRouteItineraries.length} more route{moreRouteItineraries.length === 1 ? '' : 's'}</span> : null}
       </div>
 
@@ -3868,8 +3871,8 @@ function renderFlightBoardRow(comparison: ItineraryComparison) {
 
       {moreRouteItineraries.length ? (
         <details className="nonrevy-more-routes" style={{ marginTop: 8, border: '1px solid #334155', borderRadius: 10, padding: 8, background: '#020617' }}>
-          <summary style={{ color: '#67e8f9', cursor: 'pointer', fontWeight: 'bold' }}>More Routes ▼</summary>
-          <p style={{ color: '#94a3b8', margin: '8px 0' }}>Routes 6+ stay ranked by the Top Routes recommendation score. Route frameworks without live times are labeled “Live time unavailable.”</p>
+          <summary style={{ color: '#67e8f9', cursor: 'pointer', fontWeight: 'bold' }}>More routes ▼</summary>
+          <p style={{ color: '#94a3b8', margin: '8px 0' }}>Routes 6+ stay sorted by earliest available arrival time. Route frameworks without live times are labeled “Live time unavailable.”</p>
           <div className="nonrevy-flight-board__list" aria-label="More route options">
             {moreRouteItineraries.map((comparison) => renderFlightBoardRow(comparison))}
           </div>

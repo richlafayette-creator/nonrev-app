@@ -604,6 +604,8 @@ type ItineraryComparison = {
   topRouteWhy?: string[]
   topRouteRankingFactors?: Record<string, number | string>
   whyThisRoute?: string
+  recoveryStrength?: number
+  recoveryExplanation?: string
   suggestedRecoveryPaths?: SuggestedRecoveryPath[]
 }
 
@@ -1344,6 +1346,8 @@ function buildLiveItineraryComparison(
     topRouteWhy: itinerary.topRouteWhy,
     topRouteRankingFactors: itinerary.topRouteRankingFactors,
     whyThisRoute: itinerary.whyThisRoute,
+    recoveryStrength: itinerary.recoveryStrength,
+    recoveryExplanation: itinerary.recoveryExplanation,
     suggestedRecoveryPaths: itinerary.suggestedRecoveryPaths,
     why: [
       `Blends provider itinerary score ${itinerary.score}/100 with probability engine baseline ${predictionEngine.successProbability}%.`,
@@ -3080,6 +3084,56 @@ function buildRecoveryStrategy(current: ItineraryComparison, comparisons: Itiner
   }
 }
 
+function planBIntelligence(current: ItineraryComparison, comparisons: ItineraryComparison[]) {
+  const generatedPaths = current.suggestedRecoveryPaths || []
+  const generatedRoutePaths = generatedPaths.filter((path) => path.route && path.kind !== 'next-day')
+  const generatedNextDay = generatedPaths.find((path) => path.kind === 'next-day')
+  const currentDeparture = parseScheduleTime(current.departureDateTime)
+  const laterSameDayFromResults = comparisons
+    .filter((option) => option.id !== current.id)
+    .filter((option) => routeEndpoints(option.route).destination === routeEndpoints(current.route).destination)
+    .filter((option) => {
+      const departure = parseScheduleTime(option.departureDateTime)
+      return currentDeparture !== null && departure !== null && departure > currentDeparture && new Date(departure).toISOString().slice(0, 10) === new Date(currentDeparture).toISOString().slice(0, 10)
+    })
+    .map((option) => option.route)
+  const sameDayRoutes = [...new Set([
+    ...generatedRoutePaths.map((path) => path.route as string),
+    ...laterSameDayFromResults
+  ])].filter((route) => route !== current.route)
+  const alternateHubs = [...new Set(sameDayRoutes.flatMap(routeGateways))]
+
+  return {
+    bestBackupRoute: sameDayRoutes[0],
+    alternateHubs,
+    sameDayRoutes: sameDayRoutes.slice(0, 3),
+    nextDayFallback: (!sameDayRoutes.length || (typeof current.recoveryStrength === 'number' && current.recoveryStrength < 45)) ? generatedNextDay?.route || generatedNextDay?.label : undefined,
+    recoveryStrength: current.recoveryStrength,
+    hasBackupRoute: Boolean(sameDayRoutes.length || generatedNextDay)
+  }
+}
+
+function PlanBItinerarySection({ comparison, comparisons }: { comparison: ItineraryComparison; comparisons: ItineraryComparison[] }) {
+  const planB = planBIntelligence(comparison, comparisons)
+
+  return (
+    <details className="nonrevy-flight-board-row__details" onClick={(event) => event.stopPropagation()}>
+      <summary>Plan B ▼</summary>
+      {!planB.hasBackupRoute ? (
+        <p>No strong backup route found.</p>
+      ) : (
+        <ul>
+          {planB.bestBackupRoute ? <li>Best backup routing: {planB.bestBackupRoute}</li> : null}
+          {planB.alternateHubs.length ? <li>Alternate hub options: {planB.alternateHubs.join(', ')}</li> : null}
+          {planB.sameDayRoutes.length ? <li>Later same-day route options: {planB.sameDayRoutes.join(' · ')}</li> : null}
+          {planB.nextDayFallback ? <li>Next-day fallback: {planB.nextDayFallback}</li> : null}
+          {typeof planB.recoveryStrength === 'number' ? <li>Recovery strength score: {planB.recoveryStrength}/100</li> : null}
+        </ul>
+      )}
+    </details>
+  )
+}
+
 function RecoveryStrategySection({ comparison, comparisons }: { comparison: ItineraryComparison; comparisons: ItineraryComparison[] }) {
   const recovery = buildRecoveryStrategy(comparison, comparisons)
   const color = recoveryBadgeColor(recovery.badge)
@@ -3715,7 +3769,7 @@ function SearchTrustReceipt({ dataMode, source, status, warnings, debug }: Searc
   )
 }
 
-function renderFlightBoardRow(comparison: ItineraryComparison) {
+function renderFlightBoardRow(comparison: ItineraryComparison, showPlanB = false) {
     const index = compactItineraries.findIndex((item) => item.id === comparison.id)
     const rankIndex = index >= 0 ? index : 0
     const nextBackup = compactItineraries[index + 1] || compactItineraries.find((item) => item.id !== comparison.id)
@@ -3805,6 +3859,8 @@ function renderFlightBoardRow(comparison: ItineraryComparison) {
             {whyRouteReasons.map((reason) => <span key={`${comparison.id}-why-route-${reason}`}>• {reason}</span>)}
           </div>
         ) : null}
+
+        {showPlanB ? <PlanBItinerarySection comparison={comparison} comparisons={compactItineraries} /> : null}
 
         <details open={isExpanded} onToggle={(event) => setDetailsOpen(comparison.id, event.currentTarget.open)} className="nonrevy-flight-board-row__details" onClick={(event) => event.stopPropagation()}>
           <summary>Details</summary>
@@ -3983,7 +4039,7 @@ function renderFlightBoardRow(comparison: ItineraryComparison) {
       {compareStatus && <p className="nonrevy-compact-results__status nonrevy-compact-results__status--save">{compareStatus}</p>}
 
       <div className="nonrevy-flight-board__list" aria-label="Top 5 route options">
-        {topRouteItineraries.map((comparison) => renderFlightBoardRow(comparison))}
+        {topRouteItineraries.map((comparison) => renderFlightBoardRow(comparison, true))}
       </div>
 
       {moreRouteItineraries.length ? (

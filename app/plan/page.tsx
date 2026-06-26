@@ -1680,6 +1680,58 @@ function itineraryCardLegDisplays(comparison: ItineraryComparison) {
   })
 }
 
+function formatConnectionBuffer(minutes: number) {
+  const hours = Math.floor(minutes / 60)
+  const mins = minutes % 60
+  if (hours && mins) return `${hours}h ${mins}m`
+  if (hours) return `${hours}h`
+  return `${mins}m`
+}
+
+function itineraryConnectionBuffersMinutes(comparison: ItineraryComparison) {
+  const legs = comparison.legs || []
+  return legs.slice(0, -1).map((leg, index) => {
+    const arrival = parseScheduleTime(leg.arrivalTime)
+    const nextDeparture = parseScheduleTime(legs[index + 1]?.departureTime || '')
+    if (!arrival || !nextDeparture || nextDeparture <= arrival) return null
+    return Math.round((nextDeparture - arrival) / 60000)
+  }).filter((value): value is number => value !== null)
+}
+
+function routeExplanationReasons(comparison: ItineraryComparison, comparisons: ItineraryComparison[]) {
+  const reasons: string[] = []
+  const arrivals = comparisons
+    .map((item) => ({ item, time: parseScheduleTime(item.arrivalDateTime) }))
+    .filter((entry): entry is { item: ItineraryComparison; time: number } => entry.time !== null)
+  const durations = comparisons
+    .map((item) => ({ item, minutes: routeDurationMinutes(item.totalTravelTime) }))
+    .filter((entry) => Number.isFinite(entry.minutes))
+  const connectionBuffers = comparisons
+    .map((item) => ({ item, buffer: Math.min(...itineraryConnectionBuffersMinutes(item)) }))
+    .filter((entry) => Number.isFinite(entry.buffer))
+
+  const arrival = parseScheduleTime(comparison.arrivalDateTime)
+  const durationMinutes = routeDurationMinutes(comparison.totalTravelTime)
+  const minStops = Math.min(...comparisons.map((item) => item.connections))
+  const bestArrival = arrivals.length ? Math.min(...arrivals.map((entry) => entry.time)) : null
+  const bestDuration = durations.length ? Math.min(...durations.map((entry) => entry.minutes)) : null
+  const bestBuffer = connectionBuffers.length ? Math.max(...connectionBuffers.map((entry) => entry.buffer)) : null
+  const comparisonBuffer = itineraryConnectionBuffersMinutes(comparison).length ? Math.min(...itineraryConnectionBuffersMinutes(comparison)) : null
+  const lowestMisconnectRisk = Math.min(...comparisons.map((item) => item.airportIntelligence.connectionRiskScore))
+  const bestBackupScore = Math.max(...comparisons.map(backupAvailabilityScore))
+  const backupAvailability = comparison.airportIntelligence.backupFlightAvailability
+
+  if (arrival !== null && bestArrival !== null && arrival === bestArrival) reasons.push('Earliest arrival in current results')
+  if (Number.isFinite(durationMinutes) && bestDuration !== null && durationMinutes === bestDuration) reasons.push('Shortest total travel time')
+  if (comparison.connections === minStops) reasons.push(comparison.connections === 0 ? 'Nonstop route with no connection risk' : 'Fewest stops in current results')
+  if (comparisonBuffer !== null && bestBuffer !== null && comparisonBuffer === bestBuffer) reasons.push(`Longest connection buffer (${formatConnectionBuffer(comparisonBuffer)})`)
+  if (comparison.airportIntelligence.connectionRiskScore === lowestMisconnectRisk && comparison.connections > 0) reasons.push('Lower misconnect risk than other connection options')
+  if ((backupAvailability === 'Excellent' || backupAvailability === 'Good') && backupAvailabilityScore(comparison) === bestBackupScore) reasons.push(`${backupAvailability} backup flight availability`)
+  if ((comparison.suggestedRecoveryPaths?.length || 0) > 1) reasons.push(`${comparison.suggestedRecoveryPaths?.length} recovery path options available`)
+
+  return [...new Set(reasons)].slice(0, 4)
+}
+
 function compactDurationLabel(value: string) {
   return value.replace(/\s+/g, '').replace(/hours?/gi, 'h').replace(/minutes?/gi, 'm')
 }
@@ -3691,6 +3743,7 @@ function renderFlightBoardRow(comparison: ItineraryComparison) {
     const requestLoadOpen = activeLoadRequestId === comparison.id
     const contributor = loadCommunityContributorReputation()
     const scoreLabel = `Score ${comparison.score} · Confidence ${confidenceScore}`
+    const whyRouteReasons = routeExplanationReasons(comparison, compactItineraries)
 
     return (
       <article
@@ -3745,6 +3798,13 @@ function renderFlightBoardRow(comparison: ItineraryComparison) {
             </div>
           </div>
         </div>
+
+        {whyRouteReasons.length ? (
+          <div className="nonrevy-flight-board-row__secondary-line" aria-label="Why this route">
+            <strong>Why this route</strong>
+            {whyRouteReasons.map((reason) => <span key={`${comparison.id}-why-route-${reason}`}>• {reason}</span>)}
+          </div>
+        ) : null}
 
         <details open={isExpanded} onToggle={(event) => setDetailsOpen(comparison.id, event.currentTarget.open)} className="nonrevy-flight-board-row__details" onClick={(event) => event.stopPropagation()}>
           <summary>Details</summary>

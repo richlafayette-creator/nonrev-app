@@ -5376,6 +5376,24 @@ main:has(> nav) {
   gap: 9px !important;
 }
 
+.nonrevy-results-page .nonrevy-flight-board-row__leg-list {
+  display: grid !important;
+  gap: 2px !important;
+  min-width: 0 !important;
+  color: #cbd5e1 !important;
+  font-size: 0.72rem !important;
+  line-height: 1.12 !important;
+}
+
+.nonrevy-results-page .nonrevy-flight-board-row__leg-detail {
+  min-width: 0 !important;
+  overflow-wrap: anywhere !important;
+}
+
+.nonrevy-results-page .nonrevy-flight-board-row__leg-detail strong {
+  color: #bae6fd !important;
+}
+
 .nonrevy-results-page .nonrevy-flight-board-row__time-label {
   font-size: 0.62rem !important;
   letter-spacing: 0.035em !important;
@@ -5494,6 +5512,11 @@ main:has(> nav) {
   .nonrevy-results-page .nonrevy-flight-board-row__time-line {
     grid-template-columns: repeat(2, minmax(0, max-content)) !important;
     gap: 8px !important;
+  }
+
+  .nonrevy-results-page .nonrevy-flight-board-row__leg-list {
+    font-size: 0.66rem !important;
+    line-height: 1.1 !important;
   }
 
   .nonrevy-results-page .nonrevy-flight-board-row__time-item {

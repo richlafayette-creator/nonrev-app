@@ -567,6 +567,7 @@ function WeatherRiskBadge({ weatherRisk }: { weatherRisk: WeatherRisk }) {
 type ItineraryComparison = {
   id: string
   route: string
+  legs?: LiveItineraryLeg[]
   carrier: string
   score: number
   successProbability: number
@@ -1309,6 +1310,7 @@ function buildLiveItineraryComparison(
   return {
     id: `live-${itinerary.id}`,
     route: itinerary.route,
+    legs: itinerary.legs,
     carrier: itinerary.carrier,
     score,
     successProbability: successPrediction.probability,
@@ -1634,6 +1636,48 @@ function compactFlightNumberLabel(flightNumber: string, carrierCode: string) {
   const carrier = carrierCode.toUpperCase()
   if (normalized.startsWith(carrier)) return normalized.slice(carrier.length) || normalized
   return normalized
+}
+
+function isMissingLiveLegDetail(value?: string | number | null) {
+  const normalized = String(value ?? '').trim().toLowerCase()
+  return !normalized || ['not provided', 'unknown', '—'].includes(normalized) || normalized.includes('pending') || normalized.includes('unavailable') || normalized.includes('framework')
+}
+
+function itineraryCardLegDisplays(comparison: ItineraryComparison) {
+  const routeAirports = airportCodesFromComparisonRoute(comparison.route)
+  const sourceLegs = comparison.legs?.length
+    ? comparison.legs
+    : routeAirports.slice(0, -1).map((origin, index) => ({
+      origin,
+      destination: routeAirports[index + 1] || '',
+      carrier: '',
+      flightNumber: '',
+      departureTime: '',
+      arrivalTime: ''
+    } as LiveItineraryLeg))
+
+  return sourceLegs.map((leg, index) => {
+    const route = `${leg.origin || '—'} → ${leg.destination || '—'}`
+    const flight = leg.operatingFlightNumber || leg.flightNumber
+    const lacksLiveDetails = comparison.dataFreshnessRule === 'route-framework' || [leg.carrier, flight, leg.departureTime, leg.arrivalTime].some(isMissingLiveLegDetail)
+
+    if (lacksLiveDetails) {
+      return {
+        key: `${comparison.id}-leg-${index}-${route}`,
+        route,
+        detail: 'Live details unavailable.'
+      }
+    }
+
+    const departure = compactFlightBoardDateTime(leg.departureTime, leg.origin)
+    const arrival = compactFlightBoardDateTime(leg.arrivalTime, leg.destination, leg.departureTime).replace(/ \+\d+$/, '')
+
+    return {
+      key: `${comparison.id}-leg-${index}-${route}-${flight}`,
+      route,
+      detail: `${leg.carrier} ${flight} · ${departure} → ${arrival}`
+    }
+  })
 }
 
 function compactDurationLabel(value: string) {
@@ -3636,6 +3680,9 @@ function renderFlightBoardRow(comparison: ItineraryComparison) {
     const arrivalOffset = flightBoardDayOffset(comparison.arrivalDateTime, comparison.departureDateTime)
     const arrivalDisplay = arrTime.replace(/ \+\d+$/, '')
     const confidenceScore = comparison.successPrediction.confidenceScore
+    const legDisplays = itineraryCardLegDisplays(comparison)
+    const hasPrimaryFlightId = comparison.dataFreshnessRule !== 'route-framework' && !isMissingLiveLegDetail(comparison.carrier) && !isMissingLiveLegDetail(comparison.flightNumber)
+    const durationLabel = isMissingLiveLegDetail(comparison.totalTravelTime) ? 'Live details unavailable.' : compactDurationLabel(comparison.totalTravelTime)
     const communityLoad = communityLoadSummaryForItinerary(communityLoads, { flightNumber: comparison.flightNumber, route: comparison.route, date: travelDate.trim() || undefined })
     const communityIntelligence = comparison.communityIntelligence || communityLoadIntelligenceForItinerary(communityLoads, { flightNumber: comparison.flightNumber, route: comparison.route, date: itineraryLoadDate(comparison, travelDate) || undefined })
     const communityLoadRowText = communityLoadCompactRowText(communityIntelligence)
@@ -3643,7 +3690,7 @@ function renderFlightBoardRow(comparison: ItineraryComparison) {
     const submitLoadOpen = activeCommunityLoadId === comparison.id
     const requestLoadOpen = activeLoadRequestId === comparison.id
     const contributor = loadCommunityContributorReputation()
-    const routePresentationLabel = comparison.topRouteLabel || `${rankIndex === 0 ? '#1 Recommended' : `#${rankIndex + 1}`} ${comparison.route}`
+    const scoreLabel = `Score ${comparison.score} · Confidence ${confidenceScore}`
 
     return (
       <article
@@ -3653,15 +3700,24 @@ function renderFlightBoardRow(comparison: ItineraryComparison) {
         onClick={() => openDetails(comparison)}
       >
         <div className="nonrevy-flight-board-row__main">
-          <div className="nonrevy-flight-board-row__content" aria-label={`${comparison.route} ${airlineName} ${flightNumber} ${depTime} to ${arrTime} ${compactStopsLabel(comparison.connections)} ${comparison.totalTravelTime} confidence ${confidenceScore}/100`}>
+          <div className="nonrevy-flight-board-row__content" aria-label={`${comparison.route} ${legDisplays.map((leg) => `${leg.route}: ${leg.detail}`).join(' ')} ${depTime} to ${arrTime} ${compactStopsLabel(comparison.connections)} ${comparison.totalTravelTime} confidence ${confidenceScore}/100`}>
             <div className="nonrevy-flight-board-row__flight-data">
               <div className="nonrevy-flight-board-row__primary-line">
-                <span className="nonrevy-flight-board-row__flight-id" title={airlineName} aria-label={`${airlineName} ${flightNumber}`}>
-                  <span className="nonrevy-flight-board-row__carrier-badge">{carrierCode}</span>
-                  <strong className="nonrevy-flight-board-row__flight-number">{flightNumber}</strong>
-                </span>
-                <span className="nonrevy-flight-board-row__route">{routePresentationLabel}</span>
-                <span className="nonrevy-flight-board-row__score" title="Confidence score">Score {confidenceScore}</span>
+                {hasPrimaryFlightId ? (
+                  <span className="nonrevy-flight-board-row__flight-id" title={airlineName} aria-label={`${airlineName} ${flightNumber}`}>
+                    <span className="nonrevy-flight-board-row__carrier-badge">{carrierCode}</span>
+                    <strong className="nonrevy-flight-board-row__flight-number">{flightNumber}</strong>
+                  </span>
+                ) : <span className="nonrevy-flight-board-row__availability">Live details unavailable.</span>}
+                <span className="nonrevy-flight-board-row__route">{comparison.route}</span>
+                <span className="nonrevy-flight-board-row__score" title="Score and confidence">{scoreLabel}</span>
+              </div>
+              <div className="nonrevy-flight-board-row__leg-list" aria-label="Leg details">
+                {legDisplays.map((leg) => (
+                  <span className="nonrevy-flight-board-row__leg-detail" key={leg.key}>
+                    <strong>{leg.route}</strong> {leg.detail}
+                  </span>
+                ))}
               </div>
               <div className="nonrevy-flight-board-row__time-line" aria-label={`Depart ${depTime}, arrive ${arrivalDisplay}`}>
                 <span className="nonrevy-flight-board-row__time-item">
@@ -3675,14 +3731,15 @@ function renderFlightBoardRow(comparison: ItineraryComparison) {
               </div>
               <div className="nonrevy-flight-board-row__secondary-line">
                 <span className="nonrevy-flight-board-row__stops">{compactStopsLabel(comparison.connections)}</span>
+                <span className="nonrevy-flight-board-row__duration">{durationLabel}</span>
                 {comparison.dataFreshnessRule === 'route-framework'
                   ? <span className="nonrevy-flight-board-row__availability">Live time unavailable</span>
-                  : <span className="nonrevy-flight-board-row__duration">{compactDurationLabel(comparison.totalTravelTime)}</span>}
+                  : null}
               </div>
             </div>
 
             <div className="nonrevy-flight-board-row__actions nonrevy-primary-actions" onClick={(event) => event.stopPropagation()} aria-label="Itinerary actions">
-              <button className="nonrevy-primary-action nonrevy-primary-action--request-loads" type="button" onClick={() => openLoadRequestForm(comparison)} title="Request Loads" aria-label="Request loads">Request Loads</button>
+              <button className="nonrevy-primary-action nonrevy-primary-action--request-loads" type="button" onClick={() => openLoadRequestForm(comparison)} title="Request Load" aria-label="Request load">Request Load</button>
               <button className="nonrevy-row-action-pill" type="button" onClick={() => saveForComparison(comparison)} title="Save" aria-label="Save itinerary">Save</button>
               <button className="nonrevy-row-action-pill" type="button" onClick={() => void shareItinerary(comparison)} title="Share" aria-label="Share itinerary">Share</button>
             </div>

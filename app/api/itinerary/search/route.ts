@@ -43,6 +43,15 @@ type ApiResponseCounts = {
   finalItineraries: number
 }
 
+type ItineraryCompletenessDiagnostics = {
+  directItinerariesFound: number
+  oneStopItinerariesFound: number
+  twoStopItinerariesFound: number
+  totalGenerated: number
+  totalRemoved: number
+  reasonsRemoved: string[]
+}
+
 type SupabaseQueryDiagnostics = {
   attemptedPath: string
   usedPath: string
@@ -118,6 +127,7 @@ type ItineraryDebugMetadata = {
   historicalIntelligence?: HistoricalRouteIntelligence
   normalizedFlightAwareItinerarySample?: SafeNormalizedItinerarySample
   noResultsExplanation?: string[]
+  itineraryCompletenessDiagnostics?: ItineraryCompletenessDiagnostics
 }
 
 type AviationstackFlight = {
@@ -784,8 +794,10 @@ function applyTopRouteRecommendations(request: ParsedItineraryRequest, itinerari
       }
     })
     .sort((a, b) =>
-      (b.topRouteScore || 0) - (a.topRouteScore || 0) ||
+      (itineraryParsedTime(a.legs[a.legs.length - 1]?.arrivalTime || a.arrivalTime) || Number.MAX_SAFE_INTEGER) - (itineraryParsedTime(b.legs[b.legs.length - 1]?.arrivalTime || b.arrivalTime) || Number.MAX_SAFE_INTEGER) ||
+      (itineraryTravelMinutes(a) || Number.MAX_SAFE_INTEGER) - (itineraryTravelMinutes(b) || Number.MAX_SAFE_INTEGER) ||
       itineraryConnectionCount(a) - itineraryConnectionCount(b) ||
+      (b.topRouteScore || 0) - (a.topRouteScore || 0) ||
       (itineraryTravelMinutes(a) || Number.MAX_SAFE_INTEGER) - (itineraryTravelMinutes(b) || Number.MAX_SAFE_INTEGER) ||
       a.route.localeCompare(b.route)
     )
@@ -799,6 +811,10 @@ function applyTopRouteRecommendations(request: ParsedItineraryRequest, itinerari
 }
 
 function topRouteItinerariesForResponse({ request, scheduledItineraries, routeCoverageSuggestions, providerRecords, recoveryIntelligence, historicalIntelligence, limit = Number.MAX_SAFE_INTEGER }: { request: ParsedItineraryRequest; scheduledItineraries: ItineraryResult[]; routeCoverageSuggestions?: RouteCoverageSuggestion[]; providerRecords?: ProviderResultRecord[]; recoveryIntelligence?: RecoveryIntelligence; historicalIntelligence?: HistoricalRouteIntelligence; limit?: number }) {
+  if (enforceItineraryListEndpointIntegrity(scheduledItineraries, request).length > 0) {
+    return applyTopRouteRecommendations(request, scheduledItineraries, limit)
+  }
+
   const withFrameworks = appendRouteFrameworkOptions({
     request,
     itineraries: scheduledItineraries,
@@ -896,6 +912,17 @@ function deduplicationSummary(itineraries: ItineraryResult[], providerLabel: str
     : []
   if (codeshares.length) notes.push(`Codeshare/marketing flight number${codeshares.length === 1 ? '' : 's'} kept in expanded details: ${[...new Set(codeshares)].join(', ')}.`)
   return { removed, notes }
+}
+
+function itineraryCompletenessDiagnostics(itineraries: ItineraryResult[], removed = 0, reasonsRemoved: string[] = []): ItineraryCompletenessDiagnostics {
+  return {
+    directItinerariesFound: itineraries.filter((itinerary) => itinerary.legs.length === 1).length,
+    oneStopItinerariesFound: itineraries.filter((itinerary) => itinerary.legs.length === 2).length,
+    twoStopItinerariesFound: itineraries.filter((itinerary) => itinerary.legs.length === 3).length,
+    totalGenerated: itineraries.length + removed,
+    totalRemoved: removed,
+    reasonsRemoved: reasonsRemoved.length ? reasonsRemoved : removed ? ['Duplicate or endpoint-invalid itinerary removed before ranking.'] : []
+  }
 }
 
 function freshnessRuleExplanation(rule: NonNullable<ItineraryResult['dataFreshnessRule']>) {
@@ -1441,7 +1468,8 @@ function buildDebugMetadata({
   recoveryIntelligence,
   historicalIntelligence,
   normalizedFlightAwareItinerarySample,
-  noResultsExplanation = []
+  noResultsExplanation = [],
+  itineraryCompletenessDiagnostics
 }: {
   parsedRequest: ReturnType<typeof normalizeItineraryRequest>
   supabaseResultCount: number
@@ -1472,6 +1500,7 @@ function buildDebugMetadata({
   historicalIntelligence?: HistoricalRouteIntelligence
   normalizedFlightAwareItinerarySample?: SafeNormalizedItinerarySample
   noResultsExplanation?: string[]
+  itineraryCompletenessDiagnostics?: ItineraryCompletenessDiagnostics
 }): ItineraryDebugMetadata {
   const mergedProviderStatuses = mergeProviderStatuses(providerStatuses)
   return {
@@ -1512,7 +1541,8 @@ function buildDebugMetadata({
     recoveryIntelligence,
     historicalIntelligence,
     normalizedFlightAwareItinerarySample,
-    noResultsExplanation
+    noResultsExplanation,
+    itineraryCompletenessDiagnostics
   }
 }
 
@@ -1549,6 +1579,7 @@ export async function GET(request: Request) {
   const emptyResults: string[] = []
   const rateLimits: string[] = []
   const counts = emptyCounts()
+  const completeScheduledItineraries: ItineraryResult[] = []
 
   if (invalidAirportCodes.length) warnings.push(`Invalid airport code input ignored: ${invalidAirportCodes.join(', ')}`)
   if (unsupportedAirportCodes.length) warnings.push(...unsupportedAirportCodes)
@@ -1602,7 +1633,8 @@ export async function GET(request: Request) {
         ? [freshnessRuleExplanation('demo-fallback')]
         : ['Production-safe mode: nearest-date testing and demo fallback cards are hidden unless NONREVY_TEST_DATA_MODE=true.'],
       testDataModeEnabled: envTestDataModeEnabled,
-      safeErrors: finalWarnings
+      safeErrors: finalWarnings,
+      itineraryCompletenessDiagnostics: itineraryCompletenessDiagnostics([])
     })
 
     return NextResponse.json({
@@ -1659,6 +1691,16 @@ export async function GET(request: Request) {
   counts.flightAwareScheduleItineraries = flightAwareItineraries.length
   if (flightAwareScheduleFlights.length > 0 && flightAwareItineraries.length === 0) emptyResults.push('FlightAware returned live schedule rows, but none matched itinerary assembly rules.')
   if (flightAwareItineraries.length > 0) {
+    completeScheduledItineraries.push(...addProviderBadges(flightAwareItineraries, 'flightaware', false, {
+      dataFreshnessLabel: 'Live provider API data',
+      dataFreshnessDetail: effectiveRequest.date ? `FlightAware live provider API schedule result checked for requested date ${effectiveRequest.date}.` : 'FlightAware live provider API schedule result checked for the current schedule window.',
+      dataFreshnessRule: 'exact-requested-date',
+      requestedDate: effectiveRequest.date,
+      matchedDate: effectiveRequest.date,
+      productionAvailability: true
+    }))
+  }
+  if (false && flightAwareItineraries.length > 0) {
     const flightAwareScoredItineraries = addProviderBadges(flightAwareItineraries, 'flightaware', false, {
       dataFreshnessLabel: 'Live provider API data',
       dataFreshnessDetail: effectiveRequest.date ? `FlightAware live provider API schedule result checked for requested date ${effectiveRequest.date}.` : 'FlightAware live provider API schedule result checked for the current schedule window.',
@@ -1678,6 +1720,7 @@ export async function GET(request: Request) {
       historicalAvailabilityCount: providerCacheFlights.length
     })
     const scheduledItineraries = scheduleItinerariesOnly(recoveryApplied.itineraries, effectiveRequest)
+    if (scheduledItineraries.length > 0) {
     const itineraries = topRouteItinerariesForResponse({
       request: effectiveRequest,
       scheduledItineraries,
@@ -1685,6 +1728,7 @@ export async function GET(request: Request) {
       recoveryIntelligence: recoveryApplied.recoveryIntelligence,
       historicalIntelligence: recoveryApplied.historicalIntelligence,
     })
+    if (itineraries.length > 0) {
     counts.finalItineraries = itineraries.length
     const flightAwareDeduplication = deduplicationSummary(itineraries, 'FlightAware')
     if (flightAwareDeduplication.notes.length) warnings.push(...flightAwareDeduplication.notes)
@@ -1740,10 +1784,22 @@ export async function GET(request: Request) {
       count: itineraries.length,
       itineraries
     })
+    }
+    }
   }
 
+  const cacheFreshness = providerCacheFreshnessAnnotation(providerCacheFreshness, effectiveRequest)
   if (providerCacheItineraries.length > 0 && providerCacheFreshness !== 'historical-over-3d') {
-    const cacheFreshness = providerCacheFreshnessAnnotation(providerCacheFreshness, effectiveRequest)
+    completeScheduledItineraries.push(...addProviderBadges(applyProviderCacheConfidence(providerCacheItineraries, providerCacheFreshness), 'supabase', false, cacheFreshness)
+      .map((itinerary) => ({
+        ...itinerary,
+        source: itinerary.source || 'provider-cache',
+        sourceProvider: 'provider-cache',
+        providerBadges: ['Cached provider data', cacheFreshness.dataFreshnessLabel || 'Provider cache', 'Live availability unavailable'],
+        dataFreshnessWarning: itinerary.dataFreshnessWarning || 'Cached provider row only. Live availability unavailable until a fresh provider response confirms it.'
+      })))
+  }
+  if (false && providerCacheItineraries.length > 0 && providerCacheFreshness !== 'historical-over-3d') {
     const cacheItineraries = addProviderBadges(applyProviderCacheConfidence(providerCacheItineraries, providerCacheFreshness), 'supabase', false, cacheFreshness)
       .map((itinerary) => ({
         ...itinerary,
@@ -1770,6 +1826,7 @@ export async function GET(request: Request) {
       recoveryIntelligence: recoveryApplied.recoveryIntelligence,
       historicalIntelligence: recoveryApplied.historicalIntelligence,
     })
+    if (itineraries.length > 0) {
     counts.finalItineraries = itineraries.length
     const cacheDeduplication = deduplicationSummary(itineraries, 'provider cache')
     if (cacheDeduplication.notes.length) warnings.push(...cacheDeduplication.notes)
@@ -1826,6 +1883,7 @@ export async function GET(request: Request) {
       count: itineraries.length,
       itineraries
     })
+    }
   }
 
   const { flights: supabaseFlights, warning: supabaseWarning, queryDiagnostics: supabaseQueryPath } = await fetchSupabaseFlights(effectiveRequest)
@@ -1849,7 +1907,37 @@ export async function GET(request: Request) {
   const supabaseItineraries = buildItinerariesFromFlights(supabaseFlights, matchingRequest)
   counts.supabaseItineraries = supabaseItineraries.length
   const supabaseAllowedInActiveMode = supabaseItineraries.length > 0
+  const supabaseCompletenessFreshness = routeMatching.dateCoverage.nearestDateApplied
+    ? {
+        dataFreshnessLabel: 'Estimated nearest-day schedule',
+        dataFreshnessDetail: `Requested ${routeMatching.dateCoverage.requestedSearchDate}; matched stored Supabase date ${routeMatching.dateCoverage.effectiveMatchDate}. This is estimated schedule data, not live provider API data.`,
+        dataFreshnessRule: 'nearest-date-testing-match' as const,
+        dataFreshnessWarning: `Estimated schedule: requested ${routeMatching.dateCoverage.requestedSearchDate}, showing nearest available stored Supabase date ${routeMatching.dateCoverage.effectiveMatchDate}.`,
+        requestedDate: routeMatching.dateCoverage.requestedSearchDate,
+        matchedDate: routeMatching.dateCoverage.effectiveMatchDate,
+        productionAvailability: false
+      }
+    : effectiveRequest.date
+      ? {
+        dataFreshnessLabel: 'Stored exact-date schedule',
+        dataFreshnessDetail: `Stored Supabase flight row matches requested date ${effectiveRequest.date}; still stored data, not a current provider API response.`,
+        dataFreshnessRule: 'exact-requested-date' as const,
+        requestedDate: effectiveRequest.date,
+        matchedDate: routeMatching.dateCoverage.effectiveMatchDate || effectiveRequest.date,
+        productionAvailability: false
+      }
+    : {
+        dataFreshnessLabel: 'Estimated stored schedule',
+        dataFreshnessDetail: 'Stored Supabase flight row; no strict requested date was supplied. Treat this as estimated schedule data, not live availability.',
+        dataFreshnessRule: 'stored-historical-data' as const,
+        requestedDate: undefined,
+        matchedDate: routeMatching.dateCoverage.effectiveMatchDate,
+        productionAvailability: false
+      }
   if (supabaseItineraries.length > 0 && supabaseAllowedInActiveMode) {
+    completeScheduledItineraries.push(...addProviderBadges(supabaseItineraries, 'supabase', false, supabaseCompletenessFreshness))
+  }
+  if (false && supabaseItineraries.length > 0 && supabaseAllowedInActiveMode) {
     const itineraryFlightIdents = new Set(supabaseItineraries.flatMap((itinerary) => itinerary.legs.map((leg) => leg.flightNumber.replace(/\s+/g, '')).filter(Boolean)))
     const supabaseFlightsToEnrich = supabaseFlights
       .filter((flight) => {
@@ -1860,9 +1948,9 @@ export async function GET(request: Request) {
     const { enrichments, warning: flightAwareWarning, status: flightAwareStatus, requestedCount } = await enrichWithFlightAware(supabaseFlightsToEnrich)
     counts.flightAwareRequested = requestedCount
     counts.flightAwareEnriched = Object.keys(enrichments).length
-    if (flightAwareWarning) warnings.push(flightAwareWarning)
+    if (flightAwareWarning) warnings.push(String(flightAwareWarning))
     const flightAwareLimit = rateLimitMessage('FlightAware', undefined, flightAwareWarning)
-    if (flightAwareLimit) rateLimits.push(flightAwareLimit)
+    if (flightAwareLimit) rateLimits.push(String(flightAwareLimit))
     const enrichedItineraries = buildItinerariesFromFlights(supabaseFlights, matchingRequest, enrichments)
     const enriched = Object.keys(enrichments).length > 0
     const supabaseFreshness = routeMatching.dateCoverage.nearestDateApplied
@@ -1970,7 +2058,9 @@ export async function GET(request: Request) {
     })
   }
 
-  warnings.push('No matching FlightAware live API or stored Supabase flights found; trying Aviationstack fallback')
+  if (completeScheduledItineraries.length === 0) {
+    warnings.push('No matching FlightAware live API or stored Supabase flights found; trying Aviationstack fallback')
+  }
   const { flights: aviationstackFlights, warning: aviationstackWarning, requestCount: aviationstackRequestCount } = await fetchAviationstackFlights(effectiveRequest)
   counts.aviationstackRequests = aviationstackRequestCount
   counts.aviationstackFetched = aviationstackFlights.length
@@ -1983,12 +2073,22 @@ export async function GET(request: Request) {
   counts.aviationstackItineraries = aviationstackItineraries.length
   if (aviationstackFlights.length > 0 && aviationstackItineraries.length === 0) emptyResults.push('Aviationstack returned rows, but none matched itinerary assembly rules.')
   if (aviationstackItineraries.length > 0) {
+    completeScheduledItineraries.push(...addProviderBadges(aviationstackItineraries, 'aviationstack', false, {
+      dataFreshnessLabel: 'Live provider API data',
+      dataFreshnessDetail: effectiveRequest.date ? `Aviationstack live provider API fallback result for requested date ${effectiveRequest.date}.` : 'Aviationstack live provider API fallback result; no strict requested date was supplied.',
+      dataFreshnessRule: 'exact-requested-date',
+      requestedDate: effectiveRequest.date,
+      matchedDate: effectiveRequest.date,
+      productionAvailability: true
+    }))
+  }
+  if (false && aviationstackItineraries.length > 0) {
     const { enrichments, warning: flightAwareWarning, status: flightAwareStatus, requestedCount } = await enrichWithFlightAware(aviationstackFlights)
     counts.flightAwareRequested = requestedCount
     counts.flightAwareEnriched = Object.keys(enrichments).length
-    if (flightAwareWarning) warnings.push(flightAwareWarning)
+    if (flightAwareWarning) warnings.push(String(flightAwareWarning))
     const flightAwareLimit = rateLimitMessage('FlightAware', undefined, flightAwareWarning)
-    if (flightAwareLimit) rateLimits.push(flightAwareLimit)
+    if (flightAwareLimit) rateLimits.push(String(flightAwareLimit))
     const enrichedItineraries = buildItinerariesFromFlights(aviationstackFlights, effectiveRequest, enrichments)
     const enriched = Object.keys(enrichments).length > 0
     const aviationstackScoredItineraries = addProviderBadges(enrichedItineraries.length ? enrichedItineraries : aviationstackItineraries, 'aviationstack', enriched, {
@@ -2078,6 +2178,96 @@ export async function GET(request: Request) {
     ? `queried; ${aviationstackFlights.length} flight record${aviationstackFlights.length === 1 ? '' : 's'} returned but no itineraries matched`
     : aviationstackWarning ? 'queried; no usable flight records returned' : 'queried; no matching flights returned'
 
+  if (completeScheduledItineraries.length > 0) {
+    const recoveryApplied = applyRouteIntelligenceToResults({
+      request: effectiveRequest,
+      itineraries: completeScheduledItineraries,
+      historicalContext,
+      providerRecords: providerCacheLookup.records,
+      exactFlightCount: flightAwareScheduleFlights.length + supabaseMatchedFlights.length + aviationstackFlights.length,
+      candidateFlightCount: flightAwareScheduleFlights.length + providerCacheFlights.length + supabaseFlights.length + aviationstackFlights.length,
+      providerCacheCount: providerCacheFlights.length,
+      historicalAvailabilityCount: Math.max(providerCacheFlights.length, supabaseMatchedFlights.length)
+    })
+    const scheduledItineraries = scheduleItinerariesOnly(recoveryApplied.itineraries, effectiveRequest)
+    const itineraries = topRouteItinerariesForResponse({
+      request: effectiveRequest,
+      scheduledItineraries,
+      providerRecords: providerCacheLookup.records,
+      recoveryIntelligence: recoveryApplied.recoveryIntelligence,
+      historicalIntelligence: recoveryApplied.historicalIntelligence,
+    })
+    if (itineraries.length > 0) {
+    counts.finalItineraries = itineraries.length
+    const completeDeduplication = deduplicationSummary(itineraries, 'complete search')
+    if (completeDeduplication.notes.length) warnings.push(...completeDeduplication.notes)
+    const completenessDiagnostics = itineraryCompletenessDiagnostics(itineraries, completeDeduplication.removed, completeDeduplication.notes)
+    if (itineraries.length === 1) {
+      warnings.push(`Only one complete itinerary survived generation and integrity checks: ${completenessDiagnostics.directItinerariesFound} direct, ${completenessDiagnostics.oneStopItinerariesFound} one-stop, ${completenessDiagnostics.twoStopItinerariesFound} two-stop. No additional complete direct, one-stop, or two-stop itinerary could be assembled from fetched provider rows without fabricating legs.`)
+    }
+    const dataFreshnessMode: ItineraryDebugMetadata['dataFreshnessMode'] = itineraries.some((itinerary) => itinerary.dataFreshnessRule === 'exact-requested-date' && itinerary.productionAvailability)
+      ? 'live-current-api'
+      : itineraries.some((itinerary) => itinerary.sourceProvider === 'provider-cache')
+        ? 'provider-cache'
+        : routeMatching.dateCoverage.nearestDateApplied ? 'nearest-date-testing' : 'stored-supabase'
+    const finalProviderStatuses = [
+      providerStatus('flightaware', flightAwareItineraries.length ? 'success' : flightAwareScheduleWarning ? 'warning' : 'skipped', flightAwareItineraries.length ? `${flightAwareItineraries.length} complete itinerary result${flightAwareItineraries.length === 1 ? '' : 's'} found after searching FlightAware.` : flightAwareScheduleWarning || `${flightAwareScheduleDetail}; no complete FlightAware itinerary assembled.`),
+      providerStatus('supabase', providerCacheItineraries.length || supabaseItineraries.length ? 'success' : supabaseWarning ? 'warning' : 'skipped', `${providerCacheItineraries.length + supabaseItineraries.length} complete cached/stored itinerary result${providerCacheItineraries.length + supabaseItineraries.length === 1 ? '' : 's'} found after cache and Supabase search.`),
+      providerStatus('aviationstack', aviationstackItineraries.length ? 'success' : aviationstackWarning ? 'warning' : 'skipped', aviationstackItineraries.length ? `${aviationstackItineraries.length} complete itinerary result${aviationstackItineraries.length === 1 ? '' : 's'} found after Aviationstack search.` : aviationstackFallbackStatus),
+      providerStatus('planning', 'skipped', 'Skipped route framework placeholders because complete scheduled itineraries exist.')
+    ]
+    const debug = buildDebugMetadata({
+      parsedRequest: effectiveRequest,
+      supabaseResultCount: supabaseItineraries.length,
+      providerFallbackOrder: activeProviderFallbackOrder,
+      aviationstackFallbackStatus,
+      flightAwareEnrichmentStatus: flightAwareScheduleDetail || 'Complete search finished without early provider exit.',
+      finalItineraryCount: itineraries.length,
+      apiResponseCounts: counts,
+      routeMatching,
+      supabaseQueryPath,
+      providerCache: providerCacheDebug(providerCacheLookup, providerCacheFlights.length, providerCacheItineraries.length, providerCacheFreshness),
+      emptyResults,
+      rateLimits,
+      invalidAirportCodes,
+      unsupportedAirportCodes,
+      invalidDates,
+      providerStatuses: finalProviderStatuses,
+      trueLiveDataAvailable: itineraries.some((itinerary) => itinerary.productionAvailability),
+      trueLiveDataUnavailableReason: itineraries.some((itinerary) => itinerary.productionAvailability) ? '' : 'Complete scheduled itineraries were assembled from cached/stored provider rows; live availability remains unavailable.',
+      dataFreshnessMode,
+      dataFreshnessExplanation: freshnessExplanationsForItineraries(itineraries, routeMatching.dateCoverage.nearestDateApplied ? 'nearest-date-testing-match' : 'stored-historical-data'),
+      testDataModeEnabled: envTestDataModeEnabled,
+      safeErrors: uniqueMessages(warnings),
+      deduplicationNotes: completeDeduplication.notes,
+      deduplicatedRowsRemoved: completeDeduplication.removed,
+      recoveryIntelligence: recoveryApplied.recoveryIntelligence,
+      historicalIntelligence: recoveryApplied.historicalIntelligence,
+      normalizedFlightAwareItinerarySample: safeNormalizedItinerarySample(itineraries.find((itinerary) => itinerary.source.includes('flightaware')) || itineraries[0]),
+      itineraryCompletenessDiagnostics: completenessDiagnostics
+    })
+
+    return NextResponse.json({
+      ok: true,
+      request: effectiveRequest,
+      source: 'complete-itinerary-search',
+      sourceLabel: itineraries.some((itinerary) => itinerary.productionAvailability) ? 'Complete live/cached itinerary search' : 'Complete cached/stored itinerary search',
+      dataMode: dataFreshnessMode === 'live-current-api' ? 'live' : dataFreshnessMode,
+      source_provider: 'complete-provider-search',
+      source_checked_at: itineraries.map((itinerary) => itinerary.sourceCheckedAt).filter(Boolean).sort().slice(-1)[0],
+      statusMessage: `${itineraries.length} complete ${itineraries.length === 1 ? 'itinerary' : 'itineraries'} generated before ranking; sorted by earliest arrival.`,
+      enrichedWithFlightAware: itineraries.some((itinerary) => itinerary.source.includes('flightaware')),
+      providerBadges: ['Complete itinerary search'],
+      warnings: uniqueMessages(warnings),
+      debug,
+      recoveryIntelligence: recoveryApplied.recoveryIntelligence,
+      historicalIntelligence: recoveryApplied.historicalIntelligence,
+      count: itineraries.length,
+      itineraries
+    })
+    }
+  }
+
   const seedNearestDateMatch = nearestDateRequestForStoredSchedules(mvpRouteSeedFlightsForRequest({ ...effectiveRequest, date: undefined }), effectiveRequest, personalTestingToleranceDays)
   const mvpSeedFlights = mvpRouteSeedFlightsForRequest(seedNearestDateMatch.request)
   const mvpSeedItineraries = buildItinerariesFromFlights(mvpSeedFlights, seedNearestDateMatch.request)
@@ -2120,6 +2310,7 @@ export async function GET(request: Request) {
       historicalIntelligence: recoveryApplied.historicalIntelligence,
     })
     counts.finalItineraries = itineraries.length
+    const seedCompletenessDiagnostics = itineraryCompletenessDiagnostics(itineraries)
     const seedMessage = seedRouteMatching.dateCoverage.nearestDateApplied
       ? `Showing ${itineraries.length} estimated nearest-day schedule itinerary${itineraries.length === 1 ? '' : 's'} for ${seedRouteMatching.dateCoverage.effectiveMatchDate}; requested ${seedRouteMatching.dateCoverage.requestedSearchDate}. Live loads unavailable; verify before travel.`
       : `Showing ${itineraries.length} estimated schedule itinerary${itineraries.length === 1 ? '' : 's'} from curated fallback schedules dated ${mvpRouteSeedDate}. Live loads unavailable; verify before travel.`
@@ -2150,7 +2341,8 @@ export async function GET(request: Request) {
       dataFreshnessMode: seedRouteMatching.dateCoverage.nearestDateApplied ? 'nearest-date-testing' : 'mvp-test-data',
       dataFreshnessExplanation: freshnessExplanationsForItineraries(itineraries, seedRouteMatching.dateCoverage.nearestDateApplied ? 'nearest-date-testing-match' : 'demo-fallback'),
       testDataModeEnabled: envTestDataModeEnabled,
-      safeErrors: finalWarnings
+      safeErrors: finalWarnings,
+      itineraryCompletenessDiagnostics: seedCompletenessDiagnostics
     })
 
     return NextResponse.json({
@@ -2201,6 +2393,7 @@ export async function GET(request: Request) {
     historicalIntelligence,
   }))
   counts.finalItineraries = routeFrameworkItineraries.length
+  const frameworkCompletenessDiagnostics = itineraryCompletenessDiagnostics(routeFrameworkItineraries)
   const routeCoverageMessage = routeFrameworkItineraries.length
     ? `${routeFrameworkItineraries.length} complete route framework${routeFrameworkItineraries.length === 1 ? '' : 's'} ranked for ${effectiveRequest.origin} → ${effectiveRequest.destination}. Live availability unavailable.`
     : undefined
@@ -2261,7 +2454,8 @@ export async function GET(request: Request) {
     routeCoverageSuggestions,
     recoveryIntelligence,
     historicalIntelligence,
-    noResultsExplanation
+    noResultsExplanation,
+    itineraryCompletenessDiagnostics: frameworkCompletenessDiagnostics
   })
 
   return NextResponse.json({

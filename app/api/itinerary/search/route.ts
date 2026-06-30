@@ -546,6 +546,9 @@ const routeFrameworkHubProfiles: Record<string, { carrier: string; score: number
 }
 
 const preferredRouteFrameworkPaths: Record<string, string[][]> = {
+  'SFO-SBP': [['SFO', 'SBP'], ['SFO', 'LAX', 'SBP'], ['SFO', 'SEA', 'SBP']],
+  'SBP-SFO': [['SBP', 'SFO'], ['SBP', 'LAX', 'SFO'], ['SBP', 'SEA', 'SFO']],
+  'LAX-OGG': [['LAX', 'OGG'], ['LAX', 'HNL', 'OGG'], ['LAX', 'SFO', 'OGG']],
   'SBP-PDX': [['SBP', 'PDX'], ['SBP', 'SEA', 'PDX'], ['SBP', 'SFO', 'PDX'], ['SBP', 'LAX', 'PDX'], ['SBP', 'DEN', 'PDX'], ['SBP', 'PHX', 'PDX'], ['SBP', 'SLC', 'PDX'], ['SBP', 'LAS', 'PDX']],
   'SBP-BOS': [['SBP', 'LAX', 'BOS'], ['SBP', 'SFO', 'BOS'], ['SBP', 'SEA', 'BOS'], ['SBP', 'DEN', 'BOS'], ['SBP', 'PHX', 'BOS']],
   'SBP-HNL': [['SBP', 'LAX', 'HNL'], ['SBP', 'SFO', 'HNL'], ['SBP', 'SEA', 'HNL'], ['SBP', 'PHX', 'LAX', 'HNL'], ['SBP', 'DEN', 'LAX', 'HNL']],
@@ -608,27 +611,26 @@ function routeFrameworkPaths(request: ParsedItineraryRequest, suggestions: Route
 function routeFrameworkLeg(path: string[], index: number, records: ProviderResultRecord[]): ItineraryResult['legs'][number] {
   const origin = path[index]
   const destination = path[index + 1]
-  const record = routeFrameworkProviderEvidence(records, origin, destination).sort((a, b) => Date.parse(b.source_checked_at || b.cached_at) - Date.parse(a.source_checked_at || a.cached_at))[0]
-  const hubProfile = routeFrameworkHubProfiles[destination] || routeFrameworkHubProfiles[origin]
+  const evidence = routeFrameworkProviderEvidence(records, origin, destination).sort((a, b) => Date.parse(b.source_checked_at || b.cached_at) - Date.parse(a.source_checked_at || a.cached_at))[0]
   return {
-    id: record ? `${record.flight_number}-${origin}-${destination}` : `framework-${origin}-${destination}`,
+    id: `framework-${origin}-${destination}`,
     route: `${origin} → ${destination}`,
     origin,
     destination,
-    carrier: record?.airline || record?.carrier || hubProfile?.carrier || 'Alliance partner routing',
-    flightNumber: record?.flight_number || 'Flight numbers unavailable',
-    operatingFlightNumber: record?.flight_number || undefined,
+    carrier: 'Carrier unavailable until live schedule returns',
+    flightNumber: 'Flight numbers unavailable',
+    operatingFlightNumber: undefined,
     marketingFlightNumbers: [],
-    departureTime: record?.departure_time || 'Pending live schedule',
-    arrivalTime: record?.arrival_time || 'Pending live schedule',
-    duration: record ? 'Stored provider timing' : 'Live availability unavailable',
-    aircraft: record?.aircraft || 'Unknown until live schedule returns',
-    status: record ? 'Stored provider route evidence' : 'Waiting for live loads',
+    departureTime: 'Pending live schedule',
+    arrivalTime: 'Pending live schedule',
+    duration: 'Live availability unavailable',
+    aircraft: 'Unknown until live schedule returns',
+    status: evidence ? 'Route evidence found; waiting for live schedule' : 'Waiting for live schedule',
     score: 50,
     risk: 'Medium',
-    source: record ? 'provider-cache-route-evidence' : 'route-framework',
-    sourceProvider: record?.source_provider || 'route-framework',
-    sourceCheckedAt: record?.source_checked_at
+    source: 'route-framework',
+    sourceProvider: 'route-framework',
+    sourceCheckedAt: evidence?.source_checked_at
   }
 }
 
@@ -639,13 +641,13 @@ function routeFrameworkItinerary({ path, score, historical, community, sampleSiz
     id: `route-framework-${path.join('-')}`.toLowerCase(),
     route: path.join(' → '),
     legs,
-    carrier: routeFrameworkHubProfiles[path[1]]?.carrier || 'Alliance partner routing',
+    carrier: 'Carrier unavailable until live schedule returns',
     flightNumber: knownFlightNumbers.length ? knownFlightNumbers.join(' / ') : 'Flight numbers unavailable',
     operatingFlightNumber: knownFlightNumbers.length ? knownFlightNumbers.join(' / ') : undefined,
     marketingFlightNumbers: [],
     departureTime: legs[0]?.departureTime || 'Pending live schedule',
     arrivalTime: legs[legs.length - 1]?.arrivalTime || 'Pending live schedule',
-    duration: legs.every((leg) => leg.duration === 'Stored provider timing') ? 'Stored provider timing' : 'Live availability unavailable',
+    duration: 'Live availability unavailable',
     aircraft: [...new Set(legs.map((leg) => leg.aircraft))].join(' + '),
     status: 'Live availability unavailable. Waiting for live loads.',
     score,
@@ -844,9 +846,8 @@ function buildCompleteRouteFrameworkItineraries({ request, routeCoverageSuggesti
       const liveAvailabilityScore = suggestion?.lookupStatus === 'provider_rows_found' ? routeFrameworkClamp(45 + Math.min(suggestion.providerResultCount, 8) * 4) : 18
       const score = routeFrameworkClamp(liveAvailabilityScore * 0.2 + historical * 0.25 + routeConfidence * 0.22 + community * 0.13 + recovery * 0.12 + sampleSizeScore * 0.08 + (preferredPathKeys.has(pathKey) ? 16 : 0), 20, 92)
       const basis = [
-        routeFrameworkHubProfiles[path[1]]?.carrier || 'Alliance partner routing',
         suggestion?.basis,
-        'Live availability unavailable; waiting for live loads before showing flight numbers or seat availability.'
+        'Framework route only. Live availability unavailable; waiting for live schedules before showing flight numbers, airlines, times, or seat availability.'
       ].filter(Boolean).join(' · ')
       return routeFrameworkItinerary({ path, score, historical, community, sampleSize, recovery, basis, records: providerRecords })
     })
@@ -882,7 +883,13 @@ function appendRouteFrameworkOptions({ request, itineraries, routeCoverageSugges
 
 function scheduleItinerariesOnly(itineraries: ItineraryResult[], request: ParsedItineraryRequest, limit = Number.MAX_SAFE_INTEGER) {
   return enforceItineraryListEndpointIntegrity(itineraries, request)
-    .filter((itinerary) => itinerary.dataFreshnessRule !== 'route-framework' && itinerary.legs.some((leg) => leg.flightNumber && !/unavailable/i.test(leg.flightNumber) && leg.departureTime && !/pending|unavailable/i.test(leg.departureTime) && leg.arrivalTime && !/pending|unavailable/i.test(leg.arrivalTime)))
+    .filter((itinerary) => itinerary.dataFreshnessRule !== 'route-framework' && itinerary.legs.every((leg) => leg.flightNumber && !/unavailable|pending|tbd/i.test(leg.flightNumber) && leg.departureTime && !/pending|unavailable/i.test(leg.departureTime) && leg.arrivalTime && !/pending|unavailable/i.test(leg.arrivalTime)))
+    .slice(0, limit)
+}
+
+function liveScheduleItinerariesOnly(itineraries: ItineraryResult[], request: ParsedItineraryRequest, limit = Number.MAX_SAFE_INTEGER) {
+  return scheduleItinerariesOnly(itineraries, request)
+    .filter((itinerary) => itinerary.productionAvailability === true)
     .slice(0, limit)
 }
 
@@ -1818,7 +1825,7 @@ export async function GET(request: Request) {
       providerCacheCount: providerCacheFlights.length,
       historicalAvailabilityCount: providerCacheFlights.length
     })
-    const scheduledItineraries = scheduleItinerariesOnly(recoveryApplied.itineraries, effectiveRequest)
+    const scheduledItineraries = liveScheduleItinerariesOnly(recoveryApplied.itineraries, effectiveRequest)
     const itineraries = topRouteItinerariesForResponse({
       request: effectiveRequest,
       scheduledItineraries,
@@ -2189,15 +2196,17 @@ export async function GET(request: Request) {
       providerCacheCount: providerCacheFlights.length,
       historicalAvailabilityCount: Math.max(providerCacheFlights.length, supabaseMatchedFlights.length)
     })
-    const scheduledItineraries = scheduleItinerariesOnly(recoveryApplied.itineraries, effectiveRequest)
-    const itineraries = topRouteItinerariesForResponse({
+    const scheduledItineraries = liveScheduleItinerariesOnly(recoveryApplied.itineraries, effectiveRequest)
+    const itineraries = applyTopRouteRecommendations(effectiveRequest, scheduledItineraries)
+    if (itineraries.length > 0) {
+    const liveRouteKeys = new Set(itineraries.map((itinerary) => itinerary.route))
+    const frameworkRoutes = applyTopRouteRecommendations(effectiveRequest, buildCompleteRouteFrameworkItineraries({
       request: effectiveRequest,
-      scheduledItineraries,
+      routeCoverageSuggestions: buildRouteCoverageFallbackSuggestions(effectiveRequest),
       providerRecords: providerCacheLookup.records,
       recoveryIntelligence: recoveryApplied.recoveryIntelligence,
       historicalIntelligence: recoveryApplied.historicalIntelligence,
-    })
-    if (itineraries.length > 0) {
+    }).filter((itinerary) => !liveRouteKeys.has(itinerary.route)))
     counts.finalItineraries = itineraries.length
     const completeDeduplication = deduplicationSummary(itineraries, 'complete search')
     if (completeDeduplication.notes.length) warnings.push(...completeDeduplication.notes)
@@ -2263,7 +2272,9 @@ export async function GET(request: Request) {
       recoveryIntelligence: recoveryApplied.recoveryIntelligence,
       historicalIntelligence: recoveryApplied.historicalIntelligence,
       count: itineraries.length,
-      itineraries
+      frameworkRouteCount: frameworkRoutes.length,
+      itineraries,
+      frameworkRoutes
     })
     }
   }
@@ -2271,7 +2282,7 @@ export async function GET(request: Request) {
   const seedNearestDateMatch = nearestDateRequestForStoredSchedules(mvpRouteSeedFlightsForRequest({ ...effectiveRequest, date: undefined }), effectiveRequest, personalTestingToleranceDays)
   const mvpSeedFlights = mvpRouteSeedFlightsForRequest(seedNearestDateMatch.request)
   const mvpSeedItineraries = buildItinerariesFromFlights(mvpSeedFlights, seedNearestDateMatch.request)
-  if (mvpSeedItineraries.length > 0) {
+  if (false && mvpSeedItineraries.length > 0) {
     const seedRouteMatching = summarizeRouteMatching(mvpSeedFlights, seedNearestDateMatch.request, {
       requestedDate: effectiveRequest.date,
       effectiveMatchDate: seedNearestDateMatch.request.date || mvpRouteSeedDate,
@@ -2475,7 +2486,9 @@ export async function GET(request: Request) {
     routeCoverageSuggestions,
     recoveryIntelligence,
     historicalIntelligence,
-    count: routeFrameworkItineraries.length,
-    itineraries: routeFrameworkItineraries
+    count: 0,
+    frameworkRouteCount: routeFrameworkItineraries.length,
+    itineraries: [],
+    frameworkRoutes: routeFrameworkItineraries
   })
 }

@@ -504,11 +504,15 @@ function isProductionItinerary(itinerary: LiveItineraryResult) {
     ...(itinerary.providerBadges || [])
   ].filter(Boolean).join(' ').toLowerCase()
 
-  if (itinerary.dataFreshnessRule === 'route-framework') return true
+  if (itinerary.dataFreshnessRule === 'route-framework') return false
   if (itinerary.productionAvailability === false) return false
   if (itinerary.dataFreshnessRule === 'demo-fallback' || itinerary.dataFreshnessRule === 'nearest-date-testing-match') return false
   if (haystack.includes('demo') || haystack.includes('test data') || haystack.includes('testing') || haystack.includes('planning fallback')) return false
   return true
+}
+
+function isFrameworkRoute(itinerary: LiveItineraryResult) {
+  return itinerary.dataFreshnessRule === 'route-framework' || itinerary.sourceProvider === 'route-framework' || itinerary.source === 'route-framework'
 }
 
 function productionEmptyStateReasons({
@@ -3522,7 +3526,7 @@ function initialCommunityLoadForm(comparison: ItineraryComparison, travelDate: s
   }
 }
 
-function ItineraryComparisonPanel({ comparisons, travelDate, communityLoads, onCommunityLoadsUpdated, trustReceipt }: { comparisons: ItineraryComparison[]; travelDate: string; communityLoads: CommunityLoadReport[]; onCommunityLoadsUpdated: () => void; trustReceipt: SearchTrustReceiptProps }) {
+function ItineraryComparisonPanel({ comparisons, travelDate, communityLoads, onCommunityLoadsUpdated, trustReceipt, title = 'Top 5 Routes', moreTitle = 'More routes' }: { comparisons: ItineraryComparison[]; travelDate: string; communityLoads: CommunityLoadReport[]; onCommunityLoadsUpdated: () => void; trustReceipt: SearchTrustReceiptProps; title?: string; moreTitle?: string }) {
   const [compareStatus, setCompareStatus] = useState('')
   const [savedComparisons, setSavedComparisons] = useState<SavedItineraryComparison[]>([])
   const [expandedDetailIds, setExpandedDetailIds] = useState<string[]>([])
@@ -4036,7 +4040,7 @@ function renderFlightBoardRow(comparison: ItineraryComparison, showPlanB = false
   return (
     <section className="nonrevy-results-shell nonrevy-compact-results nonrevy-flight-board" style={{ border: '1px solid rgba(56, 189, 248, 0.35)', borderRadius: 14, padding: 'clamp(6px, 2vw, 10px)', background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.96), rgba(30, 41, 59, 0.86))', marginBottom: 16 }}>
       <div className="nonrevy-flight-board__header">
-        <strong>Top 5 Routes</strong>
+        <strong>{title}</strong>
         {moreRouteItineraries.length ? <span>{moreRouteItineraries.length} more route{moreRouteItineraries.length === 1 ? '' : 's'}</span> : null}
       </div>
 
@@ -4048,7 +4052,7 @@ function renderFlightBoardRow(comparison: ItineraryComparison, showPlanB = false
 
       {moreRouteItineraries.length ? (
         <details className="nonrevy-more-routes" style={{ marginTop: 8, border: '1px solid #334155', borderRadius: 10, padding: 8, background: '#020617' }}>
-          <summary style={{ color: '#67e8f9', cursor: 'pointer', fontWeight: 'bold' }}>More routes ▼</summary>
+          <summary style={{ color: '#67e8f9', cursor: 'pointer', fontWeight: 'bold' }}>{moreTitle} ▼</summary>
           <p style={{ color: '#94a3b8', margin: '8px 0' }}>Routes 6+ stay sorted by earliest available arrival time. Route frameworks without live times are labeled “Live time unavailable.”</p>
           <div className="nonrevy-flight-board__list" aria-label="More route options">
             {moreRouteItineraries.map((comparison) => renderFlightBoardRow(comparison))}
@@ -4146,6 +4150,7 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
   const [itineraryStatus, setItineraryStatus] = useState('Enter an itinerary request to search live flight data.')
   const [itineraryLoading, setItineraryLoading] = useState(false)
   const [liveItineraries, setLiveItineraries] = useState<LiveItineraryResult[]>([])
+  const [frameworkRoutes, setFrameworkRoutes] = useState<LiveItineraryResult[]>([])
   const [itineraryWarnings, setItineraryWarnings] = useState<string[]>([])
   const [itinerarySource, setItinerarySource] = useState('FlightAware live schedules')
   const [itineraryDataMode, setItineraryDataMode] = useState('Awaiting live search')
@@ -4280,6 +4285,7 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
     if (dateError) {
       setTravelDateError(dateError)
       setLiveItineraries([])
+      setFrameworkRoutes([])
       setItineraryDebug(null)
       setItineraryStatus(dateError)
       setItineraryDataMode('Awaiting valid date')
@@ -4289,6 +4295,7 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
 
     if (!trimmedSearch && !originAirport) {
       setLiveItineraries([])
+      setFrameworkRoutes([])
       setItineraryDebug(null)
       setItineraryStatus('Enter an itinerary request to search live flight data.')
       setItineraryDataMode('Awaiting live search')
@@ -4318,8 +4325,12 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
       const response = await fetch(`/api/itinerary/search?${params.toString()}`)
       const data = await response.json()
       const rawItineraries = Array.isArray(data?.itineraries) ? data.itineraries as LiveItineraryResult[] : []
+      const rawFrameworkRoutes = Array.isArray(data?.frameworkRoutes) ? data.frameworkRoutes as LiveItineraryResult[] : []
       const itineraries = rawItineraries.filter(isProductionItinerary)
+      const frameworkRouteResults = [...rawFrameworkRoutes, ...rawItineraries.filter(isFrameworkRoute)]
+        .filter(isFrameworkRoute)
       setLiveItineraries(itineraries)
+      setFrameworkRoutes(frameworkRouteResults)
       const apiWarnings = Array.isArray(data?.warnings) ? data.warnings : []
       setItineraryWarnings(data?.errorMessage ? [...new Set([...apiWarnings, data.errorMessage])] : apiWarnings)
       setItinerarySource(data?.sourceLabel || (data?.enrichedWithFlightAware ? 'Stored Supabase flight data + FlightAware enrichment' : 'Stored Supabase flight data'))
@@ -4341,15 +4352,14 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
         ? data.routeCoverageSuggestions
         : Array.isArray(data?.debug?.routeCoverageSuggestions) ? data.debug.routeCoverageSuggestions : []
       setItineraryStatus(itineraries.length
-        ? data?.dataMode === 'route-frameworks'
-          ? `Top route frameworks currently available for ${data?.request?.origin || 'any origin'} → ${data?.request?.destination || 'any destination'}. Live availability unavailable.`
-          : `${itineraries.length} live itinerary result${itineraries.length === 1 ? '' : 's'} found for ${data?.request?.origin || 'any origin'} → ${data?.request?.destination || 'any destination'}.`
-        : routeCoverageSuggestions.length
-          ? 'Top route frameworks currently available'
+        ? `${itineraries.length} live itinerary result${itineraries.length === 1 ? '' : 's'} found for ${data?.request?.origin || 'any origin'} → ${data?.request?.destination || 'any destination'}.`
+        : frameworkRouteResults.length || routeCoverageSuggestions.length
+          ? `Framework Routes available for ${data?.request?.origin || 'any origin'} → ${data?.request?.destination || 'any destination'}. Live schedule details unavailable.`
           : "We couldn't find live results for this search right now."
       )
     } catch {
       setLiveItineraries([])
+      setFrameworkRoutes([])
       setItineraryDebug(null)
       setItineraryStatus("We couldn't find live results for this search right now.")
       setItineraryDataMode('No current live data')
@@ -4396,6 +4406,7 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
       return
     }
     setLiveItineraries([])
+    setFrameworkRoutes([])
     setItineraryDataMode('Awaiting live search')
     setItinerarySource('Live itinerary search')
     setItineraryStatus('Carrier scope updated. Add a route to search live itinerary data.')
@@ -4409,6 +4420,7 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
       return
     }
     setLiveItineraries([])
+    setFrameworkRoutes([])
     setItineraryDataMode('Awaiting live search')
     setItinerarySource('Live itinerary search')
     setItineraryStatus('Max legs updated. Add a route to search live itinerary data.')
@@ -4544,6 +4556,24 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
     return sortCompactItineraries(comparisons)
   }, [liveItineraries, predictionEngine, historicalStats.routes, loadReports, communityLoads, outcomes, travelerProfile, scoringScaffold.routeIntelligence, scoringScaffold.weights, scoringScaffold.recommendationScope, confidenceUpdateTrigger])
 
+  const frameworkRouteComparisons = useMemo(() => {
+    const comparisons = frameworkRoutes.map((itinerary) => buildLiveItineraryComparison(
+      itinerary,
+      predictionEngine,
+      historicalStats.routes,
+      loadReports,
+      communityLoads,
+      outcomes,
+      travelerProfile,
+      scoringScaffold.routeIntelligence,
+      scoringScaffold.weights,
+      scoringScaffold.recommendationScope,
+      confidenceUpdateTrigger
+    ))
+
+    return sortCompactItineraries(comparisons)
+  }, [frameworkRoutes, predictionEngine, historicalStats.routes, loadReports, communityLoads, outcomes, travelerProfile, scoringScaffold.routeIntelligence, scoringScaffold.weights, scoringScaffold.recommendationScope, confidenceUpdateTrigger])
+
   const aiTripPlan = useMemo(() => generateAiTripPlan({
     prompt: aiTripPrompt,
     travelerProfile,
@@ -4557,7 +4587,7 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
     ? 'Single-date search active. Edit manually as YYYY-MM-DD or use the calendar picker where available.'
     : 'Optional. Use the calendar picker where available, or type YYYY-MM-DD, e.g. 2026-06-06. Blank searches stay flexible.')
   const hasSearchedForItineraries = submitted || Boolean(query.trim() || tripGoal.trim()) || itineraryDataMode === 'No current live data'
-  const showProductionEmptyState = !itineraryLoading && hasSearchedForItineraries && itineraryComparisons.length === 0
+  const showProductionEmptyState = !itineraryLoading && hasSearchedForItineraries && itineraryComparisons.length === 0 && frameworkRouteComparisons.length === 0
   const productionEmptyReasons = productionEmptyStateReasons({
     dataMode: itineraryDataMode,
     status: itineraryStatus,
@@ -4597,6 +4627,7 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
           {itineraryLoading ? <PlannerSkeletonLoaders /> : null}
           {showProductionEmptyState ? <ProductionEmptyState reasons={productionEmptyReasons} origin={itineraryDebug?.parsedOrigin} destination={itineraryDebug?.parsedDestination} suggestions={itineraryDebug?.routeCoverageSuggestions} recovery={itineraryDebug?.recoveryIntelligence} /> : null}
           {itineraryComparisons.length > 0 ? <ItineraryComparisonPanel comparisons={itineraryComparisons} travelDate={travelWindow} communityLoads={communityLoads} onCommunityLoadsUpdated={() => setCommunityLoads(loadCommunityLoads())} trustReceipt={{ dataMode: itineraryDataMode, source: itinerarySource, status: itineraryStatus, warnings: itineraryWarnings, debug: itineraryDebug }} /> : null}
+          {frameworkRouteComparisons.length > 0 ? <ItineraryComparisonPanel comparisons={frameworkRouteComparisons} travelDate={travelWindow} communityLoads={communityLoads} onCommunityLoadsUpdated={() => setCommunityLoads(loadCommunityLoads())} trustReceipt={{ dataMode: 'Framework Routes · live schedule unavailable', source: 'Framework Routes', status: 'Live schedules could not be attached to these routes.', warnings: itineraryWarnings, debug: itineraryDebug }} title="Framework Routes" moreTitle="More framework routes" /> : null}
 
           {developerMode ? (
             <details className="nonrevy-results-page__below">
@@ -4723,6 +4754,7 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
           {itineraryLoading ? <PlannerSkeletonLoaders /> : null}
           {showProductionEmptyState ? <ProductionEmptyState reasons={productionEmptyReasons} origin={itineraryDebug?.parsedOrigin} destination={itineraryDebug?.parsedDestination} suggestions={itineraryDebug?.routeCoverageSuggestions} recovery={itineraryDebug?.recoveryIntelligence} /> : null}
           {itineraryComparisons.length > 0 ? <ItineraryComparisonPanel comparisons={itineraryComparisons} travelDate={travelWindow} communityLoads={communityLoads} onCommunityLoadsUpdated={() => setCommunityLoads(loadCommunityLoads())} trustReceipt={{ dataMode: itineraryDataMode, source: itinerarySource, status: itineraryStatus, warnings: itineraryWarnings, debug: itineraryDebug }} /> : null}
+          {frameworkRouteComparisons.length > 0 ? <ItineraryComparisonPanel comparisons={frameworkRouteComparisons} travelDate={travelWindow} communityLoads={communityLoads} onCommunityLoadsUpdated={() => setCommunityLoads(loadCommunityLoads())} trustReceipt={{ dataMode: 'Framework Routes · live schedule unavailable', source: 'Framework Routes', status: 'Live schedules could not be attached to these routes.', warnings: itineraryWarnings, debug: itineraryDebug }} title="Framework Routes" moreTitle="More framework routes" /> : null}
         </section>
 
         {developerMode ? (

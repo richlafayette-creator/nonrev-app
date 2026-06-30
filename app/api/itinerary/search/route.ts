@@ -2196,7 +2196,7 @@ export async function GET(request: Request) {
       providerCacheCount: providerCacheFlights.length,
       historicalAvailabilityCount: Math.max(providerCacheFlights.length, supabaseMatchedFlights.length)
     })
-    const scheduledItineraries = liveScheduleItinerariesOnly(recoveryApplied.itineraries, effectiveRequest)
+    const scheduledItineraries = scheduleItinerariesOnly(recoveryApplied.itineraries, effectiveRequest)
     const itineraries = applyTopRouteRecommendations(effectiveRequest, scheduledItineraries)
     if (itineraries.length > 0) {
     const liveRouteKeys = new Set(itineraries.map((itinerary) => itinerary.route))

@@ -57,7 +57,7 @@ const defaultCacheMaxAgeHours = 72
 const localProviderResultCache: ProviderResultRecord[] = []
 
 function storeProviderResultsEnabled(env: ProviderResultRepositoryEnv) {
-  return env.NONREVY_STORE_PROVIDER_RESULTS === 'true'
+  return env.NONREVY_STORE_PROVIDER_RESULTS !== 'false'
 }
 
 function cleanValue(value?: string | null) {

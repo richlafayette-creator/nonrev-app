@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { airportScaffoldFor } from '../../../../lib/airportMapScaffold'
-import { buildItinerariesFromFlights, closestAvailableFlightDates, flightMatchesRequest, normalizeFlightRouteForDiagnostics, normalizeItineraryRequest, summarizeRouteMatching, type ItineraryResult, type ParsedItineraryRequest, type RouteMatchingSummary } from '../../../../lib/itinerarySearch'
+import { buildAllItinerariesFromFlights, buildItinerariesFromFlights, closestAvailableFlightDates, flightMatchesRequest, normalizeFlightRouteForDiagnostics, normalizeItineraryRequest, summarizeRouteMatching, type ItineraryResult, type ParsedItineraryRequest, type RouteMatchingSummary } from '../../../../lib/itinerarySearch'
 import { mvpRouteSeedDate, mvpRouteSeedFlightsForRequest } from '../../../../lib/mvpRouteSeedData'
 import { createAviationstackScheduleProvider, createFlightAwareScheduleProvider, getLiveScheduleProviderReadiness, scheduleResultsToFlightRecords, type ScheduleProviderReadiness } from '../../../../lib/liveScheduleProviders'
 import { createProviderResultRepository, providerResultTableName, type ProviderCacheLookupResult, type ProviderResultRecord } from '../../../../lib/providerResultRepository'
@@ -32,6 +32,11 @@ type ApiResponseCounts = {
   flightAwareScheduleRequests: number
   flightAwareScheduleFetched: number
   flightAwareScheduleItineraries: number
+  expandedScheduleSegments: number
+  expandedScheduledFlightLegs: number
+  expandedDirectItineraries: number
+  expandedOneStopItineraries: number
+  expandedTwoStopItineraries: number
   supabaseFetched: number
   supabaseMatchedFlights: number
   supabaseItineraries: number
@@ -254,6 +259,11 @@ function emptyCounts(): ApiResponseCounts {
     flightAwareScheduleRequests: 0,
     flightAwareScheduleFetched: 0,
     flightAwareScheduleItineraries: 0,
+    expandedScheduleSegments: 0,
+    expandedScheduledFlightLegs: 0,
+    expandedDirectItineraries: 0,
+    expandedOneStopItineraries: 0,
+    expandedTwoStopItineraries: 0,
     supabaseFetched: 0,
     supabaseMatchedFlights: 0,
     supabaseItineraries: 0,
@@ -550,7 +560,9 @@ const preferredRouteFrameworkPaths: Record<string, string[][]> = {
   'SBP-SFO': [['SBP', 'SFO'], ['SBP', 'LAX', 'SFO'], ['SBP', 'SEA', 'SFO']],
   'LAX-OGG': [['LAX', 'OGG'], ['LAX', 'HNL', 'OGG'], ['LAX', 'SFO', 'OGG']],
   'SBP-PDX': [['SBP', 'PDX'], ['SBP', 'SEA', 'PDX'], ['SBP', 'SFO', 'PDX'], ['SBP', 'LAX', 'PDX'], ['SBP', 'DEN', 'PDX'], ['SBP', 'PHX', 'PDX'], ['SBP', 'SLC', 'PDX'], ['SBP', 'LAS', 'PDX']],
+  'SBP-OGG': [['SBP', 'LAX', 'OGG'], ['SBP', 'SFO', 'OGG'], ['SBP', 'SEA', 'OGG'], ['SBP', 'PHX', 'LAX', 'OGG'], ['SBP', 'DEN', 'LAX', 'OGG']],
   'SBP-BOS': [['SBP', 'LAX', 'BOS'], ['SBP', 'SFO', 'BOS'], ['SBP', 'SEA', 'BOS'], ['SBP', 'DEN', 'BOS'], ['SBP', 'PHX', 'BOS']],
+  'BOS-SBP': [['BOS', 'LAX', 'SBP'], ['BOS', 'SFO', 'SBP'], ['BOS', 'SEA', 'SBP'], ['BOS', 'DEN', 'SBP'], ['BOS', 'PHX', 'SBP']],
   'SBP-HNL': [['SBP', 'LAX', 'HNL'], ['SBP', 'SFO', 'HNL'], ['SBP', 'SEA', 'HNL'], ['SBP', 'PHX', 'LAX', 'HNL'], ['SBP', 'DEN', 'LAX', 'HNL']],
   'SBP-NRT': [['SBP', 'LAX', 'HND', 'NRT'], ['SBP', 'SFO', 'HND', 'NRT'], ['SBP', 'SEA', 'NRT'], ['SBP', 'LAX', 'NRT'], ['SBP', 'SFO', 'NRT']],
   'SBP-CDG': [['SBP', 'LAX', 'CDG'], ['SBP', 'SFO', 'CDG'], ['SBP', 'SEA', 'CDG'], ['SBP', 'LAX', 'JFK', 'CDG'], ['SBP', 'SFO', 'FRA', 'CDG']],
@@ -1320,6 +1332,162 @@ async function fetchFlightAwareScheduleFlights(request: ReturnType<typeof normal
   }
 }
 
+type ScheduleSegment = { origin: string; destination: string }
+
+const productionBridgeHubs = ['SFO', 'LAX', 'SEA', 'DEN', 'PHX', 'ORD', 'DFW', 'IAH', 'ATL', 'JFK', 'EWR', 'BOS', 'PDX', 'SAN', 'HNL']
+
+function uniqueExpandedAirportCodes(codes: Array<string | undefined>) {
+  return [...new Set(codes.map((code) => code?.trim().toUpperCase()).filter((code): code is string => Boolean(code && /^[A-Z]{3}$/.test(code))))]
+}
+
+function uniqueScheduleSegments(segments: ScheduleSegment[]) {
+  const seen = new Set<string>()
+  return segments.filter((segment) => {
+    if (segment.origin === segment.destination) return false
+    const key = `${segment.origin}-${segment.destination}`
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
+
+function expandedScheduleSegmentsForRequest(request: ReturnType<typeof normalizeItineraryRequest>) {
+  const origin = request.origin
+  const destination = request.destination
+  if (!origin || !destination) return []
+
+  const preferredPaths = preferredRouteFrameworkPaths[`${origin}-${destination}`] || []
+  if (preferredPaths.length) {
+    return uniqueScheduleSegments([
+      { origin, destination },
+      ...preferredPaths.flatMap((path) => path.slice(0, -1).map((from, index) => ({ origin: from, destination: path[index + 1] })))
+    ])
+  }
+
+  const originHubs = positioningHubsForOrigin(origin)
+  const destinationHubs = positioningHubsForOrigin(destination)
+  const destinationGroupAirports = destinationAirportGroup(destination).filter((code) => code !== destination && code !== origin)
+  const firstStopCandidates = uniqueExpandedAirportCodes([
+    ...originHubs,
+    ...destinationHubs,
+    ...destinationGroupAirports,
+    ...productionBridgeHubs
+  ]).filter((code) => code !== origin && code !== destination).slice(0, 5)
+  const finalStopCandidates = uniqueExpandedAirportCodes([
+    ...destinationHubs,
+    ...originHubs,
+    ...destinationGroupAirports,
+    ...productionBridgeHubs
+  ]).filter((code) => code !== origin && code !== destination).slice(0, 5)
+
+  const segments: ScheduleSegment[] = [{ origin, destination }]
+  firstStopCandidates.forEach((hub) => segments.push({ origin, destination: hub }))
+  finalStopCandidates.forEach((hub) => segments.push({ origin: hub, destination }))
+  firstStopCandidates.forEach((firstHub) => {
+    finalStopCandidates.forEach((secondHub) => {
+      if (firstHub !== secondHub) segments.push({ origin: firstHub, destination: secondHub })
+    })
+  })
+
+  return uniqueScheduleSegments(segments)
+}
+
+async function fetchExpandedScheduleFlights(request: ReturnType<typeof normalizeItineraryRequest>) {
+  const providerCache = createProviderResultRepository()
+  const segments = expandedScheduleSegmentsForRequest(request)
+  const warnings: string[] = []
+  const emptyResults: string[] = []
+  const rateLimits: string[] = []
+  const providerStatuses: ProviderStatus[] = []
+  const flights: FlightRecord[] = []
+  let providerCacheFetched = 0
+  let flightAwareRequests = 0
+  let flightAwareFetched = 0
+  let aviationstackRequests = 0
+  let aviationstackFetched = 0
+
+  for (const segment of segments) {
+    const segmentRequest = { ...request, origin: segment.origin, destination: segment.destination }
+    const cached = await providerCache.findCachedResults({
+      origin: segment.origin,
+      destination: segment.destination,
+      date: request.date,
+      carrier: request.carrier,
+      maxAgeHours: 72,
+      limit: 50
+    })
+    const cachedFlights = providerCacheRecordsToFlightRecords(cached.records)
+    if (cachedFlights.length) {
+      providerCacheFetched += cachedFlights.length
+      flights.push(...cachedFlights)
+      continue
+    }
+
+    const flightAware = await fetchFlightAwareScheduleFlights(segmentRequest)
+    flightAwareRequests += flightAware.requestCount
+    flightAwareFetched += flightAware.flights.length
+    if (flightAware.warning) {
+      warnings.push(flightAware.warning)
+      const limit = rateLimitMessage('FlightAware', undefined, flightAware.warning)
+      if (limit) rateLimits.push(limit)
+    }
+    if (flightAware.flights.length) {
+      flights.push(...flightAware.flights)
+      continue
+    }
+
+    emptyResults.push(`FlightAware returned no usable rows for ${segment.origin} → ${segment.destination}.`)
+    const aviationstack = await fetchAviationstackFlights(segmentRequest)
+    aviationstackRequests += aviationstack.requestCount
+    aviationstackFetched += aviationstack.flights.length
+    if (aviationstack.warning) {
+      warnings.push(aviationstack.warning)
+      const limit = rateLimitMessage('Aviationstack', undefined, aviationstack.warning)
+      if (limit) rateLimits.push(limit)
+    }
+    if (aviationstack.flights.length) flights.push(...aviationstack.flights)
+  }
+
+  const unique = uniqueFlights(flights)
+  const allItineraries = buildAllItinerariesFromFlights(unique, request)
+  const completeness = itineraryCompletenessDiagnostics(allItineraries)
+  const topItineraries = allItineraries.slice(0, 5)
+  const annotatedTopItineraries = addProviderBadges(topItineraries, 'flightaware', false, {
+    dataFreshnessLabel: 'Live provider API data',
+    dataFreshnessDetail: request.date ? `Expanded schedule search checked provider segments for requested date ${request.date}.` : 'Expanded schedule search checked provider segments for the current schedule window.',
+    dataFreshnessRule: 'exact-requested-date',
+    requestedDate: request.date,
+    matchedDate: request.date,
+    productionAvailability: topItineraries.some((itinerary) => itinerary.source.includes('flightaware'))
+  })
+
+  providerStatuses.push(
+    providerStatus('flightaware', flightAwareFetched ? 'success' : warnings.some((warning) => warning.toLowerCase().includes('flightaware')) ? 'warning' : 'skipped', `${flightAwareFetched} normalized FlightAware scheduled flight leg${flightAwareFetched === 1 ? '' : 's'} found across ${flightAwareRequests} expanded segment request${flightAwareRequests === 1 ? '' : 's'}.`),
+    providerStatus('supabase', providerCacheFetched ? 'success' : 'skipped', providerCacheFetched ? `${providerCacheFetched} matching provider-cache leg${providerCacheFetched === 1 ? '' : 's'} reused before live provider rebuild.` : `No recent provider-cache rows found for ${segments.length} expanded segment${segments.length === 1 ? '' : 's'}.`),
+    providerStatus('aviationstack', aviationstackFetched ? 'success' : warnings.some((warning) => warning.toLowerCase().includes('aviationstack')) ? 'warning' : 'skipped', `${aviationstackFetched} Aviationstack fallback leg${aviationstackFetched === 1 ? '' : 's'} found across ${aviationstackRequests} fallback request${aviationstackRequests === 1 ? '' : 's'}.`),
+    providerStatus('planning', 'skipped', 'Route frameworks were not returned when complete scheduled itineraries were available.')
+  )
+
+  return {
+    segments,
+    flights: unique,
+    allItineraries,
+    topItineraries: annotatedTopItineraries,
+    completeness,
+    warnings: uniqueMessages(warnings),
+    emptyResults: uniqueMessages(emptyResults),
+    rateLimits: uniqueMessages(rateLimits),
+    providerStatuses,
+    counts: {
+      providerCacheFetched,
+      flightAwareRequests,
+      flightAwareFetched,
+      aviationstackRequests,
+      aviationstackFetched
+    }
+  }
+}
+
 async function routeCoverageFallbackGuidance(request: ReturnType<typeof normalizeItineraryRequest>, rateLimits: string[]) {
   const baseSuggestions = buildRouteCoverageFallbackSuggestions(request)
   if (!baseSuggestions.length) return []
@@ -1664,6 +1832,85 @@ export async function GET(request: Request) {
   }
 
   const historicalContext = await historicalContextForRequest(request, effectiveRequest)
+
+  const expandedScheduleSearch = await fetchExpandedScheduleFlights(effectiveRequest)
+  counts.providerCacheFetched = expandedScheduleSearch.counts.providerCacheFetched
+  counts.flightAwareScheduleRequests = expandedScheduleSearch.counts.flightAwareRequests
+  counts.flightAwareRequested = expandedScheduleSearch.counts.flightAwareRequests
+  counts.flightAwareScheduleFetched = expandedScheduleSearch.counts.flightAwareFetched
+  counts.aviationstackRequests = expandedScheduleSearch.counts.aviationstackRequests
+  counts.aviationstackFetched = expandedScheduleSearch.counts.aviationstackFetched
+  counts.expandedScheduleSegments = expandedScheduleSearch.segments.length
+  counts.expandedScheduledFlightLegs = expandedScheduleSearch.flights.length
+  counts.expandedDirectItineraries = expandedScheduleSearch.completeness.directItinerariesFound
+  counts.expandedOneStopItineraries = expandedScheduleSearch.completeness.oneStopItinerariesFound
+  counts.expandedTwoStopItineraries = expandedScheduleSearch.completeness.twoStopItinerariesFound
+  counts.flightAwareScheduleItineraries = expandedScheduleSearch.allItineraries.filter((itinerary) => itinerary.source.includes('flightaware')).length
+  counts.aviationstackItineraries = expandedScheduleSearch.allItineraries.filter((itinerary) => itinerary.source.includes('aviationstack')).length
+  warnings.push(...expandedScheduleSearch.warnings)
+  emptyResults.push(...expandedScheduleSearch.emptyResults)
+  rateLimits.push(...expandedScheduleSearch.rateLimits)
+
+  if (expandedScheduleSearch.topItineraries.length > 0) {
+    counts.finalItineraries = expandedScheduleSearch.topItineraries.length
+    const deduplication = deduplicationSummary(expandedScheduleSearch.allItineraries, 'expanded schedule search')
+    if (deduplication.notes.length) warnings.push(...deduplication.notes)
+    const routeMatching = summarizeRouteMatching(expandedScheduleSearch.flights, effectiveRequest)
+    const supabaseQueryPath = skippedSupabaseDiagnostics('skipped direct Supabase flights table lookup; expanded provider schedule search returned complete itineraries')
+    const debug = buildDebugMetadata({
+      parsedRequest: effectiveRequest,
+      supabaseResultCount: 0,
+      aviationstackFallbackStatus: expandedScheduleSearch.counts.aviationstackRequests
+        ? `${expandedScheduleSearch.counts.aviationstackRequests} segment fallback request${expandedScheduleSearch.counts.aviationstackRequests === 1 ? '' : 's'}; ${expandedScheduleSearch.counts.aviationstackFetched} normalized leg${expandedScheduleSearch.counts.aviationstackFetched === 1 ? '' : 's'} returned`
+        : 'not needed; FlightAware/cache segment search supplied complete scheduled itineraries',
+      flightAwareEnrichmentStatus: `${expandedScheduleSearch.counts.flightAwareFetched} normalized FlightAware leg${expandedScheduleSearch.counts.flightAwareFetched === 1 ? '' : 's'} found across ${expandedScheduleSearch.counts.flightAwareRequests} expanded segment request${expandedScheduleSearch.counts.flightAwareRequests === 1 ? '' : 's'}`,
+      finalItineraryCount: expandedScheduleSearch.topItineraries.length,
+      apiResponseCounts: counts,
+      routeMatching,
+      supabaseQueryPath,
+      providerCache: providerCacheDebug(undefined, expandedScheduleSearch.counts.providerCacheFetched, 0, expandedScheduleSearch.counts.providerCacheFetched ? 'current-0-6h' : 'none'),
+      emptyResults: uniqueMessages(emptyResults),
+      rateLimits: uniqueMessages(rateLimits),
+      invalidAirportCodes,
+      unsupportedAirportCodes,
+      invalidDates,
+      providerFallbackOrder: activeProviderFallbackOrder,
+      providerStatuses: expandedScheduleSearch.providerStatuses,
+      trueLiveDataAvailable: expandedScheduleSearch.topItineraries.some((itinerary) => itinerary.productionAvailability),
+      trueLiveDataUnavailableReason: expandedScheduleSearch.topItineraries.some((itinerary) => itinerary.productionAvailability) ? '' : 'Complete itineraries came from provider cache or fallback schedule rows; current live availability remains unavailable.',
+      dataFreshnessMode: expandedScheduleSearch.topItineraries.some((itinerary) => itinerary.productionAvailability) ? 'live-current-api' : 'provider-cache',
+      dataFreshnessExplanation: freshnessExplanationsForItineraries(expandedScheduleSearch.topItineraries, 'exact-requested-date'),
+      testDataModeEnabled: envTestDataModeEnabled,
+      safeErrors: uniqueMessages(warnings),
+      deduplicationNotes: deduplication.notes,
+      deduplicatedRowsRemoved: deduplication.removed,
+      normalizedFlightAwareItinerarySample: safeNormalizedItinerarySample(expandedScheduleSearch.topItineraries.find((itinerary) => itinerary.source.includes('flightaware')) || expandedScheduleSearch.topItineraries[0]),
+      itineraryCompletenessDiagnostics: expandedScheduleSearch.completeness
+    })
+
+    return NextResponse.json({
+      ok: true,
+      request: effectiveRequest,
+      source: 'expanded-provider-schedule-search',
+      sourceLabel: 'Expanded provider schedule search',
+      dataMode: expandedScheduleSearch.topItineraries.some((itinerary) => itinerary.productionAvailability) ? 'live' : 'provider-cache',
+      source_provider: 'expanded-provider-schedule-search',
+      source_checked_at: expandedScheduleSearch.topItineraries.map((itinerary) => itinerary.sourceCheckedAt).filter(Boolean).sort().slice(-1)[0],
+      statusMessage: `${expandedScheduleSearch.topItineraries.length} complete scheduled itinerary${expandedScheduleSearch.topItineraries.length === 1 ? '' : 's'} returned from ${expandedScheduleSearch.allItineraries.length} generated before ranking; ordered by earliest arrival.`,
+      enrichedWithFlightAware: expandedScheduleSearch.topItineraries.some((itinerary) => itinerary.source.includes('flightaware')),
+      providerBadges: ['Expanded schedule search'],
+      warnings: uniqueMessages(warnings),
+      debug,
+      count: expandedScheduleSearch.topItineraries.length,
+      scheduledFlightLegCount: expandedScheduleSearch.flights.length,
+      generatedItineraryCount: expandedScheduleSearch.allItineraries.length,
+      directItineraryCount: expandedScheduleSearch.completeness.directItinerariesFound,
+      oneStopItineraryCount: expandedScheduleSearch.completeness.oneStopItinerariesFound,
+      twoStopItineraryCount: expandedScheduleSearch.completeness.twoStopItinerariesFound,
+      searchedSegments: expandedScheduleSearch.segments,
+      itineraries: expandedScheduleSearch.topItineraries
+    })
+  }
 
   const providerCacheLookup = await createProviderResultRepository().findCachedResults({
     origin: effectiveRequest.origin,

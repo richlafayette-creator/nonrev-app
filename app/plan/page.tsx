@@ -1936,6 +1936,19 @@ function compactFlightBoardDateTime(value: string, airportCode?: string, referen
   return `${day} ${time}${dayOffset > 0 ? ` +${dayOffset}` : ''}`
 }
 
+function compactFlightBoardTime(value: string, airportCode?: string) {
+  const timeZone = airportCode ? airportTimeZones[airportCode] : undefined
+  const localIsoMatch = value.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::\d{2})?$/)
+  if (localIsoMatch) {
+    const [, year, month, day, hour, minute] = localIsoMatch
+    return new Date(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute))
+      .toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+  }
+  const parsed = parseScheduleTime(value)
+  if (!parsed) return displayField(value)
+  return new Date(parsed).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', timeZone })
+}
+
 function itineraryDepartureSortValue(comparison: ItineraryComparison) {
   return parseScheduleTime(comparison.departureDateTime) ?? Number.MAX_SAFE_INTEGER
 }
@@ -3793,8 +3806,8 @@ function renderFlightBoardRow(comparison: ItineraryComparison, showPlanB = false
     const carrierCode = compactCarrierCode(comparison.carrier, comparison.flightNumber)
     const airlineName = airlineNameForCarrier(comparison.carrier, carrierCode)
     const flightNumber = compactFlightNumberLabel(comparison.flightNumber, carrierCode)
-    const depTime = compactFlightBoardDateTime(comparison.departureDateTime, routeAirports[0])
-    const arrTime = compactFlightBoardDateTime(comparison.arrivalDateTime, routeAirports[routeAirports.length - 1], comparison.departureDateTime)
+    const depTime = compactFlightBoardTime(comparison.departureDateTime, routeAirports[0])
+    const arrTime = compactFlightBoardTime(comparison.arrivalDateTime, routeAirports[routeAirports.length - 1])
     const arrivalOffset = flightBoardDayOffset(comparison.arrivalDateTime, comparison.departureDateTime)
     const arrivalDisplay = arrTime.replace(/ \+\d+$/, '')
     const confidenceScore = comparison.successPrediction.confidenceScore
@@ -3823,21 +3836,14 @@ function renderFlightBoardRow(comparison: ItineraryComparison, showPlanB = false
             <div className="nonrevy-flight-board-row__flight-data">
               <div className="nonrevy-flight-board-row__primary-line">
                 <span className="nonrevy-flight-board-row__route">{comparison.route}</span>
-                {hasPrimaryFlightId ? (
-                  <span className="nonrevy-flight-board-row__flight-id" title={airlineName} aria-label={`${airlineName} ${flightNumber}`}>
-                    <span className="nonrevy-flight-board-row__carrier-badge" title={airlineName} aria-label={airlineName} tabIndex={0} data-carrier-name={airlineName}>{carrierCode}</span>
-                    <strong className="nonrevy-flight-board-row__flight-number">{flightNumber}</strong>
-                  </span>
-                ) : <span className="nonrevy-flight-board-row__availability">Live details unavailable.</span>}
                 <span className="nonrevy-flight-board-row__score" title={`${scoreLabel} itinerary signal`}>{scoreLabel}</span>
               </div>
-              <div className="nonrevy-flight-board-row__leg-list" aria-label="Leg details">
-                {legDisplays.map((leg) => (
-                  <span className="nonrevy-flight-board-row__leg-detail" key={leg.key}>
-                    {legCount > 1 || leg.route !== comparison.route ? <strong>{leg.route}</strong> : null} {leg.detail}
-                  </span>
-                ))}
-              </div>
+              {hasPrimaryFlightId ? (
+                <div className="nonrevy-flight-board-row__airline-line" title={`${airlineName} ${carrierCode}${flightNumber}`} aria-label={`${airlineName} ${carrierCode}${flightNumber}`}>
+                  <span className="nonrevy-flight-board-row__airline-name">{airlineName}</span>
+                  <strong className="nonrevy-flight-board-row__flight-number">{carrierCode}{flightNumber}</strong>
+                </div>
+              ) : <div className="nonrevy-flight-board-row__airline-line nonrevy-flight-board-row__availability">Live details unavailable.</div>}
               <div className="nonrevy-flight-board-row__time-line" aria-label={`Depart ${depTime}, arrive ${arrivalDisplay}`}>
                 <strong className="nonrevy-flight-board-row__time-value">{depTime}</strong>
                 <span className="nonrevy-flight-board-row__time-arrow" aria-hidden="true">→</span>

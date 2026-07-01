@@ -6077,3 +6077,204 @@ button:focus-visible,
     font-size: 0.68rem !important;
   }
 }
+
+/* Clean itinerary-card UI: readable route, airline, time, stops, and bottom actions */
+.nonrevy-flight-board__list {
+  gap: 12px !important;
+}
+
+.nonrevy-flight-board-row {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 12px !important;
+  padding: clamp(14px, 3vw, 18px) !important;
+  border-radius: 18px !important;
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.98), rgba(2, 6, 23, 0.98)) !important;
+}
+
+.nonrevy-flight-board-row__main,
+.nonrevy-flight-board-row__content,
+.nonrevy-flight-board-row__flight-data {
+  width: 100% !important;
+  min-width: 0 !important;
+}
+
+.nonrevy-flight-board-row__flight-data {
+  display: grid !important;
+  gap: 7px !important;
+}
+
+.nonrevy-flight-board-row__primary-line {
+  display: flex !important;
+  align-items: flex-start !important;
+  justify-content: space-between !important;
+  gap: 12px !important;
+}
+
+.nonrevy-flight-board-row__route {
+  color: #f8fafc !important;
+  font-size: clamp(1.5rem, 8vw, 2.45rem) !important;
+  line-height: 0.98 !important;
+  letter-spacing: -0.065em !important;
+  font-weight: 950 !important;
+  white-space: normal !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+}
+
+.nonrevy-flight-board-row__score {
+  flex: 0 0 auto !important;
+  border: 1px solid var(--score-color) !important;
+  background: color-mix(in srgb, var(--score-color) 14%, transparent) !important;
+  color: var(--score-color) !important;
+  padding: 6px 10px !important;
+  border-radius: 999px !important;
+  font-size: 0.78rem !important;
+  line-height: 1 !important;
+  font-weight: 950 !important;
+  letter-spacing: 0.02em !important;
+  text-transform: uppercase !important;
+  opacity: 1 !important;
+  white-space: nowrap !important;
+}
+
+.nonrevy-flight-board-row__airline-line {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  align-items: baseline !important;
+  gap: 7px !important;
+  color: #cbd5e1 !important;
+  font-size: clamp(0.98rem, 3.8vw, 1.12rem) !important;
+  line-height: 1.15 !important;
+  min-width: 0 !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+  white-space: normal !important;
+}
+
+.nonrevy-flight-board-row__airline-name {
+  font-weight: 800 !important;
+  color: #e2e8f0 !important;
+}
+
+.nonrevy-flight-board-row__flight-number {
+  color: #f8fafc !important;
+  font-size: inherit !important;
+  font-weight: 950 !important;
+  letter-spacing: -0.025em !important;
+  white-space: normal !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+}
+
+.nonrevy-flight-board-row__flight-id::after,
+.nonrevy-flight-board-row__duration::after,
+.nonrevy-flight-board-row__stops::after {
+  content: none !important;
+}
+
+.nonrevy-flight-board-row__leg-list {
+  display: none !important;
+}
+
+.nonrevy-flight-board-row__time-line {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  color: #f8fafc !important;
+  font-size: clamp(1.08rem, 5vw, 1.55rem) !important;
+  line-height: 1.1 !important;
+  font-weight: 950 !important;
+  letter-spacing: -0.045em !important;
+  white-space: normal !important;
+  overflow: visible !important;
+}
+
+.nonrevy-flight-board-row__time-value {
+  color: #f8fafc !important;
+  font-size: inherit !important;
+  white-space: nowrap !important;
+}
+
+.nonrevy-flight-board-row__time-arrow {
+  color: #38bdf8 !important;
+  font-weight: 900 !important;
+}
+
+.nonrevy-flight-board-row__overnight {
+  margin-left: 4px !important;
+  color: #facc15 !important;
+  font-size: 0.75em !important;
+}
+
+.nonrevy-flight-board-row__secondary-line {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  align-items: center !important;
+  gap: 8px !important;
+  color: #cbd5e1 !important;
+  font-size: clamp(0.88rem, 3.4vw, 1rem) !important;
+  line-height: 1.25 !important;
+  overflow: visible !important;
+  white-space: normal !important;
+}
+
+.nonrevy-flight-board-row__stops,
+.nonrevy-flight-board-row__duration,
+.nonrevy-flight-board-row__availability {
+  color: #cbd5e1 !important;
+  font-size: inherit !important;
+  font-weight: 850 !important;
+  white-space: normal !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+}
+
+.nonrevy-flight-board-row__actions.nonrevy-primary-actions {
+  display: grid !important;
+  grid-template-columns: minmax(9.5rem, 1.35fr) minmax(5rem, 0.8fr) minmax(5rem, 0.8fr) !important;
+  gap: 8px !important;
+  margin-top: auto !important;
+  width: 100% !important;
+  order: 99 !important;
+}
+
+.nonrevy-flight-board-row__actions.nonrevy-primary-actions button {
+  min-height: 42px !important;
+  width: 100% !important;
+  padding: 10px 12px !important;
+  font-size: 0.9rem !important;
+  line-height: 1.1 !important;
+  font-weight: 900 !important;
+  white-space: nowrap !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+}
+
+.nonrevy-primary-action--request-loads {
+  min-width: 9.5rem !important;
+}
+
+@media (max-width: 520px) {
+  .nonrevy-flight-board-row {
+    gap: 10px !important;
+    padding: 14px !important;
+  }
+
+  .nonrevy-flight-board-row__primary-line {
+    gap: 8px !important;
+  }
+
+  .nonrevy-flight-board-row__score {
+    padding: 5px 8px !important;
+    font-size: 0.72rem !important;
+  }
+
+  .nonrevy-flight-board-row__actions.nonrevy-primary-actions {
+    grid-template-columns: 1fr !important;
+  }
+
+  .nonrevy-flight-board-row__actions.nonrevy-primary-actions button {
+    min-height: 44px !important;
+  }
+}

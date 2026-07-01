@@ -1123,9 +1123,126 @@ export function buildItinerariesFromFlights(flights: Record<string, unknown>[], 
 }
 
 function completedItinerariesByArrival(itineraries: ItineraryResult[], limit = 5) {
-  return dedupeItineraries(itineraries)
-    .sort((a, b) => (Date.parse(a.arrivalTime) || Number.MAX_SAFE_INTEGER) - (Date.parse(b.arrivalTime) || Number.MAX_SAFE_INTEGER) || a.legs.length - b.legs.length || b.score - a.score)
+  const deduped = dedupeItineraries(itineraries)
+  return deduped
+    .sort((a, b) => compareItinerariesByDecisionEngine(a, b, deduped))
     .slice(0, limit)
+}
+
+function compareItinerariesByDecisionEngine(a: ItineraryResult, b: ItineraryResult, itineraries: ItineraryResult[]) {
+  const left = decisionMetricsForResult(a, itineraries)
+  const right = decisionMetricsForResult(b, itineraries)
+  return decisionArrivalTime(a) - decisionArrivalTime(b) ||
+    left.stops - right.stops ||
+    right.recoveryStrength - left.recoveryStrength ||
+    left.misconnectRisk - right.misconnectRisk ||
+    left.totalTravelMinutes - right.totalTravelMinutes ||
+    decisionDepartureTime(a) - decisionDepartureTime(b) ||
+    a.route.localeCompare(b.route) ||
+    b.score - a.score
+}
+
+function decisionMetricsForResult(itinerary: ItineraryResult, itineraries: ItineraryResult[]) {
+  const buffers = decisionConnectionBuffersMinutes(itinerary)
+  const minimumConnectionBuffer = buffers.length ? Math.min(...buffers) : null
+  const airlineChanges = decisionAirlineChanges(itinerary)
+  const airportChanges = decisionAirportChanges(itinerary)
+  const backupAfterFirst = decisionBackupOpportunitiesAfterConnection(itinerary, itineraries, 0)
+  const backupAfterSecond = decisionBackupOpportunitiesAfterConnection(itinerary, itineraries, 1)
+  const backupCount = backupAfterFirst + backupAfterSecond
+  const bufferStrength = minimumConnectionBuffer === null ? 14 : minimumConnectionBuffer >= 90 ? 24 : minimumConnectionBuffer >= 60 ? 14 : -14
+  const recoveryStrength = Math.round(Math.max(0, Math.min(100, itinerary.score * 0.35 + backupCount * 14 + bufferStrength - Math.max(0, itinerary.legs.length - 1) * 4 - airlineChanges * 3 - airportChanges * 12)))
+  const bufferRisk = minimumConnectionBuffer === null ? 0 : minimumConnectionBuffer < 45 ? 36 : minimumConnectionBuffer < 60 ? 24 : minimumConnectionBuffer < 90 ? 10 : 0
+  const misconnectRisk = Math.round(Math.max(0, Math.min(100, Math.max(0, itinerary.legs.length - 1) * 14 + bufferRisk + airlineChanges * 6 + airportChanges * 18)))
+
+  return {
+    arrivalRank: decisionArrivalRank(itinerary, itineraries),
+    totalTravelMinutes: decisionTotalTravelMinutes(itinerary),
+    stops: Math.max(0, itinerary.legs.length - 1),
+    connectionBuffers: buffers,
+    minimumConnectionBuffer,
+    overnightRequired: decisionOvernightRequired(itinerary),
+    airlineChanges,
+    airportChanges,
+    backupOpportunitiesAfterFirstConnection: backupAfterFirst,
+    backupOpportunitiesAfterSecondConnection: backupAfterSecond,
+    recoveryStrength,
+    misconnectRisk
+  }
+}
+
+function decisionDepartureTime(itinerary: ItineraryResult) {
+  return Date.parse(itinerary.departureTime) || Number.MAX_SAFE_INTEGER
+}
+
+function decisionArrivalTime(itinerary: ItineraryResult) {
+  return Date.parse(itinerary.arrivalTime) || Number.MAX_SAFE_INTEGER
+}
+
+function decisionArrivalRank(itinerary: ItineraryResult, itineraries: ItineraryResult[]) {
+  const arrivals = [...new Set(itineraries.map(decisionArrivalTime).filter(Number.isFinite))].sort((a, b) => a - b)
+  const index = arrivals.findIndex((arrival) => arrival === decisionArrivalTime(itinerary))
+  return index >= 0 ? index + 1 : itineraries.length
+}
+
+function decisionTotalTravelMinutes(itinerary: ItineraryResult) {
+  const departure = decisionDepartureTime(itinerary)
+  const arrival = decisionArrivalTime(itinerary)
+  if (!Number.isFinite(departure) || !Number.isFinite(arrival) || arrival <= departure) return Number.MAX_SAFE_INTEGER
+  return Math.round((arrival - departure) / 60000)
+}
+
+function decisionConnectionBuffersMinutes(itinerary: ItineraryResult) {
+  return itinerary.legs.slice(0, -1).map((leg, index) => {
+    const arrival = Date.parse(leg.arrivalTime)
+    const nextDeparture = Date.parse(itinerary.legs[index + 1]?.departureTime || '')
+    if (!Number.isFinite(arrival) || !Number.isFinite(nextDeparture) || nextDeparture <= arrival) return null
+    return Math.round((nextDeparture - arrival) / 60000)
+  }).filter((value): value is number => value !== null)
+}
+
+function decisionCarrierCode(leg: ItineraryLeg) {
+  const normalizedFlight = (leg.operatingFlightNumber || leg.flightNumber || '').replace(/\s+/g, '').toUpperCase()
+  const flightCode = normalizedFlight.match(/^([A-Z]{1,2}|[A-Z]\d|\d[A-Z])\d{1,4}$/)?.[1]
+  const carrierCode = leg.carrier.trim().split(/\s+/).find((word) => /^[A-Z0-9]{2,3}$/.test(word))
+  return carrierCode || flightCode || leg.carrier.trim().toUpperCase()
+}
+
+function decisionAirlineChanges(itinerary: ItineraryResult) {
+  if (itinerary.legs.length < 2) return 0
+  return itinerary.legs.slice(0, -1).filter((leg, index) => decisionCarrierCode(leg) !== decisionCarrierCode(itinerary.legs[index + 1])).length
+}
+
+function decisionAirportChanges(itinerary: ItineraryResult) {
+  if (itinerary.legs.length < 2) return 0
+  return itinerary.legs.slice(0, -1).filter((leg, index) => leg.destination !== itinerary.legs[index + 1]?.origin).length
+}
+
+function decisionBackupOpportunitiesAfterConnection(itinerary: ItineraryResult, itineraries: ItineraryResult[], connectionIndex: number) {
+  const connectionAirport = itinerary.legs[connectionIndex]?.destination
+  const missedLeg = itinerary.legs[connectionIndex + 1]
+  const missedDeparture = Date.parse(missedLeg?.departureTime || '')
+  if (!connectionAirport || !Number.isFinite(missedDeparture)) return 0
+  const alternatives = new Set<string>()
+  itineraries.forEach((candidate) => {
+    candidate.legs.forEach((leg) => {
+      const departure = Date.parse(leg.departureTime)
+      if (leg.origin !== connectionAirport || !Number.isFinite(departure) || departure <= missedDeparture) return
+      alternatives.add(`${leg.origin}-${leg.destination}-${leg.operatingFlightNumber || leg.flightNumber}-${leg.departureTime}`)
+    })
+  })
+  return alternatives.size
+}
+
+function decisionOvernightRequired(itinerary: ItineraryResult) {
+  const departure = decisionDepartureTime(itinerary)
+  const arrival = decisionArrivalTime(itinerary)
+  if (!Number.isFinite(departure) || !Number.isFinite(arrival)) return false
+  const departureDate = new Date(departure)
+  const arrivalDate = new Date(arrival)
+  const departureDay = Date.UTC(departureDate.getUTCFullYear(), departureDate.getUTCMonth(), departureDate.getUTCDate())
+  const arrivalDay = Date.UTC(arrivalDate.getUTCFullYear(), arrivalDate.getUTCMonth(), arrivalDate.getUTCDate())
+  return arrivalDay > departureDay
 }
 
 function itineraryFromLegs(legs: ItineraryLeg[]): ItineraryResult {

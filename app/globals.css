@@ -6278,3 +6278,44 @@ button:focus-visible,
     min-height: 44px !important;
   }
 }
+
+/* Decision Engine v1 recommendation block */
+.nonrevy-flight-board-row__decision {
+  display: grid !important;
+  gap: 5px !important;
+  color: #e2e8f0 !important;
+  font-size: clamp(0.9rem, 3.4vw, 1rem) !important;
+  line-height: 1.25 !important;
+  padding-top: 2px !important;
+}
+
+.nonrevy-flight-board-row__decision strong {
+  color: #f8fafc !important;
+  font-size: clamp(1rem, 3.8vw, 1.14rem) !important;
+  font-weight: 950 !important;
+  letter-spacing: -0.025em !important;
+}
+
+.nonrevy-flight-board-row__decision ul {
+  display: grid !important;
+  gap: 3px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  list-style: none !important;
+}
+
+.nonrevy-flight-board-row__decision li {
+  margin: 0 !important;
+  color: #cbd5e1 !important;
+  font-weight: 800 !important;
+  white-space: normal !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+}
+
+.nonrevy-flight-board-row__decision li::before {
+  content: "•";
+  color: #38bdf8;
+  margin-right: 6px;
+  font-weight: 950;
+}

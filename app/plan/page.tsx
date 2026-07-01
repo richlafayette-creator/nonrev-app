@@ -613,6 +613,26 @@ type ItineraryComparison = {
   suggestedRecoveryPaths?: SuggestedRecoveryPath[]
 }
 
+type DecisionMetrics = {
+  arrivalRank: number
+  totalTravelMinutes: number
+  stops: number
+  connectionBuffers: number[]
+  minimumConnectionBufferMinutes: number | null
+  overnightRequired: boolean
+  airlineChanges: number
+  airportChanges: number
+  backupOpportunitiesAfterFirstConnection: number
+  backupOpportunitiesAfterSecondConnection: number
+  recoveryStrength: number
+  misconnectRisk: number
+}
+
+type DecisionRecommendation = {
+  title: string
+  reasons: string[]
+}
+
 type ScoringExplanation = {
   whyRankedHere: string[]
   probabilityFactors: string[]
@@ -1699,6 +1719,10 @@ function formatConnectionBuffer(minutes: number) {
   return `${mins}m`
 }
 
+function normalizeDecisionCarrierCode(carrier: string, flightNumber = '') {
+  return compactCarrierCode(carrier, flightNumber).replace(/[^A-Z0-9]/g, '').toUpperCase() || carrier.trim().toUpperCase()
+}
+
 function itineraryConnectionBuffersMinutes(comparison: ItineraryComparison) {
   const legs = comparison.legs || []
   return legs.slice(0, -1).map((leg, index) => {
@@ -1709,7 +1733,154 @@ function itineraryConnectionBuffersMinutes(comparison: ItineraryComparison) {
   }).filter((value): value is number => value !== null)
 }
 
+function itineraryAirlineChanges(comparison: ItineraryComparison) {
+  const legs = comparison.legs || []
+  if (legs.length < 2) return 0
+  return legs.slice(0, -1).filter((leg, index) => {
+    const currentCarrier = normalizeDecisionCarrierCode(leg.carrier, leg.operatingFlightNumber || leg.flightNumber)
+    const nextLeg = legs[index + 1]
+    const nextCarrier = normalizeDecisionCarrierCode(nextLeg.carrier, nextLeg.operatingFlightNumber || nextLeg.flightNumber)
+    return currentCarrier !== nextCarrier
+  }).length
+}
+
+function itineraryAirportChanges(comparison: ItineraryComparison) {
+  const legs = comparison.legs || []
+  if (legs.length < 2) return 0
+  return legs.slice(0, -1).filter((leg, index) => leg.destination !== legs[index + 1]?.origin).length
+}
+
+function backupOpportunitiesAfterConnection(comparison: ItineraryComparison, comparisons: ItineraryComparison[], connectionIndex: number) {
+  const legs = comparison.legs || []
+  const missedLeg = legs[connectionIndex + 1]
+  const connectionAirport = legs[connectionIndex]?.destination
+  const missedDeparture = parseScheduleTime(missedLeg?.departureTime || '')
+  if (!connectionAirport || !missedDeparture) return 0
+
+  const alternatives = new Set<string>()
+  comparisons.forEach((candidate) => {
+    ;(candidate.legs || []).forEach((leg) => {
+      const departure = parseScheduleTime(leg.departureTime)
+      if (leg.origin !== connectionAirport || !departure || departure <= missedDeparture) return
+      alternatives.add(`${leg.origin}-${leg.destination}-${leg.operatingFlightNumber || leg.flightNumber}-${leg.departureTime}`)
+    })
+  })
+  return alternatives.size
+}
+
+function decisionArrivalRanks(comparisons: ItineraryComparison[]) {
+  const arrivals = [...new Set(comparisons
+    .map((item) => itineraryArrivalSortValue(item))
+    .filter((value) => Number.isFinite(value)))]
+    .sort((a, b) => a - b)
+  return arrivals
+}
+
+function decisionMetricsForItinerary(comparison: ItineraryComparison, comparisons: ItineraryComparison[]): DecisionMetrics {
+  const connectionBuffers = itineraryConnectionBuffersMinutes(comparison)
+  const minimumConnectionBufferMinutes = connectionBuffers.length ? Math.min(...connectionBuffers) : null
+  const totalTravelMinutes = routeDurationMinutes(comparison.totalTravelTime)
+  const arrivalValue = itineraryArrivalSortValue(comparison)
+  const arrivals = decisionArrivalRanks(comparisons)
+  const arrivalRank = Number.isFinite(arrivalValue) ? Math.max(1, arrivals.findIndex((value) => value === arrivalValue) + 1) : comparisons.length
+  const airportChanges = itineraryAirportChanges(comparison)
+  const airlineChanges = itineraryAirlineChanges(comparison)
+  const backupOpportunitiesAfterFirstConnection = backupOpportunitiesAfterConnection(comparison, comparisons, 0)
+  const backupOpportunitiesAfterSecondConnection = backupOpportunitiesAfterConnection(comparison, comparisons, 1)
+  const backupCount = backupOpportunitiesAfterFirstConnection + backupOpportunitiesAfterSecondConnection
+  const suggestedRecoveryCount = comparison.suggestedRecoveryPaths?.length || 0
+  const baseBackupStrength = backupAvailabilityScore(comparison)
+  const bufferStrength = minimumConnectionBufferMinutes === null ? 12 : minimumConnectionBufferMinutes >= 90 ? 20 : minimumConnectionBufferMinutes >= 60 ? 12 : -12
+  const recoveryStrength = Math.round(Math.max(0, Math.min(100, baseBackupStrength + backupCount * 10 + suggestedRecoveryCount * 8 + bufferStrength - comparison.connections * 5 - airportChanges * 10)))
+  const bufferRisk = minimumConnectionBufferMinutes === null ? 0 : minimumConnectionBufferMinutes < 45 ? 35 : minimumConnectionBufferMinutes < 60 ? 22 : minimumConnectionBufferMinutes < 90 ? 10 : 0
+  const misconnectRisk = Math.round(Math.max(0, Math.min(100, comparison.airportIntelligence.connectionRiskScore + bufferRisk + airlineChanges * 5 + airportChanges * 15 + Math.max(0, comparison.connections - 1) * 8)))
+
+  return {
+    arrivalRank,
+    totalTravelMinutes,
+    stops: comparison.connections,
+    connectionBuffers,
+    minimumConnectionBufferMinutes,
+    overnightRequired: flightBoardDayOffset(comparison.arrivalDateTime, comparison.departureDateTime) > 0,
+    airlineChanges,
+    airportChanges,
+    backupOpportunitiesAfterFirstConnection,
+    backupOpportunitiesAfterSecondConnection,
+    recoveryStrength,
+    misconnectRisk
+  }
+}
+
+function compareByDecisionEngine(a: ItineraryComparison, b: ItineraryComparison, comparisons: ItineraryComparison[]) {
+  const left = decisionMetricsForItinerary(a, comparisons)
+  const right = decisionMetricsForItinerary(b, comparisons)
+  return itineraryArrivalSortValue(a) - itineraryArrivalSortValue(b) ||
+    left.stops - right.stops ||
+    right.recoveryStrength - left.recoveryStrength ||
+    left.misconnectRisk - right.misconnectRisk ||
+    left.totalTravelMinutes - right.totalTravelMinutes ||
+    itineraryDepartureSortValue(a) - itineraryDepartureSortValue(b) ||
+    a.route.localeCompare(b.route)
+}
+
+function bestConnectionAirportLabel(comparison: ItineraryComparison, metrics: DecisionMetrics) {
+  const legs = comparison.legs || []
+  const firstConnection = legs[0]?.destination
+  const secondConnection = legs[1]?.destination
+  if (metrics.backupOpportunitiesAfterFirstConnection > 0 && firstConnection) return firstConnection
+  if (metrics.backupOpportunitiesAfterSecondConnection > 0 && secondConnection) return secondConnection
+  return airportCodesFromComparisonRoute(comparison.route).slice(1, -1)[0]
+}
+
+function decisionRecommendationForItinerary(comparison: ItineraryComparison, comparisons: ItineraryComparison[]): DecisionRecommendation {
+  const metrics = decisionMetricsForItinerary(comparison, comparisons)
+  const allMetrics = comparisons.map((item) => ({ item, metrics: decisionMetricsForItinerary(item, comparisons) }))
+  const bestRecovery = Math.max(...allMetrics.map((entry) => entry.metrics.recoveryStrength))
+  const lowestMisconnectRisk = Math.min(...allMetrics.map((entry) => entry.metrics.misconnectRisk))
+  const shortestTravel = Math.min(...allMetrics.map((entry) => entry.metrics.totalTravelMinutes).filter(Number.isFinite))
+  const backupCount = metrics.backupOpportunitiesAfterFirstConnection + metrics.backupOpportunitiesAfterSecondConnection
+  const isTopDecision = sortCompactItineraries(comparisons)[0]?.id === comparison.id
+
+  const title = isTopDecision ? 'Best overall choice'
+    : metrics.arrivalRank === 1 ? 'Earliest arrival'
+      : metrics.recoveryStrength === bestRecovery && backupCount > 0 ? 'Strong backup options'
+        : metrics.misconnectRisk === lowestMisconnectRisk && metrics.stops > 0 ? 'Safest connection'
+          : metrics.totalTravelMinutes === shortestTravel ? 'Shortest travel day'
+            : backupCount > 0 ? 'Best if standby loads change'
+              : metrics.stops === 0 ? 'Simplest routing'
+                : 'Solid backup choice'
+
+  const reasons: string[] = []
+  if (metrics.arrivalRank === 1) reasons.push('Arrives earliest')
+  else if (metrics.arrivalRank <= 3) reasons.push(`Arrival rank ${metrics.arrivalRank}`)
+  if (backupCount > 0) {
+    const airport = bestConnectionAirportLabel(comparison, metrics)
+    reasons.push(airport ? `Backup options through ${airport}` : 'Backup options available')
+  } else if (metrics.stops === 0) reasons.push('No connection risk')
+  if (metrics.minimumConnectionBufferMinutes !== null) {
+    reasons.push(metrics.minimumConnectionBufferMinutes >= 90
+      ? 'Comfortable connection'
+      : metrics.minimumConnectionBufferMinutes >= 60
+        ? 'Usable connection buffer'
+        : 'Tight connection')
+  }
+  if (metrics.airlineChanges === 0 && metrics.stops > 0) reasons.push('No airline change')
+  if (metrics.airportChanges > 0) reasons.push('Requires airport change')
+  if (metrics.overnightRequired) reasons.push('Overnight required')
+  if (metrics.totalTravelMinutes === shortestTravel) reasons.push('Shortest travel day')
+
+  return { title, reasons: [...new Set(reasons)].slice(0, 3) }
+}
+
 function routeExplanationReasons(comparison: ItineraryComparison, comparisons: ItineraryComparison[]) {
+  return decisionRecommendationForItinerary(comparison, comparisons).reasons
+}
+
+function routeRecommendationTitle(comparison: ItineraryComparison, comparisons: ItineraryComparison[]) {
+  return decisionRecommendationForItinerary(comparison, comparisons).title
+}
+
+function legacyRouteExplanationReasons(comparison: ItineraryComparison, comparisons: ItineraryComparison[]) {
   const reasons: string[] = []
   const arrivals = comparisons
     .map((item) => ({ item, time: parseScheduleTime(item.arrivalDateTime) }))
@@ -1962,27 +2133,11 @@ function topRouteRankSortValue(comparison: ItineraryComparison) {
 }
 
 function sortMoreRouteItineraries(comparisons: ItineraryComparison[]) {
-  return [...comparisons].sort((a, b) =>
-    itineraryArrivalSortValue(a) - itineraryArrivalSortValue(b) ||
-    itineraryDepartureSortValue(a) - itineraryDepartureSortValue(b) ||
-    topRouteRankSortValue(a) - topRouteRankSortValue(b) ||
-    (b.topRouteScore || 0) - (a.topRouteScore || 0) ||
-    a.route.localeCompare(b.route)
-  )
+  return [...comparisons].sort((a, b) => compareByDecisionEngine(a, b, comparisons))
 }
 
 function sortCompactItineraries(comparisons: ItineraryComparison[]) {
-  return [...comparisons].sort((a, b) =>
-    itineraryArrivalSortValue(a) - itineraryArrivalSortValue(b) ||
-    itineraryDepartureSortValue(a) - itineraryDepartureSortValue(b) ||
-    topRouteRankSortValue(a) - topRouteRankSortValue(b) ||
-    (b.topRouteScore || 0) - (a.topRouteScore || 0) ||
-    b.personalSuccessPrediction.probability - a.personalSuccessPrediction.probability ||
-    b.nextGenSuccess.score - a.nextGenSuccess.score ||
-    b.successPrediction.probability - a.successPrediction.probability ||
-    b.routeConfidence.score - a.routeConfidence.score ||
-    a.route.localeCompare(b.route)
-  )
+  return [...comparisons].sort((a, b) => compareByDecisionEngine(a, b, comparisons))
 }
 
 function compactLegLabel(connections: number) {
@@ -3822,6 +3977,7 @@ function renderFlightBoardRow(comparison: ItineraryComparison, showPlanB = false
     const requestLoadOpen = activeLoadRequestId === comparison.id
     const contributor = loadCommunityContributorReputation()
     const scoreLabel = trafficLightScoreLabel(confidenceScore)
+    const routeRecommendation = routeRecommendationTitle(comparison, compactItineraries)
     const whyRouteReasons = routeExplanationReasons(comparison, compactItineraries)
 
     return (
@@ -3862,9 +4018,11 @@ function renderFlightBoardRow(comparison: ItineraryComparison, showPlanB = false
         </div>
 
         {whyRouteReasons.length ? (
-          <div className="nonrevy-flight-board-row__secondary-line" aria-label="Why this route">
-            <strong>Why this route</strong>
-            {whyRouteReasons.map((reason) => <span key={`${comparison.id}-why-route-${reason}`}>• {reason}</span>)}
+          <div className="nonrevy-flight-board-row__decision" aria-label="Decision engine recommendation">
+            <strong>{routeRecommendation}</strong>
+            <ul>
+              {whyRouteReasons.map((reason) => <li key={`${comparison.id}-why-route-${reason}`}>{reason}</li>)}
+            </ul>
           </div>
         ) : null}
 

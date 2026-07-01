@@ -1420,7 +1420,6 @@ async function fetchExpandedScheduleFlights(request: ReturnType<typeof normalize
     if (cachedFlights.length) {
       providerCacheFetched += cachedFlights.length
       flights.push(...cachedFlights)
-      continue
     }
 
     const flightAware = await fetchFlightAwareScheduleFlights(segmentRequest)

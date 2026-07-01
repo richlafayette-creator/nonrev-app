@@ -140,15 +140,41 @@ const carrierIataCodes: Record<string, string[]> = {
 
 const defaultProviderTimeoutMs = 7000
 
+const airportTimeZones: Record<string, string> = {
+  ATL: 'America/New_York',
+  BOS: 'America/New_York',
+  DEN: 'America/Denver',
+  DFW: 'America/Chicago',
+  EWR: 'America/New_York',
+  HNL: 'Pacific/Honolulu',
+  IAD: 'America/New_York',
+  IAH: 'America/Chicago',
+  JFK: 'America/New_York',
+  LAX: 'America/Los_Angeles',
+  NRT: 'Asia/Tokyo',
+  OGG: 'Pacific/Honolulu',
+  ORD: 'America/Chicago',
+  PDX: 'America/Los_Angeles',
+  PHX: 'America/Phoenix',
+  SAN: 'America/Los_Angeles',
+  SBP: 'America/Los_Angeles',
+  SEA: 'America/Los_Angeles',
+  SFO: 'America/Los_Angeles'
+}
+
 function aviationstackCarrierCodes(carrier?: string) {
   if (!carrier || carrier === 'all') return [undefined]
   return carrierIataCodes[carrier] || [carrier.toUpperCase()]
 }
 
 function nextIsoDate(date: string) {
+  return addIsoDays(date, 1)
+}
+
+function addIsoDays(date: string, days: number) {
   const parsed = new Date(`${date}T00:00:00.000Z`)
   if (!Number.isFinite(parsed.getTime())) return undefined
-  parsed.setUTCDate(parsed.getUTCDate() + 1)
+  parsed.setUTCDate(parsed.getUTCDate() + days)
   return parsed.toISOString().slice(0, 10)
 }
 
@@ -160,10 +186,22 @@ function scheduleSearchDate(date?: string) {
 function carrierMatchesSchedule(result: NormalizedScheduleResult, carrier?: string) {
   if (!carrier || carrier === 'all') return true
   const allowedCodes = carrierIataCodes[carrier]?.map((code) => code.toLowerCase()) || [carrier.toLowerCase()]
-  const text = `${result.carrier} ${result.flightNumber}`.toLowerCase()
+  const text = `${result.carrier} ${result.flightNumber} ${result.operatingCarrier || ''} ${result.operatingFlightNumber || ''} ${(result.marketingFlightNumbers || []).join(' ')}`.toLowerCase()
   const hasCarrierEvidence = !text.split(/\s+/).every((part) => !part || part === 'not' || part === 'provided')
   if (!hasCarrierEvidence && result.source === 'flightaware') return true
   return allowedCodes.some((code) => text.includes(code)) || text.includes(carrier.toLowerCase())
+}
+
+function airportLocalDate(value?: string, airportCode?: string) {
+  const parsed = value ? Date.parse(value) : NaN
+  if (!Number.isFinite(parsed)) return undefined
+  const timeZone = airportCode ? airportTimeZones[airportCode] : undefined
+  return new Date(parsed).toLocaleDateString('en-CA', { timeZone })
+}
+
+function scheduleMatchesOriginLocalDate(result: NormalizedScheduleResult, date?: string) {
+  if (!date) return true
+  return airportLocalDate(result.departureTime, result.origin) === date
 }
 
 function uniqueMessages(messages: Array<string | undefined>) {
@@ -381,11 +419,11 @@ export function createFlightAwareScheduleProvider(apiKey = process.env.FLIGHTAWA
       }
 
       const startDate = scheduleSearchDate(request.date)
-      const endDate = nextIsoDate(startDate) || startDate
+      const endDate = request.date ? addIsoDays(startDate, 2) || nextIsoDate(startDate) || startDate : nextIsoDate(startDate) || startDate
       const params = new URLSearchParams({
         origin: request.origin,
         destination: request.destination,
-        max_pages: '1'
+        max_pages: request.date ? '2' : '1'
       })
       const limit = request.maxResults || 50
       const sourceCheckedAt = new Date().toISOString()
@@ -420,6 +458,7 @@ export function createFlightAwareScheduleProvider(apiKey = process.env.FLIGHTAWA
 
         const results = uniqueScheduleResults(data.scheduled
           .map((flight: FlightAwareSchedule) => normalizeFlightAwareScheduleResult(flight, sourceCheckedAt))
+          .filter((result: NormalizedScheduleResult) => scheduleMatchesOriginLocalDate(result, request.date))
           .filter((result: NormalizedScheduleResult) => carrierMatchesSchedule(result, request.carrier))
           .slice(0, limit))
 

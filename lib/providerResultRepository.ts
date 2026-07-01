@@ -56,6 +56,28 @@ const defaultLookupTimeoutMs = 2500
 const defaultCacheMaxAgeHours = 72
 const localProviderResultCache: ProviderResultRecord[] = []
 
+const airportTimeZones: Record<string, string> = {
+  ATL: 'America/New_York',
+  BOS: 'America/New_York',
+  DEN: 'America/Denver',
+  DFW: 'America/Chicago',
+  EWR: 'America/New_York',
+  HNL: 'Pacific/Honolulu',
+  IAD: 'America/New_York',
+  IAH: 'America/Chicago',
+  JFK: 'America/New_York',
+  LAX: 'America/Los_Angeles',
+  NRT: 'Asia/Tokyo',
+  OGG: 'Pacific/Honolulu',
+  ORD: 'America/Chicago',
+  PDX: 'America/Los_Angeles',
+  PHX: 'America/Phoenix',
+  SAN: 'America/Los_Angeles',
+  SBP: 'America/Los_Angeles',
+  SEA: 'America/Los_Angeles',
+  SFO: 'America/Los_Angeles'
+}
+
 function storeProviderResultsEnabled(env: ProviderResultRepositoryEnv) {
   return env.NONREVY_STORE_PROVIDER_RESULTS !== 'false'
 }
@@ -132,6 +154,12 @@ function isoDay(value?: string) {
   return Number.isFinite(parsed) ? new Date(parsed).toISOString().slice(0, 10) : undefined
 }
 
+function localIsoDay(value?: string, airportCode?: string) {
+  const parsed = Date.parse(value || '')
+  if (!Number.isFinite(parsed)) return undefined
+  return new Date(parsed).toLocaleDateString('en-CA', { timeZone: airportCode ? airportTimeZones[airportCode] : undefined })
+}
+
 function hoursOld(record: ProviderResultRecord, now = Date.now()) {
   const parsed = Date.parse(record.source_checked_at || record.cached_at || '')
   if (!Number.isFinite(parsed)) return Infinity
@@ -141,7 +169,7 @@ function hoursOld(record: ProviderResultRecord, now = Date.now()) {
 function recordMatchesRequest(record: ProviderResultRecord, request: ProviderCacheLookupRequest) {
   if (request.origin && record.origin !== request.origin) return false
   if (request.destination && record.destination !== request.destination) return false
-  if (request.date && isoDay(record.departure_time) !== request.date) return false
+  if (request.date && (localIsoDay(record.departure_time, record.origin) || isoDay(record.departure_time)) !== request.date) return false
   if (request.carrier && request.carrier !== 'all') {
     const carrier = request.carrier.toUpperCase()
     if (![record.carrier, record.airline, record.flight_number].some((value) => value.toUpperCase().includes(carrier))) return false

@@ -177,6 +177,28 @@ const carrierAliases: Record<string, string[]> = {
   'alaska-group': ['alaska', 'hawaiian', 'as', 'ha', 'alaska group']
 }
 
+const airportTimeZones: Record<string, string> = {
+  ATL: 'America/New_York',
+  BOS: 'America/New_York',
+  DEN: 'America/Denver',
+  DFW: 'America/Chicago',
+  EWR: 'America/New_York',
+  HNL: 'Pacific/Honolulu',
+  IAD: 'America/New_York',
+  IAH: 'America/Chicago',
+  JFK: 'America/New_York',
+  LAX: 'America/Los_Angeles',
+  NRT: 'Asia/Tokyo',
+  OGG: 'Pacific/Honolulu',
+  ORD: 'America/Chicago',
+  PDX: 'America/Los_Angeles',
+  PHX: 'America/Phoenix',
+  SAN: 'America/Los_Angeles',
+  SBP: 'America/Los_Angeles',
+  SEA: 'America/Los_Angeles',
+  SFO: 'America/Los_Angeles'
+}
+
 const carrierLabels: Record<string, string> = {
   united: 'United',
   delta: 'Delta',
@@ -696,30 +718,44 @@ function flightMatchesCarrier(flight: Record<string, unknown>, carrier?: string)
   if (!carrier || carrier === 'all') return true
   const carrierText = carrierFromFlight(flight)
   const flightNumber = valueFrom(flight, ['flight_number', 'ident'])
-  const text = `${carrierText} ${flightNumber}`.toLowerCase()
+  const operatingFlightNumber = valueFrom(flight, ['operating_flight_number', 'actual_ident_iata', 'actual_ident'])
+  const marketingFlightNumbers = valueFrom(flight, ['marketing_flight_numbers', 'ident_iata'])
+  const text = `${carrierText} ${flightNumber} ${operatingFlightNumber} ${marketingFlightNumbers}`.toLowerCase()
   const hasFlightNumberEvidence = Boolean(flightNumber.trim()) && flightNumber.toLowerCase() !== notProvidedLabel.toLowerCase()
   const hasCarrierEvidence = hasFlightNumberEvidence || !['unknown carrier', 'not provided'].includes(carrierText.toLowerCase())
   if (!hasCarrierEvidence && valueFrom(flight, ['source_provider']) === 'flightaware') return true
   return carrierAliases[carrier]?.some((alias) => text.includes(alias)) ?? text.includes(carrier.toLowerCase())
 }
 
+function localDateForAirport(value: string, airportCode?: string) {
+  const parsed = Date.parse(value)
+  if (!Number.isFinite(parsed)) return undefined
+  const timeZone = airportCode ? airportTimeZones[airportCode] : undefined
+  return new Date(parsed).toLocaleDateString('en-CA', { timeZone })
+}
+
 function flightMatchesDate(flight: Record<string, unknown>, date?: string) {
   if (!date) return true
-  const text = [
-    valueFrom(flight, dateFieldKeys),
-    valueFrom(flight, departureTimeFieldKeys)
-  ].join(' ')
+  const origin = airportCode(valueFrom(flight, originFieldKeys))
+  const departureTime = valueFrom(flight, departureTimeFieldKeys)
+  if (departureTime) {
+    const localDepartureDate = localDateForAirport(departureTime, origin)
+    if (localDepartureDate) return localDepartureDate === date
+  }
+  const text = [valueFrom(flight, dateFieldKeys), departureTime].join(' ')
   return text.includes(date)
 }
 
 export function normalizeFlightRouteForDiagnostics(flight: Record<string, unknown>): FlightRouteNormalization {
   const originRaw = valueFrom(flight, originFieldKeys)
   const destinationRaw = valueFrom(flight, destinationFieldKeys)
-  const dateRaw = [valueFrom(flight, dateFieldKeys), valueFrom(flight, departureTimeFieldKeys)].filter(Boolean).join(' ')
+  const departureTime = valueFrom(flight, departureTimeFieldKeys)
+  const origin = airportCode(originRaw)
+  const dateRaw = [valueFrom(flight, dateFieldKeys), departureTime].filter(Boolean).join(' ')
   return {
-    origin: airportCode(originRaw),
+    origin,
     destination: airportCode(destinationRaw),
-    date: dateRaw.match(/20\d{2}-\d{2}-\d{2}/)?.[0],
+    date: (departureTime ? localDateForAirport(departureTime, origin) : undefined) || dateRaw.match(/20\d{2}-\d{2}-\d{2}/)?.[0],
     carrierText: `${carrierFromFlight(flight)} ${valueFrom(flight, ['flight_number', 'ident', 'fa_flight_id'])}`.trim(),
     flightNumber: valueFrom(flight, ['flight_number', 'ident', 'fa_flight_id']) || 'Flight TBD',
     originRaw: originRaw || undefined,

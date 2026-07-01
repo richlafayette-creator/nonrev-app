@@ -961,13 +961,16 @@ function normalizedScheduleInstant(value?: string) {
 }
 
 function itineraryDedupeKey(legs: ItineraryLeg[]) {
-  return legs.map((leg) => [
-    canonicalFlightNumber(leg.operatingFlightNumber || leg.flightNumber),
-    leg.origin,
-    leg.destination,
-    normalizedScheduleInstant(leg.departureTime),
-    normalizedScheduleInstant(leg.arrivalTime)
-  ].join('|')).join('||')
+  return legs.map((leg) => {
+    const flightNumber = canonicalFlightNumber(leg.operatingFlightNumber || leg.flightNumber)
+    const routeKey = [flightNumber, leg.origin, leg.destination].join('|')
+    if (flightNumber) return routeKey
+    return [
+      routeKey,
+      normalizedScheduleInstant(leg.departureTime),
+      normalizedScheduleInstant(leg.arrivalTime)
+    ].join('|')
+  }).join('||')
 }
 
 function minutesUntilConnection(firstLeg: ItineraryLeg, secondLeg: ItineraryLeg) {
@@ -1070,22 +1073,27 @@ function enrichmentKey(flight: Record<string, unknown>) {
 }
 
 export function buildItinerariesFromFlights(flights: Record<string, unknown>[], request: ParsedItineraryRequest, enrichments: Record<string, Record<string, unknown>> = {}) {
-  const directLegs = flights
-    .filter((flight) => flightMatchesRequest(flight, request))
-    .map((flight) => normalizeFlightLeg(flight, enrichments[enrichmentKey(flight)]))
-
-  const directItineraries = directLegs.map((leg) => itineraryFromLegs([leg]))
-
-  if (request.maxLegs < 2 || !request.origin || !request.destination) return dedupeItineraries(directItineraries)
-
   const candidateLegs = flights
     .filter((flight) => flightMatchesCarrier(flight, request.carrier) && flightMatchesDate(flight, request.date))
     .map((flight) => normalizeFlightLeg(flight, enrichments[enrichmentKey(flight)]))
+
+  const directItineraries = candidateLegs
+    .filter((leg) => leg.origin === request.origin && leg.destination === request.destination)
+    .map((leg) => itineraryFromLegs([leg]))
+
+  if (!request.origin || !request.destination) {
+    return completedItinerariesByArrival(directItineraries)
+  }
+
   const firstLegs = candidateLegs.filter((leg) => leg.origin === request.origin && leg.destination !== request.destination)
-  const secondLegs = candidateLegs.filter((leg) => leg.destination === request.destination && leg.origin !== request.origin)
-  const connectionItineraries = firstLegs
-    .flatMap((firstLeg) => secondLegs
-      .filter((secondLeg) => secondLeg.origin === firstLeg.destination && isFeasibleConnection(firstLeg, secondLeg))
+  const finalLegs = candidateLegs.filter((leg) => leg.destination === request.destination && leg.origin !== request.origin)
+
+  const oneStopItineraries = request.maxLegs < 2 ? [] : firstLegs
+    .flatMap((firstLeg) => finalLegs
+      .filter((secondLeg) =>
+        secondLeg.origin === firstLeg.destination &&
+        isFeasibleConnection(firstLeg, secondLeg)
+      )
       .map((secondLeg) => itineraryFromLegs([firstLeg, secondLeg]))
     )
 
@@ -1098,20 +1106,22 @@ export function buildItinerariesFromFlights(flights: Record<string, unknown>[], 
         middleLeg.destination !== firstLeg.origin &&
         isFeasibleConnection(firstLeg, middleLeg)
       )
-      .flatMap((middleLeg) => secondLegs
+      .flatMap((middleLeg) => finalLegs
         .filter((finalLeg) =>
           finalLeg.origin === middleLeg.destination &&
-          finalLeg.destination === request.destination &&
-          finalLeg.origin !== firstLeg.origin &&
-          finalLeg.origin !== firstLeg.destination &&
           isFeasibleConnection(middleLeg, finalLeg)
         )
         .map((finalLeg) => itineraryFromLegs([firstLeg, middleLeg, finalLeg]))
       )
     )
 
-  return dedupeItineraries([...directItineraries, ...connectionItineraries, ...twoStopItineraries])
-    .sort((a, b) => a.legs.length - b.legs.length || (Date.parse(a.departureTime) || Number.MAX_SAFE_INTEGER) - (Date.parse(b.departureTime) || Number.MAX_SAFE_INTEGER) || b.score - a.score)
+  return completedItinerariesByArrival([...directItineraries, ...oneStopItineraries, ...twoStopItineraries])
+}
+
+function completedItinerariesByArrival(itineraries: ItineraryResult[]) {
+  return dedupeItineraries(itineraries)
+    .sort((a, b) => (Date.parse(a.arrivalTime) || Number.MAX_SAFE_INTEGER) - (Date.parse(b.arrivalTime) || Number.MAX_SAFE_INTEGER) || a.legs.length - b.legs.length || b.score - a.score)
+    .slice(0, 5)
 }
 
 function itineraryFromLegs(legs: ItineraryLeg[]): ItineraryResult {

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { airportScaffoldFor } from '../../../../lib/airportMapScaffold'
-import { buildAllItinerariesFromFlights, buildItinerariesFromFlights, closestAvailableFlightDates, flightMatchesRequest, normalizeFlightRouteForDiagnostics, normalizeItineraryRequest, summarizeRouteMatching, type ItineraryResult, type ParsedItineraryRequest, type RouteMatchingSummary } from '../../../../lib/itinerarySearch'
+import { buildAllItinerariesFromFlights, closestAvailableFlightDates, flightMatchesRequest, normalizeFlightRouteForDiagnostics, normalizeItineraryRequest, summarizeRouteMatching, type ItineraryResult, type ParsedItineraryRequest, type RouteMatchingSummary } from '../../../../lib/itinerarySearch'
 import { mvpRouteSeedDate, mvpRouteSeedFlightsForRequest } from '../../../../lib/mvpRouteSeedData'
 import { createAviationstackScheduleProvider, createFlightAwareScheduleProvider, getLiveScheduleProviderReadiness, scheduleResultsToFlightRecords, type ScheduleProviderReadiness } from '../../../../lib/liveScheduleProviders'
 import { createProviderResultRepository, providerResultTableName, type ProviderCacheLookupResult, type ProviderResultRecord } from '../../../../lib/providerResultRepository'
@@ -9,6 +9,7 @@ import { enforceItineraryEndpointIntegrity, enforceItineraryListEndpointIntegrit
 import { blendRecoveryIntoItineraryScores, buildRecoveryIntelligence, type RecoveryIntelligence } from '../../../../lib/recoveryIntelligence'
 import { buildHistoricalRouteIntelligence, blendHistoricalIntelligenceIntoItineraryScores, type HistoricalRouteIntelligence } from '../../../../lib/historicalIntelligence'
 import { listAccountBetaRecords } from '../../../../lib/accountBetaStore'
+import { rankItineraries } from '../../../../lib/decisionEngine'
 import { persistentUserId } from '../../../../lib/apiIdentity'
 import { findServerCommunityLoadReports } from '../../../../lib/communityLoadServerStore'
 import type { TripOutcome } from '../../../../lib/outcomeRepository'
@@ -683,97 +684,6 @@ function routeFrameworkItinerary({ path, score, historical, community, sampleSiz
   }
 }
 
-function itineraryAirportPath(itinerary: ItineraryResult) {
-  const legPath = itinerary.legs.length
-    ? [itinerary.legs[0]?.origin, ...itinerary.legs.map((leg) => leg.destination)]
-    : itinerary.route.split('→')
-  return uniqueAirportCodes(legPath.map((code) => String(code || '').trim()))
-}
-
-function itineraryConnectionCount(itinerary: ItineraryResult) {
-  const path = itineraryAirportPath(itinerary)
-  return Math.max(0, path.length - 2)
-}
-
-function itineraryParsedTime(value?: string) {
-  if (!value || /pending|unavailable/i.test(value)) return null
-  const parsed = Date.parse(value)
-  return Number.isFinite(parsed) ? parsed : null
-}
-
-function itineraryTravelMinutes(itinerary: ItineraryResult) {
-  const departure = itineraryParsedTime(itinerary.legs[0]?.departureTime || itinerary.departureTime)
-  const arrival = itineraryParsedTime(itinerary.legs[itinerary.legs.length - 1]?.arrivalTime || itinerary.arrivalTime)
-  if (departure && arrival && arrival > departure) return Math.round((arrival - departure) / 60000)
-  const path = itineraryAirportPath(itinerary)
-  if (path.length < 2) return null
-  const international = path.some((airport) => ['HNL', 'HND', 'NRT', 'FCO', 'FRA', 'LHR', 'CDG', 'AMS', 'DUB'].includes(airport))
-  const longHaul = path.some((airport) => ['HND', 'NRT', 'FCO', 'FRA', 'LHR', 'CDG', 'AMS', 'DUB'].includes(airport))
-  const legMinutes = longHaul ? 390 : international ? 300 : 165
-  return (path.length - 1) * legMinutes + Math.max(0, path.length - 2) * 80
-}
-
-function routeFactorScore(value: number, min = 0, max = 100) {
-  return routeFrameworkClamp(value, min, max)
-}
-
-function preferredRouteQuality(request: ParsedItineraryRequest, route: string) {
-  const preferred = preferredRouteFrameworkPaths[`${request.origin}-${request.destination}`] || []
-  const index = preferred.findIndex((path) => path.join(' → ') === route)
-  if (index >= 0) return routeFactorScore(96 - index * 5, 45, 96)
-  return 68
-}
-
-function routeAirportDesirability(path: string[]) {
-  if (path.length <= 2) return 82
-  const transferAirports = path.slice(1, -1)
-  if (!transferAirports.length) return 86
-  const total = transferAirports.reduce((sum, airport) => sum + (routeFrameworkHubProfiles[airport]?.score || 62), 0)
-  return routeFactorScore(total / transferAirports.length)
-}
-
-function normalizeLowerIsBetter(value: number | null, min: number | null, max: number | null, fallback: number) {
-  if (value === null || min === null || max === null || max <= min) return fallback
-  return routeFactorScore(100 - ((value - min) / (max - min)) * 45, 45, 100)
-}
-
-function topRouteRecommendationScore(request: ParsedItineraryRequest, itinerary: ItineraryResult, context: { earliestArrival: number | null; latestArrival: number | null; shortestDuration: number | null; longestDuration: number | null }) {
-  const path = itineraryAirportPath(itinerary)
-  const connections = itineraryConnectionCount(itinerary)
-  const arrival = itineraryParsedTime(itinerary.legs[itinerary.legs.length - 1]?.arrivalTime || itinerary.arrivalTime)
-  const duration = itineraryTravelMinutes(itinerary)
-  const earliestArrival = normalizeLowerIsBetter(arrival, context.earliestArrival, context.latestArrival, arrival ? 76 : 58)
-  const fewestConnections = routeFactorScore(100 - connections * 18, 35, 100)
-  const historicalBase = itinerary.historicalSuccessScore ?? itinerary.score ?? 50
-  const historicalRouteQuality = routeFactorScore(historicalBase * 0.45 + preferredRouteQuality(request, itinerary.route) * 0.55)
-  const airportDesirability = routeAirportDesirability(path)
-  const positioningComplexity = routeFactorScore(96 - connections * 12 - Math.max(0, path.length - 3) * 8, 35, 96)
-  const totalTravelTime = normalizeLowerIsBetter(duration, context.shortestDuration, context.longestDuration, duration ? 72 : 58)
-  const routeReliabilityScore = routeFactorScore((itinerary.compositeRouteScore || itinerary.score || 50) * 0.5 + (itinerary.recoveryStrength || 50) * 0.22 + airportDesirability * 0.18 + fewestConnections * 0.1)
-  const weightedScore =
-    earliestArrival * 0.22 +
-    fewestConnections * 0.18 +
-    historicalRouteQuality * 0.18 +
-    airportDesirability * 0.14 +
-    positioningComplexity * 0.1 +
-    totalTravelTime * 0.1 +
-    routeReliabilityScore * 0.08
-  const topRouteScore = Math.max(20, Math.min(100, Number(weightedScore.toFixed(1))))
-
-  return {
-    topRouteScore,
-    factors: {
-      earliestArrival,
-      fewestConnections,
-      historicalRouteQuality,
-      airportDesirability,
-      positioningComplexity,
-      totalTravelTime,
-      routeReliabilityScore
-    }
-  }
-}
-
 function applyTopRouteRecommendations(request: ParsedItineraryRequest, itineraries: ItineraryResult[], limit = Number.MAX_SAFE_INTEGER) {
   const cleanItineraries = enforceItineraryListEndpointIntegrity(itineraries, request)
     .filter((itinerary) => !/^Position to /i.test(itinerary.route) && !/recovery guidance/i.test(itinerary.route))
@@ -784,44 +694,13 @@ function applyTopRouteRecommendations(request: ParsedItineraryRequest, itinerari
     leg.departureTime,
     leg.arrivalTime
   ].join('|')).join('||') || `${itinerary.route}-${index}`, itinerary])).values()]
-  const arrivals = deduped.map((itinerary) => itineraryParsedTime(itinerary.legs[itinerary.legs.length - 1]?.arrivalTime || itinerary.arrivalTime)).filter((value): value is number => value !== null)
-  const durations = deduped.map(itineraryTravelMinutes).filter((value): value is number => value !== null)
-  const context = {
-    earliestArrival: arrivals.length ? Math.min(...arrivals) : null,
-    latestArrival: arrivals.length ? Math.max(...arrivals) : null,
-    shortestDuration: durations.length ? Math.min(...durations) : null,
-    longestDuration: durations.length ? Math.max(...durations) : null
-  }
+  const airportComplexityScores = Object.fromEntries(
+    Object.entries(routeFrameworkHubProfiles).map(([airport, profile]) => [airport, profile.score])
+  )
 
-  return deduped
-    .map((itinerary) => {
-      const recommendation = topRouteRecommendationScore(request, itinerary, context)
-      return {
-        ...itinerary,
-        topRouteScore: recommendation.topRouteScore,
-        topRouteRankingFactors: recommendation.factors,
-        whyThisRoute: `Ranked ${recommendation.topRouteScore}/100 because it balances ${itineraryConnectionCount(itinerary)} connection${itineraryConnectionCount(itinerary) === 1 ? '' : 's'}, route quality ${recommendation.factors.historicalRouteQuality}/100, airport desirability ${recommendation.factors.airportDesirability}/100, and reliability ${recommendation.factors.routeReliabilityScore}/100.`,
-        topRouteWhy: [
-          `Recommendation score ${recommendation.topRouteScore}/100 blends earliest arrival, connection count, historical route quality, airport desirability, positioning complexity, total travel time, and reliability.`,
-          `${itineraryConnectionCount(itinerary)} connection${itineraryConnectionCount(itinerary) === 1 ? '' : 's'}; route reliability ${recommendation.factors.routeReliabilityScore}/100; airport desirability ${recommendation.factors.airportDesirability}/100.`
-        ]
-      }
-    })
-    .sort((a, b) =>
-      (itineraryParsedTime(a.legs[a.legs.length - 1]?.arrivalTime || a.arrivalTime) || Number.MAX_SAFE_INTEGER) - (itineraryParsedTime(b.legs[b.legs.length - 1]?.arrivalTime || b.arrivalTime) || Number.MAX_SAFE_INTEGER) ||
-      (itineraryTravelMinutes(a) || Number.MAX_SAFE_INTEGER) - (itineraryTravelMinutes(b) || Number.MAX_SAFE_INTEGER) ||
-      itineraryConnectionCount(a) - itineraryConnectionCount(b) ||
-      (b.topRouteScore || 0) - (a.topRouteScore || 0) ||
-      (itineraryTravelMinutes(a) || Number.MAX_SAFE_INTEGER) - (itineraryTravelMinutes(b) || Number.MAX_SAFE_INTEGER) ||
-      a.route.localeCompare(b.route)
-    )
+  return rankItineraries(deduped, { request, airportComplexityScores })
+    .map((result) => result.itinerary)
     .slice(0, limit)
-    .map((itinerary, index) => ({
-      ...itinerary,
-      topRouteRank: index + 1,
-      topRouteLabel: index === 0 ? `#1 Recommended ${itinerary.route}` : `#${index + 1} ${itinerary.route}`,
-      providerBadges: index === 0 ? ['#1 Recommended', ...(itinerary.providerBadges || [])] : itinerary.providerBadges
-    }))
 }
 
 function topRouteItinerariesForResponse({ request, scheduledItineraries, routeCoverageSuggestions, providerRecords, recoveryIntelligence, historicalIntelligence, limit = Number.MAX_SAFE_INTEGER }: { request: ParsedItineraryRequest; scheduledItineraries: ItineraryResult[]; routeCoverageSuggestions?: RouteCoverageSuggestion[]; providerRecords?: ProviderResultRecord[]; recoveryIntelligence?: RecoveryIntelligence; historicalIntelligence?: HistoricalRouteIntelligence; limit?: number }) {
@@ -1923,7 +1802,7 @@ export async function GET(request: Request) {
   const providerCacheFlights = providerCacheRecordsToFlightRecords(providerCacheLookup.records)
   counts.providerCacheFetched = providerCacheFlights.length
   const providerCacheRouteMatching = summarizeRouteMatching(providerCacheFlights, effectiveRequest)
-  const providerCacheItineraries = buildItinerariesFromFlights(providerCacheFlights, effectiveRequest)
+  const providerCacheItineraries = buildAllItinerariesFromFlights(providerCacheFlights, effectiveRequest)
   counts.providerCacheItineraries = providerCacheItineraries.length
   if (providerCacheLookup.status === 'unavailable') warnings.push(providerCacheLookup.detail)
   if (providerCacheLookup.status === 'miss') emptyResults.push('Recent provider cache returned no matching rows.')
@@ -1940,7 +1819,7 @@ export async function GET(request: Request) {
   if (flightAwareScheduleRequestCount > 0 && flightAwareScheduleFlights.length === 0) emptyResults.push('FlightAware live schedule search returned zero usable flight rows.')
 
   const flightAwareRouteMatching = summarizeRouteMatching(flightAwareScheduleFlights, effectiveRequest)
-  const flightAwareItineraries = buildItinerariesFromFlights(flightAwareScheduleFlights, effectiveRequest)
+  const flightAwareItineraries = buildAllItinerariesFromFlights(flightAwareScheduleFlights, effectiveRequest)
   counts.flightAwareScheduleItineraries = flightAwareItineraries.length
   if (flightAwareScheduleFlights.length > 0 && flightAwareItineraries.length === 0) emptyResults.push('FlightAware returned live schedule rows, but none matched itinerary assembly rules.')
   if (flightAwareItineraries.length > 0) {
@@ -2157,7 +2036,7 @@ export async function GET(request: Request) {
   if (supabaseFlights.length === 0) emptyResults.push('Supabase returned zero flight rows.')
   if (supabaseFlights.length > 0 && supabaseMatchedFlights.length === 0) emptyResults.push(routeMatching.matchExplanation)
 
-  const supabaseItineraries = buildItinerariesFromFlights(supabaseFlights, matchingRequest)
+  const supabaseItineraries = buildAllItinerariesFromFlights(supabaseFlights, matchingRequest)
   counts.supabaseItineraries = supabaseItineraries.length
   const supabaseAllowedInActiveMode = supabaseItineraries.length > 0
   const supabaseCompletenessFreshness = routeMatching.dateCoverage.nearestDateApplied
@@ -2204,7 +2083,7 @@ export async function GET(request: Request) {
     if (flightAwareWarning) warnings.push(String(flightAwareWarning))
     const flightAwareLimit = rateLimitMessage('FlightAware', undefined, flightAwareWarning)
     if (flightAwareLimit) rateLimits.push(String(flightAwareLimit))
-    const enrichedItineraries = buildItinerariesFromFlights(supabaseFlights, matchingRequest, enrichments)
+    const enrichedItineraries = buildAllItinerariesFromFlights(supabaseFlights, matchingRequest, enrichments)
     const enriched = Object.keys(enrichments).length > 0
     const supabaseFreshness = routeMatching.dateCoverage.nearestDateApplied
       ? {
@@ -2322,7 +2201,7 @@ export async function GET(request: Request) {
   if (aviationstackLimit) rateLimits.push(aviationstackLimit)
   if (aviationstackFlights.length === 0) emptyResults.push('Aviationstack fallback returned zero usable flight rows.')
 
-  const aviationstackItineraries = buildItinerariesFromFlights(aviationstackFlights, effectiveRequest)
+  const aviationstackItineraries = buildAllItinerariesFromFlights(aviationstackFlights, effectiveRequest)
   counts.aviationstackItineraries = aviationstackItineraries.length
   if (aviationstackFlights.length > 0 && aviationstackItineraries.length === 0) emptyResults.push('Aviationstack returned rows, but none matched itinerary assembly rules.')
   if (aviationstackItineraries.length > 0) {
@@ -2342,7 +2221,7 @@ export async function GET(request: Request) {
     if (flightAwareWarning) warnings.push(String(flightAwareWarning))
     const flightAwareLimit = rateLimitMessage('FlightAware', undefined, flightAwareWarning)
     if (flightAwareLimit) rateLimits.push(String(flightAwareLimit))
-    const enrichedItineraries = buildItinerariesFromFlights(aviationstackFlights, effectiveRequest, enrichments)
+    const enrichedItineraries = buildAllItinerariesFromFlights(aviationstackFlights, effectiveRequest, enrichments)
     const enriched = Object.keys(enrichments).length > 0
     const aviationstackScoredItineraries = addProviderBadges(enrichedItineraries.length ? enrichedItineraries : aviationstackItineraries, 'aviationstack', enriched, {
       dataFreshnessLabel: 'Live provider API data',
@@ -2527,7 +2406,7 @@ export async function GET(request: Request) {
 
   const seedNearestDateMatch = nearestDateRequestForStoredSchedules(mvpRouteSeedFlightsForRequest({ ...effectiveRequest, date: undefined }), effectiveRequest, personalTestingToleranceDays)
   const mvpSeedFlights = mvpRouteSeedFlightsForRequest(seedNearestDateMatch.request)
-  const mvpSeedItineraries = buildItinerariesFromFlights(mvpSeedFlights, seedNearestDateMatch.request)
+  const mvpSeedItineraries = buildAllItinerariesFromFlights(mvpSeedFlights, seedNearestDateMatch.request)
   if (false && mvpSeedItineraries.length > 0) {
     const seedRouteMatching = summarizeRouteMatching(mvpSeedFlights, seedNearestDateMatch.request, {
       requestedDate: effectiveRequest.date,

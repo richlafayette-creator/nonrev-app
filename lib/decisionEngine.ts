@@ -1,3 +1,4 @@
+import { buildEndToEndTripPlan } from './endToEndTrip'
 import type { ItineraryLeg, ItineraryResult, ParsedItineraryRequest } from './itinerarySearch'
 
 export type DecisionStatus = 'Green' | 'Yellow' | 'Red'
@@ -212,6 +213,7 @@ export function rankItineraries<TItinerary extends ItineraryResult>(itineraries:
           decisionFactors: factors,
           recommendation,
           decisionStatus: status,
+          endToEnd: buildEndToEndTripPlan(itinerary, options.request),
           topRouteScore: decisionScore.overallScore,
           topRouteRankingFactors: decisionScore,
           whyThisRoute: recommendation.sentence,

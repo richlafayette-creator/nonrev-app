@@ -10,6 +10,7 @@ import { generateAiTripPlan, parseTripPlannerPrompt } from '../../lib/aiTripPlan
 import { carrierScoringProfiles, getCarrierScoringScaffold, normalizeCarrierFamily, supportedCarrierOptions } from '../../lib/carrierScope'
 import { historicalRouteStats, type HistoricalRoute } from '../../lib/historicalRoutes'
 import { parseItineraryPrompt } from '../../lib/itinerarySearch'
+import type { EndToEndTripPlan } from '../../lib/endToEndTrip'
 import { effectiveLoadReportWeight, loadLoadReports, loadReportSignal, loadReportSummary, type LoadReport } from '../../lib/loadReports'
 import { communityLoadFreshness, communityLoadIntelligenceForItinerary, communityLoadSummaryForItinerary, communityRouteAirports, communityContributorTrustBreakdown, loadCommunityContributorReputation, loadCommunityLoads, relativeCommunityLoadTime, saveCommunityLoadReport, saveCommunityLoadRequest, validateCommunityLoadReport, type CommunityLoadFreshness, type CommunityLoadIntelligence, type CommunityLoadReport, type CommunityLoadValidationStatus } from '../../lib/communityLoads'
 import { calculatePredictionEngine } from '../../lib/predictionEngine'
@@ -236,6 +237,7 @@ type LiveItineraryResult = {
   topRouteWhy?: string[]
   topRouteRankingFactors?: Record<string, number | string>
   whyThisRoute?: string
+  endToEnd?: EndToEndTripPlan
 }
 
 type ProviderStatus = {
@@ -608,6 +610,7 @@ type ItineraryComparison = {
   topRouteWhy?: string[]
   topRouteRankingFactors?: Record<string, number | string>
   whyThisRoute?: string
+  endToEnd?: EndToEndTripPlan
   recoveryStrength?: number
   recoveryExplanation?: string
   suggestedRecoveryPaths?: SuggestedRecoveryPath[]
@@ -1370,6 +1373,7 @@ function buildLiveItineraryComparison(
     topRouteWhy: itinerary.topRouteWhy,
     topRouteRankingFactors: itinerary.topRouteRankingFactors,
     whyThisRoute: itinerary.whyThisRoute,
+    endToEnd: itinerary.endToEnd,
     recoveryStrength: itinerary.recoveryStrength,
     recoveryExplanation: itinerary.recoveryExplanation,
     suggestedRecoveryPaths: itinerary.suggestedRecoveryPaths,
@@ -3314,6 +3318,22 @@ function PlanBItinerarySection({ comparison, comparisons }: { comparison: Itiner
   )
 }
 
+function DoorToDoorPlanSection({ plan }: { plan?: EndToEndTripPlan }) {
+  const fallback = 'Placeholder — no live ground, lodging, or local transport API connected yet.'
+
+  return (
+    <details className="nonrevy-flight-board-row__details" onClick={(event) => event.stopPropagation()}>
+      <summary>Door-to-door plan</summary>
+      <div style={{ display: 'grid', gap: 8, marginTop: 10 }}>
+        <p style={{ color: '#cbd5e1', margin: 0 }}><strong style={{ color: '#f8fafc' }}>Departure airport access:</strong> {plan?.departureGroundPlan || fallback}</p>
+        <p style={{ color: '#cbd5e1', margin: 0 }}><strong style={{ color: '#f8fafc' }}>Arrival transport:</strong> {plan?.arrivalGroundPlan || fallback}</p>
+        <p style={{ color: '#cbd5e1', margin: 0 }}><strong style={{ color: '#f8fafc' }}>Hotel/final destination:</strong> {plan?.hotelPlan || fallback}</p>
+        <p style={{ color: '#cbd5e1', margin: 0 }}><strong style={{ color: '#f8fafc' }}>Backup if stranded:</strong> {plan?.backupPlan.summary || fallback}</p>
+      </div>
+    </details>
+  )
+}
+
 function RecoveryStrategySection({ comparison, comparisons }: { comparison: ItineraryComparison; comparisons: ItineraryComparison[] }) {
   const recovery = buildRecoveryStrategy(comparison, comparisons)
   const color = recoveryBadgeColor(recovery.badge)
@@ -4027,6 +4047,8 @@ function renderFlightBoardRow(comparison: ItineraryComparison, showPlanB = false
         ) : null}
 
         {showPlanB ? <PlanBItinerarySection comparison={comparison} comparisons={compactItineraries} /> : null}
+
+        <DoorToDoorPlanSection plan={comparison.endToEnd} />
 
         <details open={isExpanded} onToggle={(event) => setDetailsOpen(comparison.id, event.currentTarget.open)} className="nonrevy-flight-board-row__details" onClick={(event) => event.stopPropagation()}>
           <summary>Details</summary>

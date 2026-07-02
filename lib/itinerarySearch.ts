@@ -1,5 +1,6 @@
 import type { DecisionFactors, DecisionScore, DecisionStatus, Recommendation } from './decisionEngine'
 import type { EndToEndTripPlan } from './endToEndTrip'
+import type { RecoveryAnalysis } from './recoveryEngine'
 
 export type ParsedItineraryRequest = {
   prompt?: string
@@ -98,6 +99,7 @@ export type ItineraryResult = {
   recommendation?: Recommendation
   decisionStatus?: DecisionStatus
   endToEnd?: EndToEndTripPlan
+  recovery?: RecoveryAnalysis
 }
 
 export type FlightRouteNormalization = {

@@ -1,4 +1,5 @@
 import { buildEndToEndTripPlan } from './endToEndTrip'
+import { analyzeRecovery } from './recoveryEngine'
 import type { ItineraryLeg, ItineraryResult, ParsedItineraryRequest } from './itinerarySearch'
 
 export type DecisionStatus = 'Green' | 'Yellow' | 'Red'
@@ -206,6 +207,7 @@ export function rankItineraries<TItinerary extends ItineraryResult>(itineraries:
       const decisionScore = scoreItinerary(itinerary, context)
       const recommendation = recommendationFor(decisionScore, factors)
       const status = decisionStatus(decisionScore.overallScore)
+      const recovery = analyzeRecovery(itinerary)
       return {
         itinerary: {
           ...itinerary,
@@ -214,6 +216,7 @@ export function rankItineraries<TItinerary extends ItineraryResult>(itineraries:
           recommendation,
           decisionStatus: status,
           endToEnd: buildEndToEndTripPlan(itinerary, options.request),
+          recovery,
           topRouteScore: decisionScore.overallScore,
           topRouteRankingFactors: decisionScore,
           whyThisRoute: recommendation.sentence,

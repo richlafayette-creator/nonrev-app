@@ -11,6 +11,7 @@ import { carrierScoringProfiles, getCarrierScoringScaffold, normalizeCarrierFami
 import { historicalRouteStats, type HistoricalRoute } from '../../lib/historicalRoutes'
 import { parseItineraryPrompt } from '../../lib/itinerarySearch'
 import type { EndToEndTripPlan } from '../../lib/endToEndTrip'
+import type { RecoveryAnalysis } from '../../lib/recoveryEngine'
 import { effectiveLoadReportWeight, loadLoadReports, loadReportSignal, loadReportSummary, type LoadReport } from '../../lib/loadReports'
 import { communityLoadFreshness, communityLoadIntelligenceForItinerary, communityLoadSummaryForItinerary, communityRouteAirports, communityContributorTrustBreakdown, loadCommunityContributorReputation, loadCommunityLoads, relativeCommunityLoadTime, saveCommunityLoadReport, saveCommunityLoadRequest, validateCommunityLoadReport, type CommunityLoadFreshness, type CommunityLoadIntelligence, type CommunityLoadReport, type CommunityLoadValidationStatus } from '../../lib/communityLoads'
 import { calculatePredictionEngine } from '../../lib/predictionEngine'
@@ -238,6 +239,7 @@ type LiveItineraryResult = {
   topRouteRankingFactors?: Record<string, number | string>
   whyThisRoute?: string
   endToEnd?: EndToEndTripPlan
+  recovery?: RecoveryAnalysis
 }
 
 type ProviderStatus = {
@@ -611,6 +613,7 @@ type ItineraryComparison = {
   topRouteRankingFactors?: Record<string, number | string>
   whyThisRoute?: string
   endToEnd?: EndToEndTripPlan
+  recovery?: RecoveryAnalysis
   recoveryStrength?: number
   recoveryExplanation?: string
   suggestedRecoveryPaths?: SuggestedRecoveryPath[]
@@ -1374,6 +1377,7 @@ function buildLiveItineraryComparison(
     topRouteRankingFactors: itinerary.topRouteRankingFactors,
     whyThisRoute: itinerary.whyThisRoute,
     endToEnd: itinerary.endToEnd,
+    recovery: itinerary.recovery,
     recoveryStrength: itinerary.recoveryStrength,
     recoveryExplanation: itinerary.recoveryExplanation,
     suggestedRecoveryPaths: itinerary.suggestedRecoveryPaths,
@@ -3318,6 +3322,21 @@ function PlanBItinerarySection({ comparison, comparisons }: { comparison: Itiner
   )
 }
 
+function RecoverySummarySection({ recovery }: { recovery?: RecoveryAnalysis }) {
+  if (!recovery) return null
+  const badge = recovery.strength === 'Excellent' ? '🟢' : recovery.strength === 'Good' ? '🟡' : recovery.strength === 'Fair' ? '🟠' : '🔴'
+  const reasons = recovery.reasons.slice(0, 4)
+
+  return (
+    <section style={{ marginTop: 12, border: '1px solid #334155', borderRadius: 12, padding: 12, background: '#020617' }} aria-label="Recovery intelligence">
+      <strong style={{ color: '#f8fafc' }}>Recovery {badge} {recovery.strength}</strong>
+      <ul style={{ margin: '8px 0 0', paddingLeft: 18, color: '#cbd5e1' }}>
+        {reasons.map((reason) => <li key={`recovery-${reason}`}>{reason}</li>)}
+      </ul>
+    </section>
+  )
+}
+
 function DoorToDoorPlanSection({ plan }: { plan?: EndToEndTripPlan }) {
   const fallback = 'Placeholder — no live ground, lodging, or local transport API connected yet.'
 
@@ -4069,6 +4088,7 @@ function renderFlightBoardRow(comparison: ItineraryComparison, showPlanB = false
                   {comparison.topRouteWhy.map((reason) => <li key={`${comparison.id}-top-route-${reason}`}>{reason}</li>)}
                 </ul>
               ) : null}
+              <RecoverySummarySection recovery={comparison.recovery} />
               <ItineraryIntelligenceDetailPanel comparison={comparison} backup={nextBackup} />
             </section>
             <section className="nonrevy-community-loads">

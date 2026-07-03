@@ -1,3 +1,5 @@
+import { sellableSeatSignalCaution, sellableSeatSignalScoreAdjustment, type SellableSeatSignal } from './sellableSeatSignal'
+
 export type RecoveryStrength = 'Excellent' | 'Good' | 'Fair' | 'Poor'
 export type RecoveryRiskLevel = 'Low' | 'Medium' | 'High' | 'Unknown'
 export type RecoveryOptionType = 'later-flight' | 'alternate-airport' | 'overnight-hotel' | 'ground-transport' | 'next-day-flight'
@@ -105,7 +107,7 @@ const islandOrInternationalAirports = new Set(['HNL', 'KOA', 'LIH', 'OGG', 'HND'
  * Scores itinerary recovery using deterministic placeholders only.
  * Future live hooks belong behind this function, not in provider/search code.
  */
-export function analyzeRecovery(itinerary: RecoveryItineraryLike): RecoveryAnalysis {
+export function analyzeRecovery(itinerary: RecoveryItineraryLike, sellableSeatSignal?: SellableSeatSignal): RecoveryAnalysis {
   const path = airportPath(itinerary)
   const origin = path[0] || 'TBD'
   const destination = path[path.length - 1] || 'TBD'
@@ -120,11 +122,11 @@ export function analyzeRecovery(itinerary: RecoveryItineraryLike): RecoveryAnaly
   const strandedRisk = placeholderStrandedRisk(laterFlightOpportunities, alternates.length, overnightRisk, weatherRisk, delayRisk)
   const estimatedRecoveryHours = placeholderRecoveryHours(laterFlightOpportunities, alternates.length, overnightRisk, strandedRisk)
   const estimatedRecoveryCost = placeholderRecoveryCost(overnightRisk, rentalCarPossible, alternates.length, destination)
-  const score = recoveryScore({ laterFlightOpportunities, alternateAirportCount: alternates.length, overnightRisk, rentalCarPossible, hotelLikely, strandedRisk, weatherRisk, delayRisk, connections })
+  const score = clamp(recoveryScore({ laterFlightOpportunities, alternateAirportCount: alternates.length, overnightRisk, rentalCarPossible, hotelLikely, strandedRisk, weatherRisk, delayRisk, connections }) + sellableSeatSignalScoreAdjustment(sellableSeatSignal))
   const strength = recoveryStrength(score)
   const backupOptions = backupOptionsFor({ laterFlightOpportunities, alternates, overnightRisk, rentalCarPossible, hotelLikely, estimatedRecoveryHours, estimatedRecoveryCost })
   const primaryRecoveryOption = backupOptions[0] || recoveryOption('next-day-flight', 'Next-day recovery placeholder', 'Hold a next-day flight option if same-day recovery is unavailable.', -12, estimatedRecoveryHours, estimatedRecoveryCost)
-  const reasons = recoveryReasons({ laterFlightOpportunities, alternateAirportCount: alternates.length, overnightRisk, rentalCarPossible, hotelLikely, strandedRisk })
+  const reasons = recoveryReasons({ laterFlightOpportunities, alternateAirportCount: alternates.length, overnightRisk, rentalCarPossible, hotelLikely, strandedRisk }, sellableSeatSignal)
 
   return {
     score,
@@ -275,7 +277,7 @@ function recoveryOption(type: RecoveryOptionType, label: string, summary: string
   return { type, label, summary, scoreImpact, estimatedHours, estimatedCost, placeholder: true }
 }
 
-function recoveryReasons(input: { laterFlightOpportunities: number; alternateAirportCount: number; overnightRisk: boolean; rentalCarPossible: boolean; hotelLikely: boolean; strandedRisk: RecoveryRiskLevel }) {
+function recoveryReasons(input: { laterFlightOpportunities: number; alternateAirportCount: number; overnightRisk: boolean; rentalCarPossible: boolean; hotelLikely: boolean; strandedRisk: RecoveryRiskLevel }, sellableSeatSignal?: SellableSeatSignal) {
   const reasons: string[] = []
   if (input.laterFlightOpportunities >= 3) reasons.push('Multiple backup departures')
   else if (input.laterFlightOpportunities > 0) reasons.push('Some later flight options')
@@ -286,6 +288,8 @@ function recoveryReasons(input: { laterFlightOpportunities: number; alternateAir
   if (input.rentalCarPossible) reasons.push('Ground recovery may be possible')
   if (input.overnightRisk) reasons.push('Overnight likely')
   reasons.push(`${input.strandedRisk} stranded risk`)
+  const sellableSeatReason = sellableSeatSignalCaution(sellableSeatSignal)
+  if (sellableSeatReason) reasons.push(sellableSeatReason)
   return reasons
 }
 

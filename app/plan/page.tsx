@@ -12,6 +12,7 @@ import { historicalRouteStats, type HistoricalRoute } from '../../lib/historical
 import { parseItineraryPrompt } from '../../lib/itinerarySearch'
 import type { EndToEndTripPlan } from '../../lib/endToEndTrip'
 import type { RecoveryAnalysis } from '../../lib/recoveryEngine'
+import { commercialAvailabilityLabel, type SellableSeatSignal } from '../../lib/sellableSeatSignal'
 import { effectiveLoadReportWeight, loadLoadReports, loadReportSignal, loadReportSummary, type LoadReport } from '../../lib/loadReports'
 import { communityLoadFreshness, communityLoadIntelligenceForItinerary, communityLoadSummaryForItinerary, communityRouteAirports, communityContributorTrustBreakdown, loadCommunityContributorReputation, loadCommunityLoads, relativeCommunityLoadTime, saveCommunityLoadReport, saveCommunityLoadRequest, validateCommunityLoadReport, type CommunityLoadFreshness, type CommunityLoadIntelligence, type CommunityLoadReport, type CommunityLoadValidationStatus } from '../../lib/communityLoads'
 import { calculatePredictionEngine } from '../../lib/predictionEngine'
@@ -240,6 +241,7 @@ type LiveItineraryResult = {
   whyThisRoute?: string
   endToEnd?: EndToEndTripPlan
   recovery?: RecoveryAnalysis
+  sellableSeatSignal?: SellableSeatSignal
 }
 
 type ProviderStatus = {
@@ -614,6 +616,7 @@ type ItineraryComparison = {
   whyThisRoute?: string
   endToEnd?: EndToEndTripPlan
   recovery?: RecoveryAnalysis
+  sellableSeatSignal?: SellableSeatSignal
   recoveryStrength?: number
   recoveryExplanation?: string
   suggestedRecoveryPaths?: SuggestedRecoveryPath[]
@@ -1378,6 +1381,7 @@ function buildLiveItineraryComparison(
     whyThisRoute: itinerary.whyThisRoute,
     endToEnd: itinerary.endToEnd,
     recovery: itinerary.recovery,
+    sellableSeatSignal: itinerary.sellableSeatSignal,
     recoveryStrength: itinerary.recoveryStrength,
     recoveryExplanation: itinerary.recoveryExplanation,
     suggestedRecoveryPaths: itinerary.suggestedRecoveryPaths,
@@ -3353,6 +3357,17 @@ function DoorToDoorPlanSection({ plan }: { plan?: EndToEndTripPlan }) {
   )
 }
 
+function CommercialAvailabilitySection({ signal }: { signal?: SellableSeatSignal }) {
+  const label = commercialAvailabilityLabel(signal)
+  if (!label) return null
+
+  return (
+    <p style={{ color: '#cbd5e1', margin: '8px 0 0' }}>
+      <strong style={{ color: '#f8fafc' }}>Commercial availability:</strong> {label}. Proxy signal only; not confirmed non-rev seat availability.
+    </p>
+  )
+}
+
 function RecoveryStrategySection({ comparison, comparisons }: { comparison: ItineraryComparison; comparisons: ItineraryComparison[] }) {
   const recovery = buildRecoveryStrategy(comparison, comparisons)
   const color = recoveryBadgeColor(recovery.badge)
@@ -4088,6 +4103,7 @@ function renderFlightBoardRow(comparison: ItineraryComparison, showPlanB = false
                   {comparison.topRouteWhy.map((reason) => <li key={`${comparison.id}-top-route-${reason}`}>{reason}</li>)}
                 </ul>
               ) : null}
+              <CommercialAvailabilitySection signal={comparison.sellableSeatSignal} />
               <RecoverySummarySection recovery={comparison.recovery} />
               <ItineraryIntelligenceDetailPanel comparison={comparison} backup={nextBackup} />
             </section>

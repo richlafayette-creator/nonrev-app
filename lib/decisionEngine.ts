@@ -1,5 +1,6 @@
 import { buildEndToEndTripPlan } from './endToEndTrip'
 import { analyzeRecovery } from './recoveryEngine'
+import { sellableSeatSignalScoreAdjustment, type SellableSeatSignal } from './sellableSeatSignal'
 import type { ItineraryLeg, ItineraryResult, ParsedItineraryRequest } from './itinerarySearch'
 
 export type DecisionStatus = 'Green' | 'Yellow' | 'Red'
@@ -19,6 +20,7 @@ export type DecisionScore = {
   airlinePreferenceScore: number
   alternateAirportScore: number
   overnightPenaltyScore: number
+  commercialAvailabilityScore: number
   overallScore: number
 }
 
@@ -48,6 +50,7 @@ export type DecisionFactors = {
   preferredAirlineMatched: boolean
   alternateAirportUsed: boolean
   airportComplexity: number
+  sellableSeatStatus: SellableSeatSignal['sellableStatus'] | 'none'
   sourceProvider?: string
 }
 
@@ -76,12 +79,16 @@ type DecisionEngineContext = {
   longestTravelMinutes: number | null
   weights: Required<RankingWeights>
   airportComplexityScores: Record<string, number>
+  sellableSeatSignal?: SellableSeatSignal
+  sellableSeatSignals: SellableSeatSignal[]
 }
 
 export type DecisionEngineOptions = {
   request?: ParsedItineraryRequest
   weights?: RankingWeights
   airportComplexityScores?: Record<string, number>
+  sellableSeatSignal?: SellableSeatSignal
+  sellableSeatSignals?: SellableSeatSignal[]
 }
 
 const defaultRankingWeights: Required<RankingWeights> = {
@@ -96,7 +103,8 @@ const defaultRankingWeights: Required<RankingWeights> = {
   airportComplexityScore: 0.06,
   airlinePreferenceScore: 0.04,
   alternateAirportScore: 0.03,
-  overnightPenaltyScore: 0.06
+  overnightPenaltyScore: 0.06,
+  commercialAvailabilityScore: 0
 }
 
 const defaultAirportComplexityScores: Record<string, number> = {
@@ -182,6 +190,10 @@ const factorScorers: FactorScorer[] = [
   {
     key: 'overnightPenaltyScore',
     score: (factors) => factors.overnightRequired ? 42 : 92
+  },
+  {
+    key: 'commercialAvailabilityScore',
+    score: (factors) => ({ none: 0, unknown: 0, available: 86, limited: 62, unavailable: 30 })[factors.sellableSeatStatus]
   }
 ]
 
@@ -192,9 +204,10 @@ export function scoreItinerary(itinerary: ItineraryResult, context: DecisionEngi
     [scorer.key]: scorer.score(factors, context)
   }), {} as Omit<DecisionScore, 'overallScore'>)
   const weightTotal = Object.values(context.weights).reduce((sum, weight) => sum + weight, 0) || 1
-  const overallScore = clamp(Object.entries(partialScores).reduce((sum, [key, value]) => {
+  const baseOverallScore = Object.entries(partialScores).reduce((sum, [key, value]) => {
     return sum + value * context.weights[key as keyof Omit<DecisionScore, 'overallScore'>]
-  }, 0) / weightTotal)
+  }, 0) / weightTotal
+  const overallScore = clamp(baseOverallScore + sellableSeatSignalScoreAdjustment(sellableSeatSignalForItinerary(itinerary, context)))
 
   return { ...partialScores, overallScore }
 }
@@ -207,10 +220,12 @@ export function rankItineraries<TItinerary extends ItineraryResult>(itineraries:
       const decisionScore = scoreItinerary(itinerary, context)
       const recommendation = recommendationFor(decisionScore, factors)
       const status = decisionStatus(decisionScore.overallScore)
-      const recovery = analyzeRecovery(itinerary)
+      const sellableSeatSignal = sellableSeatSignalForItinerary(itinerary, context)
+      const recovery = analyzeRecovery(itinerary, sellableSeatSignal)
       return {
         itinerary: {
           ...itinerary,
+          sellableSeatSignal,
           decisionScore,
           decisionFactors: factors,
           recommendation,
@@ -263,7 +278,9 @@ function decisionEngineContext(itineraries: ItineraryResult[], options: Decision
     shortestTravelMinutes: travelTimes.length ? Math.min(...travelTimes) : null,
     longestTravelMinutes: travelTimes.length ? Math.max(...travelTimes) : null,
     weights: { ...defaultRankingWeights, ...(options.weights || {}) },
-    airportComplexityScores: { ...defaultAirportComplexityScores, ...(options.airportComplexityScores || {}) }
+    airportComplexityScores: { ...defaultAirportComplexityScores, ...(options.airportComplexityScores || {}) },
+    sellableSeatSignal: options.sellableSeatSignal,
+    sellableSeatSignals: options.sellableSeatSignals || []
   }
 }
 
@@ -277,6 +294,8 @@ function decisionFactorsForItinerary(itinerary: ItineraryResult, context: Decisi
   const arrival = arrivalTime(itinerary)
   const sortedArrivals = [...new Set(context.itineraries.map(arrivalTime).filter((value): value is number => value !== null))].sort((a, b) => a - b)
   const arrivalRank = arrival === null ? context.itineraries.length : sortedArrivals.findIndex((value) => value === arrival) + 1
+
+  const sellableSeatSignal = sellableSeatSignalForItinerary(itinerary, context)
 
   return {
     arrivalRank: arrivalRank > 0 ? arrivalRank : context.itineraries.length,
@@ -297,8 +316,48 @@ function decisionFactorsForItinerary(itinerary: ItineraryResult, context: Decisi
     preferredAirlineMatched: preferredAirlineMatched(itinerary, context.request?.carrier),
     alternateAirportUsed: alternateAirportUsed(itinerary, context.request),
     airportComplexity,
+    sellableSeatStatus: sellableSeatSignal?.sellableStatus || 'none',
     sourceProvider: itinerary.sourceProvider
   }
+}
+
+function sellableSeatSignalForItinerary(itinerary: ItineraryResult, context: DecisionEngineContext) {
+  if (itinerary.sellableSeatSignal) return itinerary.sellableSeatSignal
+  if (context.sellableSeatSignal && signalMatchesItinerary(context.sellableSeatSignal, itinerary)) return context.sellableSeatSignal
+  return context.sellableSeatSignals.find((signal) => signalMatchesItinerary(signal, itinerary))
+}
+
+function signalMatchesItinerary(signal: SellableSeatSignal, itinerary: ItineraryResult) {
+  const legs = itinerary.legs.length ? itinerary.legs : [{
+    origin: itinerary.route.split('→')[0]?.trim(),
+    destination: itinerary.route.split('→').pop()?.trim(),
+    flightNumber: itinerary.flightNumber,
+    operatingFlightNumber: itinerary.operatingFlightNumber,
+    departureTime: itinerary.departureTime,
+    carrier: itinerary.carrier
+  } as ItineraryLeg]
+  return legs.some((leg) => {
+    const flightNumbers = [leg.flightNumber, leg.operatingFlightNumber].filter(Boolean).map((value) => String(value).replace(/\s+/g, '').toUpperCase())
+    const signalFlight = signal.flightNumber.replace(/\s+/g, '').toUpperCase()
+    return leg.origin === signal.origin &&
+      leg.destination === signal.destination &&
+      carrierMatchesSignal(leg.carrier || itinerary.carrier, signal.carrier) &&
+      flightNumbers.includes(signalFlight) &&
+      sameDepartureDate(leg.departureTime, signal.departureDate)
+  })
+}
+
+function carrierMatchesSignal(itineraryCarrier: string, signalCarrier: string) {
+  const left = itineraryCarrier.toUpperCase()
+  const right = signalCarrier.toUpperCase()
+  return left.includes(right) || right.includes(left) || left.slice(0, 2) === right.slice(0, 2)
+}
+
+function sameDepartureDate(departureTime: string | undefined, departureDate: string) {
+  if (!departureTime || !departureDate) return true
+  const parsed = parsedTime(departureTime)
+  if (parsed === null) return true
+  return new Date(parsed).toISOString().slice(0, 10) === departureDate.slice(0, 10)
 }
 
 function compareDecisionResults(a: DecisionEngineResult, b: DecisionEngineResult) {

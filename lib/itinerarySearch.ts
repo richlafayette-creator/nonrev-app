@@ -1,6 +1,7 @@
 import type { DecisionFactors, DecisionScore, DecisionStatus, Recommendation } from './decisionEngine'
 import type { EndToEndTripPlan } from './endToEndTrip'
 import type { RecoveryAnalysis } from './recoveryEngine'
+import type { SellableSeatSignal } from './sellableSeatSignal'
 
 export type ParsedItineraryRequest = {
   prompt?: string
@@ -100,6 +101,7 @@ export type ItineraryResult = {
   decisionStatus?: DecisionStatus
   endToEnd?: EndToEndTripPlan
   recovery?: RecoveryAnalysis
+  sellableSeatSignal?: SellableSeatSignal
 }
 
 export type FlightRouteNormalization = {

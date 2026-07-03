@@ -1,5 +1,6 @@
 import { buildEndToEndTripPlan } from './endToEndTrip'
 import { analyzeRecovery } from './recoveryEngine'
+import { calculateRouteConfidence, type ProviderDataStatus } from './routeConfidence'
 import { sellableSeatSignalScoreAdjustment, type SellableSeatSignal } from './sellableSeatSignal'
 import type { ItineraryLeg, ItineraryResult, ParsedItineraryRequest } from './itinerarySearch'
 
@@ -222,10 +223,26 @@ export function rankItineraries<TItinerary extends ItineraryResult>(itineraries:
       const status = decisionStatus(decisionScore.overallScore)
       const sellableSeatSignal = sellableSeatSignalForItinerary(itinerary, context)
       const recovery = analyzeRecovery(itinerary, sellableSeatSignal)
+      const routeConfidence = calculateRouteConfidence({
+        route: itinerary.route,
+        successProbability: decisionScore.overallScore,
+        historicalScore: itinerary.historicalSuccessScore || itinerary.score,
+        historicalSuccessRate: itinerary.historicalConfidence,
+        communityReportCount: itinerary.communityLoadTrustScore ? 1 : 0,
+        communityLoadAdjustment: typeof itinerary.communityLoadTrustScore === 'number' ? (itinerary.communityLoadTrustScore - 50) / 10 : 0,
+        decisionScore,
+        decisionFactors: factors,
+        decisionStatus: status,
+        recovery,
+        sellableSeatSignal,
+        providerDataStatus: providerDataStatusForItinerary(itinerary),
+        updateTrigger: 'itinerary-search-run'
+      })
       return {
         itinerary: {
           ...itinerary,
           sellableSeatSignal,
+          routeConfidence,
           decisionScore,
           decisionFactors: factors,
           recommendation,
@@ -358,6 +375,15 @@ function sameDepartureDate(departureTime: string | undefined, departureDate: str
   const parsed = parsedTime(departureTime)
   if (parsed === null) return true
   return new Date(parsed).toISOString().slice(0, 10) === departureDate.slice(0, 10)
+}
+
+function providerDataStatusForItinerary(itinerary: ItineraryResult): ProviderDataStatus {
+  const providerText = [itinerary.sourceProvider, itinerary.source, itinerary.dataFreshnessWarning, itinerary.dataFreshnessDetail].filter(Boolean).join(' ').toLowerCase()
+  if (providerText.includes('rate limit') || providerText.includes('rate-limited')) return 'rate-limited'
+  if (itinerary.dataFreshnessRule === 'route-framework' || itinerary.dataFreshnessRule === 'demo-fallback') return 'missing'
+  if (itinerary.dataFreshnessRule === 'cached-provider-historical' || itinerary.dataFreshnessRule === 'stored-historical-data') return 'missing'
+  if (itinerary.sourceProvider || itinerary.sourceCheckedAt || itinerary.dataFreshnessRule === 'exact-requested-date') return 'available'
+  return 'unknown'
 }
 
 function compareDecisionResults(a: DecisionEngineResult, b: DecisionEngineResult) {

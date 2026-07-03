@@ -10,6 +10,7 @@ import { generateAiTripPlan, parseTripPlannerPrompt } from '../../lib/aiTripPlan
 import { carrierScoringProfiles, getCarrierScoringScaffold, normalizeCarrierFamily, supportedCarrierOptions } from '../../lib/carrierScope'
 import { historicalRouteStats, type HistoricalRoute } from '../../lib/historicalRoutes'
 import { parseItineraryPrompt } from '../../lib/itinerarySearch'
+import type { DecisionFactors, DecisionScore, DecisionStatus } from '../../lib/decisionEngine'
 import type { EndToEndTripPlan } from '../../lib/endToEndTrip'
 import type { RecoveryAnalysis } from '../../lib/recoveryEngine'
 import { commercialAvailabilityLabel, type SellableSeatSignal } from '../../lib/sellableSeatSignal'
@@ -17,7 +18,7 @@ import { effectiveLoadReportWeight, loadLoadReports, loadReportSignal, loadRepor
 import { communityLoadFreshness, communityLoadIntelligenceForItinerary, communityLoadSummaryForItinerary, communityRouteAirports, communityContributorTrustBreakdown, loadCommunityContributorReputation, loadCommunityLoads, relativeCommunityLoadTime, saveCommunityLoadReport, saveCommunityLoadRequest, validateCommunityLoadReport, type CommunityLoadFreshness, type CommunityLoadIntelligence, type CommunityLoadReport, type CommunityLoadValidationStatus } from '../../lib/communityLoads'
 import { calculatePredictionEngine } from '../../lib/predictionEngine'
 import { buildDisruptionIntelligence, routeHealthColor, type DisruptionIntelligence } from '../../lib/disruptionIntelligence'
-import { calculateRouteConfidence, confidenceBadgeColor, confidenceTrendColor, confidenceUpdateTriggerLabel, type ConfidenceTrend, type ConfidenceUpdateTrigger, type RouteConfidence } from '../../lib/routeConfidence'
+import { calculateRouteConfidence, confidenceBadgeColor, confidenceTrendColor, confidenceUpdateTriggerLabel, routeConfidenceLabel, type ConfidenceTrend, type ConfidenceUpdateTrigger, type ProviderDataStatus, type RouteConfidence } from '../../lib/routeConfidence'
 import { calculateSuccessPrediction, type CarrierCoverage, type RecoveryStrength as PredictionRecoveryStrength, type ScheduleDensity, type SuccessPrediction, type SuccessPredictionInput } from '../../lib/successPredictionEngine'
 import { calculatePersonalSuccessPrediction, type PersonalSuccessPrediction } from '../../lib/personalSuccessPredictor'
 import { getRouteWeatherRisk, weatherRiskColor, type WeatherRisk } from '../../lib/weatherIntelligence'
@@ -239,8 +240,12 @@ type LiveItineraryResult = {
   topRouteWhy?: string[]
   topRouteRankingFactors?: Record<string, number | string>
   whyThisRoute?: string
+  decisionScore?: DecisionScore
+  decisionFactors?: DecisionFactors
+  decisionStatus?: DecisionStatus
   endToEnd?: EndToEndTripPlan
   recovery?: RecoveryAnalysis
+  routeConfidence?: RouteConfidence
   sellableSeatSignal?: SellableSeatSignal
 }
 
@@ -1260,6 +1265,12 @@ function buildLiveItineraryComparison(
     travelerProfile,
     disruption,
     weatherRisk,
+    decisionScore: itinerary.decisionScore,
+    decisionFactors: itinerary.decisionFactors,
+    decisionStatus: itinerary.decisionStatus,
+    recovery: itinerary.recovery,
+    sellableSeatSignal: itinerary.sellableSeatSignal,
+    providerDataStatus: providerDataStatusForLiveItinerary(itinerary),
     updateTrigger
   })
   const totalTravelTime = totalTravelTimeFromItinerary(itinerary)
@@ -1407,6 +1418,15 @@ function buildLiveItineraryComparison(
   }
 }
 
+function providerDataStatusForLiveItinerary(itinerary: LiveItineraryResult): ProviderDataStatus {
+  const providerText = [itinerary.sourceProvider, itinerary.source, itinerary.dataFreshnessWarning, itinerary.dataFreshnessDetail].filter(Boolean).join(' ').toLowerCase()
+  if (providerText.includes('rate limit') || providerText.includes('rate-limited')) return 'rate-limited'
+  if (itinerary.dataFreshnessRule === 'route-framework' || itinerary.dataFreshnessRule === 'demo-fallback') return 'missing'
+  if (itinerary.dataFreshnessRule === 'cached-provider-historical' || itinerary.dataFreshnessRule === 'stored-historical-data') return 'missing'
+  if (itinerary.sourceProvider || itinerary.sourceCheckedAt || itinerary.dataFreshnessRule === 'exact-requested-date') return 'available'
+  return 'unknown'
+}
+
 function buildFallbackItineraryComparison(
   itinerary: FallbackItineraryResult,
   predictionEngine: ReturnType<typeof calculatePredictionEngine>,
@@ -1467,6 +1487,7 @@ function buildFallbackItineraryComparison(
     travelerProfile,
     disruption,
     weatherRisk,
+    providerDataStatus: 'missing',
     updateTrigger
   })
   const totalTravelTime = fallbackTravelTimeEstimate(itinerary)
@@ -3368,6 +3389,27 @@ function CommercialAvailabilitySection({ signal }: { signal?: SellableSeatSignal
   )
 }
 
+function CompactRouteConfidenceLine({ confidence }: { confidence?: RouteConfidence }) {
+  if (!confidence) return null
+  const positiveFactors = confidence.positiveFactors.slice(0, 2)
+  const cautionFactor = confidence.cautionFactors[0]
+
+  return (
+    <div style={{ color: '#cbd5e1', margin: '8px 0 0' }}>
+      <p style={{ margin: 0 }}>
+        <strong style={{ color: '#f8fafc' }}>Route confidence:</strong> {routeConfidenceLabel(confidence.level)}
+      </p>
+      {positiveFactors.length || cautionFactor ? (
+        <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
+          {positiveFactors.map((factor) => <li key={`${factor.source}-${factor.label}`}>{factor.label}</li>)}
+          {cautionFactor ? <li key={`${cautionFactor.source}-${cautionFactor.label}`}>{cautionFactor.label}</li> : null}
+        </ul>
+      ) : null}
+      <small style={{ color: '#94a3b8' }}>Not guaranteed standby clearance.</small>
+    </div>
+  )
+}
+
 function RecoveryStrategySection({ comparison, comparisons }: { comparison: ItineraryComparison; comparisons: ItineraryComparison[] }) {
   const recovery = buildRecoveryStrategy(comparison, comparisons)
   const color = recoveryBadgeColor(recovery.badge)
@@ -4103,6 +4145,7 @@ function renderFlightBoardRow(comparison: ItineraryComparison, showPlanB = false
                   {comparison.topRouteWhy.map((reason) => <li key={`${comparison.id}-top-route-${reason}`}>{reason}</li>)}
                 </ul>
               ) : null}
+              <CompactRouteConfidenceLine confidence={comparison.routeConfidence} />
               <CommercialAvailabilitySection signal={comparison.sellableSeatSignal} />
               <RecoverySummarySection recovery={comparison.recovery} />
               <ItineraryIntelligenceDetailPanel comparison={comparison} backup={nextBackup} />

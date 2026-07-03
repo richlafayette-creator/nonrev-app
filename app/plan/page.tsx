@@ -13,6 +13,7 @@ import { parseItineraryPrompt } from '../../lib/itinerarySearch'
 import { communitySignalLabel, type FlightCommunitySummary } from '../../lib/communityIntelligence'
 import type { DecisionFactors, DecisionScore, DecisionStatus } from '../../lib/decisionEngine'
 import type { EndToEndTripPlan } from '../../lib/endToEndTrip'
+import { buildHistoricalReliabilityForItinerary, historicalReliabilityDisplayLabel, type HistoricalReliability } from '../../lib/historicalReliability'
 import type { RecoveryAnalysis } from '../../lib/recoveryEngine'
 import { commercialAvailabilityLabel, type SellableSeatSignal } from '../../lib/sellableSeatSignal'
 import { effectiveLoadReportWeight, loadLoadReports, loadReportSignal, loadReportSummary, type LoadReport } from '../../lib/loadReports'
@@ -249,6 +250,7 @@ type LiveItineraryResult = {
   routeConfidence?: RouteConfidence
   communityIntelligenceSignal?: FlightCommunitySummary
   sellableSeatSignal?: SellableSeatSignal
+  historicalReliability?: HistoricalReliability
 }
 
 type ProviderStatus = {
@@ -625,6 +627,7 @@ type ItineraryComparison = {
   recovery?: RecoveryAnalysis
   communitySignal?: FlightCommunitySummary
   sellableSeatSignal?: SellableSeatSignal
+  historicalReliability?: HistoricalReliability
   recoveryStrength?: number
   recoveryExplanation?: string
   suggestedRecoveryPaths?: SuggestedRecoveryPath[]
@@ -1242,6 +1245,7 @@ function buildLiveItineraryComparison(
     fallbackStatus: itinerary.status,
     sourceLabel: itinerary.source
   })
+  const historicalReliability = itinerary.historicalReliability || buildHistoricalReliabilityForItinerary(itinerary)
   const weatherRisk = getRouteWeatherRisk(itinerary.route)
   const airportIntelligence = buildRouteAirportIntelligence(itinerary.route)
   const successProbability = clampScore(
@@ -1274,6 +1278,7 @@ function buildLiveItineraryComparison(
     recovery: itinerary.recovery,
     sellableSeatSignal: itinerary.sellableSeatSignal,
     communityIntelligence: itinerary.communityIntelligenceSignal,
+    historicalReliability,
     providerDataStatus: providerDataStatusForLiveItinerary(itinerary),
     updateTrigger
   })
@@ -1398,6 +1403,7 @@ function buildLiveItineraryComparison(
     recovery: itinerary.recovery,
     communitySignal: itinerary.communityIntelligenceSignal,
     sellableSeatSignal: itinerary.sellableSeatSignal,
+    historicalReliability,
     recoveryStrength: itinerary.recoveryStrength,
     recoveryExplanation: itinerary.recoveryExplanation,
     suggestedRecoveryPaths: itinerary.suggestedRecoveryPaths,
@@ -1466,6 +1472,7 @@ function buildFallbackItineraryComparison(
     route: itinerary.route,
     fallbackStatus: itinerary.confidence
   })
+  const historicalReliability = buildHistoricalReliabilityForItinerary({ route: itinerary.route, carrier: carrierLabel, flightNumber: 'Unknown', dataFreshnessRule: 'route-framework' })
   const weatherRisk = getRouteWeatherRisk(itinerary.route)
   const airportIntelligence = buildRouteAirportIntelligence(itinerary.route)
   const successProbability = clampScore(
@@ -1492,6 +1499,7 @@ function buildFallbackItineraryComparison(
     travelerProfile,
     disruption,
     weatherRisk,
+    historicalReliability,
     providerDataStatus: 'missing',
     updateTrigger
   })
@@ -1619,7 +1627,8 @@ function buildFallbackItineraryComparison(
       connections === 0 ? 'Nonstop shape keeps connection risk low.' : `${connections} connection${connections === 1 ? '' : 's'} creates backup flexibility but adds transfer risk.`
     ],
     explanation,
-    nextGenSuccess
+    nextGenSuccess,
+    historicalReliability
   }
 }
 
@@ -3424,6 +3433,14 @@ function communityStatusIcon(signal?: FlightCommunitySummary) {
   return '⚪'
 }
 
+function historicalReliabilityStatusIcon(reliability?: HistoricalReliability) {
+  if (reliability?.signal.level === 'excellent') return '🟢'
+  if (reliability?.signal.level === 'good') return '🟡'
+  if (reliability?.signal.level === 'fair') return '🟠'
+  if (reliability?.signal.level === 'poor') return '🔴'
+  return '⚪'
+}
+
 function cleanRecommendationTitle(title: string) {
   if (/best overall choice/i.test(title)) return 'Best Overall'
   return title.replace(/\b\w/g, (letter) => letter.toUpperCase()).replace(/ Choice$/, '')
@@ -3448,6 +3465,11 @@ function commercialCardSummary(signal?: SellableSeatSignal) {
 function communityCardSummary(signal?: FlightCommunitySummary) {
   if (!signal || signal.activeReportCount === 0 || signal.status === 'unknown') return 'Recent community reports unknown'
   return communitySignalLabel(signal.status)
+}
+
+function historicalReliabilityCardSummary(reliability?: HistoricalReliability) {
+  if (!reliability || reliability.signal.level === 'unknown') return 'Unknown'
+  return `${historicalReliabilityDisplayLabel(reliability.signal.level)} · avg delay ${Math.round(reliability.averageDelayMinutes || 0)} min`
 }
 
 function doorToDoorCardSummary(comparison: ItineraryComparison) {
@@ -3476,6 +3498,7 @@ function ItineraryIntelligenceSummary({ comparison, recommendation, reasons }: {
         <span>{recoveryStatusIcon(comparison.recovery)} Recovery Strength {comparison.recovery?.strength || 'Unknown'} — {recoveryCardSummary(comparison.recovery)}</span>
         <span>{commercialStatusIcon(comparison.sellableSeatSignal)} Commercial Availability Signal — {commercialCardSummary(comparison.sellableSeatSignal)}</span>
         <span>{communityStatusIcon(comparison.communitySignal)} Community Signal — {communityCardSummary(comparison.communitySignal)}</span>
+        <span>{historicalReliabilityStatusIcon(comparison.historicalReliability)} Historical Reliability — {historicalReliabilityCardSummary(comparison.historicalReliability)}</span>
         <span>🟢 Door-to-Door Summary — {doorToDoorCardSummary(comparison)}</span>
       </div>
       {whyReasons.length ? (
@@ -3496,6 +3519,15 @@ function CommunitySignalLine({ signal }: { signal?: FlightCommunitySummary }) {
   return (
     <p style={{ color: '#cbd5e1', margin: '8px 0 0' }}>
       <strong style={{ color: '#f8fafc' }}>Community signal:</strong> {communitySignalLabel(signal.status)} · {signal.activeReportCount} recent report{signal.activeReportCount === 1 ? '' : 's'} · {signal.confidence} confidence. <small style={{ color: '#94a3b8' }}>Not confirmed standby clearance.</small>
+    </p>
+  )
+}
+
+function HistoricalReliabilityLine({ reliability }: { reliability?: HistoricalReliability }) {
+  const label = reliability ? historicalReliabilityDisplayLabel(reliability.signal.level) : 'Unknown'
+  return (
+    <p style={{ color: '#cbd5e1', margin: '8px 0 0' }}>
+      <strong style={{ color: '#f8fafc' }}>Historical Reliability:</strong> {label}. <small style={{ color: '#94a3b8' }}>Advisory past-performance signal; future API placeholders include FlightAware historical, Cirium, AviationStack, FAA BTS, Eurocontrol, and internal analytics.</small>
     </p>
   )
 }
@@ -4249,6 +4281,7 @@ function renderFlightBoardRow(comparison: ItineraryComparison, showPlanB = false
               ) : null}
               <CompactRouteConfidenceLine confidence={comparison.routeConfidence} />
               <CommunitySignalLine signal={comparison.communitySignal} />
+              <HistoricalReliabilityLine reliability={comparison.historicalReliability} />
               <CommercialAvailabilitySection signal={comparison.sellableSeatSignal} />
               <RecoverySummarySection recovery={comparison.recovery} />
               <DoorToDoorPlanSection plan={comparison.endToEnd} />

@@ -1,4 +1,5 @@
 import { sellableSeatSignalCaution, sellableSeatSignalScoreAdjustment, type SellableSeatSignal } from './sellableSeatSignal'
+import type { HistoricalReliability } from './historicalReliability'
 
 export type RecoveryStrength = 'Excellent' | 'Good' | 'Fair' | 'Poor'
 export type RecoveryRiskLevel = 'Low' | 'Medium' | 'High' | 'Unknown'
@@ -107,7 +108,7 @@ const islandOrInternationalAirports = new Set(['HNL', 'KOA', 'LIH', 'OGG', 'HND'
  * Scores itinerary recovery using deterministic placeholders only.
  * Future live hooks belong behind this function, not in provider/search code.
  */
-export function analyzeRecovery(itinerary: RecoveryItineraryLike, sellableSeatSignal?: SellableSeatSignal): RecoveryAnalysis {
+export function analyzeRecovery(itinerary: RecoveryItineraryLike, sellableSeatSignal?: SellableSeatSignal, historicalReliability?: HistoricalReliability): RecoveryAnalysis {
   const path = airportPath(itinerary)
   const origin = path[0] || 'TBD'
   const destination = path[path.length - 1] || 'TBD'
@@ -122,11 +123,15 @@ export function analyzeRecovery(itinerary: RecoveryItineraryLike, sellableSeatSi
   const strandedRisk = placeholderStrandedRisk(laterFlightOpportunities, alternates.length, overnightRisk, weatherRisk, delayRisk)
   const estimatedRecoveryHours = placeholderRecoveryHours(laterFlightOpportunities, alternates.length, overnightRisk, strandedRisk)
   const estimatedRecoveryCost = placeholderRecoveryCost(overnightRisk, rentalCarPossible, alternates.length, destination)
-  const score = clamp(recoveryScore({ laterFlightOpportunities, alternateAirportCount: alternates.length, overnightRisk, rentalCarPossible, hotelLikely, strandedRisk, weatherRisk, delayRisk, connections }) + sellableSeatSignalScoreAdjustment(sellableSeatSignal))
+  const score = clamp(
+    recoveryScore({ laterFlightOpportunities, alternateAirportCount: alternates.length, overnightRisk, rentalCarPossible, hotelLikely, strandedRisk, weatherRisk, delayRisk, connections }) +
+    sellableSeatSignalScoreAdjustment(sellableSeatSignal) +
+    historicalReliabilityRecoveryAdjustment(historicalReliability, laterFlightOpportunities, alternates.length)
+  )
   const strength = recoveryStrength(score)
   const backupOptions = backupOptionsFor({ laterFlightOpportunities, alternates, overnightRisk, rentalCarPossible, hotelLikely, estimatedRecoveryHours, estimatedRecoveryCost })
   const primaryRecoveryOption = backupOptions[0] || recoveryOption('next-day-flight', 'Next-day recovery placeholder', 'Hold a next-day flight option if same-day recovery is unavailable.', -12, estimatedRecoveryHours, estimatedRecoveryCost)
-  const reasons = recoveryReasons({ laterFlightOpportunities, alternateAirportCount: alternates.length, overnightRisk, rentalCarPossible, hotelLikely, strandedRisk }, sellableSeatSignal)
+  const reasons = recoveryReasons({ laterFlightOpportunities, alternateAirportCount: alternates.length, overnightRisk, rentalCarPossible, hotelLikely, strandedRisk }, sellableSeatSignal, historicalReliability)
 
   return {
     score,
@@ -162,6 +167,14 @@ export function analyzeRecovery(itinerary: RecoveryItineraryLike, sellableSeatSi
     },
     reasons
   }
+}
+
+function historicalReliabilityRecoveryAdjustment(reliability: HistoricalReliability | undefined, laterFlightOpportunities: number, alternateAirportCount: number) {
+  if (reliability?.signal.level !== 'poor') return 0
+  const backupStrength = laterFlightOpportunities + alternateAirportCount
+  if (backupStrength >= 4) return 4
+  if (backupStrength >= 2) return 2
+  return -2
 }
 
 function airportPath(itinerary: RecoveryItineraryLike) {
@@ -277,7 +290,7 @@ function recoveryOption(type: RecoveryOptionType, label: string, summary: string
   return { type, label, summary, scoreImpact, estimatedHours, estimatedCost, placeholder: true }
 }
 
-function recoveryReasons(input: { laterFlightOpportunities: number; alternateAirportCount: number; overnightRisk: boolean; rentalCarPossible: boolean; hotelLikely: boolean; strandedRisk: RecoveryRiskLevel }, sellableSeatSignal?: SellableSeatSignal) {
+function recoveryReasons(input: { laterFlightOpportunities: number; alternateAirportCount: number; overnightRisk: boolean; rentalCarPossible: boolean; hotelLikely: boolean; strandedRisk: RecoveryRiskLevel }, sellableSeatSignal?: SellableSeatSignal, historicalReliability?: HistoricalReliability) {
   const reasons: string[] = []
   if (input.laterFlightOpportunities >= 3) reasons.push('Multiple backup departures')
   else if (input.laterFlightOpportunities > 0) reasons.push('Some later flight options')
@@ -290,6 +303,7 @@ function recoveryReasons(input: { laterFlightOpportunities: number; alternateAir
   reasons.push(`${input.strandedRisk} stranded risk`)
   const sellableSeatReason = sellableSeatSignalCaution(sellableSeatSignal)
   if (sellableSeatReason) reasons.push(sellableSeatReason)
+  if (historicalReliability?.signal.level === 'poor') reasons.push('Poor historical reliability favors stronger backup options')
   return reasons
 }
 

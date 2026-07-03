@@ -1,6 +1,7 @@
 import type { FlightCommunitySummary } from './communityIntelligence'
 import type { DecisionFactors, DecisionScore, DecisionStatus, Recommendation } from './decisionEngine'
 import type { EndToEndTripPlan } from './endToEndTrip'
+import type { HistoricalReliability } from './historicalReliability'
 import type { RecoveryAnalysis } from './recoveryEngine'
 import type { RouteConfidence } from './routeConfidence'
 import type { SellableSeatSignal } from './sellableSeatSignal'
@@ -106,6 +107,7 @@ export type ItineraryResult = {
   routeConfidence?: RouteConfidence
   communityIntelligenceSignal?: FlightCommunitySummary
   sellableSeatSignal?: SellableSeatSignal
+  historicalReliability?: HistoricalReliability
 }
 
 export type FlightRouteNormalization = {

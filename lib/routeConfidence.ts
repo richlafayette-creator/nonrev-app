@@ -2,6 +2,7 @@ import { airportCodesFromRoute } from './airportMapScaffold'
 import type { DecisionFactors, DecisionScore, DecisionStatus } from './decisionEngine'
 import type { DisruptionIntelligence } from './disruptionIntelligence'
 import { communitySignalLabel, communitySignalScoreAdjustment, type FlightCommunitySummary } from './communityIntelligence'
+import { historicalReliabilityDisplayLabel, historicalReliabilityScoreAdjustment, type HistoricalReliability } from './historicalReliability'
 import type { RecoveryAnalysis } from './recoveryEngine'
 import type { SellableSeatSignal } from './sellableSeatSignal'
 import type { TravelerProfileScaffold } from './travelerProfile'
@@ -15,6 +16,7 @@ export type ConfidenceSignalSource =
   | 'recovery-engine'
   | 'sellable-seat-signal'
   | 'community-intelligence'
+  | 'historical-reliability'
   | 'weather'
   | 'delay-history'
   | 'provider-reliability'
@@ -77,6 +79,7 @@ export type RouteConfidence = {
     successProbability: number
     historicalRouteData: number
     communityLoadReports: number
+    historicalReliability: number
     travelerProfile: number
     disruptionIntelligence: number
     weatherImpact: number
@@ -105,6 +108,7 @@ type RouteConfidenceInput = {
   recovery?: RecoveryAnalysis
   sellableSeatSignal?: SellableSeatSignal
   communityIntelligence?: FlightCommunitySummary
+  historicalReliability?: HistoricalReliability
   providerDataStatus?: ProviderDataStatus
   providerReliabilityScore?: number
   delayHistoryScore?: number
@@ -115,6 +119,7 @@ const confidenceSources: ConfidenceSignalSource[] = [
   'recovery-engine',
   'sellable-seat-signal',
   'community-intelligence',
+  'historical-reliability',
   'weather',
   'delay-history',
   'provider-reliability'
@@ -193,6 +198,7 @@ function confidenceUpdateExplanation(input: RouteConfidenceInput, score: number,
     input.recovery ? `${input.recovery.strength} recovery` : 'Recovery Engine unavailable',
     input.sellableSeatSignal ? `${input.sellableSeatSignal.sellableStatus} commercial availability proxy` : 'commercial availability proxy missing',
     input.communityIntelligence ? `${communitySignalLabel(input.communityIntelligence.status)} community intelligence` : `${input.communityReportCount || 0} community load report${(input.communityReportCount || 0) === 1 ? '' : 's'}`,
+    input.historicalReliability ? `${historicalReliabilityDisplayLabel(input.historicalReliability.signal.level)} historical reliability` : 'historical reliability unknown',
     `${input.disruption?.routeHealth || 'unknown'} disruption status`,
     `${weatherImpact.label} weather risk`,
     `${input.previousConfidenceScore ? `previous score ${Math.round(input.previousConfidenceScore)}` : 'no prior score baseline'}`
@@ -222,6 +228,11 @@ function communityComponent(input: RouteConfidenceInput) {
   const loadAdjustment = input.communityLoadAdjustment ?? input.trustedLoadSignal ?? 0
   const reportBase = reportCount ? 66 + Math.min(14, reportCount * 3) : 58
   return clamp(reportBase + loadAdjustment * 1.6)
+}
+
+function historicalReliabilityComponent(input: RouteConfidenceInput) {
+  if (!input.historicalReliability) return 62
+  return clamp(input.historicalReliability.reliabilityScore)
 }
 
 function providerStatusFor(input: RouteConfidenceInput): ProviderDataStatus {
@@ -307,6 +318,19 @@ function confidenceFactors(input: RouteConfidenceInput, weatherImpact: WeatherIm
     })
   }
 
+  if (input.historicalReliability) {
+    const reliability = input.historicalReliability
+    factors.push({
+      source: 'historical-reliability',
+      label: `Historical reliability: ${historicalReliabilityDisplayLabel(reliability.signal.level)}`,
+      detail: `${reliability.signal.summary} Average delay ${Math.round(reliability.averageDelayMinutes || 0)} min; cancellation ${Number(reliability.cancellationRate || 0).toFixed(1)}%.`,
+      impact: historicalReliabilityScoreAdjustment(reliability),
+      available: reliability.signal.level !== 'unknown'
+    })
+  } else {
+    factors.push({ source: 'historical-reliability', label: 'Historical reliability: Unknown', detail: 'No historical reliability signal is available yet.', impact: 0, available: false })
+  }
+
   factors.push({
     source: 'weather',
     label: `${weatherImpact.label} weather signal`,
@@ -349,14 +373,16 @@ export function calculateRouteConfidence(input: RouteConfidenceInput): RouteConf
     successProbability: clamp(input.successProbability),
     historicalRouteData: historicalComponent(input),
     communityLoadReports: communityComponent(input),
+    historicalReliability: historicalReliabilityComponent(input),
     travelerProfile: travelerProfileScore(input.route, input.travelerProfile),
     disruptionIntelligence: clamp(100 - disruptionImpactScore),
     weatherImpact: clamp(100 - weatherImpact.scoreImpact)
   }
   const baseScore = clamp(
     components.successProbability * 0.3 +
-    components.historicalRouteData * 0.2 +
+    components.historicalRouteData * 0.16 +
     components.communityLoadReports * 0.14 +
+    components.historicalReliability * 0.04 +
     components.travelerProfile * 0.13 +
     components.disruptionIntelligence * 0.13 +
     components.weatherImpact * 0.1
@@ -376,7 +402,7 @@ export function calculateRouteConfidence(input: RouteConfidenceInput): RouteConf
   const cautionFactors = factors.filter((factor) => factor.impact < 0 || (!factor.available && ['provider-reliability', 'decision-engine', 'recovery-engine'].includes(factor.source))).sort((a, b) => a.impact - b.impact)
   const missingSignals = confidenceSources.filter((source) => factors.some((factor) => factor.source === source && !factor.available))
   const sourceBreakdown = sourceBreakdownFromFactors(factors)
-  const summary = `${routeConfidenceLabel(level)} confidence from Decision Engine, Recovery Engine, commercial availability proxy, community intelligence, and future-ready weather/delay/provider inputs${incompleteProviderData ? '; provider data is incomplete' : ''}. Not guaranteed standby clearance.`
+  const summary = `${routeConfidenceLabel(level)} confidence from Decision Engine, Recovery Engine, commercial availability proxy, community intelligence, historical reliability, and future-ready weather/delay/provider inputs${incompleteProviderData ? '; provider data is incomplete' : ''}. Not guaranteed standby clearance.`
 
   return {
     overallScore: score,
@@ -397,7 +423,7 @@ export function calculateRouteConfidence(input: RouteConfidenceInput): RouteConf
     weatherImpact,
     components,
     explanation: [
-      `Route Confidence is ${score}/100 (${routeConfidenceLabel(level)}) from Decision Engine, Recovery Engine, commercial availability proxy, community intelligence, weather, delay history, and provider reliability signals.`,
+      `Route Confidence is ${score}/100 (${routeConfidenceLabel(level)}) from Decision Engine, Recovery Engine, commercial availability proxy, community intelligence, historical reliability, weather, delay history, and provider reliability signals.`,
       `Commercial availability is treated only as a proxy and never as guaranteed standby or non-rev clearance.`,
       incompleteProviderData ? 'Provider data is rate-limited or missing, so confidence is marked incomplete.' : 'Provider reliability is available or currently unknown without a heavy penalty.',
       `Unknown signals are treated as missing context rather than major penalties. Missing: ${missingSignals.length ? missingSignals.join(', ') : 'none'}.`,

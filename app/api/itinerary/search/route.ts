@@ -1329,7 +1329,7 @@ async function fetchExpandedScheduleFlights(request: ReturnType<typeof normalize
   const unique = uniqueFlights(flights)
   const allItineraries = buildAllItinerariesFromFlights(unique, request)
   const completeness = itineraryCompletenessDiagnostics(allItineraries)
-  const topItineraries = allItineraries.slice(0, 5)
+  const topItineraries = applyTopRouteRecommendations(request, allItineraries, 5)
   const annotatedTopItineraries = addProviderBadges(topItineraries, 'flightaware', false, {
     dataFreshnessLabel: 'Live provider API data',
     dataFreshnessDetail: request.date ? `Expanded schedule search checked provider segments for requested date ${request.date}.` : 'Expanded schedule search checked provider segments for the current schedule window.',

@@ -10,6 +10,7 @@ import { generateAiTripPlan, parseTripPlannerPrompt } from '../../lib/aiTripPlan
 import { carrierScoringProfiles, getCarrierScoringScaffold, normalizeCarrierFamily, supportedCarrierOptions } from '../../lib/carrierScope'
 import { historicalRouteStats, type HistoricalRoute } from '../../lib/historicalRoutes'
 import { parseItineraryPrompt } from '../../lib/itinerarySearch'
+import { communitySignalLabel, type FlightCommunitySummary } from '../../lib/communityIntelligence'
 import type { DecisionFactors, DecisionScore, DecisionStatus } from '../../lib/decisionEngine'
 import type { EndToEndTripPlan } from '../../lib/endToEndTrip'
 import type { RecoveryAnalysis } from '../../lib/recoveryEngine'
@@ -246,6 +247,7 @@ type LiveItineraryResult = {
   endToEnd?: EndToEndTripPlan
   recovery?: RecoveryAnalysis
   routeConfidence?: RouteConfidence
+  communityIntelligenceSignal?: FlightCommunitySummary
   sellableSeatSignal?: SellableSeatSignal
 }
 
@@ -621,6 +623,7 @@ type ItineraryComparison = {
   whyThisRoute?: string
   endToEnd?: EndToEndTripPlan
   recovery?: RecoveryAnalysis
+  communitySignal?: FlightCommunitySummary
   sellableSeatSignal?: SellableSeatSignal
   recoveryStrength?: number
   recoveryExplanation?: string
@@ -1270,6 +1273,7 @@ function buildLiveItineraryComparison(
     decisionStatus: itinerary.decisionStatus,
     recovery: itinerary.recovery,
     sellableSeatSignal: itinerary.sellableSeatSignal,
+    communityIntelligence: itinerary.communityIntelligenceSignal,
     providerDataStatus: providerDataStatusForLiveItinerary(itinerary),
     updateTrigger
   })
@@ -1392,6 +1396,7 @@ function buildLiveItineraryComparison(
     whyThisRoute: itinerary.whyThisRoute,
     endToEnd: itinerary.endToEnd,
     recovery: itinerary.recovery,
+    communitySignal: itinerary.communityIntelligenceSignal,
     sellableSeatSignal: itinerary.sellableSeatSignal,
     recoveryStrength: itinerary.recoveryStrength,
     recoveryExplanation: itinerary.recoveryExplanation,
@@ -3389,6 +3394,15 @@ function CommercialAvailabilitySection({ signal }: { signal?: SellableSeatSignal
   )
 }
 
+function CommunitySignalLine({ signal }: { signal?: FlightCommunitySummary }) {
+  if (!signal || signal.activeReportCount === 0 || signal.status === 'unknown') return null
+  return (
+    <p style={{ color: '#cbd5e1', margin: '8px 0 0' }}>
+      <strong style={{ color: '#f8fafc' }}>Community signal:</strong> {communitySignalLabel(signal.status)} · {signal.activeReportCount} recent report{signal.activeReportCount === 1 ? '' : 's'} · {signal.confidence} confidence. <small style={{ color: '#94a3b8' }}>Not confirmed standby clearance.</small>
+    </p>
+  )
+}
+
 function CompactRouteConfidenceLine({ confidence }: { confidence?: RouteConfidence }) {
   if (!confidence) return null
   const positiveFactors = confidence.positiveFactors.slice(0, 2)
@@ -4146,6 +4160,7 @@ function renderFlightBoardRow(comparison: ItineraryComparison, showPlanB = false
                 </ul>
               ) : null}
               <CompactRouteConfidenceLine confidence={comparison.routeConfidence} />
+              <CommunitySignalLine signal={comparison.communitySignal} />
               <CommercialAvailabilitySection signal={comparison.sellableSeatSignal} />
               <RecoverySummarySection recovery={comparison.recovery} />
               <ItineraryIntelligenceDetailPanel comparison={comparison} backup={nextBackup} />

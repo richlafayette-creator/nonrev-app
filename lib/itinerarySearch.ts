@@ -1,3 +1,4 @@
+import type { FlightCommunitySummary } from './communityIntelligence'
 import type { DecisionFactors, DecisionScore, DecisionStatus, Recommendation } from './decisionEngine'
 import type { EndToEndTripPlan } from './endToEndTrip'
 import type { RecoveryAnalysis } from './recoveryEngine'
@@ -103,6 +104,7 @@ export type ItineraryResult = {
   endToEnd?: EndToEndTripPlan
   recovery?: RecoveryAnalysis
   routeConfidence?: RouteConfidence
+  communityIntelligenceSignal?: FlightCommunitySummary
   sellableSeatSignal?: SellableSeatSignal
 }
 

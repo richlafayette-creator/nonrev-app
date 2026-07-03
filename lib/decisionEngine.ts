@@ -235,6 +235,7 @@ export function rankItineraries<TItinerary extends ItineraryResult>(itineraries:
         decisionStatus: status,
         recovery,
         sellableSeatSignal,
+        communityIntelligence: itinerary.communityIntelligenceSignal,
         providerDataStatus: providerDataStatusForItinerary(itinerary),
         updateTrigger: 'itinerary-search-run'
       })
@@ -243,6 +244,7 @@ export function rankItineraries<TItinerary extends ItineraryResult>(itineraries:
           ...itinerary,
           sellableSeatSignal,
           routeConfidence,
+          communityIntelligenceSignal: itinerary.communityIntelligenceSignal,
           decisionScore,
           decisionFactors: factors,
           recommendation,

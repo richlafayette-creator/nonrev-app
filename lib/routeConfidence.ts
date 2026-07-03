@@ -1,6 +1,7 @@
 import { airportCodesFromRoute } from './airportMapScaffold'
 import type { DecisionFactors, DecisionScore, DecisionStatus } from './decisionEngine'
 import type { DisruptionIntelligence } from './disruptionIntelligence'
+import { communitySignalLabel, communitySignalScoreAdjustment, type FlightCommunitySummary } from './communityIntelligence'
 import type { RecoveryAnalysis } from './recoveryEngine'
 import type { SellableSeatSignal } from './sellableSeatSignal'
 import type { TravelerProfileScaffold } from './travelerProfile'
@@ -103,6 +104,7 @@ type RouteConfidenceInput = {
   decisionStatus?: DecisionStatus
   recovery?: RecoveryAnalysis
   sellableSeatSignal?: SellableSeatSignal
+  communityIntelligence?: FlightCommunitySummary
   providerDataStatus?: ProviderDataStatus
   providerReliabilityScore?: number
   delayHistoryScore?: number
@@ -190,7 +192,7 @@ function confidenceUpdateExplanation(input: RouteConfidenceInput, score: number,
     input.decisionScore ? `Decision Engine ${Math.round(input.decisionScore.overallScore)}/100` : 'Decision Engine unavailable',
     input.recovery ? `${input.recovery.strength} recovery` : 'Recovery Engine unavailable',
     input.sellableSeatSignal ? `${input.sellableSeatSignal.sellableStatus} commercial availability proxy` : 'commercial availability proxy missing',
-    `${input.communityReportCount || 0} community load report${(input.communityReportCount || 0) === 1 ? '' : 's'}`,
+    input.communityIntelligence ? `${communitySignalLabel(input.communityIntelligence.status)} community intelligence` : `${input.communityReportCount || 0} community load report${(input.communityReportCount || 0) === 1 ? '' : 's'}`,
     `${input.disruption?.routeHealth || 'unknown'} disruption status`,
     `${weatherImpact.label} weather risk`,
     `${input.previousConfidenceScore ? `previous score ${Math.round(input.previousConfidenceScore)}` : 'no prior score baseline'}`
@@ -285,14 +287,25 @@ function confidenceFactors(input: RouteConfidenceInput, weatherImpact: WeatherIm
     factors.push({ source: 'sellable-seat-signal', label: 'Commercial availability proxy missing', detail: 'No sellable seat signal has been supplied.', impact: 0, available: false })
   }
 
-  const communityReports = input.communityReportCount || 0
-  factors.push({
-    source: 'community-intelligence',
-    label: communityReports ? `${communityReports} community report${communityReports === 1 ? '' : 's'}` : 'Community intelligence pending',
-    detail: communityReports ? 'Future community intelligence can refine route confidence.' : 'No community intelligence signal is available yet.',
-    impact: communityReports ? Math.min(4, communityReports) : 0,
-    available: communityReports > 0
-  })
+  if (input.communityIntelligence) {
+    const community = input.communityIntelligence
+    factors.push({
+      source: 'community-intelligence',
+      label: `Community signal: ${communitySignalLabel(community.status)}`,
+      detail: `${community.summary} This is not confirmed standby clearance.`,
+      impact: communitySignalScoreAdjustment(community),
+      available: community.activeReportCount > 0
+    })
+  } else {
+    const communityReports = input.communityReportCount || 0
+    factors.push({
+      source: 'community-intelligence',
+      label: communityReports ? `${communityReports} legacy community load report${communityReports === 1 ? '' : 's'}` : 'Community intelligence pending',
+      detail: communityReports ? 'Legacy community load count is present; structured community intelligence is not attached yet.' : 'No community intelligence signal is available yet.',
+      impact: communityReports ? Math.min(2, communityReports * 0.5) : 0,
+      available: communityReports > 0
+    })
+  }
 
   factors.push({
     source: 'weather',
@@ -363,7 +376,7 @@ export function calculateRouteConfidence(input: RouteConfidenceInput): RouteConf
   const cautionFactors = factors.filter((factor) => factor.impact < 0 || (!factor.available && ['provider-reliability', 'decision-engine', 'recovery-engine'].includes(factor.source))).sort((a, b) => a.impact - b.impact)
   const missingSignals = confidenceSources.filter((source) => factors.some((factor) => factor.source === source && !factor.available))
   const sourceBreakdown = sourceBreakdownFromFactors(factors)
-  const summary = `${routeConfidenceLabel(level)} confidence from Decision Engine, Recovery Engine, commercial availability proxy, and future-ready community/weather/delay/provider inputs${incompleteProviderData ? '; provider data is incomplete' : ''}. Not guaranteed standby clearance.`
+  const summary = `${routeConfidenceLabel(level)} confidence from Decision Engine, Recovery Engine, commercial availability proxy, community intelligence, and future-ready weather/delay/provider inputs${incompleteProviderData ? '; provider data is incomplete' : ''}. Not guaranteed standby clearance.`
 
   return {
     overallScore: score,

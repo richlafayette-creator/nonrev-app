@@ -2,6 +2,7 @@ export type RecoveryStrength = 'Excellent' | 'Good' | 'Fair' | 'Poor'
 export type RecoveryRiskLevel = 'Low' | 'Medium' | 'High' | 'Unknown'
 export type RecoveryOptionType = 'later-flight' | 'alternate-airport' | 'overnight-hotel' | 'ground-transport' | 'next-day-flight'
 
+/** Placeholder alternate airport candidate for failure recovery. */
 export type AlternateAirport = {
   airportCode: string
   relation: 'departure' | 'arrival' | 'connection'
@@ -10,6 +11,7 @@ export type AlternateAirport = {
   notes: string[]
 }
 
+/** Placeholder hotel fallback signal. No hotel API is called in this phase. */
 export type HotelRecovery = {
   hotelLikely: boolean
   estimatedNightlyCost: number | null
@@ -17,6 +19,7 @@ export type HotelRecovery = {
   notes: string[]
 }
 
+/** Placeholder ground-transport fallback signal. No rideshare, rental car, train, or bus API is called. */
 export type GroundRecovery = {
   rentalCarPossible: boolean
   ridesharePossible: boolean
@@ -27,6 +30,7 @@ export type GroundRecovery = {
   notes: string[]
 }
 
+/** A single recovery path the traveler could consider if the itinerary fails. */
 export type RecoveryOption = {
   type: RecoveryOptionType
   label: string
@@ -37,6 +41,7 @@ export type RecoveryOption = {
   placeholder: true
 }
 
+/** Full Recovery Intelligence result attached by the Decision Engine. */
 export type RecoveryAnalysis = {
   score: number
   strength: RecoveryStrength
@@ -96,6 +101,10 @@ const denseRecoveryAirports = new Set(['ATL', 'BOS', 'DEN', 'DFW', 'EWR', 'HNL',
 const constrainedRecoveryAirports = new Set(['NRT', 'OGG', 'SBP'])
 const islandOrInternationalAirports = new Set(['HNL', 'KOA', 'LIH', 'OGG', 'HND', 'NRT'])
 
+/**
+ * Scores itinerary recovery using deterministic placeholders only.
+ * Future live hooks belong behind this function, not in provider/search code.
+ */
 export function analyzeRecovery(itinerary: RecoveryItineraryLike): RecoveryAnalysis {
   const path = airportPath(itinerary)
   const origin = path[0] || 'TBD'

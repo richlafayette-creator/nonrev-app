@@ -923,7 +923,12 @@ function closestMatchingRoutes(diagnostics: FlightRouteMatchDiagnostics[], reque
     })
     .sort((a, b) => b.score - a.score || b.count - a.count || a.route.localeCompare(b.route))
     .slice(0, 5)
-    .map(({ score: _score, ...route }) => route)
+    .map((route) => ({
+      route: route.route,
+      count: route.count,
+      reason: route.reason,
+      sampleFlightNumbers: route.sampleFlightNumbers
+    }))
 }
 
 function routeMatchExplanation(summary: Pick<RouteMatchingSummary, 'requested' | 'totalCandidates' | 'originMatches' | 'destinationMatches' | 'dateMatches' | 'carrierMatches' | 'exactRouteMatches' | 'finalMatchedRows' | 'dateCoverage'>) {
@@ -1001,9 +1006,14 @@ function canonicalFlightNumber(value?: string) {
   return String(value || '').replace(/\s+/g, '').toUpperCase()
 }
 
-function normalizedScheduleInstant(value?: string) {
+function scheduleInstantMs(value?: string) {
   const parsed = value ? Date.parse(value) : NaN
-  return Number.isFinite(parsed) ? new Date(parsed).toISOString() : String(value || '')
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+function normalizedScheduleInstant(value?: string) {
+  const parsed = scheduleInstantMs(value)
+  return parsed !== null ? new Date(parsed).toISOString() : String(value || '')
 }
 
 function itineraryDedupeKey(legs: ItineraryLeg[]) {
@@ -1020,9 +1030,9 @@ function itineraryDedupeKey(legs: ItineraryLeg[]) {
 }
 
 function minutesUntilConnection(firstLeg: ItineraryLeg, secondLeg: ItineraryLeg) {
-  const firstArrival = Date.parse(firstLeg.arrivalTime)
-  const secondDeparture = Date.parse(secondLeg.departureTime)
-  if (!Number.isFinite(firstArrival) || !Number.isFinite(secondDeparture)) return null
+  const firstArrival = scheduleInstantMs(firstLeg.arrivalTime)
+  const secondDeparture = scheduleInstantMs(secondLeg.departureTime)
+  if (firstArrival === null || secondDeparture === null) return null
   return Math.round((secondDeparture - firstArrival) / 60000)
 }
 
@@ -1128,7 +1138,7 @@ export function buildAllItinerariesFromFlights(flights: Record<string, unknown>[
     .map((leg) => itineraryFromLegs([leg]))
 
   if (!request.origin || !request.destination) {
-  return generatedItineraries(directItineraries)
+    return generatedItineraries(directItineraries)
   }
 
   const firstLegs = candidateLegs.filter((leg) => leg.origin === request.origin && leg.destination !== request.destination)
@@ -1161,7 +1171,7 @@ export function buildAllItinerariesFromFlights(flights: Record<string, unknown>[
       )
     )
 
-return generatedItineraries([...directItineraries, ...oneStopItineraries, ...twoStopItineraries])
+  return generatedItineraries([...directItineraries, ...oneStopItineraries, ...twoStopItineraries])
 }
 
 export function buildItinerariesFromFlights(flights: Record<string, unknown>[], request: ParsedItineraryRequest, enrichments: Record<string, Record<string, unknown>> = {}) {

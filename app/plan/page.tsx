@@ -19,7 +19,7 @@ import { effectiveLoadReportWeight, loadLoadReports, loadReportSignal, loadRepor
 import { communityLoadFreshness, communityLoadIntelligenceForItinerary, communityLoadSummaryForItinerary, communityRouteAirports, communityContributorTrustBreakdown, loadCommunityContributorReputation, loadCommunityLoads, relativeCommunityLoadTime, saveCommunityLoadReport, saveCommunityLoadRequest, validateCommunityLoadReport, type CommunityLoadFreshness, type CommunityLoadIntelligence, type CommunityLoadReport, type CommunityLoadValidationStatus } from '../../lib/communityLoads'
 import { calculatePredictionEngine } from '../../lib/predictionEngine'
 import { buildDisruptionIntelligence, routeHealthColor, type DisruptionIntelligence } from '../../lib/disruptionIntelligence'
-import { calculateRouteConfidence, confidenceBadgeColor, confidenceTrendColor, confidenceUpdateTriggerLabel, routeConfidenceLabel, type ConfidenceTrend, type ConfidenceUpdateTrigger, type ProviderDataStatus, type RouteConfidence } from '../../lib/routeConfidence'
+import { calculateRouteConfidence, confidenceBadgeColor, confidenceTrendColor, confidenceUpdateTriggerLabel, routeConfidenceLabel, type ConfidenceLevel, type ConfidenceTrend, type ConfidenceUpdateTrigger, type ProviderDataStatus, type RouteConfidence } from '../../lib/routeConfidence'
 import { calculateSuccessPrediction, type CarrierCoverage, type RecoveryStrength as PredictionRecoveryStrength, type ScheduleDensity, type SuccessPrediction, type SuccessPredictionInput } from '../../lib/successPredictionEngine'
 import { calculatePersonalSuccessPrediction, type PersonalSuccessPrediction } from '../../lib/personalSuccessPredictor'
 import { getRouteWeatherRisk, weatherRiskColor, type WeatherRisk } from '../../lib/weatherIntelligence'
@@ -3394,6 +3394,103 @@ function CommercialAvailabilitySection({ signal }: { signal?: SellableSeatSignal
   )
 }
 
+function confidenceStatusIcon(level?: ConfidenceLevel) {
+  if (level === 'excellent') return '🟢'
+  if (level === 'good') return '🟡'
+  if (level === 'fair') return '🟠'
+  if (level === 'poor') return '🔴'
+  return '⚪'
+}
+
+function recoveryStatusIcon(recovery?: RecoveryAnalysis) {
+  if (!recovery) return '⚪'
+  if (recovery.strength === 'Excellent') return '🟢'
+  if (recovery.strength === 'Good') return '🟢'
+  if (recovery.strength === 'Fair') return '🟡'
+  return '🔴'
+}
+
+function commercialStatusIcon(signal?: SellableSeatSignal) {
+  if (signal?.sellableStatus === 'available') return '🟢'
+  if (signal?.sellableStatus === 'limited') return '🟡'
+  if (signal?.sellableStatus === 'unavailable') return '🔴'
+  return '⚪'
+}
+
+function communityStatusIcon(signal?: FlightCommunitySummary) {
+  if (signal?.status === 'favorable') return '🟢'
+  if (signal?.status === 'mixed' || signal?.status === 'limited') return '🟡'
+  if (signal?.status === 'unavailable') return '🔴'
+  return '⚪'
+}
+
+function cleanRecommendationTitle(title: string) {
+  if (/best overall choice/i.test(title)) return 'Best Overall'
+  return title.replace(/\b\w/g, (letter) => letter.toUpperCase()).replace(/ Choice$/, '')
+}
+
+function recoveryCardSummary(recovery?: RecoveryAnalysis) {
+  if (!recovery) return 'Unknown recovery signal'
+  if (recovery.laterFlightOpportunities >= 2) return 'Multiple backup departures available'
+  if (recovery.laterFlightOpportunities === 1) return 'One later backup departure available'
+  if (recovery.alternateAirportCount > 0) return 'Alternate airport options available'
+  return recovery.primaryRecoveryOption?.summary || recovery.summary
+}
+
+function commercialCardSummary(signal?: SellableSeatSignal) {
+  if (!signal) return 'Commercial availability signal unknown'
+  if (signal.sellableStatus === 'available') return 'Still being sold commercially'
+  if (signal.sellableStatus === 'limited') return 'Commercial availability signal limited'
+  if (signal.sellableStatus === 'unavailable') return 'Commercial availability signal unavailable'
+  return 'Commercial availability signal unknown'
+}
+
+function communityCardSummary(signal?: FlightCommunitySummary) {
+  if (!signal || signal.activeReportCount === 0 || signal.status === 'unknown') return 'Recent community reports unknown'
+  return communitySignalLabel(signal.status)
+}
+
+function doorToDoorCardSummary(comparison: ItineraryComparison) {
+  const estimate = comparison.endToEnd?.estimatedDoorToDoorTime
+    ?.replace(/^Placeholder estimate:\s*/i, '')
+    .replace(/^flight itinerary/i, 'flight itinerary')
+  if (estimate) return `Estimated ${estimate}`
+  if (!isMissingLiveLegDetail(comparison.totalTravelTime)) return `Estimated ${compactDurationLabel(comparison.totalTravelTime)} plus ground buffers`
+  return 'Estimated door-to-door timing unavailable'
+}
+
+function conciseWhyRouteReasons(comparison: ItineraryComparison, reasons: string[]) {
+  const fallback = [comparison.whyThisRoute, ...comparison.why, ...comparison.explanation.whyRankedHere]
+    .filter((reason): reason is string => Boolean(reason))
+  return [...reasons, ...fallback].map(compactReasonText).filter(Boolean).slice(0, 3)
+}
+
+function ItineraryIntelligenceSummary({ comparison, recommendation, reasons }: { comparison: ItineraryComparison; recommendation: string; reasons: string[] }) {
+  const whyReasons = conciseWhyRouteReasons(comparison, reasons)
+
+  return (
+    <div className="nonrevy-flight-board-row__decision" aria-label="Itinerary intelligence summary">
+      <strong>⭐ {cleanRecommendationTitle(recommendation)}</strong>
+      <div style={{ display: 'grid', gap: 4, marginTop: 8, color: '#cbd5e1' }}>
+        <span>{confidenceStatusIcon(comparison.routeConfidence.level)} Route Confidence {routeConfidenceLabel(comparison.routeConfidence.level)}</span>
+        <span>{recoveryStatusIcon(comparison.recovery)} Recovery Strength {comparison.recovery?.strength || 'Unknown'} — {recoveryCardSummary(comparison.recovery)}</span>
+        <span>{commercialStatusIcon(comparison.sellableSeatSignal)} Commercial Availability Signal — {commercialCardSummary(comparison.sellableSeatSignal)}</span>
+        <span>{communityStatusIcon(comparison.communitySignal)} Community Signal — {communityCardSummary(comparison.communitySignal)}</span>
+        <span>🟢 Door-to-Door Summary — {doorToDoorCardSummary(comparison)}</span>
+      </div>
+      {whyReasons.length ? (
+        <div style={{ marginTop: 8 }}>
+          <strong>Why this route</strong>
+          <ul>
+            {whyReasons.map((reason) => <li key={`${comparison.id}-intel-why-${reason}`}>{reason}</li>)}
+          </ul>
+        </div>
+      ) : null}
+      <small style={{ color: '#94a3b8' }}>Signals are advisory only: no guaranteed seats, confirmed standby clearance, or exact nonrev loads.</small>
+    </div>
+  )
+}
+
 function CommunitySignalLine({ signal }: { signal?: FlightCommunitySummary }) {
   if (!signal || signal.activeReportCount === 0 || signal.status === 'unknown') return null
   return (
@@ -4127,18 +4224,9 @@ function renderFlightBoardRow(comparison: ItineraryComparison, showPlanB = false
           </div>
         </div>
 
-        {whyRouteReasons.length ? (
-          <div className="nonrevy-flight-board-row__decision" aria-label="Decision engine recommendation">
-            <strong>{routeRecommendation}</strong>
-            <ul>
-              {whyRouteReasons.map((reason) => <li key={`${comparison.id}-why-route-${reason}`}>{reason}</li>)}
-            </ul>
-          </div>
-        ) : null}
+        <ItineraryIntelligenceSummary comparison={comparison} recommendation={routeRecommendation} reasons={whyRouteReasons} />
 
         {showPlanB ? <PlanBItinerarySection comparison={comparison} comparisons={compactItineraries} /> : null}
-
-        <DoorToDoorPlanSection plan={comparison.endToEnd} />
 
         <details open={isExpanded} onToggle={(event) => setDetailsOpen(comparison.id, event.currentTarget.open)} className="nonrevy-flight-board-row__details" onClick={(event) => event.stopPropagation()}>
           <summary>Details</summary>
@@ -4163,6 +4251,7 @@ function renderFlightBoardRow(comparison: ItineraryComparison, showPlanB = false
               <CommunitySignalLine signal={comparison.communitySignal} />
               <CommercialAvailabilitySection signal={comparison.sellableSeatSignal} />
               <RecoverySummarySection recovery={comparison.recovery} />
+              <DoorToDoorPlanSection plan={comparison.endToEnd} />
               <ItineraryIntelligenceDetailPanel comparison={comparison} backup={nextBackup} />
             </section>
             <section className="nonrevy-community-loads">

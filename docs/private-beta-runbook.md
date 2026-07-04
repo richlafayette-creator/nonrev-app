@@ -106,6 +106,19 @@ Wrong itinerary examples to report:
 - Confidence is high despite stale or fallback data.
 - Times, airports, or connection order are visibly wrong.
 
+## Operator preflight checks
+
+Before a private-beta session, run through these checks and treat any `fail` item as a launch blocker for that test cohort:
+
+1. Environment configuration: `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` are set for browser-safe Supabase features.
+2. Provider credentials: `FLIGHTAWARE_API_KEY` is present server-side for primary live schedules; `AVIATIONSTACK_API_KEY` is present if fallback flight search is in scope.
+3. Supabase persistence: `SUPABASE_SERVICE_ROLE_KEY` is set server-side only before testing account-backed watchlists, alerts, feedback, outcomes, or provider-result storage.
+4. Provider-result storage: if `NONREVY_STORE_PROVIDER_RESULTS=true`, the service-role key and provider-results migration must already be ready; otherwise storage should stay disabled and no-op safely.
+5. Alert safety: no service-role-like key uses a `NEXT_PUBLIC_` prefix, and alert copy must not expose raw provider errors, credentials, passenger information, or unsupported live-availability claims.
+6. Personal Testing Mode: `NONREVY_TEST_DATA_MODE=true` is acceptable only for explicit fallback-label testing; it is not production-like beta evidence.
+
+The shared helper `betaRunbookChecks` in `lib/betaRunbookChecks.ts` mirrors this checklist for automated smoke coverage. The helper reports pass/warn/fail status without returning secret values.
+
 ## Known limitations
 
 Current private beta limitations:

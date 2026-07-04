@@ -46,7 +46,7 @@ const weatherSourceCapabilities: Array<Omit<WeatherSourceReadiness, 'status' | '
     provider: 'AviationWeather.gov / METAR / TAF',
     canProvide: ['Aviation observations/forecasts such as METAR and TAF once an adapter is approved.'],
     cannotProvide: ['Seat inventory, standby lists, or airline-specific recovery commitments.'],
-    nextAction: 'Add METAR/TAF parsing into normalized AirportWeatherSignal fields.'
+    nextAction: 'Opt-in METAR adapter exists; next wire it behind server-side cache and explicit feature flag before route weather uses live calls.'
   },
   {
     provider: 'Tomorrow.io',

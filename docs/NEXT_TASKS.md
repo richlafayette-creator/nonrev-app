@@ -23,11 +23,11 @@ Itinerary integrity is sacred. Nonrevy may show less information when certainty 
 
 Remaining P0 work:
 
-- Add browser-level card/details screenshot coverage for rendered itinerary integrity when the local UI harness is available.
+- Blocked 2026-07-04: Add browser-level card/details screenshot coverage for rendered itinerary integrity when the local UI harness is available. The repo currently has no browser test harness or Playwright dependency; use the display-integrity unit coverage until a UI harness is added.
 
 ### P1 — Beta readiness
 
-1. Harden private-beta smoke tests for itinerary search, planning fallback, watchlist flows, and alert rendering.
+1. Completed 2026-07-04: Added private-beta smoke coverage for itinerary prompt parsing, planning fallback non-live labels, watchlist matching, and alert/activity feed rendering.
 2. Improve provider failure states so users see honest explanations when live data is unavailable, rate-limited, partial, or stale.
 3. Add beta runbook checks for environment configuration, provider credentials, Supabase persistence, and alert safety.
 4. Audit all user-facing labels for certainty: live, stored, route-framework, placeholder, advisory, unknown.

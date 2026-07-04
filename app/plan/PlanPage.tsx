@@ -3508,28 +3508,34 @@ function conciseWhyRouteReasons(comparison: ItineraryComparison, reasons: string
 
 function ItineraryIntelligenceSummary({ comparison, recommendation, reasons }: { comparison: ItineraryComparison; recommendation: string; reasons: string[] }) {
   const whyReasons = conciseWhyRouteReasons(comparison, reasons)
+  const signalChips = [
+    `${confidenceStatusIcon(comparison.routeConfidence.level)} Route Confidence: ${routeConfidenceLabel(comparison.routeConfidence.level)}`,
+    `${recoveryStatusIcon(comparison.recovery)} Recovery: ${comparison.recovery?.strength || 'Unknown'}`,
+    `${historicalReliabilityStatusIcon(comparison.historicalReliability)} Historical Reliability: ${historicalReliabilityCardSummary(comparison.historicalReliability)}`,
+    `🌦️ Weather: ${weatherCardSummary(comparison.weatherRisk)}`,
+    `${communityStatusIcon(comparison.communitySignal)} Community Signal: ${communityCardSummary(comparison.communitySignal)}`,
+    `${commercialStatusIcon(comparison.sellableSeatSignal)} Sellable Seat Proxy: ${commercialCardSummary(comparison.sellableSeatSignal)}`
+  ]
 
   return (
     <div className="nonrevy-flight-board-row__decision" aria-label="Itinerary intelligence summary">
       <strong>⭐ {cleanRecommendationTitle(recommendation)}</strong>
-      <div style={{ display: 'grid', gap: 4, marginTop: 8, color: '#cbd5e1' }}>
-        <span>{confidenceStatusIcon(comparison.routeConfidence.level)} Route Confidence {routeConfidenceLabel(comparison.routeConfidence.level)}</span>
-        <span>{recoveryStatusIcon(comparison.recovery)} Recovery Strength {comparison.recovery?.strength || 'Unknown'} — {recoveryCardSummary(comparison.recovery)}</span>
-        <span>{commercialStatusIcon(comparison.sellableSeatSignal)} Commercial Availability Signal — {commercialCardSummary(comparison.sellableSeatSignal)}</span>
-        <span>{communityStatusIcon(comparison.communitySignal)} Community Signal — {communityCardSummary(comparison.communitySignal)}</span>
-        <span>{historicalReliabilityStatusIcon(comparison.historicalReliability)} Historical Reliability — {historicalReliabilityCardSummary(comparison.historicalReliability)}</span>
-        <span>🌦️ Weather — {weatherCardSummary(comparison.weatherRisk)}</span>
-        <span>🟢 Door-to-Door Summary — {doorToDoorCardSummary(comparison)}</span>
+      <div style={{ display: 'flex', gap: 6, marginTop: 8, color: '#cbd5e1', flexWrap: 'wrap' }} aria-label="Concise itinerary trust signals">
+        {signalChips.map((signal) => (
+          <span key={`${comparison.id}-signal-${signal}`} style={{ border: '1px solid #334155', borderRadius: 999, padding: '3px 7px', background: '#0f172a' }}>{signal}</span>
+        ))}
       </div>
-      {whyReasons.length ? (
-        <div style={{ marginTop: 8 }}>
-          <strong>Why this route</strong>
-          <ul>
+      <details className="nonrevy-premium-details" style={{ marginTop: 8 }}>
+        <summary style={{ color: '#67e8f9', cursor: 'pointer', fontWeight: 'bold' }}>Why / trust details</summary>
+        {whyReasons.length ? (
+          <ul style={{ marginBottom: 8 }}>
             {whyReasons.map((reason) => <li key={`${comparison.id}-intel-why-${reason}`}>{reason}</li>)}
           </ul>
-        </div>
-      ) : null}
-      <small style={{ color: '#94a3b8' }}>Signals are advisory only: no guaranteed seats, confirmed standby clearance, or exact nonrev loads.</small>
+        ) : null}
+        <p style={{ color: '#cbd5e1', margin: '6px 0 0' }}>{recoveryCardSummary(comparison.recovery)}</p>
+        <p style={{ color: '#cbd5e1', margin: '6px 0 0' }}>Door-to-door: {doorToDoorCardSummary(comparison)}</p>
+      </details>
+      <small style={{ color: '#94a3b8' }}>Advisory only: no guaranteed seats, confirmed standby clearance, or exact nonrev loads.</small>
     </div>
   )
 }

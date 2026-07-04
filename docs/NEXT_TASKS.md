@@ -49,8 +49,8 @@ Remaining P0 work:
 
 ### P3 — Product polish
 
-1. Simplify itinerary cards without removing required trust labels.
-2. Keep intelligence signals concise and scannable: confidence, recovery, reliability, weather, community, and sellable-seat proxy.
+1. Completed 2026-07-04: Simplified itinerary-card intelligence summaries into compact visible trust-signal chips while preserving required advisory labels and route details.
+2. Completed 2026-07-04: Kept confidence, recovery, reliability, weather, community, and sellable-seat proxy signals concise/scannable, with verbose rationale moved behind “Why / trust details.”
 3. Improve empty states and fallback explanations for first-time beta users.
 4. Add comparison affordances only when they do not obscure route integrity.
 5. Prioritize accessibility, responsive layout, and readable mobile cards over visual novelty.

@@ -10,9 +10,9 @@ import { buildRecoveryIntelligence } from './recoveryIntelligence.ts'
 import { buildRouteCoverageFallbackSuggestions } from './routeCoverageFallback.ts'
 import type { ItineraryResult, ParsedItineraryRequest } from './itinerarySearch.ts'
 
-function request(destination: string): ParsedItineraryRequest {
+function request(destination: string, origin = 'SBP'): ParsedItineraryRequest {
   return {
-    origin: 'SBP',
+    origin,
     destination,
     carrier: 'all',
     maxLegs: 2,
@@ -22,19 +22,19 @@ function request(destination: string): ParsedItineraryRequest {
   }
 }
 
-function providerItinerary(origin: string, destination: string): ItineraryResult {
-  const route = `${origin} → ${destination}`
-  return {
-    id: `provider-${origin}-${destination}`,
-    route,
-    legs: [{
-      id: `leg-${origin}-${destination}`,
-      route,
-      origin,
-      destination,
+function providerItinerary(origin: string, destination: string, via: string[] = []): ItineraryResult {
+  const path = [origin, ...via, destination]
+  const legs = path.slice(0, -1).map((legOrigin, index) => {
+    const legDestination = path[index + 1]
+    const legRoute = `${legOrigin} → ${legDestination}`
+    return {
+      id: `leg-${legOrigin}-${legDestination}`,
+      route: legRoute,
+      origin: legOrigin,
+      destination: legDestination,
       carrier: 'Provider Airline',
-      flightNumber: 'PA123',
-      operatingFlightNumber: 'PA123',
+      flightNumber: `PA12${index + 1}`,
+      operatingFlightNumber: `PA12${index + 1}`,
       marketingFlightNumbers: [],
       departureTime: '2026-06-28T08:00:00Z',
       arrivalTime: '2026-06-28T16:00:00Z',
@@ -45,10 +45,15 @@ function providerItinerary(origin: string, destination: string): ItineraryResult
       risk: 'Medium',
       source: 'provider-cache',
       sourceProvider: 'provider-cache'
-    }],
+    }
+  })
+  return {
+    id: `provider-${path.join('-')}`,
+    route: path.join(' → '),
+    legs,
     carrier: 'Provider Airline',
-    flightNumber: 'PA123',
-    operatingFlightNumber: 'PA123',
+    flightNumber: legs.map((leg) => leg.flightNumber).join(' / '),
+    operatingFlightNumber: legs.map((leg) => leg.operatingFlightNumber).join(' / '),
     marketingFlightNumbers: [],
     departureTime: '2026-06-28T08:00:00Z',
     arrivalTime: '2026-06-28T16:00:00Z',
@@ -64,10 +69,10 @@ function providerItinerary(origin: string, destination: string): ItineraryResult
   }
 }
 
-function assertRouteIntegrity(itinerary: ItineraryResult, destination: string) {
-  assert.equal(itinerary.route.startsWith('SBP →'), true, `${itinerary.route} must start with SBP`)
+function assertRouteIntegrity(itinerary: ItineraryResult, destination: string, origin = 'SBP') {
+  assert.equal(itinerary.route.startsWith(`${origin} →`) || itinerary.route === `${origin} → ${destination}`, true, `${itinerary.route} must start with ${origin}`)
   assert.equal(itinerary.route.endsWith(`→ ${destination}`), true, `${itinerary.route} must end with ${destination}`)
-  assert.equal(itinerary.legs[0].origin, 'SBP')
+  assert.equal(itinerary.legs[0].origin, origin)
   assert.equal(itinerary.legs[itinerary.legs.length - 1].destination, destination)
 }
 
@@ -152,6 +157,53 @@ describe('itinerary endpoint integrity', () => {
       assert.ok(repaired.length > 0)
       repaired.forEach((itinerary) => assertRouteIntegrity(itinerary, destination))
       assert.equal(repaired.some((itinerary) => ['LAX', 'SFO', 'SEA'].some((hub) => itinerary.route === `${hub} → ${destination}`)), false)
+    })
+  })
+
+  it('covers prior integrity-risk searches with exact requested endpoints', () => {
+    const regressionCases = [
+      {
+        query: 'BOS → SBP',
+        origin: 'BOS',
+        destination: 'SBP',
+        candidates: [
+          providerItinerary('BOS', 'SBP', ['DEN']),
+          providerItinerary('DEN', 'SBP'),
+          providerItinerary('BOS', 'DEN')
+        ],
+        expectedRoutes: ['BOS → DEN → SBP']
+      },
+      {
+        query: 'LAX → OGG',
+        origin: 'LAX',
+        destination: 'OGG',
+        candidates: [
+          providerItinerary('LAX', 'OGG'),
+          providerItinerary('LAX', 'HNL'),
+          providerItinerary('SFO', 'OGG')
+        ],
+        expectedRoutes: ['LAX → OGG']
+      },
+      {
+        query: 'SBP → NRT',
+        origin: 'SBP',
+        destination: 'NRT',
+        candidates: [
+          providerItinerary('LAX', 'NRT'),
+          providerItinerary('SFO', 'NRT'),
+          providerItinerary('SEA', 'HND'),
+          providerItinerary('SBP', 'LAX')
+        ],
+        expectedRoutes: ['SBP → LAX → NRT', 'SBP → SFO → NRT']
+      }
+    ]
+
+    regressionCases.forEach(({ query, origin, destination, candidates, expectedRoutes }) => {
+      const repaired = enforceItineraryListEndpointIntegrity(candidates, request(destination, origin))
+      assert.deepEqual(repaired.map((itinerary) => itinerary.route), expectedRoutes, `${query} must only display complete requested routes`)
+      repaired.forEach((itinerary) => assertRouteIntegrity(itinerary, destination, origin))
+      assert.equal(repaired.some((itinerary) => itinerary.route.split('→').map((part) => part.trim())[0] !== origin), false, `${query} must not substitute hubs for origin`)
+      assert.equal(repaired.some((itinerary) => itinerary.route.split('→').map((part) => part.trim()).at(-1) !== destination), false, `${query} must not end before requested destination`)
     })
   })
 })

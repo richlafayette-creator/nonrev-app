@@ -1,6 +1,6 @@
 # Nonrevy Autonomous Development Task Queue
 
-_Last updated: 2026-07-04_
+_Last updated: 2026-07-04 00:47 UTC_
 
 This file is the operating guide for autonomous development agents working on Nonrevy. It defines the next task queue, safety boundaries, validation gates, and priorities for moving the beta toward trustworthy private-beta readiness.
 
@@ -16,10 +16,17 @@ Itinerary integrity is sacred. Nonrevy may show less information when certainty 
 2. Ensure route-framework results are clearly labeled as planning frameworks, not live availability.
 3. Prevent stale stored rows from appearing as current live availability.
 4. Keep unknown signals neutral: no penalty, no bonus, and no confident language.
-5. Add targeted regression coverage for routes that previously exposed integrity risk:
+5. Completed 2026-07-04: Added targeted endpoint-integrity regression coverage for routes that previously exposed integrity risk:
    - `BOS → SBP`
    - `LAX → OGG`
    - `SBP → NRT`
+
+Remaining P0 work:
+
+- Broaden card/details verification so rendered itinerary UI is checked against the generated route framework, not only endpoint-integrity utilities.
+- Add explicit route-framework labeling assertions at the API/UI boundary.
+- Add stale-row safeguards for stored/live availability transitions.
+- Add unknown-signal neutrality assertions for confidence, weather, recovery, and reliability inputs.
 
 ### P1 — Beta readiness
 

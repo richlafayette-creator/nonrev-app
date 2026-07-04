@@ -26,6 +26,10 @@ create table if not exists public.provider_itinerary_results (
   carrier text not null,
   aircraft text not null,
   status text not null,
+  provider_request_hash text not null default 'legacy-provider-request',
+  provider_request_scope text not null default 'legacy-provider-request',
+  result_fingerprint text not null default 'legacy-result-fingerprint',
+  provenance_version text not null default 'provider-result-provenance-v1',
   created_at timestamptz not null default now()
 );
 
@@ -43,6 +47,12 @@ create index if not exists provider_itinerary_results_carrier_idx
 
 create index if not exists provider_itinerary_results_source_provider_idx
   on public.provider_itinerary_results (source_provider);
+
+create index if not exists provider_itinerary_results_request_hash_idx
+  on public.provider_itinerary_results (provider_request_hash);
+
+create index if not exists provider_itinerary_results_fingerprint_idx
+  on public.provider_itinerary_results (result_fingerprint);
 
 alter table public.provider_itinerary_results enable row level security;
 

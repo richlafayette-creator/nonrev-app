@@ -16,6 +16,10 @@ export type ProviderResultRecord = {
   airline: string
   aircraft: string
   status: string
+  provider_request_hash: string
+  provider_request_scope: string
+  result_fingerprint: string
+  provenance_version: string
 }
 
 export type ProviderResultStoreResult = {
@@ -91,6 +95,23 @@ function cacheTimestamp() {
   return new Date().toISOString()
 }
 
+function stableHash(value: string) {
+  let hash = 2166136261
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index)
+    hash = Math.imul(hash, 16777619)
+  }
+  return (hash >>> 0).toString(36)
+}
+
+function provenanceScope(result: NormalizedScheduleResult) {
+  return [cleanValue(result.source), cleanValue(result.origin), cleanValue(result.destination), result.departureTime ? isoDay(result.departureTime) || 'date-unknown' : 'date-unknown', cleanValue(result.carrier)].join('|')
+}
+
+function resultFingerprint(result: NormalizedScheduleResult) {
+  return [cleanValue(result.source), cleanValue(result.flightNumber), cleanValue(result.origin), cleanValue(result.destination), cleanValue(result.departureTime), cleanValue(result.arrivalTime), cleanValue(result.operatingCarrier), cleanValue(result.operatingFlightNumber)].join('|')
+}
+
 function historicalDateParts(departureTime?: string, fallbackTimestamp = cacheTimestamp()) {
   const parsed = Date.parse(departureTime || '')
   const date = Number.isFinite(parsed) ? new Date(parsed) : new Date(fallbackTimestamp)
@@ -104,6 +125,8 @@ function historicalDateParts(departureTime?: string, fallbackTimestamp = cacheTi
 export function normalizedResultToProviderResultRecord(result: NormalizedScheduleResult): ProviderResultRecord {
   const checkedAt = result.sourceCheckedAt || cacheTimestamp()
   const cachedAt = cacheTimestamp()
+  const requestScope = provenanceScope(result)
+  const fingerprint = resultFingerprint(result)
   return {
     source_provider: cleanValue(result.source),
     source_checked_at: checkedAt,
@@ -117,7 +140,11 @@ export function normalizedResultToProviderResultRecord(result: NormalizedSchedul
     carrier: cleanValue(result.carrier),
     airline: cleanValue(result.carrier),
     aircraft: cleanValue(result.aircraft),
-    status: cleanValue(result.status)
+    status: cleanValue(result.status),
+    provider_request_hash: stableHash(requestScope),
+    provider_request_scope: requestScope,
+    result_fingerprint: stableHash(fingerprint),
+    provenance_version: 'provider-result-provenance-v1'
   }
 }
 
@@ -269,7 +296,11 @@ function normalizeSupabaseRecord(raw: Record<string, unknown>): ProviderResultRe
     carrier: cleanValue(String(raw.carrier || raw.airline || '')),
     airline: cleanValue(String(raw.airline || raw.carrier || '')),
     aircraft: cleanValue(String(raw.aircraft || '')),
-    status: cleanValue(String(raw.status || 'Cached provider result'))
+    status: cleanValue(String(raw.status || 'Cached provider result')),
+    provider_request_hash: cleanValue(String(raw.provider_request_hash || 'legacy-provider-request')),
+    provider_request_scope: cleanValue(String(raw.provider_request_scope || [raw.source_provider || raw.provider || 'provider-cache', raw.origin || '', raw.destination || '', raw.departure_time || raw.departure_date || '', raw.carrier || raw.airline || ''].join('|'))),
+    result_fingerprint: cleanValue(String(raw.result_fingerprint || 'legacy-result-fingerprint')),
+    provenance_version: cleanValue(String(raw.provenance_version || 'legacy-provider-result'))
   }
 }
 

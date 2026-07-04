@@ -24,14 +24,23 @@ The repository stores normalized records with these fields:
 
 - `source_provider`
 - `source_checked_at`
+- `cached_at`
+- `search_timestamp`
+- `day_of_week`
+- `month`
 - `origin`
 - `destination`
 - `departure_time`
 - `arrival_time`
 - `flight_number`
 - `carrier`
+- `airline`
 - `aircraft`
 - `status`
+- `provider_request_hash` — deterministic hash of provider, route, date, and carrier search scope for audit grouping without storing raw provider requests.
+- `provider_request_scope` — normalized, non-secret search scope used to explain provenance during beta debugging.
+- `result_fingerprint` — deterministic hash of provider, operating flight, route, and schedule fields for deduplication/audit checks.
+- `provenance_version` — schema marker for future migrations.
 
 FlightAware schedule search is the only current provider wired to call this repository. Aviationstack fallback rows, stored Supabase rows, demo rows, and planning-only rows are not persisted by this scaffold.
 
@@ -44,12 +53,14 @@ The manual SQL scaffold is in [`docs/provider-results-table.sql`](./provider-res
 - `departure_time`
 - `carrier`
 - `source_provider`
+- `provider_request_hash`
+- `result_fingerprint`
 
 Do not apply the migration automatically from application startup, build scripts, or deploy hooks.
 
 ## Fallback behavior
 
-If persistence is disabled, Supabase is not configured, the table is unavailable, RLS rejects the insert, or the write times out, the repository returns a local/no-op fallback result. Search results continue to render normally; persistence failure must never block itinerary planning.
+If persistence is disabled, Supabase is not configured, the table is unavailable, RLS rejects the insert, or the write times out, the repository returns a local/no-op fallback result. Search results continue to render normally; persistence failure must never block itinerary planning. The repository also retries inserts with a legacy field set so older `provider_itinerary_results` tables continue to work until the provenance columns are manually added.
 
 ## Server-only secrets
 

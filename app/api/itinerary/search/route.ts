@@ -15,6 +15,7 @@ import { findServerCommunityLoadReports } from '../../../../lib/communityLoadSer
 import type { TripOutcome } from '../../../../lib/outcomeRepository'
 import { ensureRouteFrameworkLabels, routeFrameworkProviderBadges, routeFrameworkSourceLabel } from '../../../../lib/routeFrameworkLabels'
 import { isCurrentLiveAvailability } from '../../../../lib/liveAvailabilityGuard'
+import { providerFailureMessageFromStatus } from '../../../../lib/providerFailureMessaging'
 
 export const dynamic = 'force-dynamic'
 
@@ -303,7 +304,7 @@ function isValidIsoDate(value?: string) {
 function rateLimitMessage(provider: string, status?: number, message = '') {
   const lower = message.toLowerCase()
   if (status === 429 || lower.includes('rate limit') || lower.includes('usage limit') || lower.includes('quota') || lower.includes('monthly')) {
-    return `${provider}: ${message || 'rate or quota limit reached'}`
+    return providerFailureMessageFromStatus(provider, status, message || 'rate or quota limit reached')
   }
   return undefined
 }
@@ -854,11 +855,11 @@ function trueLiveUnavailableReason(source: 'flightaware' | 'supabase' | 'aviatio
 }
 
 function safeProviderMessage(provider: string, status: number, fallback: string) {
-  if (rateLimitMessage(provider, status, fallback)) return `${provider} rate limit reached; skipped this provider safely`
-  if (status === 401 || status === 403) return `${provider} credentials rejected or endpoint not available for this key`
-  if (status === 404 || status === 405 || status === 410 || status === 501) return `${provider} endpoint unsupported or unavailable for this request`
-  if (status >= 500) return `${provider} service unavailable (${status}); skipped safely`
-  return fallback
+  if (rateLimitMessage(provider, status, fallback)) return providerFailureMessageFromStatus(provider, status, fallback)
+  if (status === 401 || status === 403) return providerFailureMessageFromStatus(provider, status, 'credentials rejected or endpoint not available for this key')
+  if (status === 404 || status === 405 || status === 410 || status === 501) return providerFailureMessageFromStatus(provider, status, 'endpoint unsupported or unavailable for this request')
+  if (status >= 500) return providerFailureMessageFromStatus(provider, status, `service unavailable (${status}); skipped safely`)
+  return providerFailureMessageFromStatus(provider, status, fallback)
 }
 
 function safeMessage(value: unknown) {

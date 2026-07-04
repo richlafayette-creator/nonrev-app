@@ -28,7 +28,7 @@ Remaining P0 work:
 ### P1 — Beta readiness
 
 1. Completed 2026-07-04: Added private-beta smoke coverage for itinerary prompt parsing, planning fallback non-live labels, watchlist matching, and alert/activity feed rendering.
-2. Improve provider failure states so users see honest explanations when live data is unavailable, rate-limited, partial, or stale.
+2. Completed 2026-07-04: Added shared provider failure messaging for unavailable, rate-limited, partial, and stale provider states with credential redaction.
 3. Add beta runbook checks for environment configuration, provider credentials, Supabase persistence, and alert safety.
 4. Audit all user-facing labels for certainty: live, stored, route-framework, placeholder, advisory, unknown.
 5. Tighten edge cases around max legs, invalid airport input, carrier filters, and empty provider responses.

@@ -47,6 +47,7 @@ Remaining P0 work:
    - Completed 2026-07-04 sprint: Added an opt-in AviationWeather.gov METAR adapter with timeout, fail-closed diagnostics, conservative station mapping, advisory-only parsing, and no automatic itinerary/search/API behavior changes.
    - Completed 2026-07-04 sprint: Added server-side weather cache and feature flag infrastructure (`NONREV_ROUTE_LIVE_WEATHER_ENABLED`, cache freshness/stale policy) without connecting live METAR/weather providers or itinerary generation.
    - Completed 2026-07-04 sprint: Added server-only AviationWeather.gov METAR cache population behind `NONREV_AVIATION_WEATHER_CACHE_POPULATION_ENABLED`, with no client requests, no itinerary wiring, and neutral fallback when unavailable.
+   - Completed 2026-07-04 sprint: Added server-side weather refresh/preload orchestration behind `NONREV_SERVER_WEATHER_REFRESH_ENABLED`, preserving advisory-only/neutral semantics and client-runtime provider blocking.
 4. Completed 2026-07-04: Improved airport and route coverage datasets with reviewed airport scaffolds for route coverage groups and small-airport hub maps, plus regression coverage.
 5. Completed 2026-07-04: Added provider result provenance persistence fields for request-scope grouping, result fingerprinting, and provenance schema versioning, with legacy table fallback for safe beta debugging.
 

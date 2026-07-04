@@ -37,7 +37,7 @@ Remaining P0 work:
 
 1. Completed 2026-07-04: Added a provider-agnostic schedule adapter so normalized provider schedules convert into downstream flight rows without leaking provider-native response shapes.
 2. Completed 2026-07-04: Added structured provider diagnostics for freshness, partial coverage, rate limits, and fallbacks in debug metadata and developer UI.
-3. Prepare weather intelligence for real sources while preserving the optional/advisory contract:
+3. Completed 2026-07-04: Prepared weather intelligence source-readiness contracts for real sources while preserving the optional/advisory no-live-call contract:
    - NOAA
    - National Weather Service
    - AviationWeather.gov / METAR / TAF

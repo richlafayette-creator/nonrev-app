@@ -1,19 +1,10 @@
 import { airportCodesFromRoute } from './airportMapScaffold'
+import { getWeatherSourceReadiness, weatherIntelligenceFutureDataSources, type WeatherProvider, type WeatherSourceReadiness } from './weatherSourceReadiness'
 
 export type WeatherRiskLevel = 'clear' | 'watch' | 'risky' | 'unknown'
 export type WeatherRiskCategory = 'Low' | 'Moderate' | 'High' | 'Severe'
 export type WeatherRiskStatus = 'placeholder' | 'live-unavailable'
 export type WeatherConfidence = 'low' | 'medium' | 'high' | 'unknown'
-export type WeatherProvider =
-  | 'Placeholder Weather Intelligence'
-  | 'NOAA'
-  | 'National Weather Service'
-  | 'AviationWeather.gov / METAR / TAF'
-  | 'Tomorrow.io'
-  | 'OpenWeather'
-  | 'FlightAware weather alerts'
-  | 'Unknown'
-
 export type AirportWeatherSignal = {
   airportCode: string
   observedAt: string | null
@@ -58,6 +49,7 @@ export type WeatherIntelligence = {
   source: WeatherProvider
   dataSources: WeatherProvider[]
   futureDataSources: WeatherProvider[]
+  sourceReadiness: WeatherSourceReadiness[]
   limitations: string[]
 }
 
@@ -90,15 +82,6 @@ type AirportWeatherSeed = {
   cancellationRisk: WeatherRiskLevel
   detail: string
 }
-
-export const weatherIntelligenceFutureDataSources: WeatherProvider[] = [
-  'NOAA',
-  'National Weather Service',
-  'AviationWeather.gov / METAR / TAF',
-  'Tomorrow.io',
-  'OpenWeather',
-  'FlightAware weather alerts'
-]
 
 const placeholderWeatherProvider: WeatherProvider = 'Placeholder Weather Intelligence'
 
@@ -258,7 +241,7 @@ function routeRiskFromAirportSignals(route: string, airports: AirportWeatherSign
     level,
     label,
     category,
-    scoreAdjustment: weatherIntelligenceScoreAdjustment({ route, airports, routeRisk: { level, label, category, scoreAdjustment: 0, scoreImpact, successProbabilityImpact: 0, routeRankingImpact: 0, delayRisk, cancellationRisk, confidence: 'low', highRiskConnectionAirports, summary: '', limitations: [] }, observedAt: new Date().toISOString(), source: placeholderWeatherProvider, dataSources: [placeholderWeatherProvider], futureDataSources: weatherIntelligenceFutureDataSources, limitations: [] }),
+    scoreAdjustment: weatherIntelligenceScoreAdjustment({ route, airports, routeRisk: { level, label, category, scoreAdjustment: 0, scoreImpact, successProbabilityImpact: 0, routeRankingImpact: 0, delayRisk, cancellationRisk, confidence: 'low', highRiskConnectionAirports, summary: '', limitations: [] }, observedAt: new Date().toISOString(), source: placeholderWeatherProvider, dataSources: [placeholderWeatherProvider], futureDataSources: weatherIntelligenceFutureDataSources, sourceReadiness: getWeatherSourceReadiness(), limitations: [] }),
     scoreImpact,
     successProbabilityImpact: level === 'risky' ? -8 : level === 'watch' ? -3 : level === 'clear' ? 1 : 0,
     routeRankingImpact: level === 'risky' ? -6 : level === 'watch' ? -2 : level === 'clear' ? 1 : 0,
@@ -291,6 +274,7 @@ export function buildWeatherIntelligenceForRoute(route: string): WeatherIntellig
     source: knownSources[0] || 'Unknown',
     dataSources: knownSources.length ? knownSources : ['Unknown'],
     futureDataSources: weatherIntelligenceFutureDataSources,
+    sourceReadiness: getWeatherSourceReadiness(),
     limitations: [
       'Weather intelligence is optional and advisory.',
       'Unknown weather applies no scoring penalty.',
@@ -325,7 +309,8 @@ export function getRouteWeatherRisk(route: string, intelligence = buildWeatherIn
       'Live weather provider not configured; using optional placeholder weather intelligence where available.',
       matched.length ? `Matched weather profiles: ${matched.map((airport) => airport.airportCode).join(', ')}.` : 'No airport-specific placeholder weather profiles matched this route.',
       unmatchedAirports.length ? `No placeholder weather profile for: ${unmatchedAirports.join(', ')}.` : 'All route airports have placeholder weather profiles.',
-      `Future weather providers: ${weatherIntelligenceFutureDataSources.join(', ')}.`
+      `Future weather providers: ${weatherIntelligenceFutureDataSources.join(', ')}.`,
+      'Weather source readiness is adapter-only in this phase; live weather calls remain disabled.'
     ],
     intelligence
   }

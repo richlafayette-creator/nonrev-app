@@ -1,56 +1,53 @@
-# Agent Report — 2026-07-04 12:05 UTC Sprint
+# Agent Report — 2026-07-04 12:15 UTC Sprint
 
 ## Selected task
 
-Live Weather API integration — sprint-sized safe slice.
+Continue Live Weather API integration by implementing server-side weather cache and feature flag infrastructure only.
 
 ## Scope completed
 
-Added an opt-in AviationWeather.gov METAR adapter that can fetch and normalize live METAR observations into existing `AirportWeatherSignal` fields without changing itinerary search/API/provider behavior by default.
+Added weather cache infrastructure that can safely hold advisory route weather signals for future server-side wiring, plus freshness policy and a disabled-by-default route-level live weather feature flag.
 
 ## Safety decisions
 
-- Live calls are disabled unless `fetchAviationWeatherMetarSignals(..., { liveCallsEnabled: true })` is called explicitly.
-- The adapter is not wired into itinerary search, scoring, API routes, alerts, or UI rendering in this sprint.
-- Weather output remains advisory only.
-- Limitations explicitly state METAR data does not provide standby list position, load factors, sellable seat availability, or confirmed operation.
-- Provider failures return empty advisory results plus diagnostics instead of throwing into route generation.
-- Only a conservative airport-to-station map is used for supported beta airports; unsupported codes are skipped rather than guessed.
+- No live METAR/weather provider was connected.
+- No itinerary generation, scoring, alerting, API route, or UI behavior was changed.
+- Route-level live weather is disabled by default via `NONREV_ROUTE_LIVE_WEATHER_ENABLED`.
+- Cache reads return no usable signals when the feature flag is disabled, cache is missing, stale, or expired.
+- Even fresh cache reads are marked `advisoryOnly: true`, `appliesToScoring: false`, and `unknownWeatherNeutral: true` in this infrastructure slice.
+- Stale cache data is diagnostic-only and cannot affect ranking/scoring.
+- Limitations explicitly state weather cache data never confirms standby availability, clearance probability, load factors, or sellable seat inventory.
 
 ## Files changed
 
-- `lib/aviationWeatherMetarAdapter.ts`
-  - New opt-in AviationWeather.gov METAR fetch/parse adapter.
-  - Adds bounded timeout, no-store fetch, fail-closed provider diagnostics, conservative station mapping, and advisory-only normalized weather signals.
-- `lib/aviationWeatherMetarAdapter.test.ts`
-  - Covers station mapping, METAR parsing, disabled-by-default live calls, explicit fetch behavior with mocked fetch, and fail-closed provider errors.
-- `lib/weatherSourceReadiness.ts`
-  - Updates AviationWeather.gov next action to reflect the adapter now exists and should be wired only behind server-side cache/feature flag.
+- `lib/weatherCache.ts`
+  - New weather cache abstraction and in-memory store.
+  - Adds route/airport cache key normalization.
+  - Adds `NONREV_ROUTE_LIVE_WEATHER_ENABLED` feature flag helper.
+  - Adds freshness policy helpers using `NONREV_WEATHER_CACHE_FRESH_MINUTES` and `NONREV_WEATHER_CACHE_DIAGNOSTIC_STALE_MINUTES` with conservative clamps.
+  - Adds cache read semantics for disabled, missing, fresh, stale, and expired states.
+- `lib/weatherCache.test.ts`
+  - Covers feature flag defaults, cache keys, env freshness clamps, disabled cache behavior, fresh advisory reads, and missing/stale/expired neutrality.
 - `docs/NEXT_TASKS.md`
-  - Records the completed sprint under weather source readiness.
+  - Records this sprint completion under weather source readiness.
 - `docs/AGENT_REPORT.md`
   - This report.
 
-## Validation plan
+## Validation
 
-Required:
+Planned and run:
 
-- `git diff --check`
-
-Targeted validation:
-
+- `node --experimental-strip-types --test lib/weatherCache.test.ts`
 - `node --experimental-strip-types --test lib/aviationWeatherMetarAdapter.test.ts`
-- `node --experimental-strip-types --test lib/weatherSourceReadiness.test.ts`
+- `git diff --check`
 - `npx tsc --noEmit`
-
-Full validation was not selected initially because this task is isolated adapter/test/docs work and the last full Turbopack build was killed by the environment during the worker phase; targeted validation plus TypeScript is the meaningful gate for this sprint.
 
 ## Known blockers / not done
 
-- The adapter is not yet connected to `buildWeatherIntelligenceForRoute` or itinerary search.
-- Before enabling route-level live weather, add a server-side cache/feature flag and decide freshness/rate-limit policy.
-- No commercial sellable-seat availability work was started; stop-after-one-task rule observed.
+- The cache is not wired into `buildWeatherIntelligenceForRoute`, itinerary generation, API routes, alerts, or UI.
+- No live provider writes to the cache yet.
+- Before enabling route-level live weather, add server-only wiring that fetches METAR data into the cache behind explicit feature flags and proves stale/missing data remains neutral.
 
 ## Recommended next task
 
-Live Weather API integration follow-up: wire the AviationWeather.gov adapter behind an explicit server-side feature flag/cache layer, then add route-level tests proving live METAR data can enrich weather intelligence without changing unknown-weather neutrality or claiming confirmed operations.
+Live Weather API integration follow-up: add server-only wiring that can populate the weather cache from the existing opt-in AviationWeather.gov METAR adapter behind a separate provider-fetch flag, while keeping route-level weather disabled until tests prove safe fallback behavior.

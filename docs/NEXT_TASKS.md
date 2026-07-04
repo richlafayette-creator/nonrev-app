@@ -13,7 +13,7 @@ Itinerary integrity is sacred. Nonrevy may show less information when certainty 
 ### P0 — Trust and correctness
 
 1. Completed 2026-07-04: Added display-integrity normalization and regression coverage so itinerary cards/details render the full generated leg path when route text and legs diverge.
-2. Ensure route-framework results are clearly labeled as planning frameworks, not live availability.
+2. Completed 2026-07-04: Added shared API/UI route-framework labeling guardrails so framework results are marked as planning guidance, not live availability.
 3. Prevent stale stored rows from appearing as current live availability.
 4. Keep unknown signals neutral: no penalty, no bonus, and no confident language.
 5. Completed 2026-07-04: Added targeted endpoint-integrity regression coverage for routes that previously exposed integrity risk:
@@ -24,7 +24,6 @@ Itinerary integrity is sacred. Nonrevy may show less information when certainty 
 Remaining P0 work:
 
 - Add browser-level card/details screenshot coverage for rendered itinerary integrity when the local UI harness is available.
-- Add explicit route-framework labeling assertions at the API/UI boundary.
 - Add stale-row safeguards for stored/live availability transitions.
 - Add unknown-signal neutrality assertions for confidence, weather, recovery, and reliability inputs.
 

@@ -39,6 +39,7 @@ import MapboxAirportMap from '../MapboxAirportMap'
 import OutcomeCapture from '../OutcomeCapture'
 import { markActivationStep } from '../../lib/onboardingActivation'
 import { airportCodesFromDisplayRoute, itineraryDisplayIntegrityFor } from '../../lib/itineraryDisplayIntegrity'
+import { ensureRouteFrameworkLabels } from '../../lib/routeFrameworkLabels'
 
 const mockItineraries = [
   {
@@ -4136,7 +4137,9 @@ function ItineraryComparisonPanel({ comparisons, travelDate, communityLoads, onC
     setDetailsOpen(comparison.id, true)
   }
 
-  const compactItineraries = sortCompactItineraries(comparisons).map(comparisonWithDisplayRouteIntegrity)
+  const compactItineraries = sortCompactItineraries(comparisons)
+    .map(comparisonWithDisplayRouteIntegrity)
+    .map(ensureRouteFrameworkLabels)
   const topRouteItineraries = compactItineraries.slice(0, 5)
   const moreRouteItineraries = sortMoreRouteItineraries(compactItineraries.slice(5))
   const routeInsights = buildRouteIntelligenceInsights(compactItineraries)

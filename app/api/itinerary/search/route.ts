@@ -13,6 +13,7 @@ import { rankItineraries } from '../../../../lib/decisionEngine'
 import { persistentUserId } from '../../../../lib/apiIdentity'
 import { findServerCommunityLoadReports } from '../../../../lib/communityLoadServerStore'
 import type { TripOutcome } from '../../../../lib/outcomeRepository'
+import { ensureRouteFrameworkLabels, routeFrameworkProviderBadges, routeFrameworkSourceLabel } from '../../../../lib/routeFrameworkLabels'
 
 export const dynamic = 'force-dynamic'
 
@@ -2594,26 +2595,28 @@ export async function GET(request: Request) {
     itineraryCompletenessDiagnostics: frameworkCompletenessDiagnostics
   })
 
+  const labeledRouteFrameworkItineraries = routeFrameworkItineraries.map(ensureRouteFrameworkLabels)
+
   return NextResponse.json({
     ok: true,
     request: effectiveRequest,
     source: 'planning-fallback',
-    sourceLabel: routeFrameworkItineraries.length ? 'Complete route frameworks' : envTestDataModeEnabled ? sourceLabel('planning', false) : 'No current live data',
+    sourceLabel: routeFrameworkItineraries.length ? routeFrameworkSourceLabel : envTestDataModeEnabled ? sourceLabel('planning', false) : 'No current live data',
     dataMode: routeFrameworkItineraries.length ? 'route-frameworks' : envTestDataModeEnabled ? 'fallback' : 'no-current-live-data',
     source_provider: routeFrameworkItineraries.length ? 'route-framework' : envTestDataModeEnabled ? 'demo' : 'none',
     source_checked_at: undefined,
     statusMessage: noResultsExplanation.length ? noResultsExplanation.join(' ') : noResultsMessage,
     errorMessage: noResultsExplanation.length ? noResultsExplanation.join(' ') : noResultsMessage,
     enrichedWithFlightAware: false,
-    providerBadges: routeFrameworkItineraries.length ? ['Route framework only', 'Live availability unavailable'] : envTestDataModeEnabled ? [providerLabels.planning] : ['Production-safe mode'],
+    providerBadges: routeFrameworkItineraries.length ? routeFrameworkProviderBadges() : envTestDataModeEnabled ? [providerLabels.planning] : ['Production-safe mode'],
     warnings: finalWarnings,
     debug,
     routeCoverageSuggestions,
     recoveryIntelligence,
     historicalIntelligence,
     count: 0,
-    frameworkRouteCount: routeFrameworkItineraries.length,
+    frameworkRouteCount: labeledRouteFrameworkItineraries.length,
     itineraries: [],
-    frameworkRoutes: routeFrameworkItineraries
+    frameworkRoutes: labeledRouteFrameworkItineraries
   })
 }

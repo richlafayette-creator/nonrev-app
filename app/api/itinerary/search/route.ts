@@ -16,6 +16,7 @@ import type { TripOutcome } from '../../../../lib/outcomeRepository'
 import { ensureRouteFrameworkLabels, routeFrameworkProviderBadges, routeFrameworkSourceLabel } from '../../../../lib/routeFrameworkLabels'
 import { isCurrentLiveAvailability } from '../../../../lib/liveAvailabilityGuard'
 import { providerFailureMessageFromStatus } from '../../../../lib/providerFailureMessaging'
+import { buildProviderDiagnostics, type StructuredProviderDiagnostic } from '../../../../lib/providerDiagnostics'
 
 export const dynamic = 'force-dynamic'
 
@@ -128,6 +129,7 @@ type ItineraryDebugMetadata = {
   dataFreshnessMode: 'live-current-api' | 'provider-cache' | 'stored-supabase' | 'nearest-date-testing' | 'demo-fallback' | 'mvp-test-data' | 'no-current-live-data'
   dataFreshnessExplanation: string[]
   scheduleProviderReadiness: ScheduleProviderReadiness[]
+  providerDiagnostics: StructuredProviderDiagnostic[]
   safeErrors: string[]
   deduplicationNotes: string[]
   deduplicatedRowsRemoved: number
@@ -1590,6 +1592,15 @@ function buildDebugMetadata({
     dataFreshnessMode,
     dataFreshnessExplanation,
     scheduleProviderReadiness: getLiveScheduleProviderReadiness(),
+    providerDiagnostics: buildProviderDiagnostics({
+      providerStatuses: mergedProviderStatuses,
+      dataFreshnessMode,
+      dataFreshnessExplanation,
+      rateLimits,
+      emptyResults,
+      providerFallbackOrder,
+      routeCoverageSuggestions
+    }),
     safeErrors,
     deduplicationNotes,
     deduplicatedRowsRemoved,

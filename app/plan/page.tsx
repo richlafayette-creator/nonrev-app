@@ -266,6 +266,16 @@ type ProviderStatus = {
 
 type ScheduleProviderReadinessStatus = 'Configured' | 'Missing' | 'Limited' | 'Placeholder'
 
+type StructuredProviderDiagnostic = {
+  id: string
+  provider: string
+  category: 'freshness' | 'partial-coverage' | 'rate-limit' | 'fallback'
+  severity: 'info' | 'warning' | 'error'
+  summary: string
+  detail: string
+  evidenceCount?: number
+}
+
 type ScheduleProviderReadiness = {
   key: string
   label: string
@@ -404,6 +414,7 @@ type ItineraryDebugMetadata = {
   dataFreshnessMode?: 'live-current-api' | 'provider-cache' | 'stored-supabase' | 'nearest-date-testing' | 'demo-fallback' | 'mvp-test-data' | 'no-current-live-data'
   dataFreshnessExplanation?: string[]
   scheduleProviderReadiness?: ScheduleProviderReadiness[]
+  providerDiagnostics?: StructuredProviderDiagnostic[]
   normalizedFlightAwareItinerarySample?: {
     provider: string
     sourceCheckedAt: string
@@ -5577,6 +5588,25 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
                       <small style={{ color: '#c084fc', textTransform: 'uppercase' }}>{label}</small>
                       <p style={{ margin: '4px 0 0', overflowWrap: 'anywhere' }}>{displayField(value)}</p>
                     </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+            {itineraryDebug?.providerDiagnostics?.length ? (
+              <div style={{ border: '1px solid #155e75', borderRadius: 12, padding: 10, background: 'rgba(8, 47, 73, 0.38)', color: '#cffafe', marginTop: 12 }}>
+                <strong>Structured provider diagnostics</strong>
+                <p style={{ color: '#94a3b8', margin: '6px 0 0' }}>Freshness, partial coverage, rate-limit, and fallback signals are separated so the UI does not imply stronger provider certainty than exists.</p>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))', gap: 10, marginTop: 10 }}>
+                  {itineraryDebug.providerDiagnostics.map((diagnostic) => (
+                    <article key={diagnostic.id} style={{ border: `1px solid ${diagnostic.severity === 'error' ? '#f87171' : diagnostic.severity === 'warning' ? '#facc15' : '#38bdf8'}`, borderRadius: 12, padding: 10, background: '#020617' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center' }}>
+                        <strong style={{ textTransform: 'capitalize' }}>{diagnostic.category.replace('-', ' ')}</strong>
+                        <small style={{ color: diagnostic.severity === 'error' ? '#fecaca' : diagnostic.severity === 'warning' ? '#fde68a' : '#bae6fd', textTransform: 'uppercase', fontWeight: 'bold' }}>{diagnostic.severity}</small>
+                      </div>
+                      <p style={{ margin: '6px 0 0', color: '#e0f2fe' }}>{diagnostic.summary}</p>
+                      <p style={{ margin: '6px 0 0', color: '#94a3b8' }}>{diagnostic.detail}</p>
+                      {diagnostic.evidenceCount ? <small style={{ color: '#67e8f9' }}>Evidence count: {diagnostic.evidenceCount}</small> : null}
+                    </article>
                   ))}
                 </div>
               </div>

@@ -6,7 +6,7 @@ import { historicalReliabilityDisplayLabel, historicalReliabilityScoreAdjustment
 import type { RecoveryAnalysis } from './recoveryEngine'
 import type { SellableSeatSignal } from './sellableSeatSignal'
 import type { TravelerProfileScaffold } from './travelerProfile'
-import { buildWeatherIntelligenceForRoute, getRouteWeatherRisk, weatherIntelligenceScoreAdjustment, type RouteWeatherRisk, type WeatherIntelligence, type WeatherRisk } from './weatherIntelligence'
+import { buildNeutralWeatherIntelligenceForRoute, getRouteWeatherRisk, weatherIntelligenceScoreAdjustment, type RouteWeatherRisk, type WeatherIntelligence, type WeatherRisk } from './weatherIntelligence'
 
 export type ConfidenceBadge = 'Excellent' | 'Good' | 'Fair' | 'Poor'
 export type ConfidenceTrend = 'Improving' | 'Stable' | 'Declining'
@@ -148,7 +148,7 @@ export function routeConfidenceLabel(level: ConfidenceLevel) {
 }
 
 export function calculateWeatherImpact(route: string, weatherRisk?: WeatherRisk, weatherIntelligence?: WeatherIntelligence): WeatherImpact {
-  const intelligence = weatherIntelligence || weatherRisk?.intelligence || buildWeatherIntelligenceForRoute(route)
+  const intelligence = weatherIntelligence || weatherRisk?.intelligence || buildNeutralWeatherIntelligenceForRoute(route)
   const risk = weatherRisk || getRouteWeatherRisk(route, intelligence)
   return {
     scoreImpact: risk.scoreImpact,
@@ -340,7 +340,7 @@ function confidenceFactors(input: RouteConfidenceInput, weatherImpact: WeatherIm
     source: 'weather',
     label: `Weather: ${weatherImpact.label}`,
     detail: `${weatherImpact.source} · ${weatherImpact.status}. Advisory only; weather certainty is not overstated.`,
-    impact: weatherImpact.level === 'clear' ? 1 : weatherImpact.level === 'watch' ? -2 : weatherImpact.level === 'risky' ? -6 : 0,
+    impact: 0,
     available: weatherImpact.level !== 'unknown'
   })
 

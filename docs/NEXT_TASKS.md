@@ -49,6 +49,7 @@ Remaining P0 work:
    - Completed 2026-07-04 sprint: Added server-only AviationWeather.gov METAR cache population behind `NONREV_AVIATION_WEATHER_CACHE_POPULATION_ENABLED`, with no client requests, no itinerary wiring, and neutral fallback when unavailable.
    - Completed 2026-07-04 sprint: Added server-side weather refresh/preload orchestration behind `NONREV_SERVER_WEATHER_REFRESH_ENABLED`, preserving advisory-only/neutral semantics and client-runtime provider blocking.
    - Completed 2026-07-04 sprint: Added an API-internal/server-action weather prefetch integration point behind `NONREV_INTERNAL_WEATHER_PREFETCH_ENABLED`, layered on existing refresh/population flags with no itinerary or scoring changes.
+   - Completed 2026-07-04 sprint: Connected fresh cached weather into the server itinerary intelligence pipeline as advisory-only labels behind `NONREV_ROUTE_LIVE_WEATHER_ENABLED`, with stale/missing/disabled cache reads neutral and no provider calls during ranking.
 4. Completed 2026-07-04: Improved airport and route coverage datasets with reviewed airport scaffolds for route coverage groups and small-airport hub maps, plus regression coverage.
 5. Completed 2026-07-04: Added provider result provenance persistence fields for request-scope grouping, result fingerprinting, and provenance schema versioning, with legacy table fallback for safe beta debugging.
 

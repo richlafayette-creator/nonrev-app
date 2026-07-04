@@ -4,7 +4,8 @@ import { analyzeRecovery } from './recoveryEngine'
 import { calculateRouteConfidence, type ProviderDataStatus } from './routeConfidence'
 import { sellableSeatSignalScoreAdjustment, type SellableSeatSignal } from './sellableSeatSignal'
 import type { ItineraryLeg, ItineraryResult, ParsedItineraryRequest } from './itinerarySearch'
-import { buildWeatherIntelligenceForItinerary, weatherIntelligenceScoreAdjustment, type WeatherIntelligence, type WeatherRiskLevel } from './weatherIntelligence'
+import { buildWeatherIntelligenceFromCache, type WeatherIntelligence, type WeatherRiskLevel } from './weatherIntelligence'
+import { readRouteWeatherCache, type WeatherCacheStore, type WeatherFreshnessPolicy } from './weatherCache'
 
 export type DecisionStatus = 'Green' | 'Yellow' | 'Red'
 
@@ -90,6 +91,10 @@ type DecisionEngineContext = {
   historicalReliabilities: HistoricalReliability[]
   weatherIntelligence?: WeatherIntelligence
   weatherIntelligences: WeatherIntelligence[]
+  weatherCacheStore?: WeatherCacheStore
+  weatherCacheEnv: Record<string, string | undefined>
+  weatherCacheNow?: Date
+  weatherFreshnessPolicy?: WeatherFreshnessPolicy
 }
 
 export type DecisionEngineOptions = {
@@ -102,6 +107,10 @@ export type DecisionEngineOptions = {
   historicalReliabilities?: HistoricalReliability[]
   weatherIntelligence?: WeatherIntelligence
   weatherIntelligences?: WeatherIntelligence[]
+  weatherCacheStore?: WeatherCacheStore
+  weatherCacheEnv?: Record<string, string | undefined>
+  weatherCacheNow?: Date
+  weatherFreshnessPolicy?: WeatherFreshnessPolicy
 }
 
 const defaultRankingWeights: Required<RankingWeights> = {
@@ -111,7 +120,7 @@ const defaultRankingWeights: Required<RankingWeights> = {
   connectionSafetyScore: 0.13,
   backupStrengthScore: 0.13,
   completionScore: 0.11,
-  weatherRiskScore: 0.06,
+  weatherRiskScore: 0,
   misconnectRiskScore: 0.1,
   airportComplexityScore: 0.06,
   airlinePreferenceScore: 0.04,
@@ -228,8 +237,7 @@ export function scoreItinerary(itinerary: ItineraryResult, context: DecisionEngi
   const overallScore = clamp(
     baseOverallScore +
     sellableSeatSignalScoreAdjustment(sellableSeatSignalForItinerary(itinerary, context)) +
-    historicalReliabilityScoreAdjustment(historicalReliabilityForItinerary(itinerary, context)) +
-    weatherIntelligenceScoreAdjustment(weatherIntelligenceForItinerary(itinerary, context))
+    historicalReliabilityScoreAdjustment(historicalReliabilityForItinerary(itinerary, context))
   )
 
   return { ...partialScores, overallScore }
@@ -246,7 +254,7 @@ export function rankItineraries<TItinerary extends ItineraryResult>(itineraries:
       const sellableSeatSignal = sellableSeatSignalForItinerary(itinerary, context)
       const historicalReliability = historicalReliabilityForItinerary(itinerary, context)
       const weatherIntelligence = weatherIntelligenceForItinerary(itinerary, context)
-      const recovery = analyzeRecovery(itinerary, sellableSeatSignal, historicalReliability, weatherIntelligence)
+      const recovery = analyzeRecovery(itinerary, sellableSeatSignal, historicalReliability)
       const routeConfidence = calculateRouteConfidence({
         route: itinerary.route,
         successProbability: decisionScore.overallScore,
@@ -331,7 +339,11 @@ function decisionEngineContext(itineraries: ItineraryResult[], options: Decision
     historicalReliability: options.historicalReliability,
     historicalReliabilities: options.historicalReliabilities || [],
     weatherIntelligence: options.weatherIntelligence,
-    weatherIntelligences: options.weatherIntelligences || []
+    weatherIntelligences: options.weatherIntelligences || [],
+    weatherCacheStore: options.weatherCacheStore,
+    weatherCacheEnv: options.weatherCacheEnv || process.env,
+    weatherCacheNow: options.weatherCacheNow,
+    weatherFreshnessPolicy: options.weatherFreshnessPolicy
   }
 }
 
@@ -376,9 +388,24 @@ function decisionFactorsForItinerary(itinerary: ItineraryResult, context: Decisi
 }
 
 function weatherIntelligenceForItinerary(itinerary: ItineraryResult, context: DecisionEngineContext) {
-  if (itinerary.weatherIntelligence) return itinerary.weatherIntelligence
-  if (context.weatherIntelligence && weatherMatchesItinerary(context.weatherIntelligence, itinerary)) return context.weatherIntelligence
-  return context.weatherIntelligences.find((signal) => weatherMatchesItinerary(signal, itinerary)) || buildWeatherIntelligenceForItinerary(itinerary)
+  if (context.weatherCacheStore) {
+    const cacheRead = readRouteWeatherCache({
+      store: context.weatherCacheStore,
+      airportCodes: airportPath(itinerary),
+      route: itinerary.route,
+      now: context.weatherCacheNow,
+      env: context.weatherCacheEnv,
+      policy: context.weatherFreshnessPolicy
+    })
+    return buildWeatherIntelligenceFromCache(itinerary.route, cacheRead)
+  }
+  if (isFreshCachedWeatherIntelligence(itinerary.weatherIntelligence)) return itinerary.weatherIntelligence
+  if (isFreshCachedWeatherIntelligence(context.weatherIntelligence) && weatherMatchesItinerary(context.weatherIntelligence, itinerary)) return context.weatherIntelligence
+  return context.weatherIntelligences.find((signal) => isFreshCachedWeatherIntelligence(signal) && weatherMatchesItinerary(signal, itinerary))
+}
+
+function isFreshCachedWeatherIntelligence(intelligence?: WeatherIntelligence): intelligence is WeatherIntelligence {
+  return Boolean(intelligence?.advisoryOnly === true && intelligence.cacheStatus === 'fresh')
 }
 
 function historicalReliabilityForItinerary(itinerary: ItineraryResult, context: DecisionEngineContext) {

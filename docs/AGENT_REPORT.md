@@ -1,38 +1,51 @@
-# Agent Report — 2026-07-04 12:34 UTC Sprint
+# Agent Report — 2026-07-04 17:53 UTC Sprint
 
 ## Selected task
 
-Add API-internal/server-action weather prefetch integration point.
+Connect cached weather into the itinerary intelligence pipeline in advisory-only mode.
 
 ## Scope completed
 
-Added a server-only internal prefetch integration layer that can invoke `refreshRouteWeatherCacheServerSide` for requested route airports. The prefetch layer is disabled by default and requires its own explicit feature flag before it will call the existing refresh orchestration.
+Fresh route weather can now be read from the server-side cache by the server itinerary search ranking path and attached to itinerary intelligence as advisory-only weather labels. Ranking never refreshes weather, never calls providers, and treats disabled, missing, stale, or expired cache data as neutral.
 
 ## Safety decisions
 
-- No itinerary generation, route construction, scoring, ranking, UI, alerts, or client provider behavior was changed.
-- Prefetch is disabled by default behind `NONREV_INTERNAL_WEATHER_PREFETCH_ENABLED`.
-- Refresh remains separately gated by `NONREV_SERVER_WEATHER_REFRESH_ENABLED`.
-- Provider population remains separately gated by `NONREV_AVIATION_WEATHER_CACHE_POPULATION_ENABLED`.
-- Client/browser runtime detection skips prefetch before refresh/provider calls.
-- Missing route/airport input skips safely without provider calls.
-- Prefetch result preserves `serverOnly: true`, `internalOnly: true`, `advisoryOnly: true`, `appliesToScoring: false`, and `unknownWeatherNeutral: true`.
-- Weather prefetch data still never confirms standby availability, clearance probability, airline load factors, sellable seat inventory, delay, or cancellation.
+- No provider search behavior was changed.
+- No external weather provider is called during itinerary generation or ranking.
+- The server itinerary API passes only the existing internal weather cache store into `rankItineraries`.
+- Weather cache reads remain gated by `NONREV_ROUTE_LIVE_WEATHER_ENABLED`.
+- Disabled, stale, missing, expired, or unavailable weather produces no attached weather intelligence and no score/rank movement.
+- Fresh cached weather may display advisory labels such as `Watch`, but score impact, success-probability impact, and route-ranking impact remain `0`.
+- The decision engine no longer applies weather score adjustments, and the weather ranking factor has zero weight.
+- Recovery and route-confidence scoring do not receive weather penalties/bonuses from advisory cached labels.
+- Weather copy avoids claims that a delay, cancellation, disruption, clearance outcome, load factor, or sellable seat state is certain.
 
 ## Files changed
 
+- `app/api/itinerary/search/route.ts`
+  - Passes `internalWeatherPrefetchStore` into server-side itinerary ranking.
+  - Imports the store from a cache-only module, not the prefetch/refresh/provider modules.
+  - Does not invoke refresh or provider population from itinerary search.
+- `lib/decisionEngine.ts`
+  - Adds optional cache-store inputs for cache-only weather reads.
+  - Builds weather intelligence only from fresh cached weather.
+  - Keeps disabled/stale/missing weather neutral.
+  - Removes weather score adjustment and gives weather risk zero ranking weight.
+- `lib/weatherIntelligence.ts`
+  - Adds cached-advisory weather intelligence construction from `WeatherCacheReadResult`.
+  - Adds neutral unknown weather intelligence for no-cache cases.
+  - Preserves advisory labels while forcing scoring/ranking/probability impacts to zero for cached weather.
+- `lib/weatherCacheStore.ts`
+  - Adds a cache-only shared server store module with no refresh/provider imports.
 - `lib/weatherPrefetch.ts`
-  - Adds `prefetchRouteWeatherInternal` server-only integration helper.
-  - Adds `NONREV_INTERNAL_WEATHER_PREFETCH_ENABLED` flag helpers.
-  - Uses the existing `refreshRouteWeatherCacheServerSide` helper without overriding refresh/provider flags.
-  - Provides a singleton in-memory prefetch store for internal API use while allowing tests/server callers to inject a store.
-- `app/api/internal/weather-prefetch/route.ts`
-  - Adds a `POST` internal API route wrapper around the server-only prefetch helper.
-  - Returns no-store JSON diagnostics and does not expose provider logic to client modules.
-- `lib/weatherPrefetch.test.ts`
-  - Covers disabled/no-op behavior, integration-enabled but refresh-disabled behavior, safe flagged server invocation, client-runtime provider blocking, and missing-target neutrality.
+  - Reuses the cache-only shared store module for prefetch writes.
+- `lib/routeConfidence.ts`
+  - Uses neutral weather when no cached weather intelligence is supplied.
+  - Keeps weather factors advisory with zero score impact.
+- `lib/cachedWeatherItineraryIntelligence.test.ts`
+  - Covers disabled flag identical rankings, stale cache neutrality, missing cache neutrality, and fresh cached advisory label display with zero score/rank impact.
 - `docs/NEXT_TASKS.md`
-  - Records this sprint completion under weather source readiness.
+  - Records this sprint completion.
 - `docs/AGENT_REPORT.md`
   - This report.
 
@@ -40,17 +53,20 @@ Added a server-only internal prefetch integration layer that can invoke `refresh
 
 Planned and run:
 
-- `node --experimental-strip-types --test lib/weatherPrefetch.test.ts`
+- `npx tsx --test lib/cachedWeatherItineraryIntelligence.test.ts`
+- `npx tsx --test lib/weatherPrefetch.test.ts`
+- `node --experimental-strip-types --test lib/weatherCache.test.ts`
 - `node --experimental-strip-types --test lib/weatherCacheServer.test.ts`
+- `npx tsx --test lib/unknownSignalNeutrality.test.ts`
 - `git diff --check`
 - `npx tsc --noEmit`
 
 ## Known blockers / not done
 
-- The prefetch route is not wired into itinerary generation, scoring, ranking, alerts, UI, or a scheduler.
-- Route-level live weather remains disabled unless future work explicitly wires and validates a safe server-side read path.
-- The route wrapper is intentionally flag-gated and operationally inert unless explicitly enabled server-side.
+- Cache is still in-memory; cross-process persistence is not implemented.
+- Cached weather labels are not expanded into dedicated UI components beyond the existing itinerary intelligence objects.
+- No scheduler or automatic prefetch trigger was added.
 
 ## Recommended next task
 
-Add a guarded server-side caller from a non-itinerary-critical path, such as a beta diagnostics/admin preflight action, to exercise internal weather prefetch without changing search results or scoring.
+Add a diagnostics/admin-only server view that shows per-route weather cache status (`fresh`, `stale`, `missing`, `disabled`) and advisory labels without exposing provider calls or changing traveler-facing rankings.

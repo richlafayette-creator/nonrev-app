@@ -1,7 +1,8 @@
 // @ts-expect-error Node's experimental TypeScript test runner resolves the .ts extension directly.
-import { InMemoryWeatherCacheStore, type WeatherCacheStore, type WeatherFreshnessPolicy } from './weatherCache.ts'
+import { type WeatherCacheStore, type WeatherFreshnessPolicy } from './weatherCache.ts'
 // @ts-expect-error Node's experimental TypeScript test runner resolves the .ts extension directly.
 import { refreshRouteWeatherCacheServerSide, type RouteWeatherCacheRefreshResult } from './weatherCacheServer.ts'
+import { internalWeatherPrefetchStore } from './weatherCacheStore'
 
 export type WeatherPrefetchFlagStatus = 'enabled' | 'disabled'
 export type WeatherPrefetchStatus = 'disabled' | 'skipped' | 'fresh' | 'prefetched' | 'failed'
@@ -45,8 +46,6 @@ const prefetchLimitations = [
   'Unavailable, disabled, stale, or failed weather prefetch data remains neutral for itinerary scoring and ranking.',
   'Weather prefetch data never confirms standby availability, clearance probability, airline load factors, sellable seat inventory, delay, or cancellation.'
 ]
-
-export const internalWeatherPrefetchStore = new InMemoryWeatherCacheStore()
 
 function normalizeAirportCode(value: string) {
   return String(value || '').trim().toUpperCase().match(/^[A-Z]{3,4}$/)?.[0] || ''

@@ -1,9 +1,10 @@
 import { airportCodesFromRoute } from './airportMapScaffold'
+import type { WeatherCacheReadResult } from './weatherCache'
 import { getWeatherSourceReadiness, weatherIntelligenceFutureDataSources, type WeatherProvider, type WeatherSourceReadiness } from './weatherSourceReadiness'
 
 export type WeatherRiskLevel = 'clear' | 'watch' | 'risky' | 'unknown'
 export type WeatherRiskCategory = 'Low' | 'Moderate' | 'High' | 'Severe'
-export type WeatherRiskStatus = 'placeholder' | 'live-unavailable'
+export type WeatherRiskStatus = 'placeholder' | 'live-unavailable' | 'cached-advisory'
 export type WeatherConfidence = 'low' | 'medium' | 'high' | 'unknown'
 export type AirportWeatherSignal = {
   airportCode: string
@@ -50,6 +51,8 @@ export type WeatherIntelligence = {
   dataSources: WeatherProvider[]
   futureDataSources: WeatherProvider[]
   sourceReadiness: WeatherSourceReadiness[]
+  advisoryOnly?: true
+  cacheStatus?: WeatherCacheReadResult['status']
   limitations: string[]
 }
 
@@ -160,10 +163,7 @@ function levelFromImpact(scoreImpact: number, hasKnownSignal: boolean): WeatherR
 }
 
 export function weatherIntelligenceScoreAdjustment(intelligence?: WeatherIntelligence) {
-  const level = intelligence?.routeRisk.level || 'unknown'
-  if (level === 'clear') return 1.5
-  if (level === 'watch') return -1.5
-  if (level === 'risky') return -5
+  if (intelligence) return 0
   return 0
 }
 
@@ -215,7 +215,7 @@ function airportSignalFromSeed(airportCode: string, seed?: AirportWeatherSeed): 
   }
 }
 
-function routeRiskFromAirportSignals(route: string, airports: AirportWeatherSignal[]): RouteWeatherRisk {
+function routeRiskFromAirportSignals(route: string, airports: AirportWeatherSignal[], options: { neutralImpact?: boolean; sourceDescription?: string } = {}): RouteWeatherRisk {
   const knownSignals = airports.filter((airport) => airport.confidence !== 'unknown')
   const watchedSignals = knownSignals.filter((airport) => ['watch', 'risky'].includes(airport.delayRisk) || ['watch', 'risky'].includes(airport.cancellationRisk))
   const rawImpact = knownSignals.reduce((sum, airport) => {
@@ -225,8 +225,10 @@ function routeRiskFromAirportSignals(route: string, airports: AirportWeatherSign
     const windImpact = airport.windGusts !== null && airport.windGusts >= 30 ? 4 : 0
     return sum + delayImpact + cancellationImpact + ceilingImpact + windImpact
   }, 0)
-  const scoreImpact = clamp(rawImpact, 0, 40)
+  const scoreImpact = options.neutralImpact ? 0 : clamp(rawImpact, 0, 40)
   const level = levelFromImpact(scoreImpact, knownSignals.length > 0)
+  const advisoryLevel = options.neutralImpact ? maxRiskLevel(knownSignals.flatMap((airport) => [airport.delayRisk, airport.cancellationRisk, airport.thunderstormRisk, airport.snowIceRisk, airport.fogRisk])) : level
+  const displayLevel = options.neutralImpact && knownSignals.length ? advisoryLevel : level
   const category = categoryFromWeatherImpact(scoreImpact)
   const delayRisk = maxRiskLevel(airports.map((airport) => airport.delayRisk))
   const cancellationRisk = maxRiskLevel(airports.map((airport) => airport.cancellationRisk))
@@ -235,26 +237,76 @@ function routeRiskFromAirportSignals(route: string, airports: AirportWeatherSign
     const signal = airports.find((item) => item.airportCode === airport)
     return signal?.delayRisk === 'risky' || signal?.cancellationRisk === 'risky'
   })
-  const label = weatherRiskDisplayLabel(level)
+  const label = weatherRiskDisplayLabel(displayLevel)
 
   return {
-    level,
+    level: displayLevel,
     label,
     category,
     scoreAdjustment: weatherIntelligenceScoreAdjustment({ route, airports, routeRisk: { level, label, category, scoreAdjustment: 0, scoreImpact, successProbabilityImpact: 0, routeRankingImpact: 0, delayRisk, cancellationRisk, confidence: 'low', highRiskConnectionAirports, summary: '', limitations: [] }, observedAt: new Date().toISOString(), source: placeholderWeatherProvider, dataSources: [placeholderWeatherProvider], futureDataSources: weatherIntelligenceFutureDataSources, sourceReadiness: getWeatherSourceReadiness(), limitations: [] }),
     scoreImpact,
-    successProbabilityImpact: level === 'risky' ? -8 : level === 'watch' ? -3 : level === 'clear' ? 1 : 0,
-    routeRankingImpact: level === 'risky' ? -6 : level === 'watch' ? -2 : level === 'clear' ? 1 : 0,
+    successProbabilityImpact: options.neutralImpact ? 0 : level === 'risky' ? -8 : level === 'watch' ? -3 : level === 'clear' ? 1 : 0,
+    routeRankingImpact: options.neutralImpact ? 0 : level === 'risky' ? -6 : level === 'watch' ? -2 : level === 'clear' ? 1 : 0,
     delayRisk,
     cancellationRisk,
     confidence: knownSignals.length ? 'low' : 'unknown',
     highRiskConnectionAirports,
-    summary: level === 'unknown'
+    summary: displayLevel === 'unknown'
       ? 'Weather intelligence unknown; no live provider data is configured.'
-      : `Weather: ${label}. Advisory placeholder signal from ${watchedSignals.length} airport weather profile${watchedSignals.length === 1 ? '' : 's'}.`,
+      : options.sourceDescription
+        ? `Weather: ${label}. Advisory-only cached weather signal from ${options.sourceDescription}; no delay, cancellation, or disruption outcome is implied.`
+        : `Weather: ${label}. Advisory placeholder signal from ${watchedSignals.length} airport weather profile${watchedSignals.length === 1 ? '' : 's'}.`,
     limitations: [
       'Weather signal is advisory only and should not be treated as certain.',
       'No NOAA, NWS, METAR, TAF, airline, or FlightAware weather-alert API is called in this phase.'
+    ]
+  }
+}
+
+export function buildNeutralWeatherIntelligenceForRoute(route: string): WeatherIntelligence {
+  const airportCodes = airportCodesFromRoute(route)
+  const airports = airportCodes.map((airportCode) => airportSignalFromSeed(airportCode))
+  const observedAt = new Date().toISOString()
+  return {
+    route,
+    airports,
+    routeRisk: routeRiskFromAirportSignals(route, airports, { neutralImpact: true }),
+    observedAt,
+    source: 'Unknown',
+    dataSources: ['Unknown'],
+    futureDataSources: weatherIntelligenceFutureDataSources,
+    sourceReadiness: getWeatherSourceReadiness(),
+    advisoryOnly: true,
+    cacheStatus: 'missing',
+    limitations: [
+      'Weather intelligence is advisory-only.',
+      'No cached fresh weather is available, so weather remains neutral for scoring and ranking.',
+      'No external weather provider is called while building itinerary intelligence.'
+    ]
+  }
+}
+
+export function buildWeatherIntelligenceFromCache(route: string, cacheRead: WeatherCacheReadResult): WeatherIntelligence | undefined {
+  if (cacheRead.status !== 'fresh' || cacheRead.usableSignals.length === 0) return undefined
+  const observedAt = cacheRead.entry?.fetchedAt || new Date().toISOString()
+  const dataSources = [...new Set(cacheRead.usableSignals.map((signal) => signal.source))]
+  const sourceDescription = dataSources.join(', ') || cacheRead.entry?.provider || 'server weather cache'
+  return {
+    route,
+    airports: cacheRead.usableSignals,
+    routeRisk: routeRiskFromAirportSignals(route, cacheRead.usableSignals, { neutralImpact: true, sourceDescription }),
+    observedAt,
+    source: dataSources[0] || cacheRead.entry?.provider || 'Unknown',
+    dataSources: dataSources.length ? dataSources : [cacheRead.entry?.provider || 'Unknown'],
+    futureDataSources: weatherIntelligenceFutureDataSources,
+    sourceReadiness: getWeatherSourceReadiness(),
+    advisoryOnly: true,
+    cacheStatus: cacheRead.status,
+    limitations: [
+      'Cached weather is advisory-only and does not change itinerary generation, scoring, or ranking.',
+      'Cached weather does not prove a delay, cancellation, or disruption will happen.',
+      'Cached weather never confirms standby availability, clearance probability, airline load factors, or sellable seat inventory.',
+      ...cacheRead.limitations
     ]
   }
 }
@@ -301,7 +353,7 @@ export function getRouteWeatherRisk(route: string, intelligence = buildWeatherIn
     successProbabilityImpact: intelligence.routeRisk.successProbabilityImpact,
     routeRankingImpact: intelligence.routeRisk.routeRankingImpact,
     source: intelligence.source,
-    status: intelligence.source === 'Unknown' ? 'live-unavailable' : 'placeholder',
+    status: intelligence.cacheStatus === 'fresh' ? 'cached-advisory' : intelligence.source === 'Unknown' ? 'live-unavailable' : 'placeholder',
     details: matched.length
       ? matched.map((airport) => airportWeatherSeeds[airport.airportCode]?.detail || `${airport.airportCode}: ${airport.condition}`)
       : ['Weather intelligence unknown; no route-specific live weather provider is configured.'],

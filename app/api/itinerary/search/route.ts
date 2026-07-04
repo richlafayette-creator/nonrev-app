@@ -17,6 +17,7 @@ import { ensureRouteFrameworkLabels, routeFrameworkProviderBadges, routeFramewor
 import { isCurrentLiveAvailability } from '../../../../lib/liveAvailabilityGuard'
 import { providerFailureMessageFromStatus } from '../../../../lib/providerFailureMessaging'
 import { buildProviderDiagnostics, type StructuredProviderDiagnostic } from '../../../../lib/providerDiagnostics'
+import { internalWeatherPrefetchStore } from '../../../../lib/weatherCacheStore'
 
 export const dynamic = 'force-dynamic'
 
@@ -703,7 +704,7 @@ function applyTopRouteRecommendations(request: ParsedItineraryRequest, itinerari
     Object.entries(routeFrameworkHubProfiles).map(([airport, profile]) => [airport, profile.score])
   )
 
-  return rankItineraries(deduped, { request, airportComplexityScores })
+  return rankItineraries(deduped, { request, airportComplexityScores, weatherCacheStore: internalWeatherPrefetchStore })
     .map((result) => result.itinerary)
     .slice(0, limit)
 }

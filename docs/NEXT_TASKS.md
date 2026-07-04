@@ -31,7 +31,7 @@ Remaining P0 work:
 2. Completed 2026-07-04: Added shared provider failure messaging for unavailable, rate-limited, partial, and stale provider states with credential redaction.
 3. Completed 2026-07-04: Added beta runbook preflight checks for environment configuration, provider credentials, Supabase persistence, provider-result storage, alert safety, and Personal Testing Mode.
 4. Completed 2026-07-04: Audited user-facing certainty labels for live, stored, cached, route-framework, demo/testing, placeholder, advisory, unknown, and no-current-live states.
-5. Tighten edge cases around max legs, invalid airport input, carrier filters, and empty provider responses.
+5. Completed 2026-07-04: Added edge-case coverage for max-leg clamping, malformed airport input, strict carrier-filter evidence, max-leg itinerary building, and empty provider response summaries.
 
 ### P2 — Data and provider depth
 

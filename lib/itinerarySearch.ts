@@ -743,7 +743,7 @@ function flightMatchesCarrier(flight: Record<string, unknown>, carrier?: string)
   const text = `${carrierText} ${flightNumber} ${operatingFlightNumber} ${marketingFlightNumbers}`.toLowerCase()
   const hasFlightNumberEvidence = Boolean(flightNumber.trim()) && flightNumber.toLowerCase() !== notProvidedLabel.toLowerCase()
   const hasCarrierEvidence = hasFlightNumberEvidence || !['unknown carrier', 'not provided'].includes(carrierText.toLowerCase())
-  if (!hasCarrierEvidence && valueFrom(flight, ['source_provider']) === 'flightaware') return true
+  if (!hasCarrierEvidence) return false
   return carrierAliases[carrier]?.some((alias) => text.includes(alias)) ?? text.includes(carrier.toLowerCase())
 }
 

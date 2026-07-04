@@ -4013,7 +4013,7 @@ function ItineraryComparisonPanel({ comparisons, travelDate, communityLoads, onC
     if (saved) {
       setSelectedComparisonId(comparison.id)
       setSavedComparisons(loadSavedItineraryComparisons())
-      setCompareStatus(`Saved ${saved.route} for side-by-side comparison.`)
+      setCompareStatus(`Saved exact route path ${saved.route} for side-by-side comparison.`)
     }
   }
 
@@ -4301,7 +4301,7 @@ function renderFlightBoardRow(comparison: ItineraryComparison, showPlanB = false
               <div className="nonrevy-flight-board-row__actions nonrevy-flight-board-row__actions--details">
                 <button type="button" onClick={() => openCommunityLoadForm(comparison)} title="Submit Load" aria-label="Submit community load">＋</button>
                 <button type="button" onClick={() => openLoadRequestForm(comparison)} title="Request load" aria-label="Request load">Load</button>
-                <button type="button" onClick={() => saveForComparison(comparison)} title="Save" aria-label="Save itinerary">☆</button>
+                <button type="button" onClick={() => saveForComparison(comparison)} title="Save exact route" aria-label="Save exact itinerary route for comparison">☆</button>
                 </div>
             </section>
             <section>
@@ -4465,7 +4465,7 @@ function renderFlightBoardRow(comparison: ItineraryComparison, showPlanB = false
 
         <div className="nonrevy-flight-board-row__actions nonrevy-primary-actions" onClick={(event) => event.stopPropagation()} aria-label="Itinerary actions">
           <button className="nonrevy-primary-action nonrevy-primary-action--request-loads" type="button" onClick={() => openLoadRequestForm(comparison)} title="Request Load" aria-label="Request load">Request Load</button>
-          <button className="nonrevy-row-action-pill" type="button" onClick={() => saveForComparison(comparison)} title="Save" aria-label="Save itinerary">Save</button>
+          <button className="nonrevy-row-action-pill" type="button" onClick={() => saveForComparison(comparison)} title="Save exact route" aria-label="Save exact itinerary route for comparison">Save</button>
           <button className="nonrevy-row-action-pill" type="button" onClick={() => void shareItinerary(comparison)} title="Share" aria-label="Share itinerary">Share</button>
         </div>
       </article>
@@ -4548,7 +4548,7 @@ function renderFlightBoardRow(comparison: ItineraryComparison, showPlanB = false
       <details className="nonrevy-premium-details" style={{ border: '1px solid #334155', borderRadius: 10, padding: 8, background: '#020617', marginTop: 8 }}>
         <summary style={{ color: '#c084fc', cursor: 'pointer', fontWeight: 'bold' }}>Saved itinerary comparison</summary>
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'center', marginTop: 10 }}>
-          <p style={{ color: '#94a3b8', margin: 0 }}>Saved locally in this browser for side-by-side planning.</p>
+          <p style={{ color: '#94a3b8', margin: 0 }}>Saved locally in this browser for side-by-side planning. Exact displayed route paths and source labels are preserved.</p>
           {savedComparisons.length > 0 && <button type="button" onClick={clearComparisons} style={{ padding: '7px 9px', borderRadius: 9, border: '1px solid #475569', background: '#0f172a', color: '#f8fafc', fontWeight: 'bold' }}>Clear saved comparisons</button>}
         </div>
         {savedComparisons.length === 0 ? (
@@ -4558,7 +4558,7 @@ function renderFlightBoardRow(comparison: ItineraryComparison, showPlanB = false
             {savedComparisons.map((item) => (
               <article key={item.id} style={{ border: '1px solid #334155', borderRadius: 10, padding: 8, background: '#0f172a' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center' }}>
-                  <p style={{ color: '#cbd5e1', margin: 0 }}>{item.carrier} · {item.route} · Saved score {item.successProbability}% · {item.totalTravelTime}</p>
+                  <p style={{ color: '#cbd5e1', margin: 0 }}><strong>Exact path:</strong> {item.route} · {item.carrier} · {item.connections + 1} leg{item.connections === 0 ? '' : 's'} · Saved score {item.successProbability}% · {item.totalTravelTime}<br /><small style={{ color: '#94a3b8' }}>Source: {item.sourceLabel}</small></p>
                   <button type="button" onClick={() => removeComparison(item.id)} style={{ padding: '6px 8px', borderRadius: 9, border: '1px solid #f87171', background: '#1f2937', color: '#fecaca', fontWeight: 'bold' }}>Remove</button>
                 </div>
               </article>

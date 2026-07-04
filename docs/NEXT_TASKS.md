@@ -35,7 +35,7 @@ Remaining P0 work:
 
 ### P2 — Data and provider depth
 
-1. Expand provider abstraction without coupling UI to provider-specific response shapes.
+1. Completed 2026-07-04: Added a provider-agnostic schedule adapter so normalized provider schedules convert into downstream flight rows without leaking provider-native response shapes.
 2. Add structured provider diagnostics for freshness, partial coverage, rate limits, and fallbacks.
 3. Prepare weather intelligence for real sources while preserving the optional/advisory contract:
    - NOAA

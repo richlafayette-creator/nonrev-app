@@ -1,4 +1,5 @@
 import { createProviderResultRepository } from './providerResultRepository'
+import { providerScheduleRowsFromResults } from './scheduleProviderAdapter'
 
 export type LiveScheduleProviderKey =
   | 'aviationstack'
@@ -364,26 +365,7 @@ export function normalizeFlightAwareScheduleResult(flight: FlightAwareSchedule, 
 }
 
 export function scheduleResultsToFlightRecords(results: NormalizedScheduleResult[]) {
-  return results.map((result) => ({
-    id: `${result.source}-${result.flightNumber}-${result.origin}-${result.destination}-${result.departureTime}`,
-    source_provider: result.source,
-    source_checked_at: result.sourceCheckedAt || new Date().toISOString(),
-    flight_number: result.flightNumber,
-    carrier: result.carrier,
-    airline: result.carrier,
-    origin: result.origin,
-    destination: result.destination,
-    departure_time: result.departureTime,
-    arrival_time: result.arrivalTime,
-    duration: result.duration || 'Not provided',
-    aircraft: result.aircraft,
-    status: result.status,
-    score: result.status.toLowerCase().includes('cancel') ? 35 : 68,
-    operating_carrier: result.operatingCarrier || result.carrier,
-    operating_flight_number: result.operatingFlightNumber || result.flightNumber,
-    marketing_flight_numbers: result.marketingFlightNumbers || [],
-    duplicate_count: result.duplicateCount || 0
-  }))
+  return providerScheduleRowsFromResults(results)
 }
 
 export function createFlightAwareScheduleProvider(apiKey = process.env.FLIGHTAWARE_API_KEY): LiveScheduleProvider {

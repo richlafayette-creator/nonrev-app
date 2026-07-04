@@ -6319,3 +6319,16 @@ button:focus-visible,
   margin-right: 6px;
   font-weight: 950;
 }
+
+/* Accessibility polish: keyboard-visible itinerary cards without changing layout */
+.nonrevy-flight-board-row:focus-visible {
+  outline: 3px solid rgba(103, 232, 249, 0.9) !important;
+  outline-offset: 3px !important;
+  box-shadow: 0 0 0 5px rgba(8, 47, 73, 0.45) !important;
+}
+
+@media (max-width: 520px) {
+  .nonrevy-flight-board-row:focus-visible {
+    outline-offset: 2px !important;
+  }
+}

@@ -53,7 +53,7 @@ Remaining P0 work:
 2. Completed 2026-07-04: Kept confidence, recovery, reliability, weather, community, and sellable-seat proxy signals concise/scannable, with verbose rationale moved behind “Why / trust details.”
 3. Completed 2026-07-04: Improved production-safe empty-state copy for first-time beta users so no-live-row outcomes explain trust filtering, complete route frameworks, recovery guidance, and conservative next actions.
 4. Completed 2026-07-04: Clarified saved-comparison affordances so they preserve exact displayed route paths, leg counts, and source labels instead of obscuring route integrity.
-5. Prioritize accessibility, responsive layout, and readable mobile cards over visual novelty.
+5. Completed 2026-07-04: Added keyboard-accessible itinerary-card expansion and visible focus styling while preserving the existing responsive card layout and trust labels.
 
 ## Autonomous agent safety rules
 

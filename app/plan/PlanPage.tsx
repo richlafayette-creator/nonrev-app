@@ -4258,6 +4258,17 @@ function renderFlightBoardRow(comparison: ItineraryComparison, showPlanB = false
         className={`nonrevy-flight-board-row ${isSelected ? 'nonrevy-flight-board-row--selected' : ''}`}
         style={{ '--score-color': scoreColor, '--confidence-color': scoreColor } as CSSProperties}
         onClick={() => openDetails(comparison)}
+        onKeyDown={(event) => {
+          if (event.target !== event.currentTarget) return
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault()
+            setDetailsOpen(comparison.id, !isExpanded)
+          }
+        }}
+        tabIndex={0}
+        aria-expanded={isExpanded}
+        aria-controls={`itinerary-details-${comparison.id}`}
+        aria-label={`${comparison.route} itinerary card. Press Enter to ${isExpanded ? 'collapse' : 'expand'} details.`}
       >
         <div className="nonrevy-flight-board-row__main">
           <div className="nonrevy-flight-board-row__content" aria-label={`${comparison.route} ${legDisplays.map((leg) => `${leg.route}: ${leg.detail}`).join(' ')} ${depTime} to ${arrTime} ${compactStopsLabel(comparison.connections)} ${comparison.totalTravelTime} ${scoreLabel}`}>
@@ -4293,7 +4304,7 @@ function renderFlightBoardRow(comparison: ItineraryComparison, showPlanB = false
 
         {showPlanB ? <PlanBItinerarySection comparison={comparison} comparisons={compactItineraries} /> : null}
 
-        <details open={isExpanded} onToggle={(event) => setDetailsOpen(comparison.id, event.currentTarget.open)} className="nonrevy-flight-board-row__details" onClick={(event) => event.stopPropagation()}>
+        <details id={`itinerary-details-${comparison.id}`} open={isExpanded} onToggle={(event) => setDetailsOpen(comparison.id, event.currentTarget.open)} className="nonrevy-flight-board-row__details" onClick={(event) => event.stopPropagation()}>
           <summary>Details</summary>
           <div className="nonrevy-flight-row__detail-grid">
             <section className="nonrevy-flight-board-row__detail-actions">

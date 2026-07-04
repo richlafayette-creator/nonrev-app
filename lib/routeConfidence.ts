@@ -6,7 +6,7 @@ import { historicalReliabilityDisplayLabel, historicalReliabilityScoreAdjustment
 import type { RecoveryAnalysis } from './recoveryEngine'
 import type { SellableSeatSignal } from './sellableSeatSignal'
 import type { TravelerProfileScaffold } from './travelerProfile'
-import { getRouteWeatherRisk, type WeatherRisk, type WeatherRiskCategory } from './weatherIntelligence'
+import { buildWeatherIntelligenceForRoute, getRouteWeatherRisk, weatherIntelligenceScoreAdjustment, type RouteWeatherRisk, type WeatherIntelligence, type WeatherRisk } from './weatherIntelligence'
 
 export type ConfidenceBadge = 'Excellent' | 'Good' | 'Fair' | 'Poor'
 export type ConfidenceTrend = 'Improving' | 'Stable' | 'Declining'
@@ -46,7 +46,8 @@ export type ConfidenceSourceBreakdown = Record<ConfidenceSignalSource, {
 
 export type WeatherImpact = {
   scoreImpact: number
-  label: WeatherRiskCategory
+  label: RouteWeatherRisk['label']
+  level: RouteWeatherRisk['level']
   details: string[]
   source: string
   status: WeatherRisk['status']
@@ -101,6 +102,7 @@ type RouteConfidenceInput = {
   previousConfidenceScore?: number
   trustedLoadSignal?: number
   weatherRisk?: WeatherRisk
+  weatherIntelligence?: WeatherIntelligence
   updateTrigger?: ConfidenceUpdateTrigger
   decisionScore?: DecisionScore
   decisionFactors?: DecisionFactors
@@ -145,16 +147,19 @@ export function routeConfidenceLabel(level: ConfidenceLevel) {
   return 'Unknown'
 }
 
-export function calculateWeatherImpact(route: string, weatherRisk = getRouteWeatherRisk(route)): WeatherImpact {
+export function calculateWeatherImpact(route: string, weatherRisk?: WeatherRisk, weatherIntelligence?: WeatherIntelligence): WeatherImpact {
+  const intelligence = weatherIntelligence || weatherRisk?.intelligence || buildWeatherIntelligenceForRoute(route)
+  const risk = weatherRisk || getRouteWeatherRisk(route, intelligence)
   return {
-    scoreImpact: weatherRisk.scoreImpact,
-    label: weatherRisk.category,
-    details: weatherRisk.details,
-    source: weatherRisk.source,
-    status: weatherRisk.status,
-    successProbabilityImpact: weatherRisk.successProbabilityImpact,
-    routeRankingImpact: weatherRisk.routeRankingImpact,
-    diagnostics: weatherRisk.diagnostics
+    scoreImpact: risk.scoreImpact,
+    label: intelligence.routeRisk.label,
+    level: intelligence.routeRisk.level,
+    details: risk.details,
+    source: risk.source,
+    status: risk.status,
+    successProbabilityImpact: risk.successProbabilityImpact,
+    routeRankingImpact: risk.routeRankingImpact,
+    diagnostics: risk.diagnostics
   }
 }
 
@@ -200,7 +205,7 @@ function confidenceUpdateExplanation(input: RouteConfidenceInput, score: number,
     input.communityIntelligence ? `${communitySignalLabel(input.communityIntelligence.status)} community intelligence` : `${input.communityReportCount || 0} community load report${(input.communityReportCount || 0) === 1 ? '' : 's'}`,
     input.historicalReliability ? `${historicalReliabilityDisplayLabel(input.historicalReliability.signal.level)} historical reliability` : 'historical reliability unknown',
     `${input.disruption?.routeHealth || 'unknown'} disruption status`,
-    `${weatherImpact.label} weather risk`,
+    `Weather: ${weatherImpact.label}`,
     `${input.previousConfidenceScore ? `previous score ${Math.round(input.previousConfidenceScore)}` : 'no prior score baseline'}`
   ]
   return `Recalculated after ${confidenceUpdateTriggerLabel(trigger)} using route confidence inputs: ${signals.join(', ')}. Result: ${score}/100 and ${trend.toLowerCase()} trend.`
@@ -333,10 +338,10 @@ function confidenceFactors(input: RouteConfidenceInput, weatherImpact: WeatherIm
 
   factors.push({
     source: 'weather',
-    label: `${weatherImpact.label} weather signal`,
-    detail: `${weatherImpact.source} · ${weatherImpact.status}`,
-    impact: -Math.min(8, Math.max(0, weatherImpact.scoreImpact * 0.12)),
-    available: weatherImpact.status !== 'placeholder'
+    label: `Weather: ${weatherImpact.label}`,
+    detail: `${weatherImpact.source} · ${weatherImpact.status}. Advisory only; weather certainty is not overstated.`,
+    impact: weatherImpact.level === 'clear' ? 1 : weatherImpact.level === 'watch' ? -2 : weatherImpact.level === 'risky' ? -6 : 0,
+    available: weatherImpact.level !== 'unknown'
   })
 
   if (typeof input.delayHistoryScore === 'number') {
@@ -361,13 +366,13 @@ function confidenceFactors(input: RouteConfidenceInput, weatherImpact: WeatherIm
 function trendFor(score: number, input: RouteConfidenceInput) {
   const previous = input.previousConfidenceScore
   const disruptionImpact = input.disruption?.disruptionImpactScore || 0
-  const delta = Number.isFinite(previous) ? score - Math.round(previous || score) : Math.round((input.communityLoadAdjustment || 0) - disruptionImpact * 0.08 - calculateWeatherImpact(input.route, input.weatherRisk).scoreImpact * 0.05)
+  const delta = Number.isFinite(previous) ? score - Math.round(previous || score) : Math.round((input.communityLoadAdjustment || 0) - disruptionImpact * 0.08 - calculateWeatherImpact(input.route, input.weatherRisk, input.weatherIntelligence).scoreImpact * 0.05)
   const trend: ConfidenceTrend = delta >= 3 ? 'Improving' : delta <= -3 ? 'Declining' : 'Stable'
   return { trend, trendDelta: delta }
 }
 
 export function calculateRouteConfidence(input: RouteConfidenceInput): RouteConfidence {
-  const weatherImpact = calculateWeatherImpact(input.route, input.weatherRisk)
+  const weatherImpact = calculateWeatherImpact(input.route, input.weatherRisk, input.weatherIntelligence)
   const disruptionImpactScore = input.disruption?.disruptionImpactScore || 35
   const components = {
     successProbability: clamp(input.successProbability),
@@ -391,7 +396,7 @@ export function calculateRouteConfidence(input: RouteConfidenceInput): RouteConf
   const factorAdjustment = factors.reduce((sum, factor) => sum + factor.impact, 0)
   const providerStatus = providerStatusFor(input)
   const incompleteProviderData = providerStatus === 'rate-limited' || providerStatus === 'missing'
-  const score = clamp(baseScore + factorAdjustment)
+  const score = clamp(baseScore + factorAdjustment + weatherIntelligenceScoreAdjustment(input.weatherIntelligence || input.weatherRisk?.intelligence))
   const level = confidenceLevel(score, incompleteProviderData)
   const badge = confidenceBadge(score)
   const observedAt = new Date().toISOString()
@@ -427,7 +432,7 @@ export function calculateRouteConfidence(input: RouteConfidenceInput): RouteConf
       `Commercial availability is treated only as a proxy and never as guaranteed standby or non-rev clearance.`,
       incompleteProviderData ? 'Provider data is rate-limited or missing, so confidence is marked incomplete.' : 'Provider reliability is available or currently unknown without a heavy penalty.',
       `Unknown signals are treated as missing context rather than major penalties. Missing: ${missingSignals.length ? missingSignals.join(', ') : 'none'}.`,
-      `Weather risk is ${weatherImpact.label.toLowerCase()} (${weatherImpact.scoreImpact} point risk, ${weatherImpact.successProbabilityImpact} probability points) from ${weatherImpact.source} (${weatherImpact.status}).`,
+      `Weather: ${weatherImpact.label} (${weatherImpact.scoreImpact} point advisory risk, ${weatherImpact.successProbabilityImpact} probability points) from ${weatherImpact.source} (${weatherImpact.status}).`,
       `Last confidence update: ${observedAt}; trigger: ${confidenceUpdateTriggerLabel(updateTrigger)}.`,
       updateExplanation,
       `Confidence trend is ${trend}${trendDelta === 0 ? '' : ` (${trendDelta > 0 ? '+' : ''}${trendDelta})`}.`

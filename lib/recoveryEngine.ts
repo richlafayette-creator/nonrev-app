@@ -1,5 +1,6 @@
 import { sellableSeatSignalCaution, sellableSeatSignalScoreAdjustment, type SellableSeatSignal } from './sellableSeatSignal'
 import type { HistoricalReliability } from './historicalReliability'
+import type { WeatherIntelligence } from './weatherIntelligence'
 
 export type RecoveryStrength = 'Excellent' | 'Good' | 'Fair' | 'Poor'
 export type RecoveryRiskLevel = 'Low' | 'Medium' | 'High' | 'Unknown'
@@ -108,7 +109,7 @@ const islandOrInternationalAirports = new Set(['HNL', 'KOA', 'LIH', 'OGG', 'HND'
  * Scores itinerary recovery using deterministic placeholders only.
  * Future live hooks belong behind this function, not in provider/search code.
  */
-export function analyzeRecovery(itinerary: RecoveryItineraryLike, sellableSeatSignal?: SellableSeatSignal, historicalReliability?: HistoricalReliability): RecoveryAnalysis {
+export function analyzeRecovery(itinerary: RecoveryItineraryLike, sellableSeatSignal?: SellableSeatSignal, historicalReliability?: HistoricalReliability, weatherIntelligence?: WeatherIntelligence): RecoveryAnalysis {
   const path = airportPath(itinerary)
   const origin = path[0] || 'TBD'
   const destination = path[path.length - 1] || 'TBD'
@@ -118,7 +119,7 @@ export function analyzeRecovery(itinerary: RecoveryItineraryLike, sellableSeatSi
   const overnightRisk = placeholderOvernightRisk(itinerary, laterFlightOpportunities, destination)
   const rentalCarPossible = !path.some((airport) => islandOrInternationalAirports.has(airport)) || origin === destination
   const hotelLikely = destination !== 'TBD'
-  const weatherRisk = placeholderWeatherRisk(path)
+  const weatherRisk = weatherRecoveryRisk(path, weatherIntelligence)
   const delayRisk = placeholderDelayRisk(itinerary, connections)
   const strandedRisk = placeholderStrandedRisk(laterFlightOpportunities, alternates.length, overnightRisk, weatherRisk, delayRisk)
   const estimatedRecoveryHours = placeholderRecoveryHours(laterFlightOpportunities, alternates.length, overnightRisk, strandedRisk)
@@ -126,12 +127,13 @@ export function analyzeRecovery(itinerary: RecoveryItineraryLike, sellableSeatSi
   const score = clamp(
     recoveryScore({ laterFlightOpportunities, alternateAirportCount: alternates.length, overnightRisk, rentalCarPossible, hotelLikely, strandedRisk, weatherRisk, delayRisk, connections }) +
     sellableSeatSignalScoreAdjustment(sellableSeatSignal) +
-    historicalReliabilityRecoveryAdjustment(historicalReliability, laterFlightOpportunities, alternates.length)
+    historicalReliabilityRecoveryAdjustment(historicalReliability, laterFlightOpportunities, alternates.length) +
+    weatherRecoveryAdjustment(weatherIntelligence, laterFlightOpportunities, alternates.length)
   )
   const strength = recoveryStrength(score)
   const backupOptions = backupOptionsFor({ laterFlightOpportunities, alternates, overnightRisk, rentalCarPossible, hotelLikely, estimatedRecoveryHours, estimatedRecoveryCost })
   const primaryRecoveryOption = backupOptions[0] || recoveryOption('next-day-flight', 'Next-day recovery placeholder', 'Hold a next-day flight option if same-day recovery is unavailable.', -12, estimatedRecoveryHours, estimatedRecoveryCost)
-  const reasons = recoveryReasons({ laterFlightOpportunities, alternateAirportCount: alternates.length, overnightRisk, rentalCarPossible, hotelLikely, strandedRisk }, sellableSeatSignal, historicalReliability)
+  const reasons = recoveryReasons({ laterFlightOpportunities, alternateAirportCount: alternates.length, overnightRisk, rentalCarPossible, hotelLikely, strandedRisk }, sellableSeatSignal, historicalReliability, weatherIntelligence)
 
   return {
     score,
@@ -177,6 +179,14 @@ function historicalReliabilityRecoveryAdjustment(reliability: HistoricalReliabil
   return -2
 }
 
+function weatherRecoveryAdjustment(weatherIntelligence: WeatherIntelligence | undefined, laterFlightOpportunities: number, alternateAirportCount: number) {
+  if (weatherIntelligence?.routeRisk.level !== 'risky') return 0
+  const backupStrength = laterFlightOpportunities + alternateAirportCount
+  if (weatherIntelligence.routeRisk.highRiskConnectionAirports.length && backupStrength >= 4) return 5
+  if (backupStrength >= 2) return 2
+  return -5
+}
+
 function airportPath(itinerary: RecoveryItineraryLike) {
   const legPath = itinerary.legs?.length
     ? [itinerary.legs[0]?.origin, ...itinerary.legs.map((leg) => leg.destination)]
@@ -218,6 +228,14 @@ function placeholderOvernightRisk(itinerary: RecoveryItineraryLike, laterFlightO
 
 function placeholderWeatherRisk(path: string[]): RecoveryRiskLevel {
   if (path.some((airport) => ['BOS', 'EWR', 'JFK', 'LGA', 'ORD', 'SFO'].includes(airport))) return 'Medium'
+  return 'Unknown'
+}
+
+function weatherRecoveryRisk(path: string[], weatherIntelligence?: WeatherIntelligence): RecoveryRiskLevel {
+  if (!weatherIntelligence) return placeholderWeatherRisk(path)
+  if (weatherIntelligence.routeRisk.level === 'risky') return 'High'
+  if (weatherIntelligence.routeRisk.level === 'watch') return 'Medium'
+  if (weatherIntelligence.routeRisk.level === 'clear') return 'Low'
   return 'Unknown'
 }
 
@@ -290,7 +308,7 @@ function recoveryOption(type: RecoveryOptionType, label: string, summary: string
   return { type, label, summary, scoreImpact, estimatedHours, estimatedCost, placeholder: true }
 }
 
-function recoveryReasons(input: { laterFlightOpportunities: number; alternateAirportCount: number; overnightRisk: boolean; rentalCarPossible: boolean; hotelLikely: boolean; strandedRisk: RecoveryRiskLevel }, sellableSeatSignal?: SellableSeatSignal, historicalReliability?: HistoricalReliability) {
+function recoveryReasons(input: { laterFlightOpportunities: number; alternateAirportCount: number; overnightRisk: boolean; rentalCarPossible: boolean; hotelLikely: boolean; strandedRisk: RecoveryRiskLevel }, sellableSeatSignal?: SellableSeatSignal, historicalReliability?: HistoricalReliability, weatherIntelligence?: WeatherIntelligence) {
   const reasons: string[] = []
   if (input.laterFlightOpportunities >= 3) reasons.push('Multiple backup departures')
   else if (input.laterFlightOpportunities > 0) reasons.push('Some later flight options')
@@ -304,6 +322,8 @@ function recoveryReasons(input: { laterFlightOpportunities: number; alternateAir
   const sellableSeatReason = sellableSeatSignalCaution(sellableSeatSignal)
   if (sellableSeatReason) reasons.push(sellableSeatReason)
   if (historicalReliability?.signal.level === 'poor') reasons.push('Poor historical reliability favors stronger backup options')
+  if (weatherIntelligence?.routeRisk.highRiskConnectionAirports.length) reasons.push(`Risky weather at connection hub ${weatherIntelligence.routeRisk.highRiskConnectionAirports.join(', ')} favors stronger backup options or alternate hubs`)
+  else if (weatherIntelligence?.routeRisk.level === 'risky') reasons.push('Risky weather favors itineraries with stronger backup options')
   return reasons
 }
 

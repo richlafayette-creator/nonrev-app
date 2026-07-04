@@ -5,6 +5,7 @@ import type { HistoricalReliability } from './historicalReliability'
 import type { RecoveryAnalysis } from './recoveryEngine'
 import type { RouteConfidence } from './routeConfidence'
 import type { SellableSeatSignal } from './sellableSeatSignal'
+import type { WeatherIntelligence } from './weatherIntelligence'
 
 export type ParsedItineraryRequest = {
   prompt?: string
@@ -108,6 +109,7 @@ export type ItineraryResult = {
   communityIntelligenceSignal?: FlightCommunitySummary
   sellableSeatSignal?: SellableSeatSignal
   historicalReliability?: HistoricalReliability
+  weatherIntelligence?: WeatherIntelligence
 }
 
 export type FlightRouteNormalization = {

@@ -4,6 +4,7 @@ import { analyzeRecovery } from './recoveryEngine'
 import { calculateRouteConfidence, type ProviderDataStatus } from './routeConfidence'
 import { sellableSeatSignalScoreAdjustment, type SellableSeatSignal } from './sellableSeatSignal'
 import type { ItineraryLeg, ItineraryResult, ParsedItineraryRequest } from './itinerarySearch'
+import { buildWeatherIntelligenceForItinerary, weatherIntelligenceScoreAdjustment, type WeatherIntelligence, type WeatherRiskLevel } from './weatherIntelligence'
 
 export type DecisionStatus = 'Green' | 'Yellow' | 'Red'
 
@@ -49,7 +50,7 @@ export type DecisionFactors = {
   airportDiscontinuities: number
   overnightRequired: boolean
   completionState: 'complete' | 'framework' | 'incomplete'
-  weatherRiskLevel: 'unknown' | 'low' | 'medium' | 'high'
+  weatherRiskLevel: WeatherRiskLevel
   preferredAirlineMatched: boolean
   alternateAirportUsed: boolean
   airportComplexity: number
@@ -87,6 +88,8 @@ type DecisionEngineContext = {
   sellableSeatSignals: SellableSeatSignal[]
   historicalReliability?: HistoricalReliability
   historicalReliabilities: HistoricalReliability[]
+  weatherIntelligence?: WeatherIntelligence
+  weatherIntelligences: WeatherIntelligence[]
 }
 
 export type DecisionEngineOptions = {
@@ -97,6 +100,8 @@ export type DecisionEngineOptions = {
   sellableSeatSignals?: SellableSeatSignal[]
   historicalReliability?: HistoricalReliability
   historicalReliabilities?: HistoricalReliability[]
+  weatherIntelligence?: WeatherIntelligence
+  weatherIntelligences?: WeatherIntelligence[]
 }
 
 const defaultRankingWeights: Required<RankingWeights> = {
@@ -171,7 +176,7 @@ const factorScorers: FactorScorer[] = [
   },
   {
     key: 'weatherRiskScore',
-    score: (factors) => ({ unknown: 70, low: 90, medium: 62, high: 34 })[factors.weatherRiskLevel]
+    score: (factors) => ({ unknown: 78, clear: 86, watch: 66, risky: 38 })[factors.weatherRiskLevel]
   },
   {
     key: 'misconnectRiskScore',
@@ -223,7 +228,8 @@ export function scoreItinerary(itinerary: ItineraryResult, context: DecisionEngi
   const overallScore = clamp(
     baseOverallScore +
     sellableSeatSignalScoreAdjustment(sellableSeatSignalForItinerary(itinerary, context)) +
-    historicalReliabilityScoreAdjustment(historicalReliabilityForItinerary(itinerary, context))
+    historicalReliabilityScoreAdjustment(historicalReliabilityForItinerary(itinerary, context)) +
+    weatherIntelligenceScoreAdjustment(weatherIntelligenceForItinerary(itinerary, context))
   )
 
   return { ...partialScores, overallScore }
@@ -239,7 +245,8 @@ export function rankItineraries<TItinerary extends ItineraryResult>(itineraries:
       const status = decisionStatus(decisionScore.overallScore)
       const sellableSeatSignal = sellableSeatSignalForItinerary(itinerary, context)
       const historicalReliability = historicalReliabilityForItinerary(itinerary, context)
-      const recovery = analyzeRecovery(itinerary, sellableSeatSignal, historicalReliability)
+      const weatherIntelligence = weatherIntelligenceForItinerary(itinerary, context)
+      const recovery = analyzeRecovery(itinerary, sellableSeatSignal, historicalReliability, weatherIntelligence)
       const routeConfidence = calculateRouteConfidence({
         route: itinerary.route,
         successProbability: decisionScore.overallScore,
@@ -254,6 +261,7 @@ export function rankItineraries<TItinerary extends ItineraryResult>(itineraries:
         sellableSeatSignal,
         communityIntelligence: itinerary.communityIntelligenceSignal,
         historicalReliability,
+        weatherIntelligence,
         providerDataStatus: providerDataStatusForItinerary(itinerary),
         updateTrigger: 'itinerary-search-run'
       })
@@ -264,6 +272,7 @@ export function rankItineraries<TItinerary extends ItineraryResult>(itineraries:
           routeConfidence,
           communityIntelligenceSignal: itinerary.communityIntelligenceSignal,
           historicalReliability,
+          weatherIntelligence,
           decisionScore,
           decisionFactors: factors,
           recommendation,
@@ -320,7 +329,9 @@ function decisionEngineContext(itineraries: ItineraryResult[], options: Decision
     sellableSeatSignal: options.sellableSeatSignal,
     sellableSeatSignals: options.sellableSeatSignals || [],
     historicalReliability: options.historicalReliability,
-    historicalReliabilities: options.historicalReliabilities || []
+    historicalReliabilities: options.historicalReliabilities || [],
+    weatherIntelligence: options.weatherIntelligence,
+    weatherIntelligences: options.weatherIntelligences || []
   }
 }
 
@@ -337,6 +348,7 @@ function decisionFactorsForItinerary(itinerary: ItineraryResult, context: Decisi
 
   const sellableSeatSignal = sellableSeatSignalForItinerary(itinerary, context)
   const historicalReliability = historicalReliabilityForItinerary(itinerary, context)
+  const weatherIntelligence = weatherIntelligenceForItinerary(itinerary, context)
 
   return {
     arrivalRank: arrivalRank > 0 ? arrivalRank : context.itineraries.length,
@@ -353,7 +365,7 @@ function decisionFactorsForItinerary(itinerary: ItineraryResult, context: Decisi
     airportDiscontinuities: airportDiscontinuities(itinerary),
     overnightRequired: overnightRequired(itinerary),
     completionState: completionState(itinerary),
-    weatherRiskLevel: weatherRiskLevel(itinerary),
+    weatherRiskLevel: weatherIntelligence?.routeRisk.level || weatherRiskLevel(itinerary),
     preferredAirlineMatched: preferredAirlineMatched(itinerary, context.request?.carrier),
     alternateAirportUsed: alternateAirportUsed(itinerary, context.request),
     airportComplexity,
@@ -361,6 +373,12 @@ function decisionFactorsForItinerary(itinerary: ItineraryResult, context: Decisi
     historicalReliability: historicalReliability?.signal.level || 'none',
     sourceProvider: itinerary.sourceProvider
   }
+}
+
+function weatherIntelligenceForItinerary(itinerary: ItineraryResult, context: DecisionEngineContext) {
+  if (itinerary.weatherIntelligence) return itinerary.weatherIntelligence
+  if (context.weatherIntelligence && weatherMatchesItinerary(context.weatherIntelligence, itinerary)) return context.weatherIntelligence
+  return context.weatherIntelligences.find((signal) => weatherMatchesItinerary(signal, itinerary)) || buildWeatherIntelligenceForItinerary(itinerary)
 }
 
 function historicalReliabilityForItinerary(itinerary: ItineraryResult, context: DecisionEngineContext) {
@@ -413,6 +431,13 @@ function reliabilityMatchesItinerary(reliability: HistoricalReliability, itinera
       (reliabilityFlight === 'UNKNOWN' || flightNumbers.includes(reliabilityFlight) || !flightNumbers.length) &&
       sameDepartureHour(leg.departureTime, reliability.departureHour)
   })
+}
+
+function weatherMatchesItinerary(intelligence: WeatherIntelligence, itinerary: ItineraryResult) {
+  const path = airportPath(itinerary)
+  if (!path.length) return intelligence.route === itinerary.route
+  const weatherAirports = new Set(intelligence.airports.map((airport) => airport.airportCode))
+  return path.some((airport) => weatherAirports.has(airport))
 }
 
 function carrierMatchesSignal(itineraryCarrier: string, signalCarrier: string) {
@@ -581,11 +606,11 @@ function completionState(itinerary: ItineraryResult): DecisionFactors['completio
   return 'incomplete'
 }
 
-function weatherRiskLevel(itinerary: ItineraryResult): DecisionFactors['weatherRiskLevel'] {
+function weatherRiskLevel(itinerary: ItineraryResult): WeatherRiskLevel {
   const text = `${itinerary.status} ${itinerary.risk}`.toLowerCase()
-  if (/storm|weather|snow|thunder|high/.test(text)) return 'high'
-  if (/medium|delay/.test(text)) return 'medium'
-  if (/low|on time|scheduled/.test(text)) return 'low'
+  if (/storm|weather|snow|thunder|high/.test(text)) return 'risky'
+  if (/medium|delay/.test(text)) return 'watch'
+  if (/low|on time|scheduled/.test(text)) return 'clear'
   return 'unknown'
 }
 

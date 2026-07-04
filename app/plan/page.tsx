@@ -23,7 +23,7 @@ import { buildDisruptionIntelligence, routeHealthColor, type DisruptionIntellige
 import { calculateRouteConfidence, confidenceBadgeColor, confidenceTrendColor, confidenceUpdateTriggerLabel, routeConfidenceLabel, type ConfidenceLevel, type ConfidenceTrend, type ConfidenceUpdateTrigger, type ProviderDataStatus, type RouteConfidence } from '../../lib/routeConfidence'
 import { calculateSuccessPrediction, type CarrierCoverage, type RecoveryStrength as PredictionRecoveryStrength, type ScheduleDensity, type SuccessPrediction, type SuccessPredictionInput } from '../../lib/successPredictionEngine'
 import { calculatePersonalSuccessPrediction, type PersonalSuccessPrediction } from '../../lib/personalSuccessPredictor'
-import { getRouteWeatherRisk, weatherRiskColor, type WeatherRisk } from '../../lib/weatherIntelligence'
+import { buildWeatherIntelligenceForItinerary, getRouteWeatherRisk, weatherRiskColor, weatherRiskDisplayWithIcon, type WeatherIntelligence, type WeatherRisk } from '../../lib/weatherIntelligence'
 import { defaultTravelerProfile, loadTravelerProfileFromStorage, travelerProfileAssumptions, type TravelerProfileScaffold } from '../../lib/travelerProfile'
 import { useVoiceInput } from '../../lib/useVoiceInput'
 import { loadTripOutcomes, type TripOutcome } from '../../lib/tripOutcomes'
@@ -251,6 +251,7 @@ type LiveItineraryResult = {
   communityIntelligenceSignal?: FlightCommunitySummary
   sellableSeatSignal?: SellableSeatSignal
   historicalReliability?: HistoricalReliability
+  weatherIntelligence?: WeatherIntelligence
 }
 
 type ProviderStatus = {
@@ -575,10 +576,10 @@ function ProviderBadge({ label }: { label: string }) {
 }
 
 function WeatherRiskBadge({ weatherRisk }: { weatherRisk: WeatherRisk }) {
-  const color = weatherRiskColor(weatherRisk.category)
+  const color = weatherRiskColor(weatherRisk.level)
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', border: `1px solid ${color}`, borderRadius: 999, padding: '4px 9px', color, background: '#020617', fontSize: 12, fontWeight: 'bold', letterSpacing: 0.3 }}>
-      Weather {weatherRisk.category}
+      Weather: {weatherRisk.displayLabel}
     </span>
   )
 }
@@ -628,6 +629,7 @@ type ItineraryComparison = {
   communitySignal?: FlightCommunitySummary
   sellableSeatSignal?: SellableSeatSignal
   historicalReliability?: HistoricalReliability
+  weatherIntelligence?: WeatherIntelligence
   recoveryStrength?: number
   recoveryExplanation?: string
   suggestedRecoveryPaths?: SuggestedRecoveryPath[]
@@ -1246,7 +1248,8 @@ function buildLiveItineraryComparison(
     sourceLabel: itinerary.source
   })
   const historicalReliability = itinerary.historicalReliability || buildHistoricalReliabilityForItinerary(itinerary)
-  const weatherRisk = getRouteWeatherRisk(itinerary.route)
+  const weatherIntelligence = itinerary.weatherIntelligence || buildWeatherIntelligenceForItinerary(itinerary)
+  const weatherRisk = getRouteWeatherRisk(itinerary.route, weatherIntelligence)
   const airportIntelligence = buildRouteAirportIntelligence(itinerary.route)
   const successProbability = clampScore(
     predictionEngine.successProbability * 0.34 +
@@ -1272,6 +1275,7 @@ function buildLiveItineraryComparison(
     travelerProfile,
     disruption,
     weatherRisk,
+    weatherIntelligence,
     decisionScore: itinerary.decisionScore,
     decisionFactors: itinerary.decisionFactors,
     decisionStatus: itinerary.decisionStatus,
@@ -1389,6 +1393,7 @@ function buildLiveItineraryComparison(
     personalSuccessPrediction,
     loadSupport,
     weatherRisk,
+    weatherIntelligence,
     airportIntelligence,
     communityReports: routeReports,
     communityReportSummary: communityIntelligence ? `${communityLoadCompactRowText(communityIntelligence) || `Community intelligence: ${communityIntelligence.averageAvailableSeats ?? '—'} open, ${communityIntelligence.averageStandbyCount ?? '—'} listed, ${communityIntelligence.reportCount} reports, ${communityIntelligence.communityConfidence} confidence.`} ${communityLoadImpactSummary(communityIntelligence)}` : reportTrustAndRecencySummary(routeReports),
@@ -1410,7 +1415,7 @@ function buildLiveItineraryComparison(
     why: [
       `Blends provider itinerary score ${itinerary.score}/100 with probability engine baseline ${predictionEngine.successProbability}%.`,
       `Route confidence engine scores this option ${routeConfidence.score}/100 (${routeConfidence.badge}) with a ${routeConfidence.trend} trend.`,
-      `Weather intelligence labels this route ${weatherRisk.category} and adjusts planning confidence by ${weatherRisk.successProbabilityImpact} point${weatherRisk.successProbabilityImpact === 1 || weatherRisk.successProbabilityImpact === -1 ? '' : 's'}.`,
+      `Weather: ${weatherRisk.displayLabel}. Advisory weather intelligence adjusts planning confidence by ${weatherRisk.successProbabilityImpact} point${weatherRisk.successProbabilityImpact === 1 || weatherRisk.successProbabilityImpact === -1 ? '' : 's'} without overstating certainty.`,
       `Airport intelligence gives this route a ${airportIntelligence.connectionRiskScore}/100 connection risk score and ${airportIntelligence.backupFlightAvailability} backup flight availability.`,
       `Disruption intelligence adjusts this option by ${disruption.successProbabilityImpact} probability points and ${disruption.routeRankingImpact} ranking points; route health is ${disruption.routeHealth}.`,
       historicalRoute
@@ -1473,7 +1478,8 @@ function buildFallbackItineraryComparison(
     fallbackStatus: itinerary.confidence
   })
   const historicalReliability = buildHistoricalReliabilityForItinerary({ route: itinerary.route, carrier: carrierLabel, flightNumber: 'Unknown', dataFreshnessRule: 'route-framework' })
-  const weatherRisk = getRouteWeatherRisk(itinerary.route)
+  const weatherIntelligence = buildWeatherIntelligenceForItinerary({ route: itinerary.route, dataFreshnessRule: 'route-framework' })
+  const weatherRisk = getRouteWeatherRisk(itinerary.route, weatherIntelligence)
   const airportIntelligence = buildRouteAirportIntelligence(itinerary.route)
   const successProbability = clampScore(
     predictionEngine.successProbability * 0.36 +
@@ -1499,6 +1505,7 @@ function buildFallbackItineraryComparison(
     travelerProfile,
     disruption,
     weatherRisk,
+    weatherIntelligence,
     historicalReliability,
     providerDataStatus: 'missing',
     updateTrigger
@@ -1605,6 +1612,7 @@ function buildFallbackItineraryComparison(
     personalSuccessPrediction,
     loadSupport,
     weatherRisk,
+    weatherIntelligence,
     airportIntelligence,
     communityReports: routeReports,
     communityReportSummary: communityIntelligence ? `${communityLoadCompactRowText(communityIntelligence) || `Community intelligence: ${communityIntelligence.averageAvailableSeats ?? '—'} open, ${communityIntelligence.averageStandbyCount ?? '—'} listed, ${communityIntelligence.reportCount} reports, ${communityIntelligence.communityConfidence} confidence.`} ${communityLoadImpactSummary(communityIntelligence)}` : reportTrustAndRecencySummary(routeReports),
@@ -1612,7 +1620,7 @@ function buildFallbackItineraryComparison(
     why: [
       `Combines fallback ranking ${itinerary.ranking.score}/100 with probability engine baseline ${predictionEngine.successProbability}%.`,
       `Route confidence engine scores this option ${routeConfidence.score}/100 (${routeConfidence.badge}) with a ${routeConfidence.trend} trend.`,
-      `Weather intelligence labels this route ${weatherRisk.category} and adjusts planning confidence by ${weatherRisk.successProbabilityImpact} point${weatherRisk.successProbabilityImpact === 1 || weatherRisk.successProbabilityImpact === -1 ? '' : 's'}.`,
+      `Weather: ${weatherRisk.displayLabel}. Advisory weather intelligence adjusts planning confidence by ${weatherRisk.successProbabilityImpact} point${weatherRisk.successProbabilityImpact === 1 || weatherRisk.successProbabilityImpact === -1 ? '' : 's'} without overstating certainty.`,
       `Airport intelligence gives this route a ${airportIntelligence.connectionRiskScore}/100 connection risk score and ${airportIntelligence.backupFlightAvailability} backup flight availability.`,
       `Disruption intelligence adjusts this option by ${disruption.successProbabilityImpact} probability points and ${disruption.routeRankingImpact} ranking points; route health is ${disruption.routeHealth}.`,
       historicalRoute
@@ -3472,6 +3480,10 @@ function historicalReliabilityCardSummary(reliability?: HistoricalReliability) {
   return `${historicalReliabilityDisplayLabel(reliability.signal.level)} · avg delay ${Math.round(reliability.averageDelayMinutes || 0)} min`
 }
 
+function weatherCardSummary(weatherRisk?: WeatherRisk) {
+  return weatherRisk ? weatherRiskDisplayWithIcon(weatherRisk.level) : 'Unknown'
+}
+
 function doorToDoorCardSummary(comparison: ItineraryComparison) {
   const estimate = comparison.endToEnd?.estimatedDoorToDoorTime
     ?.replace(/^Placeholder estimate:\s*/i, '')
@@ -3499,6 +3511,7 @@ function ItineraryIntelligenceSummary({ comparison, recommendation, reasons }: {
         <span>{commercialStatusIcon(comparison.sellableSeatSignal)} Commercial Availability Signal — {commercialCardSummary(comparison.sellableSeatSignal)}</span>
         <span>{communityStatusIcon(comparison.communitySignal)} Community Signal — {communityCardSummary(comparison.communitySignal)}</span>
         <span>{historicalReliabilityStatusIcon(comparison.historicalReliability)} Historical Reliability — {historicalReliabilityCardSummary(comparison.historicalReliability)}</span>
+        <span>🌦️ Weather — {weatherCardSummary(comparison.weatherRisk)}</span>
         <span>🟢 Door-to-Door Summary — {doorToDoorCardSummary(comparison)}</span>
       </div>
       {whyReasons.length ? (

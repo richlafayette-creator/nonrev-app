@@ -272,9 +272,9 @@ function placeholderHotelCost(destination: string) {
 }
 
 function recoveryScore(input: { laterFlightOpportunities: number; alternateAirportCount: number; overnightRisk: boolean; rentalCarPossible: boolean; hotelLikely: boolean; strandedRisk: RecoveryRiskLevel; weatherRisk: RecoveryRiskLevel; delayRisk: RecoveryRiskLevel; connections: number }) {
-  const riskPenalty = { Low: 0, Medium: 14, High: 30, Unknown: 6 }[input.strandedRisk]
-  const weatherPenalty = { Low: 0, Medium: 8, High: 18, Unknown: 4 }[input.weatherRisk]
-  const delayPenalty = { Low: 0, Medium: 8, High: 18, Unknown: 4 }[input.delayRisk]
+  const riskPenalty = { Low: 0, Medium: 14, High: 30, Unknown: 0 }[input.strandedRisk]
+  const weatherPenalty = { Low: 0, Medium: 8, High: 18, Unknown: 0 }[input.weatherRisk]
+  const delayPenalty = { Low: 0, Medium: 8, High: 18, Unknown: 0 }[input.delayRisk]
   return clamp(
     48 + input.laterFlightOpportunities * 8 + Math.min(4, input.alternateAirportCount) * 5 + (input.rentalCarPossible ? 6 : 0) + (input.hotelLikely ? 4 : 0) - (input.overnightRisk ? 16 : 0) - input.connections * 5 - riskPenalty - weatherPenalty - delayPenalty
   )

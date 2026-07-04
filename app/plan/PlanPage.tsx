@@ -3867,24 +3867,29 @@ function ProductionEmptyState({ reasons, origin, destination, suggestions = [], 
     .filter((path) => isRecoveryAirportPath(path, origin, destination))
     .map((path) => ({ id: path.id, label: path.label, status: 'Recovery guidance only' }))
   const hasTopRoutes = topRoutes.length > 0
+  const routePair = origin && destination ? `${origin} → ${destination}` : 'this route'
+  const visibleReasons = reasons.length ? reasons : [
+    'No current provider rows were safe enough to show as live availability.',
+    'Demo, stale, historical, and route-framework rows stay separated so the card does not overstate certainty.'
+  ]
 
   return (
     <section className="nonrevy-production-empty" aria-live="polite">
       <p className="nonrevy-production-empty__eyebrow">Search results</p>
-      <h2>{hasTopRoutes ? 'Top route frameworks currently available' : "We couldn't find live results for this search right now."}</h2>
+      <h2>{hasTopRoutes ? `No live rows yet for ${routePair}; complete frameworks are below.` : `No current live rows for ${routePair} yet.`}</h2>
       <p className="nonrevy-production-empty__subtext">
-        Live availability unavailable. Top Routes are complete origin-to-destination frameworks; Recovery Airports are positioning guidance only.
+        This is Nonrevy being conservative: it will not relabel stale, demo, historical, or positioning guidance as live availability. Top Routes are complete origin-to-destination frameworks; Recovery Airports are positioning guidance only.
       </p>
       <p className="nonrevy-production-empty__guidance-note">
-        {recovery ? `${recovery.explanation} Recovery strength: ${recovery.recoveryStrength}/100.` : 'Route frameworks and recovery guidance are separated because recovery airports are not itineraries.'}
+        {recovery ? `${recovery.explanation} Recovery strength: ${recovery.recoveryStrength}/100.` : 'If you are new here, this does not mean the trip is impossible — it means no current source passed the trust checks for a live itinerary card.'}
       </p>
       <div className="nonrevy-production-empty__grid">
         <section>
-          <strong>Next actions</strong>
+          <strong>What to try next</strong>
           <ul>
-            <li>Review Top Routes only as complete frameworks</li>
-            <li><a href="/load-reports">Request loads</a></li>
-            <li><a href="/intelligence">View route intelligence</a></li>
+            <li>Broaden carrier, date, or max-leg filters before assuming the route is unavailable.</li>
+            <li>Use Top Routes only as planning frameworks until provider rows or trusted load reports appear.</li>
+            <li><a href="/load-reports">Request loads</a> or <a href="/watchlist">add a watchlist route</a> for a later refresh.</li>
           </ul>
         </section>
         <section>
@@ -3919,9 +3924,9 @@ function ProductionEmptyState({ reasons, origin, destination, suggestions = [], 
         </section>
       </div>
       <details className="nonrevy-production-empty__details">
-        <summary>Why no results?</summary>
+        <summary>Why no live card?</summary>
         <ul>
-          {reasons.map((reason) => <li key={reason}>{reason}</li>)}
+          {visibleReasons.map((reason) => <li key={reason}>{reason}</li>)}
         </ul>
       </details>
     </section>

@@ -14,6 +14,7 @@ import { persistentUserId } from '../../../../lib/apiIdentity'
 import { findServerCommunityLoadReports } from '../../../../lib/communityLoadServerStore'
 import type { TripOutcome } from '../../../../lib/outcomeRepository'
 import { ensureRouteFrameworkLabels, routeFrameworkProviderBadges, routeFrameworkSourceLabel } from '../../../../lib/routeFrameworkLabels'
+import { isCurrentLiveAvailability } from '../../../../lib/liveAvailabilityGuard'
 
 export const dynamic = 'force-dynamic'
 
@@ -1755,9 +1756,9 @@ export async function GET(request: Request) {
       invalidDates,
       providerFallbackOrder: activeProviderFallbackOrder,
       providerStatuses: expandedScheduleSearch.providerStatuses,
-      trueLiveDataAvailable: expandedScheduleSearch.topItineraries.some((itinerary) => itinerary.productionAvailability),
-      trueLiveDataUnavailableReason: expandedScheduleSearch.topItineraries.some((itinerary) => itinerary.productionAvailability) ? '' : 'Complete itineraries came from provider cache or fallback schedule rows; current live availability remains unavailable.',
-      dataFreshnessMode: expandedScheduleSearch.topItineraries.some((itinerary) => itinerary.productionAvailability) ? 'live-current-api' : 'provider-cache',
+      trueLiveDataAvailable: expandedScheduleSearch.topItineraries.some(isCurrentLiveAvailability),
+      trueLiveDataUnavailableReason: expandedScheduleSearch.topItineraries.some(isCurrentLiveAvailability) ? '' : 'Complete itineraries came from provider cache or fallback schedule rows; current live availability remains unavailable.',
+      dataFreshnessMode: expandedScheduleSearch.topItineraries.some(isCurrentLiveAvailability) ? 'live-current-api' : 'provider-cache',
       dataFreshnessExplanation: freshnessExplanationsForItineraries(expandedScheduleSearch.topItineraries, 'exact-requested-date'),
       testDataModeEnabled: envTestDataModeEnabled,
       safeErrors: uniqueMessages(warnings),
@@ -1772,7 +1773,7 @@ export async function GET(request: Request) {
       request: effectiveRequest,
       source: 'expanded-provider-schedule-search',
       sourceLabel: 'Expanded provider schedule search',
-      dataMode: expandedScheduleSearch.topItineraries.some((itinerary) => itinerary.productionAvailability) ? 'live' : 'provider-cache',
+      dataMode: expandedScheduleSearch.topItineraries.some(isCurrentLiveAvailability) ? 'live' : 'provider-cache',
       source_provider: 'expanded-provider-schedule-search',
       source_checked_at: expandedScheduleSearch.topItineraries.map((itinerary) => itinerary.sourceCheckedAt).filter(Boolean).sort().slice(-1)[0],
       statusMessage: `${expandedScheduleSearch.topItineraries.length} complete scheduled itinerary${expandedScheduleSearch.topItineraries.length === 1 ? '' : 's'} returned from ${expandedScheduleSearch.allItineraries.length} generated before ranking; ordered by earliest arrival.`,
@@ -2340,7 +2341,7 @@ export async function GET(request: Request) {
     if (itineraries.length === 1) {
       warnings.push(`Only one complete itinerary survived generation and integrity checks: ${completenessDiagnostics.directItinerariesFound} direct, ${completenessDiagnostics.oneStopItinerariesFound} one-stop, ${completenessDiagnostics.twoStopItinerariesFound} two-stop. No additional complete direct, one-stop, or two-stop itinerary could be assembled from fetched provider rows without fabricating legs.`)
     }
-    const dataFreshnessMode: ItineraryDebugMetadata['dataFreshnessMode'] = itineraries.some((itinerary) => itinerary.dataFreshnessRule === 'exact-requested-date' && itinerary.productionAvailability)
+    const dataFreshnessMode: ItineraryDebugMetadata['dataFreshnessMode'] = itineraries.some(isCurrentLiveAvailability)
       ? 'live-current-api'
       : itineraries.some((itinerary) => itinerary.sourceProvider === 'provider-cache')
         ? 'provider-cache'
@@ -2368,8 +2369,8 @@ export async function GET(request: Request) {
       unsupportedAirportCodes,
       invalidDates,
       providerStatuses: finalProviderStatuses,
-      trueLiveDataAvailable: itineraries.some((itinerary) => itinerary.productionAvailability),
-      trueLiveDataUnavailableReason: itineraries.some((itinerary) => itinerary.productionAvailability) ? '' : 'Complete scheduled itineraries were assembled from cached/stored provider rows; live availability remains unavailable.',
+      trueLiveDataAvailable: itineraries.some(isCurrentLiveAvailability),
+      trueLiveDataUnavailableReason: itineraries.some(isCurrentLiveAvailability) ? '' : 'Complete scheduled itineraries were assembled from cached/stored provider rows; live availability remains unavailable.',
       dataFreshnessMode,
       dataFreshnessExplanation: freshnessExplanationsForItineraries(itineraries, routeMatching.dateCoverage.nearestDateApplied ? 'nearest-date-testing-match' : 'stored-historical-data'),
       testDataModeEnabled: envTestDataModeEnabled,
@@ -2386,7 +2387,7 @@ export async function GET(request: Request) {
       ok: true,
       request: effectiveRequest,
       source: 'complete-itinerary-search',
-      sourceLabel: itineraries.some((itinerary) => itinerary.productionAvailability) ? 'Complete live/cached itinerary search' : 'Complete cached/stored itinerary search',
+      sourceLabel: itineraries.some(isCurrentLiveAvailability) ? 'Complete live/cached itinerary search' : 'Complete cached/stored itinerary search',
       dataMode: dataFreshnessMode === 'live-current-api' ? 'live' : dataFreshnessMode,
       source_provider: 'complete-provider-search',
       source_checked_at: itineraries.map((itinerary) => itinerary.sourceCheckedAt).filter(Boolean).sort().slice(-1)[0],

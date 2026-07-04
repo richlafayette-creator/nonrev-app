@@ -40,6 +40,7 @@ import OutcomeCapture from '../OutcomeCapture'
 import { markActivationStep } from '../../lib/onboardingActivation'
 import { airportCodesFromDisplayRoute, itineraryDisplayIntegrityFor } from '../../lib/itineraryDisplayIntegrity'
 import { ensureRouteFrameworkLabels } from '../../lib/routeFrameworkLabels'
+import { freshnessBadgeLabelFor, isCurrentLiveAvailability } from '../../lib/liveAvailabilityGuard'
 
 const mockItineraries = [
   {
@@ -469,14 +470,7 @@ function sourceBadgeLabel(source?: string, sourceProvider?: string) {
 }
 
 function freshnessBadgeLabel(label?: string, dataMode?: string, rule?: LiveItineraryResult['dataFreshnessRule']) {
-  const value = `${label || ''} ${dataMode || ''} ${rule || ''}`.toLowerCase()
-  if (value.includes('exact requested date') || value.includes('exact-requested-date')) return 'Freshness: Exact requested date'
-  if (value.includes('nearest-date')) return 'Freshness: Nearest-date testing data'
-  if (value.includes('live')) return 'Freshness: Live provider API data'
-  if (value.includes('historical')) return 'Freshness: Stored historical data'
-  if (value.includes('supabase') || value.includes('stored') || value.includes('cached')) return 'Freshness: Stored Supabase flight data'
-  if (value.includes('mvp') || value.includes('test') || value.includes('fallback') || value.includes('demo')) return 'Freshness: Demo fallback data'
-  return 'Freshness: Not provided'
+  return freshnessBadgeLabelFor({ dataFreshnessLabel: label, dataMode, dataFreshnessRule: rule })
 }
 
 function itineraryDateWarning(itinerary: LiveItineraryResult) {
@@ -512,21 +506,7 @@ function displayField(value?: string | number | null) {
 
 
 function isProductionItinerary(itinerary: LiveItineraryResult) {
-  const haystack = [
-    itinerary.id,
-    itinerary.source,
-    itinerary.sourceProvider,
-    itinerary.dataFreshnessLabel,
-    itinerary.dataFreshnessDetail,
-    itinerary.dataFreshnessRule,
-    ...(itinerary.providerBadges || [])
-  ].filter(Boolean).join(' ').toLowerCase()
-
-  if (itinerary.dataFreshnessRule === 'route-framework') return false
-  if (itinerary.productionAvailability === false) return false
-  if (itinerary.dataFreshnessRule === 'demo-fallback' || itinerary.dataFreshnessRule === 'nearest-date-testing-match') return false
-  if (haystack.includes('demo') || haystack.includes('test data') || haystack.includes('testing') || haystack.includes('planning fallback')) return false
-  return true
+  return isCurrentLiveAvailability(itinerary)
 }
 
 function isFrameworkRoute(itinerary: LiveItineraryResult) {

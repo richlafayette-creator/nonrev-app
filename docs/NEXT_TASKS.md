@@ -44,7 +44,7 @@ Remaining P0 work:
    - Tomorrow.io
    - OpenWeather
    - FlightAware weather alerts
-4. Improve airport and route coverage datasets through reviewed seed data or controlled migrations.
+4. Completed 2026-07-04: Improved airport and route coverage datasets with reviewed airport scaffolds for route coverage groups and small-airport hub maps, plus regression coverage.
 5. Add persistence for provider result provenance where it improves auditability and beta debugging.
 
 ### P3 — Product polish

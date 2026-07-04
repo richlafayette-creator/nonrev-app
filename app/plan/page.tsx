@@ -38,6 +38,7 @@ import {
 import MapboxAirportMap from '../MapboxAirportMap'
 import OutcomeCapture from '../OutcomeCapture'
 import { markActivationStep } from '../../lib/onboardingActivation'
+import { airportCodesFromDisplayRoute, itineraryDisplayIntegrityFor } from '../../lib/itineraryDisplayIntegrity'
 
 const mockItineraries = [
   {
@@ -633,6 +634,20 @@ type ItineraryComparison = {
   recoveryStrength?: number
   recoveryExplanation?: string
   suggestedRecoveryPaths?: SuggestedRecoveryPath[]
+}
+
+function comparisonWithDisplayRouteIntegrity(comparison: ItineraryComparison): ItineraryComparison {
+  const integrity = itineraryDisplayIntegrityFor(comparison)
+  if (!integrity.rebuiltFromLegs && integrity.displayConnectionCount === comparison.connections) return comparison
+
+  return {
+    ...comparison,
+    route: integrity.displayRoute || comparison.route,
+    connections: integrity.displayConnectionCount,
+    sourceDetails: integrity.warning && !comparison.sourceDetails.includes(integrity.warning)
+      ? [comparison.sourceDetails, integrity.warning].filter(Boolean).join(' · ')
+      : comparison.sourceDetails
+  }
 }
 
 type DecisionMetrics = {
@@ -2110,7 +2125,7 @@ const airportTimeZones: Record<string, string> = {
 }
 
 function airportCodesFromComparisonRoute(route: string) {
-  return route.split('→').map((part) => part.trim().match(/[A-Z]{3}/)?.[0]).filter((code): code is string => Boolean(code))
+  return airportCodesFromDisplayRoute(route)
 }
 
 function formatItineraryAirportDateTime(value: string, airportCode?: string) {
@@ -4121,7 +4136,7 @@ function ItineraryComparisonPanel({ comparisons, travelDate, communityLoads, onC
     setDetailsOpen(comparison.id, true)
   }
 
-  const compactItineraries = sortCompactItineraries(comparisons)
+  const compactItineraries = sortCompactItineraries(comparisons).map(comparisonWithDisplayRouteIntegrity)
   const topRouteItineraries = compactItineraries.slice(0, 5)
   const moreRouteItineraries = sortMoreRouteItineraries(compactItineraries.slice(5))
   const routeInsights = buildRouteIntelligenceInsights(compactItineraries)

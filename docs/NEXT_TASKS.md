@@ -34,6 +34,7 @@ Remaining P0 work:
 5. Completed 2026-07-04: Added edge-case coverage for max-leg clamping, malformed airport input, strict carrier-filter evidence, max-leg itinerary building, and empty provider response summaries.
 6. Completed 2026-07-06: Added insufficient-origin provider coverage diagnostics so searches do not fail when the requested origin has limited provider data; the UI now explains the coverage gap and recommends nearest supported alternate origins without fabricating flights or claiming standby availability.
 7. Completed 2026-07-06: Added API-level `/api/itinerary/search` fallback regression tests for insufficient origin coverage, provider rate-limit fallback, empty-provider fallback, no fabricated itineraries, and no standby availability claims.
+8. Completed 2026-07-06: Added a compact planner origin-coverage UI smoke test that renders deterministic insufficient-origin fallback guidance, verifies nearby supported airport recommendations, confirms no fabricated itineraries are returned, and checks advisory-only wording.
 
 ### P2 — Data and provider depth
 

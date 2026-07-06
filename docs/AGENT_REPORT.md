@@ -1,42 +1,45 @@
-# Agent Report — 2026-07-06 03:00 UTC Sprint
+# Agent Report — 2026-07-06 03:07 UTC Sprint
 
 ## Selected task
 
-Add API-level regression tests for `/api/itinerary/search` fallback responses.
+Add a compact browser/UI smoke test for the planner origin-coverage notice.
 
 ## Scope completed
 
-Added route-handler tests that call the real `GET` handler and cover:
-
-- insufficient requested-origin coverage diagnostics and nearest supported origin recommendations
-- provider-rate-limit fallback behavior with FlightAware mocked to return HTTP 429
-- empty-provider fallback responses when no provider rows or frameworks are available
-- fallback responses returning no fabricated `itineraries`
-- fallback responses avoiding positive standby availability / clearance claims
+- Extracted `OriginCoverageNotice` into `app/plan/OriginCoverageNotice.tsx` so it can be rendered directly in a lightweight UI smoke test.
+- Added `lib/plannerOriginCoverageNotice.smoke.test.tsx`, which:
+  - calls the real `/api/itinerary/search` `GET` handler with deterministic missing-provider env for `MRY → OGG`
+  - verifies the fallback returns no fabricated `itineraries`
+  - renders the planner notice with React static markup
+  - verifies the visible insufficient-origin coverage message
+  - verifies nearby supported airport recommendations and links for `SFO`, `LAX`, and `SJC`
+  - verifies advisory-only wording and no positive standby / clearance availability claims
 
 ## Safety decisions
 
-- No search behavior or production route logic was changed.
-- Provider calls in the rate-limit regression are mocked at `globalThis.fetch`.
-- Tests clear provider env vars by default so fallback behavior is deterministic.
+- No itinerary generation logic changed.
+- No provider integrations changed.
+- Provider env vars are cleared in the smoke test to keep fallback behavior deterministic.
 - Existing untracked `tmp/` was left untouched.
 
 ## Files changed
 
-- `lib/itinerarySearchFallbackResponses.test.ts`
+- `app/plan/OriginCoverageNotice.tsx`
+- `app/plan/PlanPage.tsx`
+- `lib/plannerOriginCoverageNotice.smoke.test.tsx`
 - `docs/NEXT_TASKS.md`
 - `docs/AGENT_REPORT.md`
 
 ## Validation
 
-- `npx tsx --test lib/itinerarySearchFallbackResponses.test.ts`
+- `npx tsx --test lib/plannerOriginCoverageNotice.smoke.test.tsx`
 - `git diff --check`
 - `npx tsc --noEmit`
 
 ## Known blockers / not done
 
-- None.
+- No blocker. This is a lightweight React render smoke test rather than a full Playwright/browser screenshot harness because the repo does not currently include a browser test dependency.
 
 ## Recommended next task
 
-Add a compact browser/UI smoke test for the planner notice so the visible insufficient-origin coverage message and alternate-origin links are covered end-to-end.
+Add the first true browser/screenshot harness for planner cards and notices, then reuse it for itinerary integrity and origin-coverage visual checks.

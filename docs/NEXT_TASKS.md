@@ -10,19 +10,25 @@ Itinerary integrity is sacred. Nonrevy may show less information when certainty 
 
 ## Parallel-agent ownership
 
-Parallel development now uses `docs/MULTI_AGENT_WORKFLOW.md` as the branch and merge protocol.
+Parallel development now uses `docs/MULTI_AGENT_WORKFLOW.md` as the branch and merge protocol, with integration coordination defined in `docs/INTEGRATION_MANAGER.md`.
 
-- `main` is stable.
+- `main` is stable production.
 - `agent-dev` is the integration branch.
 - Data Agent works from `agent/data` and owns provider integrations, weather, historical reliability, commercial availability, airport intelligence, caching, and diagnostics.
-- Frontend Agent works from `agent/frontend` and owns itinerary cards, mobile layout, planner UI, accessibility, and confidence displays.
-- Shared files require integration branch review before merge into `agent-dev`.
-- Merge candidates require QA validation before landing on `agent-dev`.
+- Frontend Agent works from `agent/frontend` and owns `app/plan` UI, itinerary cards, mobile layout, accessibility, confidence display, and user-facing warnings.
+- QA Agent works from `agent/qa` and owns regression tests, route matrix tests, API fallback tests, UI smoke tests, and merge validation.
+- Docs Agent works from `agent/docs` and owns roadmap, `docs/NEXT_TASKS.md`, `docs/AGENT_REPORT.md`, known limitations, and release notes.
+- Release Agent works from `agent/release` and owns changelog, beta checklist, merge readiness, and deployment checklist.
+- Shared files require integration review before merge into `agent-dev`.
+- Merge candidates require validation before landing on `agent-dev`, with QA validating `agent-dev` after merge.
 
 Initial parallel assignments:
 
 - Data Agent next: Historical Reliability aggregation service.
 - Frontend Agent next: Improve intelligence sections on itinerary cards without changing API shape.
+- QA Agent next: Add route matrix smoke tests.
+- Docs Agent next: Maintain beta readiness and known limitations.
+- Release Agent next: Prepare private beta deployment checklist.
 
 ## Priority task queue
 

@@ -18,6 +18,7 @@ import { isCurrentLiveAvailability } from '../../../../lib/liveAvailabilityGuard
 import { providerFailureMessageFromStatus } from '../../../../lib/providerFailureMessaging'
 import { buildProviderDiagnostics, type StructuredProviderDiagnostic } from '../../../../lib/providerDiagnostics'
 import { internalWeatherPrefetchStore } from '../../../../lib/weatherCacheStore'
+import { buildOriginCoverageDiagnostic, type OriginCoverageDiagnostic } from '../../../../lib/originCoverage'
 
 export const dynamic = 'force-dynamic'
 
@@ -140,6 +141,7 @@ type ItineraryDebugMetadata = {
   normalizedFlightAwareItinerarySample?: SafeNormalizedItinerarySample
   noResultsExplanation?: string[]
   itineraryCompletenessDiagnostics?: ItineraryCompletenessDiagnostics
+  originCoverage?: OriginCoverageDiagnostic
 }
 
 type AviationstackFlight = {
@@ -1528,7 +1530,8 @@ function buildDebugMetadata({
   historicalIntelligence,
   normalizedFlightAwareItinerarySample,
   noResultsExplanation = [],
-  itineraryCompletenessDiagnostics
+  itineraryCompletenessDiagnostics,
+  originCoverage
 }: {
   parsedRequest: ReturnType<typeof normalizeItineraryRequest>
   supabaseResultCount: number
@@ -1560,6 +1563,7 @@ function buildDebugMetadata({
   normalizedFlightAwareItinerarySample?: SafeNormalizedItinerarySample
   noResultsExplanation?: string[]
   itineraryCompletenessDiagnostics?: ItineraryCompletenessDiagnostics
+  originCoverage?: OriginCoverageDiagnostic
 }): ItineraryDebugMetadata {
   const mergedProviderStatuses = mergeProviderStatuses(providerStatuses)
   return {
@@ -1610,11 +1614,28 @@ function buildDebugMetadata({
     historicalIntelligence,
     normalizedFlightAwareItinerarySample,
     noResultsExplanation,
-    itineraryCompletenessDiagnostics
+    itineraryCompletenessDiagnostics,
+    originCoverage
   }
 }
 
-function exactNoResultsExplanation({ emptyResults, rateLimits, invalidAirportCodes, unsupportedAirportCodes, invalidDates, providerStatuses, routeCoverageSuggestions, fallback }: { emptyResults: string[]; rateLimits: string[]; invalidAirportCodes: string[]; unsupportedAirportCodes: string[]; invalidDates: string[]; providerStatuses: ProviderStatus[]; routeCoverageSuggestions?: RouteCoverageSuggestion[]; fallback: string }) {
+function nestedStringRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' ? value as Record<string, unknown> : {}
+}
+
+function flightRecordOrigin(value: FlightRecord) {
+  const departure = nestedStringRecord(value.departure)
+  const origin = value.origin || value.departure_airport || departure.iata || departure.icao
+  return typeof origin === 'string' ? origin.trim().toUpperCase().match(/^[A-Z]{3}$/)?.[0] : undefined
+}
+
+function providerOriginRowCount(request: ParsedItineraryRequest, flightGroups: FlightRecord[][]) {
+  const origin = request.origin?.trim().toUpperCase()
+  if (!origin) return 0
+  return flightGroups.flat().filter((flight) => flightRecordOrigin(flight) === origin).length
+}
+
+function exactNoResultsExplanation({ emptyResults, rateLimits, invalidAirportCodes, unsupportedAirportCodes, invalidDates, providerStatuses, routeCoverageSuggestions, fallback, originCoverage }: { emptyResults: string[]; rateLimits: string[]; invalidAirportCodes: string[]; unsupportedAirportCodes: string[]; invalidDates: string[]; providerStatuses: ProviderStatus[]; routeCoverageSuggestions?: RouteCoverageSuggestion[]; fallback: string; originCoverage?: OriginCoverageDiagnostic }) {
   return uniqueMessages([
     ...invalidAirportCodes.map((message) => `Invalid airport input: ${message}.`),
     ...invalidDates,
@@ -1623,6 +1644,8 @@ function exactNoResultsExplanation({ emptyResults, rateLimits, invalidAirportCod
     ...rateLimits.map((message) => `Provider limit: ${message}.`),
     ...providerStatuses.filter((status) => status.state === 'warning' || status.state === 'error' || status.state === 'skipped').map((status) => `${status.label}: ${status.detail}`),
     routeCoverageSuggestions?.length === 0 ? 'Route framework generator found no complete endpoint-safe route frameworks for the requested origin and destination.' : undefined,
+    originCoverage?.status === 'insufficient' ? originCoverage.message : undefined,
+    ...(originCoverage?.status === 'insufficient' ? originCoverage.recommendations.map((recommendation) => `Nearest supported origin recommendation: ${recommendation.code}${recommendation.distanceMiles !== undefined ? ` (${recommendation.distanceMiles} mi)` : ''}${recommendation.searchQuery ? ` — search ${recommendation.searchQuery}` : ''}.`) : []),
     fallback
   ].filter(Boolean) as string[])
 }
@@ -2545,6 +2568,18 @@ export async function GET(request: Request) {
   }))
   counts.finalItineraries = routeFrameworkItineraries.length
   const frameworkCompletenessDiagnostics = itineraryCompletenessDiagnostics(routeFrameworkItineraries)
+  const originCoverage = buildOriginCoverageDiagnostic({
+    origin: effectiveRequest.origin,
+    destination: effectiveRequest.destination,
+    providerOriginRowCount: providerOriginRowCount(effectiveRequest, [expandedScheduleSearch.flights, providerCacheFlights, flightAwareScheduleFlights, supabaseFlights, aviationstackFlights]),
+    frameworkRouteCount: routeFrameworkItineraries.length
+  })
+  const originCoverageMessages = originCoverage.status === 'insufficient'
+    ? [
+        originCoverage.message,
+        ...originCoverage.recommendations.map((recommendation) => `Nearest supported origin recommendation: ${recommendation.code}${recommendation.distanceMiles !== undefined ? ` (${recommendation.distanceMiles} mi)` : ''}${recommendation.searchQuery ? ` — search ${recommendation.searchQuery}` : ''}.`)
+      ]
+    : []
   const routeCoverageMessage = routeFrameworkItineraries.length
     ? `${routeFrameworkItineraries.length} complete route framework${routeFrameworkItineraries.length === 1 ? '' : 's'} ranked for ${effectiveRequest.origin} → ${effectiveRequest.destination}. Live availability unavailable.`
     : undefined
@@ -2553,7 +2588,7 @@ export async function GET(request: Request) {
     : envTestDataModeEnabled
       ? 'No live provider API, stored Supabase, fallback-provider flights, or complete route frameworks found for this search.'
       : 'No current live itinerary availability or complete route frameworks found for this search.'
-  const finalWarnings = uniqueMessages([...warnings, routeCoverageMessage, routeFrameworkItineraries.length ? undefined : noResultsMessage])
+  const finalWarnings = uniqueMessages([...warnings, routeCoverageMessage, ...originCoverageMessages, routeFrameworkItineraries.length ? undefined : noResultsMessage])
   const finalProviderStatuses = [
     providerStatus('supabase', supabaseWarning ? 'warning' : 'skipped', supabaseWarning || 'No Supabase itineraries matched this request.'),
     providerStatus('aviationstack', aviationstackWarning ? 'warning' : 'skipped', aviationstackFallbackStatus),
@@ -2572,7 +2607,8 @@ export async function GET(request: Request) {
     invalidDates,
     providerStatuses: finalProviderStatuses,
     routeCoverageSuggestions,
-    fallback: noResultsMessage
+    fallback: noResultsMessage,
+    originCoverage
   })
   const debug = buildDebugMetadata({
     parsedRequest: effectiveRequest,
@@ -2606,7 +2642,8 @@ export async function GET(request: Request) {
     recoveryIntelligence,
     historicalIntelligence,
     noResultsExplanation,
-    itineraryCompletenessDiagnostics: frameworkCompletenessDiagnostics
+    itineraryCompletenessDiagnostics: frameworkCompletenessDiagnostics,
+    originCoverage
   })
 
   const labeledRouteFrameworkItineraries = routeFrameworkItineraries.map(ensureRouteFrameworkLabels)
@@ -2619,8 +2656,11 @@ export async function GET(request: Request) {
     dataMode: routeFrameworkItineraries.length ? 'route-frameworks' : envTestDataModeEnabled ? 'fallback' : 'no-current-live-data',
     source_provider: routeFrameworkItineraries.length ? 'route-framework' : envTestDataModeEnabled ? 'demo' : 'none',
     source_checked_at: undefined,
-    statusMessage: noResultsExplanation.length ? noResultsExplanation.join(' ') : noResultsMessage,
+    statusMessage: originCoverage.status === 'insufficient'
+      ? `${originCoverage.message} ${noResultsExplanation.length ? noResultsExplanation.join(' ') : noResultsMessage}`
+      : noResultsExplanation.length ? noResultsExplanation.join(' ') : noResultsMessage,
     errorMessage: noResultsExplanation.length ? noResultsExplanation.join(' ') : noResultsMessage,
+    originCoverage,
     enrichedWithFlightAware: false,
     providerBadges: routeFrameworkItineraries.length ? routeFrameworkProviderBadges() : envTestDataModeEnabled ? [providerLabels.planning] : ['Production-safe mode'],
     warnings: finalWarnings,

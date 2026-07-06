@@ -386,6 +386,25 @@ type RouteCoverageSuggestion = {
   providerDetail?: string
 }
 
+type OriginCoverageRecommendation = {
+  code: string
+  name: string
+  distanceMiles?: number
+  searchQuery?: string
+  reason: string
+}
+
+type OriginCoverageDiagnostic = {
+  status: 'sufficient' | 'insufficient' | 'unknown'
+  origin?: string
+  destination?: string
+  providerOriginRowCount: number
+  frameworkRouteCount: number
+  message: string
+  recommendations: OriginCoverageRecommendation[]
+  limitations: string[]
+}
+
 type ItineraryDebugMetadata = {
   parsedOrigin?: string
   parsedDestination?: string
@@ -434,6 +453,7 @@ type ItineraryDebugMetadata = {
   recoveryIntelligence?: RecoveryIntelligence
   historicalIntelligence?: HistoricalRouteIntelligence
   noResultsExplanation?: string[]
+  originCoverage?: OriginCoverageDiagnostic
   safeErrors: string[]
 }
 
@@ -3858,6 +3878,36 @@ function isRecoveryAirportPath(path: SuggestedRecoveryPath, origin?: string, des
   return !routeMatchesRequestedEndpoints(path.route, origin, destination)
 }
 
+function OriginCoverageNotice({ coverage }: { coverage?: OriginCoverageDiagnostic }) {
+  if (!coverage || coverage.status !== 'insufficient') return null
+  return (
+    <section className="nonrevy-production-empty" aria-live="polite" style={{ marginBottom: 16 }}>
+      <p className="nonrevy-production-empty__eyebrow">Origin coverage</p>
+      <h2>Provider coverage is limited from {coverage.origin || 'this origin'}.</h2>
+      <p className="nonrevy-production-empty__subtext">{coverage.message}</p>
+      {coverage.recommendations.length ? (
+        <div className="nonrevy-production-empty__grid">
+          <section>
+            <strong>Nearest supported airports to try</strong>
+            <ul className="nonrevy-production-empty__suggestions">
+              {coverage.recommendations.map((airport) => (
+                <li key={airport.code}>
+                  {airport.searchQuery ? <a href={travelerSearchUrl(airport.searchQuery)}>{airport.code}{airport.distanceMiles !== undefined ? ` · ${airport.distanceMiles} mi` : ''}</a> : <span>{airport.code}</span>}
+                  <span>{airport.name}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+          <section>
+            <strong>Important guardrail</strong>
+            <p className="nonrevy-production-empty__muted">These are alternate search origins only. Nonrevy is not fabricating flights from {coverage.origin || 'the requested origin'} and is not claiming standby availability.</p>
+          </section>
+        </div>
+      ) : null}
+    </section>
+  )
+}
+
 function ProductionEmptyState({ reasons, origin, destination, suggestions = [], recovery }: { reasons: string[]; origin?: string; destination?: string; suggestions?: RouteCoverageSuggestion[]; recovery?: RecoveryIntelligence }) {
   const recoveryPaths = recovery?.suggestedRecoveryPaths || []
   const topRoutes = suggestions
@@ -4794,15 +4844,20 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
           ? (data?.debug?.testDataModeEnabled === false ? 'No current live data' : 'Demo fallback data')
           : 'Live provider API data')
       setItineraryDebug(data?.debug || null)
+      const originCoverageMessage = data?.debug?.originCoverage?.status === 'insufficient' && typeof data.debug.originCoverage.message === 'string'
+        ? data.debug.originCoverage.message
+        : data?.originCoverage?.status === 'insufficient' && typeof data.originCoverage.message === 'string'
+          ? data.originCoverage.message
+          : ''
       const routeCoverageSuggestions = Array.isArray(data?.routeCoverageSuggestions)
         ? data.routeCoverageSuggestions
         : Array.isArray(data?.debug?.routeCoverageSuggestions) ? data.debug.routeCoverageSuggestions : []
-      setItineraryStatus(itineraries.length
+      setItineraryStatus(originCoverageMessage || (itineraries.length
         ? `${itineraries.length} live itinerary result${itineraries.length === 1 ? '' : 's'} found for ${data?.request?.origin || 'any origin'} → ${data?.request?.destination || 'any destination'}.`
         : frameworkRouteResults.length || routeCoverageSuggestions.length
           ? `Framework Routes available for ${data?.request?.origin || 'any origin'} → ${data?.request?.destination || 'any destination'}. Live schedule details unavailable.`
           : "We couldn't find live results for this search right now."
-      )
+      ))
     } catch {
       setLiveItineraries([])
       setFrameworkRoutes([])
@@ -5071,6 +5126,7 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
           {travelDateError ? <p className="nonrevy-results-page__warning">{travelDateError}</p> : null}
 
           {itineraryLoading ? <PlannerSkeletonLoaders /> : null}
+          {!itineraryLoading ? <OriginCoverageNotice coverage={itineraryDebug?.originCoverage} /> : null}
           {showProductionEmptyState ? <ProductionEmptyState reasons={productionEmptyReasons} origin={itineraryDebug?.parsedOrigin} destination={itineraryDebug?.parsedDestination} suggestions={itineraryDebug?.routeCoverageSuggestions} recovery={itineraryDebug?.recoveryIntelligence} /> : null}
           {itineraryComparisons.length > 0 ? <ItineraryComparisonPanel comparisons={itineraryComparisons} travelDate={travelWindow} communityLoads={communityLoads} onCommunityLoadsUpdated={() => setCommunityLoads(loadCommunityLoads())} trustReceipt={{ dataMode: itineraryDataMode, source: itinerarySource, status: itineraryStatus, warnings: itineraryWarnings, debug: itineraryDebug }} /> : null}
           {frameworkRouteComparisons.length > 0 ? <ItineraryComparisonPanel comparisons={frameworkRouteComparisons} travelDate={travelWindow} communityLoads={communityLoads} onCommunityLoadsUpdated={() => setCommunityLoads(loadCommunityLoads())} trustReceipt={{ dataMode: 'Framework Routes · live schedule unavailable', source: 'Framework Routes', status: 'Live schedules could not be attached to these routes.', warnings: itineraryWarnings, debug: itineraryDebug }} title="Framework Routes" moreTitle="More framework routes" /> : null}
@@ -5198,6 +5254,7 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
             <p style={{ color: '#facc15' }}>{itineraryStatus}</p>
           ) : null}
           {itineraryLoading ? <PlannerSkeletonLoaders /> : null}
+          {!itineraryLoading ? <OriginCoverageNotice coverage={itineraryDebug?.originCoverage} /> : null}
           {showProductionEmptyState ? <ProductionEmptyState reasons={productionEmptyReasons} origin={itineraryDebug?.parsedOrigin} destination={itineraryDebug?.parsedDestination} suggestions={itineraryDebug?.routeCoverageSuggestions} recovery={itineraryDebug?.recoveryIntelligence} /> : null}
           {itineraryComparisons.length > 0 ? <ItineraryComparisonPanel comparisons={itineraryComparisons} travelDate={travelWindow} communityLoads={communityLoads} onCommunityLoadsUpdated={() => setCommunityLoads(loadCommunityLoads())} trustReceipt={{ dataMode: itineraryDataMode, source: itinerarySource, status: itineraryStatus, warnings: itineraryWarnings, debug: itineraryDebug }} /> : null}
           {frameworkRouteComparisons.length > 0 ? <ItineraryComparisonPanel comparisons={frameworkRouteComparisons} travelDate={travelWindow} communityLoads={communityLoads} onCommunityLoadsUpdated={() => setCommunityLoads(loadCommunityLoads())} trustReceipt={{ dataMode: 'Framework Routes · live schedule unavailable', source: 'Framework Routes', status: 'Live schedules could not be attached to these routes.', warnings: itineraryWarnings, debug: itineraryDebug }} title="Framework Routes" moreTitle="More framework routes" /> : null}

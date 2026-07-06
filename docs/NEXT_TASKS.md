@@ -19,6 +19,7 @@ Parallel development now uses `docs/MULTI_AGENT_WORKFLOW.md` as the branch and m
 - QA Agent works from `agent/qa` and owns regression tests, route matrix tests, API fallback tests, UI smoke tests, and merge validation.
 - Docs Agent works from `agent/docs` and owns roadmap, `docs/NEXT_TASKS.md`, `docs/AGENT_REPORT.md`, known limitations, and release notes.
 - Release Agent works from `agent/release` and owns changelog, beta checklist, merge readiness, and deployment checklist.
+- Product/UX Agent works from `agent/product-ux` and owns mobile itinerary card readability, design system tokens, confidence badge clarity, onboarding copy, beta user feedback flow, localization/i18n readiness, accessibility checks, user-facing warning language, and premium Nonrevy visual direction.
 - Shared files require integration review before merge into `agent-dev`.
 - Merge candidates require validation before landing on `agent-dev`, with QA validating `agent-dev` after merge.
 
@@ -29,6 +30,19 @@ Initial parallel assignments:
 - QA Agent next: Add route matrix smoke tests.
 - Docs Agent next: Maintain beta readiness and known limitations.
 - Release Agent next: Prepare private beta deployment checklist.
+- Product/UX Agent next: Design system token audit, mobile itinerary card polish, i18n foundation, onboarding/beta intro screen, feedback/report issue button, confidence wording review, and empty/fallback state polish.
+
+## Product/UX Agent task queue
+
+Product/UX Agent tasks are docs/UI polish tracks only unless a future sprint explicitly assigns app changes. Product/UX work must not touch provider integrations, itinerary generation, or scoring, and must preserve legal wording around standby availability.
+
+- Design system token audit.
+- Mobile itinerary card polish.
+- i18n foundation.
+- Onboarding/beta intro screen.
+- Feedback/report issue button.
+- Confidence wording review.
+- Empty/fallback state polish.
 
 ## Priority task queue
 

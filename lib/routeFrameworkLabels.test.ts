@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 // @ts-expect-error Node's experimental TypeScript test runner resolves the .ts extension directly.
-import { ensureRouteFrameworkLabels, routeFrameworkProviderBadges, routeFrameworkWarning, type RouteFrameworkLabeledItem } from './routeFrameworkLabels.ts'
+import { ensureRouteFrameworkLabels, isRouteFrameworkLabeled, routeFrameworkDataFreshnessLabel, routeFrameworkProviderBadges, routeFrameworkSourceLabel, routeFrameworkWarning, type RouteFrameworkLabeledItem } from './routeFrameworkLabels.ts'
 
 function assertNoPositiveStandbyClaim(text: string) {
   const lower = text.toLowerCase()
@@ -44,6 +44,22 @@ describe('route framework certainty labels', () => {
     assert.deepEqual(labeled.providerBadges, ['Route framework only', 'Live availability unavailable', 'Custom'])
     assert.equal(labeled.legs?.[0]?.flightNumber, 'Flight numbers unavailable')
     assert.equal(labeled.legs?.[0]?.departureTime, 'Pending live schedule')
+    assert.equal(labeled.dataFreshnessLabel, routeFrameworkDataFreshnessLabel)
+    assert.equal(routeFrameworkSourceLabel.includes('live availability unavailable'), true)
     assertNoPositiveStandbyClaim([labeled.status, labeled.dataFreshnessWarning, labeled.legs?.[0]?.status].join(' '))
+  })
+
+  it('does not rewrite non-framework scheduled itineraries', () => {
+    const scheduled: RouteFrameworkLabeledItem = {
+      source: 'flightaware',
+      sourceProvider: 'flightaware',
+      dataFreshnessRule: 'exact-requested-date',
+      productionAvailability: true,
+      isLive: true,
+      providerBadges: ['Live provider API data']
+    }
+
+    assert.equal(isRouteFrameworkLabeled(scheduled), false)
+    assert.deepEqual(ensureRouteFrameworkLabels(scheduled), scheduled)
   })
 })

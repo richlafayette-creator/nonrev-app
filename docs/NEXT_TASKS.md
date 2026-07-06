@@ -66,6 +66,7 @@ Remaining P0 work:
 12. Completed 2026-07-06: Added feature-flagged ground transportation provider readiness contracts for rideshare, rental car, public transit, and manual pickup notes; all are advisory/read-only and cannot book or guarantee vehicle availability.
 13. Completed 2026-07-06: Added a bounded, mutation-safe cache for repeated `airportCodesFromRoute` parsing across planner/intelligence/weather paths, with regression coverage preserving extraction behavior.
 14. Completed 2026-07-06: Centralized API route-framework warning copy on shared certainty labels and added regression coverage for badge de-duplication, no live-availability claims, and no standby-clearance claims.
+15. Completed 2026-07-06: Restored route-framework label regression coverage for non-framework scheduled itineraries and source-label consistency after the certainty-label test extraction.
 
 ### P3 — Product polish
 

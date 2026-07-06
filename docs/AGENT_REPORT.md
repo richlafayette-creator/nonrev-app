@@ -1,42 +1,47 @@
-# Agent Report — 2026-07-06 03:15 UTC Sprint 11
+# Agent Report — 2026-07-06 03:43 UTC Sprint 12
 
 ## Selected task
 
-Corrective UI polish — restore route-framework label regression coverage.
+Begin Historical Reliability Engine — provider abstraction only.
 
 ## Scope completed
 
-- Restored regression assertions in `lib/routeFrameworkLabels.test.ts` for:
-  - shared route-framework source-label consistency
-  - shared route-framework data freshness label consistency
-  - non-framework scheduled itineraries not being rewritten by `ensureRouteFrameworkLabels`
-- Preserved the Sprint 10 certainty-label tests for badge de-duplication and no positive standby-clearance claims.
+- Added `lib/historicalReliabilityProviderFramework.ts` with:
+  - `HistoricalReliabilityProvider` interface
+  - `HistoricalReliabilityProviderResult` fields: `onTimePercentage`, `cancellationPercentage`, `averageDepartureDelay`, `averageArrivalDelay`, `confidenceScore`, `lastUpdated`, `providerName`
+  - `NullHistoricalReliabilityProvider`
+  - provider registry and factory helpers
+  - future provider configuration for BTS, FlightAware historical, and internal aggregate providers
+- Added explicit feature flag: `NONREV_HISTORICAL_RELIABILITY_ENGINE_ENABLED`.
+- Added unit tests for null-provider defaults, feature-gated registry/factory lookup, future-provider configuration, and unknown-provider fallback.
 
 ## Safety decisions
 
-- No production code changed.
-- No planner behavior changed.
-- No itinerary generation logic changed.
-- No provider behavior changed.
+- No live providers were integrated.
+- No UI changes.
+- No itinerary scoring changes.
+- No planner behavior changes.
 - No airline websites are scraped.
+- Provider outputs are advisory framework plumbing only and do not claim standby availability.
 - Existing untracked `tmp/` was left untouched.
 
 ## Files changed
 
-- `lib/routeFrameworkLabels.test.ts`
+- `lib/historicalReliabilityProviderFramework.ts`
+- `lib/historicalReliabilityProviderFramework.test.ts`
 - `docs/NEXT_TASKS.md`
 - `docs/AGENT_REPORT.md`
 
 ## Validation
 
-- `npx tsx --test lib/routeFrameworkLabels.test.ts`
+- `npx tsx --test lib/historicalReliabilityProviderFramework.test.ts`
 - `git diff --check`
 - `npx tsc --noEmit`
 
 ## Known blockers / not done
 
-- No blocker. This sprint intentionally restored test coverage only.
+- No blocker. This sprint intentionally stopped at provider abstraction/framework only; live adapters and scoring integration remain future work.
 
 ## Recommended next sprint
 
-Re-enter the priority list from the top: wire one readiness surface into diagnostics/UI behind existing feature flags, without external calls.
+Add a non-live BTS historical reliability adapter scaffold behind `NONREV_HISTORICAL_RELIABILITY_ENGINE_ENABLED`, still returning null/advisory data until a cached data source is explicitly approved.

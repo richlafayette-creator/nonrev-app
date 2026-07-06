@@ -58,6 +58,7 @@ Remaining P0 work:
 5. Completed 2026-07-04: Added provider result provenance persistence fields for request-scope grouping, result fingerprinting, and provenance schema versioning, with legacy table fallback for safe beta debugging.
 6. Completed 2026-07-06: Added feature-flagged historical reliability provider readiness contracts for FAA BTS, FlightAware historical, Cirium, AviationStack, and Internal analytics. All sources remain advisory-only with live calls disabled until explicitly enabled and implemented.
 7. Completed 2026-07-06: Added feature-flagged airport intelligence provider readiness contracts for OurAirports, FAA airport facilities, FlightAware airport endpoints, and Mapbox airport context while preserving the existing local static scaffold and disabling live calls by default.
+8. Completed 2026-07-06: Tightened the commercial seat availability abstraction with feature-flagged provider readiness for Duffel, Amadeus/GDS, Sabre, and manual/community proxy sources; all remain proxy-only and disabled by default.
 
 ### P3 — Product polish
 

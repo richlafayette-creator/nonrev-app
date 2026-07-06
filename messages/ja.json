@@ -1,0 +1,26 @@
+{
+  "common": {
+    "search": "検索",
+    "requestLoad": "ロードを依頼",
+    "save": "保存",
+    "share": "共有",
+    "routeConfidence": "ルート信頼度",
+    "recovery": "リカバリー",
+    "weather": "天気",
+    "commercialAvailability": "商用空席状況",
+    "communitySignal": "コミュニティシグナル",
+    "doorToDoorPlan": "ドアツードア計画",
+    "frameworkOnly": "フレームワークのみ",
+    "liveDetailsUnavailable": "ライブ詳細は利用不可",
+    "topRoutes": "上位ルート",
+    "moreRoutes": "その他のルート",
+    "whyThisRoute": "このルートの理由",
+    "bestOverall": "総合ベスト",
+    "earliestArrival": "最も早い到着",
+    "strongBackupOptions": "強力なバックアップ候補",
+    "unknown": "不明",
+    "good": "良好",
+    "fair": "普通",
+    "poor": "悪い"
+  }
+}

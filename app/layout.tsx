@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Bungee, Geist, Geist_Mono } from "next/font/google";
 import AppNavigation from "./AppNavigation";
+import { I18nProvider } from "./I18nProvider";
 import PWAInstallScaffold from "./PWAInstallScaffold";
 import "./globals.css";
 
@@ -62,9 +63,11 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} ${bungee.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        <AppNavigation />
-        {children}
-        <PWAInstallScaffold />
+        <I18nProvider locale="en">
+          <AppNavigation />
+          {children}
+          <PWAInstallScaffold />
+        </I18nProvider>
       </body>
     </html>
   );

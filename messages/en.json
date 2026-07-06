@@ -1,0 +1,26 @@
+{
+  "common": {
+    "search": "Search",
+    "requestLoad": "Request Load",
+    "save": "Save",
+    "share": "Share",
+    "routeConfidence": "Route Confidence",
+    "recovery": "Recovery",
+    "weather": "Weather",
+    "commercialAvailability": "Commercial Availability",
+    "communitySignal": "Community Signal",
+    "doorToDoorPlan": "Door-to-door plan",
+    "frameworkOnly": "Framework only",
+    "liveDetailsUnavailable": "Live details unavailable",
+    "topRoutes": "Top Routes",
+    "moreRoutes": "More Routes",
+    "whyThisRoute": "Why this route",
+    "bestOverall": "Best Overall",
+    "earliestArrival": "Earliest Arrival",
+    "strongBackupOptions": "Strong backup options",
+    "unknown": "Unknown",
+    "good": "Good",
+    "fair": "Fair",
+    "poor": "Poor"
+  }
+}

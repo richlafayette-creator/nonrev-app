@@ -3,10 +3,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import { supabase } from '../lib/supabase'
+import { useI18n } from './I18nProvider'
 
 const menuItems = [
   ['Home', '/'],
-  ['Search', '/results'],
+  ['search', '/results'],
   ['Plan', '/plan']
 ]
 
@@ -30,6 +31,7 @@ export default function AppNavigation() {
   const [message, setMessage] = useState('')
   const pathname = usePathname()
   const drawerRef = useRef<HTMLElement | null>(null)
+  const { t } = useI18n()
 
   useEffect(() => {
     async function loadUser() {
@@ -82,8 +84,9 @@ export default function AppNavigation() {
 
   function renderLink([label, href]: string[]) {
     const active = href === '/' ? pathname === href : pathname?.startsWith(href)
+    const displayLabel = label === 'search' ? t('search') : label
     return (
-      <a key={href} href={href} aria-current={active ? 'page' : undefined}>{label}</a>
+      <a key={href} href={href} aria-current={active ? 'page' : undefined}>{displayLabel}</a>
     )
   }
 

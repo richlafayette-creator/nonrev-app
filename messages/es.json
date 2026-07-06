@@ -1,0 +1,26 @@
+{
+  "common": {
+    "search": "Buscar",
+    "requestLoad": "Solicitar carga",
+    "save": "Guardar",
+    "share": "Compartir",
+    "routeConfidence": "Confianza de ruta",
+    "recovery": "Recuperación",
+    "weather": "Clima",
+    "commercialAvailability": "Disponibilidad comercial",
+    "communitySignal": "Señal de la comunidad",
+    "doorToDoorPlan": "Plan puerta a puerta",
+    "frameworkOnly": "Solo marco",
+    "liveDetailsUnavailable": "Detalles en vivo no disponibles",
+    "topRoutes": "Rutas principales",
+    "moreRoutes": "Más rutas",
+    "whyThisRoute": "Por qué esta ruta",
+    "bestOverall": "Mejor en general",
+    "earliestArrival": "Llegada más temprana",
+    "strongBackupOptions": "Opciones sólidas de respaldo",
+    "unknown": "Desconocido",
+    "good": "Bueno",
+    "fair": "Regular",
+    "poor": "Deficiente"
+  }
+}

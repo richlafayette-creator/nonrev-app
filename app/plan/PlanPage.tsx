@@ -37,6 +37,8 @@ import {
 } from '../../lib/savedItineraryComparisons'
 import MapboxAirportMap from '../MapboxAirportMap'
 import OutcomeCapture from '../OutcomeCapture'
+import { useI18n } from '../I18nProvider'
+import { type CommonTranslationKey } from '../../lib/i18n/messages'
 import { markActivationStep } from '../../lib/onboardingActivation'
 import { airportCodesFromDisplayRoute, itineraryDisplayIntegrityFor } from '../../lib/itineraryDisplayIntegrity'
 import { ensureRouteFrameworkLabels } from '../../lib/routeFrameworkLabels'
@@ -473,10 +475,26 @@ type SearchTrustReceiptProps = {
   debug: ItineraryDebugMetadata | null
 }
 
+type CommonTranslator = (key: CommonTranslationKey) => string
+
 function riskColor(risk: string) {
   if (risk.includes('Low')) return '#22c55e'
   if (risk.includes('Medium')) return '#facc15'
   return '#f87171'
+}
+
+function translateSharedValue(value: string | undefined, t: CommonTranslator) {
+  if (!value) return value
+  if (/^unknown$/i.test(value)) return t('unknown')
+  if (/^good$/i.test(value)) return t('good')
+  if (/^fair$/i.test(value)) return t('fair')
+  if (/^poor$/i.test(value)) return t('poor')
+  if (/^best overall( choice)?$/i.test(value)) return t('bestOverall')
+  if (/^earliest arrival$/i.test(value)) return t('earliestArrival')
+  if (/^strong backup options$/i.test(value)) return t('strongBackupOptions')
+  if (/^live details unavailable\.?$/i.test(value)) return t('liveDetailsUnavailable')
+  if (/^framework only$/i.test(value)) return t('frameworkOnly')
+  return value
 }
 
 function providerBadgeStyle(label: string) {
@@ -586,10 +604,11 @@ function ProviderBadge({ label }: { label: string }) {
 }
 
 function WeatherRiskBadge({ weatherRisk }: { weatherRisk: WeatherRisk }) {
+  const { t } = useI18n()
   const color = weatherRiskColor(weatherRisk.level)
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', border: `1px solid ${color}`, borderRadius: 999, padding: '4px 9px', color, background: '#020617', fontSize: 12, fontWeight: 'bold', letterSpacing: 0.3 }}>
-      Weather: {weatherRisk.displayLabel}
+      {t('weather')}: {weatherRisk.displayLabel}
     </span>
   )
 }
@@ -1753,7 +1772,7 @@ function isMissingLiveLegDetail(value?: string | number | null) {
   return !normalized || ['not provided', 'unknown', '—'].includes(normalized) || normalized.includes('pending') || normalized.includes('unavailable') || normalized.includes('framework')
 }
 
-function itineraryCardLegDisplays(comparison: ItineraryComparison) {
+function itineraryCardLegDisplays(comparison: ItineraryComparison, locale: string = 'en', t?: CommonTranslator) {
   const routeAirports = airportCodesFromComparisonRoute(comparison.route)
   const sourceLegs = comparison.legs?.length
     ? comparison.legs
@@ -1775,12 +1794,12 @@ function itineraryCardLegDisplays(comparison: ItineraryComparison) {
       return {
         key: `${comparison.id}-leg-${index}-${route}`,
         route,
-        detail: 'Live details unavailable.'
+        detail: t ? t('liveDetailsUnavailable') : 'Live details unavailable.'
       }
     }
 
-    const departure = compactFlightBoardDateTime(leg.departureTime, leg.origin)
-    const arrival = compactFlightBoardDateTime(leg.arrivalTime, leg.destination, leg.departureTime).replace(/ \+\d+$/, '')
+    const departure = compactFlightBoardDateTime(leg.departureTime, leg.origin, undefined, locale)
+    const arrival = compactFlightBoardDateTime(leg.arrivalTime, leg.destination, leg.departureTime, locale).replace(/ \+\d+$/, '')
 
     return {
       key: `${comparison.id}-leg-${index}-${route}-${flight}`,
@@ -2108,10 +2127,10 @@ function compactConfidenceFactors(comparison: ItineraryComparison) {
   return factors.filter((factor, index, all) => all.findIndex((item) => item.toLowerCase() === factor.toLowerCase()) === index).slice(0, 5)
 }
 
-function formatItineraryDateTime(value: string) {
+function formatItineraryDateTime(value: string, locale: string = 'en') {
   const parsed = parseScheduleTime(value)
   if (!parsed) return displayField(value)
-  return new Date(parsed).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+  return new Date(parsed).toLocaleString(locale, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
 }
 
 
@@ -2137,20 +2156,20 @@ function airportCodesFromComparisonRoute(route: string) {
   return airportCodesFromDisplayRoute(route)
 }
 
-function formatItineraryAirportDateTime(value: string, airportCode?: string) {
+function formatItineraryAirportDateTime(value: string, airportCode?: string, locale: string = 'en') {
   const timeZone = airportCode ? airportTimeZones[airportCode] : undefined
   const localIsoMatch = value.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::\d{2})?$/)
   if (localIsoMatch) {
     const [, year, month, day, hour, minute] = localIsoMatch
     const localDate = new Date(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute))
     const zoneName = timeZone
-      ? new Intl.DateTimeFormat([], { timeZone, timeZoneName: 'short' }).formatToParts(localDate).find((part) => part.type === 'timeZoneName')?.value
+      ? new Intl.DateTimeFormat(locale, { timeZone, timeZoneName: 'short' }).formatToParts(localDate).find((part) => part.type === 'timeZoneName')?.value
       : undefined
-    return `${localDate.toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}${zoneName ? ` ${zoneName}` : ''}`
+    return `${localDate.toLocaleString(locale, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}${zoneName ? ` ${zoneName}` : ''}`
   }
   const parsed = parseScheduleTime(value)
   if (!parsed) return displayField(value)
-  return new Date(parsed).toLocaleString([], {
+  return new Date(parsed).toLocaleString(locale, {
     month: 'short',
     day: 'numeric',
     hour: 'numeric',
@@ -2160,7 +2179,7 @@ function formatItineraryAirportDateTime(value: string, airportCode?: string) {
   })
 }
 
-function compactFlightBoardDateTime(value: string, airportCode?: string, referenceValue?: string) {
+function compactFlightBoardDateTime(value: string, airportCode?: string, referenceValue?: string, locale: string = 'en') {
   const timeZone = airportCode ? airportTimeZones[airportCode] : undefined
   const parsed = parseScheduleTime(value)
   const referenceParsed = referenceValue ? parseScheduleTime(referenceValue) : null
@@ -2172,31 +2191,31 @@ function compactFlightBoardDateTime(value: string, airportCode?: string, referen
     const localDate = new Date(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute))
     const referenceDate = referenceIsoMatch ? new Date(Number(referenceIsoMatch[1]), Number(referenceIsoMatch[2]) - 1, Number(referenceIsoMatch[3])) : null
     const dayOffset = referenceDate ? Math.round((new Date(Number(year), Number(month) - 1, Number(day)).getTime() - referenceDate.getTime()) / 86400000) : 0
-    const time = localDate.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }).replace(/\s/g, '').replace('AM', 'a').replace('PM', 'p')
-    const date = localDate.toLocaleDateString([], { month: 'short', day: 'numeric' })
+    const time = localDate.toLocaleTimeString(locale, { hour: 'numeric', minute: '2-digit' }).replace(/\s/g, '').replace('AM', 'a').replace('PM', 'p')
+    const date = localDate.toLocaleDateString(locale, { month: 'short', day: 'numeric' })
     return `${date} ${time}${dayOffset > 0 ? ` +${dayOffset}` : ''}`
   }
 
   if (!parsed) return displayField(value)
   const date = new Date(parsed)
   const referenceDate = referenceParsed ? new Date(referenceParsed) : null
-  const day = date.toLocaleDateString([], { month: 'short', day: 'numeric', timeZone })
-  const time = date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', timeZone }).replace(/\s/g, '').replace('AM', 'a').replace('PM', 'p')
+  const day = date.toLocaleDateString(locale, { month: 'short', day: 'numeric', timeZone })
+  const time = date.toLocaleTimeString(locale, { hour: 'numeric', minute: '2-digit', timeZone }).replace(/\s/g, '').replace('AM', 'a').replace('PM', 'p')
   const dayOffset = referenceDate ? Math.round((Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()) - Date.UTC(referenceDate.getUTCFullYear(), referenceDate.getUTCMonth(), referenceDate.getUTCDate())) / 86400000) : 0
   return `${day} ${time}${dayOffset > 0 ? ` +${dayOffset}` : ''}`
 }
 
-function compactFlightBoardTime(value: string, airportCode?: string) {
+function compactFlightBoardTime(value: string, airportCode?: string, locale: string = 'en') {
   const timeZone = airportCode ? airportTimeZones[airportCode] : undefined
   const localIsoMatch = value.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::\d{2})?$/)
   if (localIsoMatch) {
     const [, year, month, day, hour, minute] = localIsoMatch
     return new Date(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute))
-      .toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+      .toLocaleTimeString(locale, { hour: 'numeric', minute: '2-digit' })
   }
   const parsed = parseScheduleTime(value)
   if (!parsed) return displayField(value)
-  return new Date(parsed).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', timeZone })
+  return new Date(parsed).toLocaleTimeString(locale, { hour: 'numeric', minute: '2-digit', timeZone })
 }
 
 function itineraryDepartureSortValue(comparison: ItineraryComparison) {
@@ -2358,6 +2377,7 @@ function ItineraryIntelligenceDetailPanel({ comparison, backup }: { comparison: 
 }
 
 function ScoringExplanationDetails({ comparison, backup }: { comparison: ItineraryComparison; backup?: ItineraryComparison }) {
+  const { t } = useI18n()
   const sections = [
     ['Why this route ranked here', comparison.explanation.whyRankedHere],
     ['Probability factors', comparison.explanation.probabilityFactors],
@@ -2375,7 +2395,7 @@ function ScoringExplanationDetails({ comparison, backup }: { comparison: Itinera
 
   return (
     <details className="nonrevy-premium-details" style={{ marginTop: 14, border: '1px solid #334155', borderRadius: 14, padding: 12, background: '#020617' }}>
-      <summary style={{ color: '#facc15', cursor: 'pointer', fontWeight: 'bold' }}>Why this route?</summary>
+      <summary style={{ color: '#facc15', cursor: 'pointer', fontWeight: 'bold' }}>{t('whyThisRoute')}?</summary>
       <div style={{ display: 'grid', gap: 10, marginTop: 12 }}>
         {sections.map(([label, reasons]) => (
           <section key={label} style={{ border: '1px solid #1e293b', borderRadius: 12, padding: 12, background: '#0f172a' }}>
@@ -3394,13 +3414,14 @@ function PlanBItinerarySection({ comparison, comparisons }: { comparison: Itiner
 }
 
 function RecoverySummarySection({ recovery }: { recovery?: RecoveryAnalysis }) {
+  const { t } = useI18n()
   if (!recovery) return null
   const badge = recovery.strength === 'Excellent' ? '🟢' : recovery.strength === 'Good' ? '🟡' : recovery.strength === 'Fair' ? '🟠' : '🔴'
   const reasons = recovery.reasons.slice(0, 4)
 
   return (
     <section style={{ marginTop: 12, border: '1px solid #334155', borderRadius: 12, padding: 12, background: '#020617' }} aria-label="Recovery intelligence">
-      <strong style={{ color: '#f8fafc' }}>Recovery {badge} {recovery.strength}</strong>
+      <strong style={{ color: '#f8fafc' }}>{t('recovery')} {badge} {translateSharedValue(recovery.strength, t)}</strong>
       <ul style={{ margin: '8px 0 0', paddingLeft: 18, color: '#cbd5e1' }}>
         {reasons.map((reason) => <li key={`recovery-${reason}`}>{reason}</li>)}
       </ul>
@@ -3409,11 +3430,12 @@ function RecoverySummarySection({ recovery }: { recovery?: RecoveryAnalysis }) {
 }
 
 function DoorToDoorPlanSection({ plan }: { plan?: EndToEndTripPlan }) {
+  const { t } = useI18n()
   const fallback = 'Placeholder — no live ground, lodging, or local transport API connected yet.'
 
   return (
     <details className="nonrevy-flight-board-row__details" onClick={(event) => event.stopPropagation()}>
-      <summary>Door-to-door plan</summary>
+      <summary>{t('doorToDoorPlan')}</summary>
       <div style={{ display: 'grid', gap: 8, marginTop: 10 }}>
         <p style={{ color: '#cbd5e1', margin: 0 }}><strong style={{ color: '#f8fafc' }}>Departure airport access:</strong> {plan?.departureGroundPlan || fallback}</p>
         <p style={{ color: '#cbd5e1', margin: 0 }}><strong style={{ color: '#f8fafc' }}>Arrival transport:</strong> {plan?.arrivalGroundPlan || fallback}</p>
@@ -3425,12 +3447,13 @@ function DoorToDoorPlanSection({ plan }: { plan?: EndToEndTripPlan }) {
 }
 
 function CommercialAvailabilitySection({ signal }: { signal?: SellableSeatSignal }) {
+  const { t } = useI18n()
   const label = commercialAvailabilityLabel(signal)
   if (!label) return null
 
   return (
     <p style={{ color: '#cbd5e1', margin: '8px 0 0' }}>
-      <strong style={{ color: '#f8fafc' }}>Commercial availability:</strong> {label}. Proxy signal only; not confirmed non-rev seat availability.
+      <strong style={{ color: '#f8fafc' }}>{t('commercialAvailability')}:</strong> {translateSharedValue(label, t)}. Proxy signal only; not confirmed non-rev seat availability.
     </p>
   )
 }
@@ -3473,8 +3496,10 @@ function historicalReliabilityStatusIcon(reliability?: HistoricalReliability) {
   return '⚪'
 }
 
-function cleanRecommendationTitle(title: string) {
-  if (/best overall choice/i.test(title)) return 'Best Overall'
+function cleanRecommendationTitle(title: string, t?: CommonTranslator) {
+  if (/best overall choice/i.test(title)) return t ? t('bestOverall') : 'Best Overall'
+  if (/earliest arrival/i.test(title)) return t ? t('earliestArrival') : 'Earliest Arrival'
+  if (/strong backup options/i.test(title)) return t ? t('strongBackupOptions') : 'Strong backup options'
   return title.replace(/\b\w/g, (letter) => letter.toUpperCase()).replace(/ Choice$/, '')
 }
 
@@ -3524,19 +3549,20 @@ function conciseWhyRouteReasons(comparison: ItineraryComparison, reasons: string
 }
 
 function ItineraryIntelligenceSummary({ comparison, recommendation, reasons }: { comparison: ItineraryComparison; recommendation: string; reasons: string[] }) {
+  const { t } = useI18n()
   const whyReasons = conciseWhyRouteReasons(comparison, reasons)
   const signalChips = [
-    `${confidenceStatusIcon(comparison.routeConfidence.level)} Route Confidence: ${routeConfidenceLabel(comparison.routeConfidence.level)}`,
-    `${recoveryStatusIcon(comparison.recovery)} Recovery: ${comparison.recovery?.strength || 'Unknown'}`,
-    `${historicalReliabilityStatusIcon(comparison.historicalReliability)} Historical Reliability: ${historicalReliabilityCardSummary(comparison.historicalReliability)}`,
-    `🌦️ Weather: ${weatherCardSummary(comparison.weatherRisk)}`,
-    `${communityStatusIcon(comparison.communitySignal)} Community Signal: ${communityCardSummary(comparison.communitySignal)}`,
-    `${commercialStatusIcon(comparison.sellableSeatSignal)} Sellable Seat Proxy: ${commercialCardSummary(comparison.sellableSeatSignal)}`
+    `${confidenceStatusIcon(comparison.routeConfidence.level)} ${t('routeConfidence')}: ${translateSharedValue(routeConfidenceLabel(comparison.routeConfidence.level), t)}`,
+    `${recoveryStatusIcon(comparison.recovery)} ${t('recovery')}: ${translateSharedValue(comparison.recovery?.strength || 'Unknown', t)}`,
+    `${historicalReliabilityStatusIcon(comparison.historicalReliability)} Historical Reliability: ${translateSharedValue(historicalReliabilityCardSummary(comparison.historicalReliability), t)}`,
+    `🌦️ ${t('weather')}: ${translateSharedValue(weatherCardSummary(comparison.weatherRisk), t)}`,
+    `${communityStatusIcon(comparison.communitySignal)} ${t('communitySignal')}: ${translateSharedValue(communityCardSummary(comparison.communitySignal), t)}`,
+    `${commercialStatusIcon(comparison.sellableSeatSignal)} ${t('commercialAvailability')}: ${translateSharedValue(commercialCardSummary(comparison.sellableSeatSignal), t)}`
   ]
 
   return (
     <div className="nonrevy-flight-board-row__decision" aria-label="Itinerary intelligence summary">
-      <strong>⭐ {cleanRecommendationTitle(recommendation)}</strong>
+      <strong>⭐ {cleanRecommendationTitle(recommendation, t)}</strong>
       <div style={{ display: 'flex', gap: 6, marginTop: 8, color: '#cbd5e1', flexWrap: 'wrap' }} aria-label="Concise itinerary trust signals">
         {signalChips.map((signal) => (
           <span key={`${comparison.id}-signal-${signal}`} style={{ border: '1px solid #334155', borderRadius: 999, padding: '3px 7px', background: '#0f172a' }}>{signal}</span>
@@ -3550,7 +3576,7 @@ function ItineraryIntelligenceSummary({ comparison, recommendation, reasons }: {
           </ul>
         ) : null}
         <p style={{ color: '#cbd5e1', margin: '6px 0 0' }}>{recoveryCardSummary(comparison.recovery)}</p>
-        <p style={{ color: '#cbd5e1', margin: '6px 0 0' }}>Door-to-door: {doorToDoorCardSummary(comparison)}</p>
+        <p style={{ color: '#cbd5e1', margin: '6px 0 0' }}>{t('doorToDoorPlan')}: {doorToDoorCardSummary(comparison)}</p>
       </details>
       <small style={{ color: '#94a3b8' }}>Advisory only: no guaranteed seats, confirmed standby clearance, or exact nonrev loads.</small>
     </div>
@@ -3558,24 +3584,27 @@ function ItineraryIntelligenceSummary({ comparison, recommendation, reasons }: {
 }
 
 function CommunitySignalLine({ signal }: { signal?: FlightCommunitySummary }) {
+  const { t } = useI18n()
   if (!signal || signal.activeReportCount === 0 || signal.status === 'unknown') return null
   return (
     <p style={{ color: '#cbd5e1', margin: '8px 0 0' }}>
-      <strong style={{ color: '#f8fafc' }}>Community signal:</strong> {communitySignalLabel(signal.status)} · {signal.activeReportCount} recent report{signal.activeReportCount === 1 ? '' : 's'} · {signal.confidence} confidence. <small style={{ color: '#94a3b8' }}>Not confirmed standby clearance.</small>
+      <strong style={{ color: '#f8fafc' }}>{t('communitySignal')}:</strong> {communitySignalLabel(signal.status)} · {signal.activeReportCount} recent report{signal.activeReportCount === 1 ? '' : 's'} · {signal.confidence} confidence. <small style={{ color: '#94a3b8' }}>Not confirmed standby clearance.</small>
     </p>
   )
 }
 
 function HistoricalReliabilityLine({ reliability }: { reliability?: HistoricalReliability }) {
+  const { t } = useI18n()
   const label = reliability ? historicalReliabilityDisplayLabel(reliability.signal.level) : 'Unknown'
   return (
     <p style={{ color: '#cbd5e1', margin: '8px 0 0' }}>
-      <strong style={{ color: '#f8fafc' }}>Historical Reliability:</strong> {label}. <small style={{ color: '#94a3b8' }}>Advisory past-performance signal; future API placeholders include FlightAware historical, Cirium, AviationStack, FAA BTS, Eurocontrol, and internal analytics.</small>
+      <strong style={{ color: '#f8fafc' }}>Historical Reliability:</strong> {translateSharedValue(label, t)}. <small style={{ color: '#94a3b8' }}>Advisory past-performance signal; future API placeholders include FlightAware historical, Cirium, AviationStack, FAA BTS, Eurocontrol, and internal analytics.</small>
     </p>
   )
 }
 
 function CompactRouteConfidenceLine({ confidence }: { confidence?: RouteConfidence }) {
+  const { t } = useI18n()
   if (!confidence) return null
   const positiveFactors = confidence.positiveFactors.slice(0, 2)
   const cautionFactor = confidence.cautionFactors[0]
@@ -3583,7 +3612,7 @@ function CompactRouteConfidenceLine({ confidence }: { confidence?: RouteConfiden
   return (
     <div style={{ color: '#cbd5e1', margin: '8px 0 0' }}>
       <p style={{ margin: 0 }}>
-        <strong style={{ color: '#f8fafc' }}>Route confidence:</strong> {routeConfidenceLabel(confidence.level)}
+        <strong style={{ color: '#f8fafc' }}>{t('routeConfidence')}:</strong> {translateSharedValue(routeConfidenceLabel(confidence.level), t)}
       </p>
       {positiveFactors.length || cautionFactor ? (
         <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
@@ -3876,6 +3905,7 @@ function isRecoveryAirportPath(path: SuggestedRecoveryPath, origin?: string, des
 }
 
 function ProductionEmptyState({ reasons, origin, destination, suggestions = [], recovery }: { reasons: string[]; origin?: string; destination?: string; suggestions?: RouteCoverageSuggestion[]; recovery?: RecoveryIntelligence }) {
+  const { t } = useI18n()
   const recoveryPaths = recovery?.suggestedRecoveryPaths || []
   const topRoutes = suggestions
     .filter((suggestion) => routeMatchesRequestedEndpoints(suggestion.searchQuery, origin, destination))
@@ -3895,7 +3925,7 @@ function ProductionEmptyState({ reasons, origin, destination, suggestions = [], 
       <p className="nonrevy-production-empty__eyebrow">Search results</p>
       <h2>{hasTopRoutes ? `No live rows yet for ${routePair}; complete frameworks are below.` : `No current live rows for ${routePair} yet.`}</h2>
       <p className="nonrevy-production-empty__subtext">
-        This is Nonrevy being conservative: it will not relabel stale, demo, historical, or positioning guidance as live availability. Top Routes are complete origin-to-destination frameworks; Recovery Airports are positioning guidance only.
+        This is Nonrevy being conservative: it will not relabel stale, demo, historical, or positioning guidance as live availability. {t('topRoutes')} are complete origin-to-destination frameworks; Recovery Airports are positioning guidance only.
       </p>
       <p className="nonrevy-production-empty__guidance-note">
         {recovery ? `${recovery.explanation} Recovery strength: ${recovery.recoveryStrength}/100.` : 'If you are new here, this does not mean the trip is impossible — it means no current source passed the trust checks for a live itinerary card.'}
@@ -3905,12 +3935,12 @@ function ProductionEmptyState({ reasons, origin, destination, suggestions = [], 
           <strong>What to try next</strong>
           <ul>
             <li>Broaden carrier, date, or max-leg filters before assuming the route is unavailable.</li>
-            <li>Use Top Routes only as planning frameworks until provider rows or trusted load reports appear.</li>
+            <li>Use {t('topRoutes')} only as planning frameworks until provider rows or trusted load reports appear.</li>
             <li><a href="/load-reports">Request loads</a> or <a href="/watchlist">add a watchlist route</a> for a later refresh.</li>
           </ul>
         </section>
         <section>
-          <strong>Top Routes</strong>
+          <strong>{t('topRoutes')}</strong>
           {topRoutes.length ? (
             <ul className="nonrevy-production-empty__suggestions">
               {topRoutes.map((route) => (
@@ -3981,7 +4011,10 @@ function initialCommunityLoadForm(comparison: ItineraryComparison, travelDate: s
   }
 }
 
-function ItineraryComparisonPanel({ comparisons, travelDate, communityLoads, onCommunityLoadsUpdated, trustReceipt, title = 'Top 5 Routes', moreTitle = 'More routes' }: { comparisons: ItineraryComparison[]; travelDate: string; communityLoads: CommunityLoadReport[]; onCommunityLoadsUpdated: () => void; trustReceipt: SearchTrustReceiptProps; title?: string; moreTitle?: string }) {
+function ItineraryComparisonPanel({ comparisons, travelDate, communityLoads, onCommunityLoadsUpdated, trustReceipt, title, moreTitle }: { comparisons: ItineraryComparison[]; travelDate: string; communityLoads: CommunityLoadReport[]; onCommunityLoadsUpdated: () => void; trustReceipt: SearchTrustReceiptProps; title?: string; moreTitle?: string }) {
+  const { locale, t } = useI18n()
+  const displayTitle = title || t('topRoutes')
+  const displayMoreTitle = moreTitle || t('moreRoutes')
   const [compareStatus, setCompareStatus] = useState('')
   const [savedComparisons, setSavedComparisons] = useState<SavedItineraryComparison[]>([])
   const [expandedDetailIds, setExpandedDetailIds] = useState<string[]>([])
@@ -4250,14 +4283,14 @@ function renderFlightBoardRow(comparison: ItineraryComparison, showPlanB = false
     const carrierCode = compactCarrierCode(comparison.carrier, comparison.flightNumber)
     const airlineName = airlineNameForCarrier(comparison.carrier, carrierCode)
     const flightNumber = compactFlightNumberLabel(comparison.flightNumber, carrierCode)
-    const depTime = compactFlightBoardTime(comparison.departureDateTime, routeAirports[0])
-    const arrTime = compactFlightBoardTime(comparison.arrivalDateTime, routeAirports[routeAirports.length - 1])
+    const depTime = compactFlightBoardTime(comparison.departureDateTime, routeAirports[0], locale)
+    const arrTime = compactFlightBoardTime(comparison.arrivalDateTime, routeAirports[routeAirports.length - 1], locale)
     const arrivalOffset = flightBoardDayOffset(comparison.arrivalDateTime, comparison.departureDateTime)
     const arrivalDisplay = arrTime.replace(/ \+\d+$/, '')
     const confidenceScore = comparison.successPrediction.confidenceScore
-    const legDisplays = itineraryCardLegDisplays(comparison)
+    const legDisplays = itineraryCardLegDisplays(comparison, locale, t)
     const hasPrimaryFlightId = comparison.dataFreshnessRule !== 'route-framework' && !isMissingLiveLegDetail(comparison.carrier) && !isMissingLiveLegDetail(comparison.flightNumber)
-    const durationLabel = isMissingLiveLegDetail(comparison.totalTravelTime) ? 'Live details unavailable.' : compactDurationLabel(comparison.totalTravelTime)
+    const durationLabel = isMissingLiveLegDetail(comparison.totalTravelTime) ? t('liveDetailsUnavailable') : compactDurationLabel(comparison.totalTravelTime)
     const communityLoad = communityLoadSummaryForItinerary(communityLoads, { flightNumber: comparison.flightNumber, route: comparison.route, date: travelDate.trim() || undefined })
     const communityIntelligence = comparison.communityIntelligence || communityLoadIntelligenceForItinerary(communityLoads, { flightNumber: comparison.flightNumber, route: comparison.route, date: itineraryLoadDate(comparison, travelDate) || undefined })
     const communityLoadRowText = communityLoadCompactRowText(communityIntelligence)
@@ -4299,7 +4332,7 @@ function renderFlightBoardRow(comparison: ItineraryComparison, showPlanB = false
                   <span className="nonrevy-flight-board-row__airline-name">{airlineName}</span>
                   <strong className="nonrevy-flight-board-row__flight-number">{carrierCode}{flightNumber}</strong>
                 </div>
-              ) : <div className="nonrevy-flight-board-row__airline-line nonrevy-flight-board-row__availability">Live details unavailable.</div>}
+              ) : <div className="nonrevy-flight-board-row__airline-line nonrevy-flight-board-row__availability">{t('liveDetailsUnavailable')}.</div>}
               <div className="nonrevy-flight-board-row__time-line" aria-label={`Depart ${depTime}, arrive ${arrivalDisplay}`}>
                 <strong className="nonrevy-flight-board-row__time-value">{depTime}</strong>
                 <span className="nonrevy-flight-board-row__time-arrow" aria-hidden="true">→</span>
@@ -4328,8 +4361,8 @@ function renderFlightBoardRow(comparison: ItineraryComparison, showPlanB = false
               <strong>Actions</strong>
               <div className="nonrevy-flight-board-row__actions nonrevy-flight-board-row__actions--details">
                 <button type="button" onClick={() => openCommunityLoadForm(comparison)} title="Submit Load" aria-label="Submit community load">＋</button>
-                <button type="button" onClick={() => openLoadRequestForm(comparison)} title="Request load" aria-label="Request load">Load</button>
-                <button type="button" onClick={() => saveForComparison(comparison)} title="Save exact route" aria-label="Save exact itinerary route for comparison">☆</button>
+                <button type="button" onClick={() => openLoadRequestForm(comparison)} title={t('requestLoad')} aria-label={t('requestLoad')}>Load</button>
+                <button type="button" onClick={() => saveForComparison(comparison)} title={t('save')} aria-label="Save exact itinerary route for comparison">☆</button>
                 </div>
             </section>
             <section>
@@ -4393,12 +4426,12 @@ function renderFlightBoardRow(comparison: ItineraryComparison, showPlanB = false
                 <p>No community load reports yet for this itinerary.</p>
               )}
               <div className="nonrevy-community-loads__quick-actions">
-                <button type="button" className="nonrevy-community-loads__submit-toggle" onClick={() => openLoadRequestForm(comparison)}>{requestLoadOpen ? 'Close Request' : 'Request Load'}</button>
+                <button type="button" className="nonrevy-community-loads__submit-toggle" onClick={() => openLoadRequestForm(comparison)}>{requestLoadOpen ? 'Close Request' : t('requestLoad')}</button>
                 <button type="button" className="nonrevy-community-loads__submit-toggle nonrevy-secondary-action" onClick={() => openCommunityLoadForm(comparison)}>{submitLoadOpen ? 'Close Submit' : 'Community reports'}</button>
               </div>
               {requestLoadOpen ? (
                 <div className="nonrevy-community-loads__request">
-                  <strong>Request Load</strong>
+                  <strong>{t('requestLoad')}</strong>
                   <p>{communityLoadForm.flightNumber || comparison.flightNumber} · {communityLoadForm.date || itineraryLoadDate(comparison, travelDate) || 'Date needed'} · {comparison.route}</p>
                   <button type="button" onClick={() => submitLoadRequest(comparison)}>Submit Request</button>
                 </div>
@@ -4492,9 +4525,9 @@ function renderFlightBoardRow(comparison: ItineraryComparison, showPlanB = false
         </details>
 
         <div className="nonrevy-flight-board-row__actions nonrevy-primary-actions" onClick={(event) => event.stopPropagation()} aria-label="Itinerary actions">
-          <button className="nonrevy-primary-action nonrevy-primary-action--request-loads" type="button" onClick={() => openLoadRequestForm(comparison)} title="Request Load" aria-label="Request load">Request Load</button>
-          <button className="nonrevy-row-action-pill" type="button" onClick={() => saveForComparison(comparison)} title="Save exact route" aria-label="Save exact itinerary route for comparison">Save</button>
-          <button className="nonrevy-row-action-pill" type="button" onClick={() => void shareItinerary(comparison)} title="Share" aria-label="Share itinerary">Share</button>
+          <button className="nonrevy-primary-action nonrevy-primary-action--request-loads" type="button" onClick={() => openLoadRequestForm(comparison)} title={t('requestLoad')} aria-label={t('requestLoad')}>{t('requestLoad')}</button>
+          <button className="nonrevy-row-action-pill" type="button" onClick={() => saveForComparison(comparison)} title={t('save')} aria-label="Save exact itinerary route for comparison">{t('save')}</button>
+          <button className="nonrevy-row-action-pill" type="button" onClick={() => void shareItinerary(comparison)} title={t('share')} aria-label="Share itinerary">{t('share')}</button>
         </div>
       </article>
     )
@@ -4503,7 +4536,7 @@ function renderFlightBoardRow(comparison: ItineraryComparison, showPlanB = false
   return (
     <section className="nonrevy-results-shell nonrevy-compact-results nonrevy-flight-board" style={{ border: '1px solid rgba(56, 189, 248, 0.35)', borderRadius: 14, padding: 'clamp(6px, 2vw, 10px)', background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.96), rgba(30, 41, 59, 0.86))', marginBottom: 16 }}>
       <div className="nonrevy-flight-board__header">
-        <strong>{title}</strong>
+        <strong>{displayTitle}</strong>
         {moreRouteItineraries.length ? <span>{moreRouteItineraries.length} more route{moreRouteItineraries.length === 1 ? '' : 's'}</span> : null}
       </div>
 
@@ -4515,7 +4548,7 @@ function renderFlightBoardRow(comparison: ItineraryComparison, showPlanB = false
 
       {moreRouteItineraries.length ? (
         <details className="nonrevy-more-routes" style={{ marginTop: 8, border: '1px solid #334155', borderRadius: 10, padding: 8, background: '#020617' }}>
-          <summary style={{ color: '#67e8f9', cursor: 'pointer', fontWeight: 'bold' }}>{moreTitle} ▼</summary>
+          <summary style={{ color: '#67e8f9', cursor: 'pointer', fontWeight: 'bold' }}>{displayMoreTitle} ▼</summary>
           <p style={{ color: '#94a3b8', margin: '8px 0' }}>Routes 6+ stay sorted by earliest available arrival time. Route frameworks without live times are labeled “Live time unavailable.”</p>
           <div className="nonrevy-flight-board__list" aria-label="More route options">
             {moreRouteItineraries.map((comparison) => renderFlightBoardRow(comparison))}
@@ -4540,7 +4573,7 @@ function renderFlightBoardRow(comparison: ItineraryComparison, showPlanB = false
         </details>
         <details className="nonrevy-premium-details" style={{ marginTop: 8 }}>
           <summary className="nonrevy-secondary-action" style={{ color: '#67e8f9', cursor: 'pointer', fontWeight: 'bold' }}>Recovery guidance</summary>
-          <p style={{ color: '#cbd5e1' }}>Recovery guidance is separated from Top Routes so positioning and recovery moves are not presented as ranked itineraries.</p>
+          <p style={{ color: '#cbd5e1' }}>Recovery guidance is separated from {t('topRoutes')} so positioning and recovery moves are not presented as ranked itineraries.</p>
           {topRouteItineraries.slice(0, 3).map((comparison) => (
             <section key={`${comparison.id}-recovery-guidance`} style={{ marginTop: 8 }}>
               <strong>{comparison.route}</strong>
@@ -4599,6 +4632,7 @@ function renderFlightBoardRow(comparison: ItineraryComparison, showPlanB = false
 }
 
 export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: boolean } = {}) {
+  const { t } = useI18n()
   const [tripGoal, setTripGoal] = useState('')
   const [homeAirport, setHomeAirport] = useState('')
   const [travelWindow, setTravelWindow] = useState('')
@@ -5205,7 +5239,7 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
                 </div>
               </div>
               <details style={{ marginTop: 12 }}>
-                <summary style={{ color: '#facc15', cursor: 'pointer', fontWeight: 'bold' }}>Why this route?</summary>
+                <summary style={{ color: '#facc15', cursor: 'pointer', fontWeight: 'bold' }}>{t('whyThisRoute')}?</summary>
                 <ul style={{ color: '#cbd5e1', paddingLeft: 20, marginBottom: 0 }}>
                   {aiTripPlan.whyThisRoute.map((reason) => <li key={reason}>{reason}</li>)}
                 </ul>

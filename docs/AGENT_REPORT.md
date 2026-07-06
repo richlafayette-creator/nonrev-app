@@ -1,58 +1,79 @@
-# Agent Report — 2026-07-06 04:14 UTC Sprint 15
+# Agent Report — 2026-07-06 05:02 UTC i18n Foundation Sprint
 
 ## Selected task
 
-Create the Historical Reliability aggregation service.
+Add internationalization foundation for Nonrevy without translating the whole app, changing routing, changing provider integrations, or redesigning UI.
 
 ## Scope completed
 
-- Added `lib/historicalReliabilityService.ts` with a feature-flagged `HistoricalReliabilityService`.
-- Consumes the existing historical reliability provider interfaces only; no live provider integration was added.
-- Aggregates provider responses into:
-  - `onTimePercentage`
-  - `cancellationPercentage`
-  - `averageDepartureDelay`
-  - `averageArrivalDelay`
-  - `confidenceScore`
-  - `dataFreshness`
-  - `providerStatus`
-- Added neutral/fail-closed handling for:
-  - disabled feature flag
-  - null/missing provider
-  - explicit `NullHistoricalReliabilityProvider`
-  - unavailable or unconfigured provider
-  - provider timeout
-  - provider error
-  - partial provider data
-- Added unit tests covering complete aggregation, partial data, disabled flag behavior, null/unavailable providers, timeout/error handling, stale/unknown freshness, advisory-only status, and no leakage of provider error details.
+- Added a lightweight internal i18n architecture with English as the default locale.
+- Added starter locale files for:
+  - English (`en`)
+  - Spanish (`es`)
+  - Japanese (`ja`)
+- Moved the requested shared/common UI labels into translation files only:
+  - Search
+  - Request Load
+  - Save
+  - Share
+  - Route Confidence
+  - Recovery
+  - Weather
+  - Commercial Availability
+  - Community Signal
+  - Door-to-door plan
+  - Framework only
+  - Live details unavailable
+  - Top Routes
+  - More Routes
+  - Why this route
+  - Best Overall
+  - Earliest Arrival
+  - Strong backup options
+  - Unknown
+  - Good
+  - Fair
+  - Poor
+- Added `I18nProvider` and `useI18n()` for translated shared labels and locale-aware date/time formatting.
+- Wrapped the app with the provider using the default English locale, preserving current routes and UI behavior.
+- Applied translations to shared navigation and itinerary-card/common planner labels without broad app translation.
+- Made compact itinerary time formatting locale-aware where practical while keeping the default English output.
+- Added `docs/I18N.md` with steps for adding a new locale and shared strings.
 
 ## Safety decisions
 
-- No live API/provider integration was added.
-- No UI changes were made.
-- No itinerary scoring changes were made.
-- No planner behavior changes were made.
-- Service behavior is gated by `NONREV_HISTORICAL_RELIABILITY_ENGINE_ENABLED`.
-- Missing provider metrics remain `null`; the service only averages metrics that a provider explicitly returns.
-- Unavailable aggregate states return neutral values: null metrics, confidence `0`, unavailable/feature-disabled freshness, and provider diagnostics.
+- No locale-prefixed routes were added.
+- No routing logic was changed.
+- No provider integrations were changed.
+- No itinerary generation, scoring, live-availability logic, or route-framework behavior was changed.
+- No UI redesign was performed.
+- Translations were intentionally limited to the requested shared strings.
 
 ## Files changed
 
-- `lib/historicalReliabilityService.ts`
-- `lib/historicalReliabilityService.test.ts`
+- `app/AppNavigation.tsx`
+- `app/I18nProvider.tsx`
+- `app/layout.tsx`
+- `app/plan/PlanPage.tsx`
+- `lib/i18n/messages.ts`
+- `messages/en.json`
+- `messages/es.json`
+- `messages/ja.json`
+- `docs/I18N.md`
 - `docs/NEXT_TASKS.md`
 - `docs/AGENT_REPORT.md`
 
 ## Validation
 
-- `npx tsx --test lib/historicalReliabilityService.test.ts`
 - `git diff --check`
+- `npx tsx --test lib/privateBetaSmoke.test.ts`
 - `npx tsc --noEmit`
 
 ## Known blockers / not done
 
-- No blocker. This sprint intentionally stopped at provider-interface aggregation; live adapters, cache persistence, UI wiring, planner integration, and scoring changes remain out of scope.
+- No blocker.
+- Full-app translation, locale selection UI, persisted user locale preferences, and locale-based routing remain intentionally out of scope.
 
 ## Recommended next sprint
 
-Add a server-only cache/persistence contract for historical reliability observations behind the existing feature flag, including freshness windows, provider attribution, timeout/error diagnostics, and minimum-data rules before any live provider adapter is implemented.
+Add a user-selectable locale preference behind the existing no-routing architecture: store the selected locale locally/account-side where available, hydrate `I18nProvider` from that preference, and add a small settings control without translating feature-specific copy yet.

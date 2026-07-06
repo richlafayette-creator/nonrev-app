@@ -30,13 +30,13 @@ Initial parallel assignments:
 - QA Agent next: Add route matrix smoke tests.
 - Docs Agent next: Maintain beta readiness and known limitations.
 - Release Agent next: Prepare private beta deployment checklist.
-- Product/UX Agent next: Design system token audit, mobile itinerary card polish, i18n foundation, onboarding/beta intro screen, feedback/report issue button, confidence wording review, and empty/fallback state polish.
+- Product/UX Agent next: Mobile itinerary card polish, i18n foundation, onboarding/beta intro screen, feedback/report issue button, confidence wording review, and empty/fallback state polish.
 
 ## Product/UX Agent task queue
 
 Product/UX Agent tasks are docs/UI polish tracks only unless a future sprint explicitly assigns app changes. Product/UX work must not touch provider integrations, itinerary generation, or scoring, and must preserve legal wording around standby availability.
 
-- Design system token audit.
+- Completed 2026-07-06: Design system token audit.
 - Mobile itinerary card polish.
 - i18n foundation.
 - Onboarding/beta intro screen.
@@ -116,6 +116,7 @@ Remaining P0 work:
 4. Completed 2026-07-04: Clarified saved-comparison affordances so they preserve exact displayed route paths, leg counts, and source labels instead of obscuring route integrity.
 5. Completed 2026-07-04: Added keyboard-accessible itinerary-card expansion and visible focus styling while preserving the existing responsive card layout and trust labels.
 6. Completed 2026-07-06: Added the i18n foundation with English default locale, Spanish and Japanese starter locale files, shared common UI translations, a lightweight provider/hook that preserves existing routing, locale-aware date/time formatting helpers where practical, and documentation for adding locales.
+7. Completed 2026-07-06: Added the Product/UX design-system audit documenting current colors, spacing, card styles, badges, typography, mobile layout patterns, safe tokenization strategy, accessibility notes, and future redesign guardrails without changing UI, itinerary generation, scoring, or provider integrations.
 
 ## Autonomous agent safety rules
 

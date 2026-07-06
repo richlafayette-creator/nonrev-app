@@ -1,43 +1,46 @@
-# Agent Report — 2026-07-06 03:15 UTC Sprint 9
+# Agent Report — 2026-07-06 03:15 UTC Sprint 10
 
 ## Selected task
 
-Performance optimization — deterministic route airport-code parsing cache.
+UI polish — route-framework certainty label consistency.
 
 ## Scope completed
 
-- Added a bounded memoization cache to `airportCodesFromRoute` in `lib/airportMapScaffold.ts`.
-- Kept extraction behavior unchanged: uppercase three-letter airport codes are returned uniquely in first-seen order.
-- Cache is capped at 250 route strings to avoid unbounded memory growth.
-- Cache hits return defensive copies so caller mutation cannot corrupt cached route codes.
-- Added `lib/airportMapScaffold.performance.test.ts` covering behavior preservation, mutation safety, and cache bound enforcement.
+- Updated `/api/itinerary/search` route-framework fallback construction to reuse shared route-framework label helpers.
+- Replaced local route-framework badge literals with `routeFrameworkProviderBadges()`.
+- Replaced local warning copy with shared `routeFrameworkWarning` so API and UI guardrails stay consistent.
+- Added `lib/routeFrameworkLabels.test.ts` covering:
+  - deterministic badge de-duplication
+  - route-framework warning copy
+  - itinerary/leg label application
+  - no positive standby-clearance claims
 
 ## Safety decisions
 
 - No planner behavior changed.
-- No provider behavior changed.
 - No itinerary generation logic changed.
+- No provider behavior changed.
 - No airline websites are scraped.
-- No availability/standby wording changed.
+- Route-framework labels still show less information rather than fabricating live availability, flight details, loads, or standby clearance.
 - Existing untracked `tmp/` was left untouched.
 
 ## Files changed
 
-- `lib/airportMapScaffold.ts`
-- `lib/airportMapScaffold.performance.test.ts`
+- `app/api/itinerary/search/route.ts`
+- `lib/routeFrameworkLabels.test.ts`
 - `docs/NEXT_TASKS.md`
 - `docs/AGENT_REPORT.md`
 
 ## Validation
 
-- `npx tsx --test lib/airportMapScaffold.performance.test.ts`
+- `npx tsx --test lib/routeFrameworkLabels.test.ts`
 - `git diff --check`
 - `npx tsc --noEmit`
 
 ## Known blockers / not done
 
-- No blocker. This sprint intentionally limited performance work to one hot helper and deterministic regression coverage.
+- No blocker. This sprint intentionally limited UI polish to shared certainty copy and regression tests.
 
 ## Recommended next sprint
 
-UI polish: add a tiny regression or component extraction around existing certainty/guardrail labels without changing planner behavior.
+Re-enter the priority list from the top and choose the next small implementation: likely wire one readiness surface into diagnostics/UI behind existing feature flags, without external calls.

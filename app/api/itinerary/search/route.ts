@@ -13,7 +13,7 @@ import { rankItineraries } from '../../../../lib/decisionEngine'
 import { persistentUserId } from '../../../../lib/apiIdentity'
 import { findServerCommunityLoadReports } from '../../../../lib/communityLoadServerStore'
 import type { TripOutcome } from '../../../../lib/outcomeRepository'
-import { ensureRouteFrameworkLabels, routeFrameworkProviderBadges, routeFrameworkSourceLabel } from '../../../../lib/routeFrameworkLabels'
+import { ensureRouteFrameworkLabels, routeFrameworkProviderBadges, routeFrameworkSourceLabel, routeFrameworkWarning } from '../../../../lib/routeFrameworkLabels'
 import { isCurrentLiveAvailability } from '../../../../lib/liveAvailabilityGuard'
 import { providerFailureMessageFromStatus } from '../../../../lib/providerFailureMessaging'
 import { buildProviderDiagnostics, type StructuredProviderDiagnostic } from '../../../../lib/providerDiagnostics'
@@ -675,11 +675,11 @@ function routeFrameworkItinerary({ path, score, historical, community, sampleSiz
     risk: score >= 72 ? 'Medium-Low' : score >= 55 ? 'Medium' : 'High',
     source: 'route-framework',
     sourceProvider: 'route-framework',
-    providerBadges: ['Route framework only', 'Live availability unavailable'],
+    providerBadges: routeFrameworkProviderBadges(),
     dataFreshnessLabel: 'Live availability unavailable',
     dataFreshnessDetail: basis,
     dataFreshnessRule: 'route-framework',
-    dataFreshnessWarning: 'Route framework only. Flight numbers, times, and loads are shown only when provider data returns them.',
+    dataFreshnessWarning: routeFrameworkWarning,
     productionAvailability: false,
     recoveryStrength: recovery,
     recoveryExplanation: basis,

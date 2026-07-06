@@ -1,0 +1,5903 @@
+{
+  "LAX-OGG": {
+    "airportParsing": {
+      "origin": "LAX",
+      "destination": "OGG",
+      "date": "2026-07-01",
+      "carrier": "all",
+      "maxLegs": 3
+    },
+    "originAirportExpansion": {
+      "liveScheduleOriginsQueried": [
+        "LAX"
+      ],
+      "frameworkPositioningOnly": true,
+      "note": "Current live provider search does not expand origins into hubs for segment-level schedule retrieval."
+    },
+    "destinationAirportExpansion": {
+      "liveScheduleDestinationsQueried": [
+        "OGG"
+      ],
+      "frameworkAlternatesOnly": true,
+      "note": "Current live provider search does not expand destinations into inbound hubs for segment-level schedule retrieval."
+    },
+    "liveScheduleRetrieval": {
+      "flightAwareExactRouteStatus": 200,
+      "flightAwareRawRows": 15,
+      "flightAwareSample": [
+        {
+          "ident_iata": "AC5474",
+          "actual_ident_iata": "UA2221",
+          "origin": "LAX",
+          "destination": "OGG",
+          "out": "2026-07-01T00:05:00Z",
+          "in": "2026-07-01T05:48:00Z"
+        },
+        {
+          "ident_iata": "UA2221",
+          "actual_ident_iata": null,
+          "origin": "LAX",
+          "destination": "OGG",
+          "out": "2026-07-01T00:05:00Z",
+          "in": "2026-07-01T05:48:00Z"
+        },
+        {
+          "ident_iata": "CM1048",
+          "actual_ident_iata": "UA2221",
+          "origin": "LAX",
+          "destination": "OGG",
+          "out": "2026-07-01T00:05:00Z",
+          "in": "2026-07-01T05:48:00Z"
+        },
+        {
+          "ident_iata": "AZ4440",
+          "actual_ident_iata": "UA2221",
+          "origin": "LAX",
+          "destination": "OGG",
+          "out": "2026-07-01T00:05:00Z",
+          "in": "2026-07-01T05:48:00Z"
+        },
+        {
+          "ident_iata": "AA205",
+          "actual_ident_iata": null,
+          "origin": "LAX",
+          "destination": "OGG",
+          "out": "2026-07-01T01:43:00Z",
+          "in": "2026-07-01T07:22:00Z"
+        },
+        {
+          "ident_iata": "QF3068",
+          "actual_ident_iata": "AA205",
+          "origin": "LAX",
+          "destination": "OGG",
+          "out": "2026-07-01T01:43:00Z",
+          "in": "2026-07-01T07:22:00Z"
+        },
+        {
+          "ident_iata": "QR8742",
+          "actual_ident_iata": "AA205",
+          "origin": "LAX",
+          "destination": "OGG",
+          "out": "2026-07-01T01:43:00Z",
+          "in": "2026-07-01T07:22:00Z"
+        },
+        {
+          "ident_iata": "AT5161",
+          "actual_ident_iata": "AA205",
+          "origin": "LAX",
+          "destination": "OGG",
+          "out": "2026-07-01T01:43:00Z",
+          "in": "2026-07-01T07:22:00Z"
+        },
+        {
+          "ident_iata": "BA6654",
+          "actual_ident_iata": "AA205",
+          "origin": "LAX",
+          "destination": "OGG",
+          "out": "2026-07-01T01:43:00Z",
+          "in": "2026-07-01T07:22:00Z"
+        },
+        {
+          "ident_iata": "PD6278",
+          "actual_ident_iata": "AA205",
+          "origin": "LAX",
+          "destination": "OGG",
+          "out": "2026-07-01T01:43:00Z",
+          "in": "2026-07-01T07:22:00Z"
+        }
+      ],
+      "aviationstackKnownFromApi": "see API trace: rate-limited/no usable rows"
+    },
+    "candidateFlightList": {
+      "supabaseDirectRows": 0,
+      "supabaseConnectionRows": 0,
+      "supabaseRouteCoverageRows": 300,
+      "supabaseRecentRows": 300,
+      "supabaseUniqueRows": 588,
+      "generationDateUsed": "2026-05-24",
+      "normalizedCandidatesOnGenerationDate": 588,
+      "firstLegCandidates": 249,
+      "secondLegCandidates": 51
+    },
+    "directItineraryGeneration": {
+      "generated": 0,
+      "candidates": []
+    },
+    "oneStopGeneration": {
+      "generated": 0,
+      "discardSummary": [
+        {
+          "reason": "connection airport mismatch: first destination AUS != second origin HNL",
+          "count": 612
+        },
+        {
+          "reason": "connection time unavailable/unparseable",
+          "count": 579
+        },
+        {
+          "reason": "connection airport mismatch: first destination SAN != second origin HNL",
+          "count": 576
+        },
+        {
+          "reason": "connection airport mismatch: first destination SMF != second origin HNL",
+          "count": 576
+        },
+        {
+          "reason": "connection airport mismatch: first destination SJC != second origin HNL",
+          "count": 432
+        },
+        {
+          "reason": "connection airport mismatch: first destination PHX != second origin HNL",
+          "count": 396
+        },
+        {
+          "reason": "connection airport mismatch: first destination PDX != second origin HNL",
+          "count": 396
+        },
+        {
+          "reason": "connection airport mismatch: first destination PSP != second origin HNL",
+          "count": 396
+        },
+        {
+          "reason": "connection airport mismatch: first destination SFO != second origin HNL",
+          "count": 360
+        },
+        {
+          "reason": "connection airport mismatch: first destination ORD != second origin HNL",
+          "count": 360
+        },
+        {
+          "reason": "connection airport mismatch: first destination MIA != second origin HNL",
+          "count": 288
+        },
+        {
+          "reason": "connection airport mismatch: first destination JFK != second origin HNL",
+          "count": 252
+        },
+        {
+          "reason": "connection airport mismatch: first destination ATL != second origin HNL",
+          "count": 252
+        },
+        {
+          "reason": "connection airport mismatch: first destination IST != second origin HNL",
+          "count": 216
+        },
+        {
+          "reason": "connection airport mismatch: first destination BOS != second origin HNL",
+          "count": 216
+        },
+        {
+          "reason": "connection airport mismatch: first destination MRY != second origin HNL",
+          "count": 216
+        },
+        {
+          "reason": "connection airport mismatch: first destination HND != second origin HNL",
+          "count": 180
+        },
+        {
+          "reason": "connection airport mismatch: first destination LIH != second origin HNL",
+          "count": 180
+        },
+        {
+          "reason": "connection airport mismatch: first destination OKC != second origin HNL",
+          "count": 180
+        },
+        {
+          "reason": "connection airport mismatch: first destination NRT != second origin HNL",
+          "count": 180
+        },
+        {
+          "reason": "connection airport mismatch: first destination EWR != second origin HNL",
+          "count": 144
+        },
+        {
+          "reason": "connection airport mismatch: first destination EUG != second origin HNL",
+          "count": 144
+        },
+        {
+          "reason": "connection airport mismatch: first destination DTW != second origin HNL",
+          "count": 108
+        },
+        {
+          "reason": "connection airport mismatch: first destination CDG != second origin HNL",
+          "count": 108
+        },
+        {
+          "reason": "connection airport mismatch: first destination SEA != second origin HNL",
+          "count": 108
+        },
+        {
+          "reason": "connection airport mismatch: first destination AMS != second origin HNL",
+          "count": 108
+        },
+        {
+          "reason": "connection airport mismatch: first destination LAS != second origin HNL",
+          "count": 108
+        },
+        {
+          "reason": "connection airport mismatch: first destination PHL != second origin HNL",
+          "count": 108
+        },
+        {
+          "reason": "connection airport mismatch: first destination YYC != second origin HNL",
+          "count": 108
+        },
+        {
+          "reason": "connection airport mismatch: first destination IAH != second origin HNL",
+          "count": 108
+        },
+        {
+          "reason": "connection airport mismatch: first destination GEG != second origin HNL",
+          "count": 72
+        },
+        {
+          "reason": "connection airport mismatch: first destination DEN != second origin HNL",
+          "count": 72
+        },
+        {
+          "reason": "connection airport mismatch: first destination LHR != second origin HNL",
+          "count": 72
+        },
+        {
+          "reason": "connection airport mismatch: first destination SBP != second origin HNL",
+          "count": 72
+        },
+        {
+          "reason": "connection airport mismatch: first destination ANC != second origin HNL",
+          "count": 72
+        },
+        {
+          "reason": "connection airport mismatch: first destination RDM != second origin HNL",
+          "count": 72
+        },
+        {
+          "reason": "connection airport mismatch: first destination GDL != second origin HNL",
+          "count": 72
+        },
+        {
+          "reason": "connection airport mismatch: first destination HSH != second origin HNL",
+          "count": 72
+        },
+        {
+          "reason": "connection airport mismatch: first destination ELP != second origin HNL",
+          "count": 72
+        },
+        {
+          "reason": "connection airport mismatch: first destination AUS != second origin OAK",
+          "count": 68
+        },
+        {
+          "reason": "connection airport mismatch: first destination AUS != second origin SJC",
+          "count": 68
+        },
+        {
+          "reason": "connection airport mismatch: first destination SAN != second origin OAK",
+          "count": 64
+        },
+        {
+          "reason": "connection airport mismatch: first destination SAN != second origin SJC",
+          "count": 64
+        },
+        {
+          "reason": "connection airport mismatch: first destination SMF != second origin OAK",
+          "count": 64
+        },
+        {
+          "reason": "connection airport mismatch: first destination SMF != second origin SJC",
+          "count": 64
+        },
+        {
+          "reason": "connection airport mismatch: first destination HNL != second origin OAK",
+          "count": 52
+        },
+        {
+          "reason": "connection airport mismatch: first destination HNL != second origin SJC",
+          "count": 52
+        },
+        {
+          "reason": "connection airport mismatch: first destination AUS != second origin SEA",
+          "count": 51
+        },
+        {
+          "reason": "connection airport mismatch: first destination SAN != second origin SEA",
+          "count": 48
+        },
+        {
+          "reason": "connection airport mismatch: first destination SJC != second origin OAK",
+          "count": 48
+        },
+        {
+          "reason": "connection airport mismatch: first destination SMF != second origin SEA",
+          "count": 48
+        },
+        {
+          "reason": "connection airport mismatch: first destination PHX != second origin OAK",
+          "count": 44
+        },
+        {
+          "reason": "connection airport mismatch: first destination PHX != second origin SJC",
+          "count": 44
+        },
+        {
+          "reason": "connection airport mismatch: first destination PDX != second origin OAK",
+          "count": 44
+        },
+        {
+          "reason": "connection airport mismatch: first destination PDX != second origin SJC",
+          "count": 44
+        },
+        {
+          "reason": "connection airport mismatch: first destination PSP != second origin OAK",
+          "count": 44
+        },
+        {
+          "reason": "connection airport mismatch: first destination PSP != second origin SJC",
+          "count": 44
+        },
+        {
+          "reason": "connection airport mismatch: first destination SFO != second origin OAK",
+          "count": 40
+        },
+        {
+          "reason": "connection airport mismatch: first destination SFO != second origin SJC",
+          "count": 40
+        },
+        {
+          "reason": "connection airport mismatch: first destination ORD != second origin OAK",
+          "count": 40
+        },
+        {
+          "reason": "connection airport mismatch: first destination ORD != second origin SJC",
+          "count": 40
+        },
+        {
+          "reason": "connection airport mismatch: first destination HNL != second origin SEA",
+          "count": 39
+        },
+        {
+          "reason": "connection airport mismatch: first destination BOI != second origin HNL",
+          "count": 36
+        },
+        {
+          "reason": "connection airport mismatch: first destination CLT != second origin HNL",
+          "count": 36
+        },
+        {
+          "reason": "connection airport mismatch: first destination DUB != second origin HNL",
+          "count": 36
+        },
+        {
+          "reason": "connection airport mismatch: first destination ACV != second origin HNL",
+          "count": 36
+        },
+        {
+          "reason": "connection airport mismatch: first destination SLC != second origin HNL",
+          "count": 36
+        },
+        {
+          "reason": "connection airport mismatch: first destination IPL != second origin HNL",
+          "count": 36
+        },
+        {
+          "reason": "connection airport mismatch: first destination IAD != second origin HNL",
+          "count": 36
+        },
+        {
+          "reason": "connection airport mismatch: first destination ABQ != second origin HNL",
+          "count": 36
+        },
+        {
+          "reason": "connection airport mismatch: first destination SIN != second origin HNL",
+          "count": 36
+        },
+        {
+          "reason": "connection airport mismatch: first destination SJC != second origin SEA",
+          "count": 36
+        },
+        {
+          "reason": "connection airport mismatch: first destination PVG != second origin HNL",
+          "count": 36
+        },
+        {
+          "reason": "connection airport mismatch: first destination KIX != second origin HNL",
+          "count": 36
+        },
+        {
+          "reason": "connection airport mismatch: first destination VNY != second origin HNL",
+          "count": 36
+        },
+        {
+          "reason": "connection airport mismatch: first destination AUS != second origin PDX",
+          "count": 34
+        },
+        {
+          "reason": "connection airport mismatch: first destination AUS != second origin SAN",
+          "count": 34
+        },
+        {
+          "reason": "connection airport mismatch: first destination PHX != second origin SEA",
+          "count": 33
+        },
+        {
+          "reason": "connection airport mismatch: first destination PDX != second origin SEA",
+          "count": 33
+        },
+        {
+          "reason": "connection airport mismatch: first destination PSP != second origin SEA",
+          "count": 33
+        },
+        {
+          "reason": "connection airport mismatch: first destination MIA != second origin OAK",
+          "count": 32
+        },
+        {
+          "reason": "connection airport mismatch: first destination MIA != second origin SJC",
+          "count": 32
+        },
+        {
+          "reason": "connection airport mismatch: first destination SAN != second origin PDX",
+          "count": 32
+        },
+        {
+          "reason": "connection airport mismatch: first destination SMF != second origin PDX",
+          "count": 32
+        },
+        {
+          "reason": "connection airport mismatch: first destination SMF != second origin SAN",
+          "count": 32
+        },
+        {
+          "reason": "connection airport mismatch: first destination SFO != second origin SEA",
+          "count": 30
+        },
+        {
+          "reason": "connection airport mismatch: first destination ORD != second origin SEA",
+          "count": 30
+        },
+        {
+          "reason": "connection airport mismatch: first destination JFK != second origin OAK",
+          "count": 28
+        },
+        {
+          "reason": "connection airport mismatch: first destination JFK != second origin SJC",
+          "count": 28
+        },
+        {
+          "reason": "connection airport mismatch: first destination ATL != second origin OAK",
+          "count": 28
+        },
+        {
+          "reason": "connection airport mismatch: first destination ATL != second origin SJC",
+          "count": 28
+        },
+        {
+          "reason": "connection airport mismatch: first destination HNL != second origin PDX",
+          "count": 26
+        },
+        {
+          "reason": "connection airport mismatch: first destination HNL != second origin SAN",
+          "count": 26
+        },
+        {
+          "reason": "connection airport mismatch: first destination IST != second origin OAK",
+          "count": 24
+        },
+        {
+          "reason": "connection airport mismatch: first destination IST != second origin SJC",
+          "count": 24
+        },
+        {
+          "reason": "connection airport mismatch: first destination BOS != second origin OAK",
+          "count": 24
+        },
+        {
+          "reason": "connection airport mismatch: first destination BOS != second origin SJC",
+          "count": 24
+        },
+        {
+          "reason": "connection airport mismatch: first destination MIA != second origin SEA",
+          "count": 24
+        },
+        {
+          "reason": "connection airport mismatch: first destination MRY != second origin OAK",
+          "count": 24
+        },
+        {
+          "reason": "connection airport mismatch: first destination MRY != second origin SJC",
+          "count": 24
+        },
+        {
+          "reason": "connection airport mismatch: first destination SJC != second origin PDX",
+          "count": 24
+        },
+        {
+          "reason": "connection airport mismatch: first destination SJC != second origin SAN",
+          "count": 24
+        },
+        {
+          "reason": "connection airport mismatch: first destination PHX != second origin PDX",
+          "count": 22
+        },
+        {
+          "reason": "connection airport mismatch: first destination PHX != second origin SAN",
+          "count": 22
+        },
+        {
+          "reason": "connection airport mismatch: first destination PDX != second origin SAN",
+          "count": 22
+        },
+        {
+          "reason": "connection airport mismatch: first destination PSP != second origin PDX",
+          "count": 22
+        },
+        {
+          "reason": "connection airport mismatch: first destination PSP != second origin SAN",
+          "count": 22
+        },
+        {
+          "reason": "connection airport mismatch: first destination JFK != second origin SEA",
+          "count": 21
+        },
+        {
+          "reason": "connection airport mismatch: first destination ATL != second origin SEA",
+          "count": 21
+        },
+        {
+          "reason": "connection airport mismatch: first destination SFO != second origin PDX",
+          "count": 20
+        },
+        {
+          "reason": "connection airport mismatch: first destination SFO != second origin SAN",
+          "count": 20
+        },
+        {
+          "reason": "connection airport mismatch: first destination HND != second origin OAK",
+          "count": 20
+        },
+        {
+          "reason": "connection airport mismatch: first destination HND != second origin SJC",
+          "count": 20
+        },
+        {
+          "reason": "connection airport mismatch: first destination LIH != second origin OAK",
+          "count": 20
+        },
+        {
+          "reason": "connection airport mismatch: first destination LIH != second origin SJC",
+          "count": 20
+        },
+        {
+          "reason": "connection airport mismatch: first destination OKC != second origin OAK",
+          "count": 20
+        },
+        {
+          "reason": "connection airport mismatch: first destination OKC != second origin SJC",
+          "count": 20
+        },
+        {
+          "reason": "connection airport mismatch: first destination ORD != second origin PDX",
+          "count": 20
+        },
+        {
+          "reason": "connection airport mismatch: first destination ORD != second origin SAN",
+          "count": 20
+        },
+        {
+          "reason": "connection airport mismatch: first destination NRT != second origin OAK",
+          "count": 20
+        },
+        {
+          "reason": "connection airport mismatch: first destination NRT != second origin SJC",
+          "count": 20
+        },
+        {
+          "reason": "connection airport mismatch: first destination IST != second origin SEA",
+          "count": 18
+        },
+        {
+          "reason": "connection airport mismatch: first destination BOS != second origin SEA",
+          "count": 18
+        },
+        {
+          "reason": "connection airport mismatch: first destination MRY != second origin SEA",
+          "count": 18
+        },
+        {
+          "reason": "connection airport mismatch: first destination EWR != second origin OAK",
+          "count": 16
+        },
+        {
+          "reason": "connection airport mismatch: first destination EWR != second origin SJC",
+          "count": 16
+        },
+        {
+          "reason": "connection airport mismatch: first destination MIA != second origin PDX",
+          "count": 16
+        },
+        {
+          "reason": "connection airport mismatch: first destination MIA != second origin SAN",
+          "count": 16
+        },
+        {
+          "reason": "connection airport mismatch: first destination EUG != second origin OAK",
+          "count": 16
+        },
+        {
+          "reason": "connection airport mismatch: first destination EUG != second origin SJC",
+          "count": 16
+        },
+        {
+          "reason": "connection airport mismatch: first destination HND != second origin SEA",
+          "count": 15
+        },
+        {
+          "reason": "connection airport mismatch: first destination LIH != second origin SEA",
+          "count": 15
+        },
+        {
+          "reason": "connection airport mismatch: first destination OKC != second origin SEA",
+          "count": 15
+        },
+        {
+          "reason": "connection airport mismatch: first destination NRT != second origin SEA",
+          "count": 15
+        },
+        {
+          "reason": "connection airport mismatch: first destination JFK != second origin PDX",
+          "count": 14
+        },
+        {
+          "reason": "connection airport mismatch: first destination JFK != second origin SAN",
+          "count": 14
+        },
+        {
+          "reason": "connection airport mismatch: first destination ATL != second origin PDX",
+          "count": 14
+        },
+        {
+          "reason": "connection airport mismatch: first destination ATL != second origin SAN",
+          "count": 14
+        },
+        {
+          "reason": "connection airport mismatch: first destination DTW != second origin OAK",
+          "count": 12
+        },
+        {
+          "reason": "connection airport mismatch: first destination DTW != second origin SJC",
+          "count": 12
+        },
+        {
+          "reason": "connection airport mismatch: first destination EWR != second origin SEA",
+          "count": 12
+        },
+        {
+          "reason": "connection airport mismatch: first destination IST != second origin PDX",
+          "count": 12
+        },
+        {
+          "reason": "connection airport mismatch: first destination IST != second origin SAN",
+          "count": 12
+        },
+        {
+          "reason": "connection airport mismatch: first destination BOS != second origin PDX",
+          "count": 12
+        },
+        {
+          "reason": "connection airport mismatch: first destination BOS != second origin SAN",
+          "count": 12
+        },
+        {
+          "reason": "connection airport mismatch: first destination CDG != second origin OAK",
+          "count": 12
+        },
+        {
+          "reason": "connection airport mismatch: first destination CDG != second origin SJC",
+          "count": 12
+        },
+        {
+          "reason": "connection airport mismatch: first destination SEA != second origin OAK",
+          "count": 12
+        },
+        {
+          "reason": "connection airport mismatch: first destination SEA != second origin SJC",
+          "count": 12
+        },
+        {
+          "reason": "connection airport mismatch: first destination AMS != second origin OAK",
+          "count": 12
+        },
+        {
+          "reason": "connection airport mismatch: first destination AMS != second origin SJC",
+          "count": 12
+        },
+        {
+          "reason": "connection airport mismatch: first destination LAS != second origin OAK",
+          "count": 12
+        },
+        {
+          "reason": "connection airport mismatch: first destination LAS != second origin SJC",
+          "count": 12
+        },
+        {
+          "reason": "connection airport mismatch: first destination MRY != second origin PDX",
+          "count": 12
+        },
+        {
+          "reason": "connection airport mismatch: first destination MRY != second origin SAN",
+          "count": 12
+        },
+        {
+          "reason": "connection airport mismatch: first destination PHL != second origin OAK",
+          "count": 12
+        },
+        {
+          "reason": "connection airport mismatch: first destination PHL != second origin SJC",
+          "count": 12
+        },
+        {
+          "reason": "connection airport mismatch: first destination YYC != second origin OAK",
+          "count": 12
+        },
+        {
+          "reason": "connection airport mismatch: first destination YYC != second origin SJC",
+          "count": 12
+        },
+        {
+          "reason": "connection airport mismatch: first destination EUG != second origin SEA",
+          "count": 12
+        },
+        {
+          "reason": "connection airport mismatch: first destination IAH != second origin OAK",
+          "count": 12
+        },
+        {
+          "reason": "connection airport mismatch: first destination IAH != second origin SJC",
+          "count": 12
+        },
+        {
+          "reason": "connection airport mismatch: first destination HND != second origin PDX",
+          "count": 10
+        },
+        {
+          "reason": "connection airport mismatch: first destination HND != second origin SAN",
+          "count": 10
+        },
+        {
+          "reason": "connection airport mismatch: first destination LIH != second origin PDX",
+          "count": 10
+        },
+        {
+          "reason": "connection airport mismatch: first destination LIH != second origin SAN",
+          "count": 10
+        },
+        {
+          "reason": "connection airport mismatch: first destination OKC != second origin PDX",
+          "count": 10
+        },
+        {
+          "reason": "connection airport mismatch: first destination OKC != second origin SAN",
+          "count": 10
+        },
+        {
+          "reason": "connection airport mismatch: first destination NRT != second origin PDX",
+          "count": 10
+        },
+        {
+          "reason": "connection airport mismatch: first destination NRT != second origin SAN",
+          "count": 10
+        },
+        {
+          "reason": "connection airport mismatch: first destination DTW != second origin SEA",
+          "count": 9
+        },
+        {
+          "reason": "connection airport mismatch: first destination CDG != second origin SEA",
+          "count": 9
+        },
+        {
+          "reason": "connection airport mismatch: first destination AMS != second origin SEA",
+          "count": 9
+        },
+        {
+          "reason": "connection airport mismatch: first destination LAS != second origin SEA",
+          "count": 9
+        },
+        {
+          "reason": "connection airport mismatch: first destination PHL != second origin SEA",
+          "count": 9
+        },
+        {
+          "reason": "connection airport mismatch: first destination YYC != second origin SEA",
+          "count": 9
+        },
+        {
+          "reason": "connection airport mismatch: first destination IAH != second origin SEA",
+          "count": 9
+        },
+        {
+          "reason": "connection airport mismatch: first destination EWR != second origin PDX",
+          "count": 8
+        },
+        {
+          "reason": "connection airport mismatch: first destination EWR != second origin SAN",
+          "count": 8
+        },
+        {
+          "reason": "connection airport mismatch: first destination GEG != second origin OAK",
+          "count": 8
+        },
+        {
+          "reason": "connection airport mismatch: first destination GEG != second origin SJC",
+          "count": 8
+        },
+        {
+          "reason": "connection airport mismatch: first destination DEN != second origin OAK",
+          "count": 8
+        },
+        {
+          "reason": "connection airport mismatch: first destination DEN != second origin SJC",
+          "count": 8
+        },
+        {
+          "reason": "connection airport mismatch: first destination LHR != second origin OAK",
+          "count": 8
+        },
+        {
+          "reason": "connection airport mismatch: first destination LHR != second origin SJC",
+          "count": 8
+        },
+        {
+          "reason": "connection airport mismatch: first destination SBP != second origin OAK",
+          "count": 8
+        },
+        {
+          "reason": "connection airport mismatch: first destination SBP != second origin SJC",
+          "count": 8
+        },
+        {
+          "reason": "connection airport mismatch: first destination ANC != second origin OAK",
+          "count": 8
+        },
+        {
+          "reason": "connection airport mismatch: first destination ANC != second origin SJC",
+          "count": 8
+        },
+        {
+          "reason": "connection airport mismatch: first destination RDM != second origin OAK",
+          "count": 8
+        },
+        {
+          "reason": "connection airport mismatch: first destination RDM != second origin SJC",
+          "count": 8
+        },
+        {
+          "reason": "connection airport mismatch: first destination GDL != second origin OAK",
+          "count": 8
+        },
+        {
+          "reason": "connection airport mismatch: first destination GDL != second origin SJC",
+          "count": 8
+        },
+        {
+          "reason": "connection airport mismatch: first destination HSH != second origin OAK",
+          "count": 8
+        },
+        {
+          "reason": "connection airport mismatch: first destination HSH != second origin SJC",
+          "count": 8
+        },
+        {
+          "reason": "connection airport mismatch: first destination ELP != second origin OAK",
+          "count": 8
+        },
+        {
+          "reason": "connection airport mismatch: first destination ELP != second origin SJC",
+          "count": 8
+        },
+        {
+          "reason": "connection airport mismatch: first destination EUG != second origin PDX",
+          "count": 8
+        },
+        {
+          "reason": "connection airport mismatch: first destination EUG != second origin SAN",
+          "count": 8
+        },
+        {
+          "reason": "connection airport mismatch: first destination DTW != second origin PDX",
+          "count": 6
+        },
+        {
+          "reason": "connection airport mismatch: first destination DTW != second origin SAN",
+          "count": 6
+        },
+        {
+          "reason": "connection airport mismatch: first destination CDG != second origin PDX",
+          "count": 6
+        },
+        {
+          "reason": "connection airport mismatch: first destination CDG != second origin SAN",
+          "count": 6
+        },
+        {
+          "reason": "connection airport mismatch: first destination SEA != second origin PDX",
+          "count": 6
+        },
+        {
+          "reason": "connection airport mismatch: first destination SEA != second origin SAN",
+          "count": 6
+        },
+        {
+          "reason": "connection airport mismatch: first destination AMS != second origin PDX",
+          "count": 6
+        },
+        {
+          "reason": "connection airport mismatch: first destination AMS != second origin SAN",
+          "count": 6
+        },
+        {
+          "reason": "connection airport mismatch: first destination GEG != second origin SEA",
+          "count": 6
+        },
+        {
+          "reason": "connection airport mismatch: first destination LAS != second origin PDX",
+          "count": 6
+        },
+        {
+          "reason": "connection airport mismatch: first destination LAS != second origin SAN",
+          "count": 6
+        },
+        {
+          "reason": "connection airport mismatch: first destination DEN != second origin SEA",
+          "count": 6
+        },
+        {
+          "reason": "connection airport mismatch: first destination LHR != second origin SEA",
+          "count": 6
+        },
+        {
+          "reason": "connection airport mismatch: first destination PHL != second origin PDX",
+          "count": 6
+        },
+        {
+          "reason": "connection airport mismatch: first destination PHL != second origin SAN",
+          "count": 6
+        },
+        {
+          "reason": "connection airport mismatch: first destination SBP != second origin SEA",
+          "count": 6
+        },
+        {
+          "reason": "connection airport mismatch: first destination YYC != second origin PDX",
+          "count": 6
+        },
+        {
+          "reason": "connection airport mismatch: first destination YYC != second origin SAN",
+          "count": 6
+        },
+        {
+          "reason": "connection airport mismatch: first destination ANC != second origin SEA",
+          "count": 6
+        },
+        {
+          "reason": "connection airport mismatch: first destination RDM != second origin SEA",
+          "count": 6
+        },
+        {
+          "reason": "connection airport mismatch: first destination GDL != second origin SEA",
+          "count": 6
+        },
+        {
+          "reason": "connection airport mismatch: first destination HSH != second origin SEA",
+          "count": 6
+        },
+        {
+          "reason": "connection airport mismatch: first destination ELP != second origin SEA",
+          "count": 6
+        },
+        {
+          "reason": "connection airport mismatch: first destination IAH != second origin PDX",
+          "count": 6
+        },
+        {
+          "reason": "connection airport mismatch: first destination IAH != second origin SAN",
+          "count": 6
+        },
+        {
+          "reason": "connection airport mismatch: first destination BOI != second origin OAK",
+          "count": 4
+        },
+        {
+          "reason": "connection airport mismatch: first destination BOI != second origin SJC",
+          "count": 4
+        },
+        {
+          "reason": "connection airport mismatch: first destination CLT != second origin OAK",
+          "count": 4
+        },
+        {
+          "reason": "connection airport mismatch: first destination CLT != second origin SJC",
+          "count": 4
+        },
+        {
+          "reason": "connection airport mismatch: first destination DUB != second origin OAK",
+          "count": 4
+        },
+        {
+          "reason": "connection airport mismatch: first destination DUB != second origin SJC",
+          "count": 4
+        },
+        {
+          "reason": "connection airport mismatch: first destination GEG != second origin PDX",
+          "count": 4
+        },
+        {
+          "reason": "connection airport mismatch: first destination GEG != second origin SAN",
+          "count": 4
+        },
+        {
+          "reason": "connection airport mismatch: first destination ACV != second origin OAK",
+          "count": 4
+        },
+        {
+          "reason": "connection airport mismatch: first destination ACV != second origin SJC",
+          "count": 4
+        },
+        {
+          "reason": "connection airport mismatch: first destination DEN != second origin PDX",
+          "count": 4
+        },
+        {
+          "reason": "connection airport mismatch: first destination DEN != second origin SAN",
+          "count": 4
+        },
+        {
+          "reason": "connection airport mismatch: first destination SLC != second origin OAK",
+          "count": 4
+        },
+        {
+          "reason": "connection airport mismatch: first destination SLC != second origin SJC",
+          "count": 4
+        },
+        {
+          "reason": "connection airport mismatch: first destination LHR != second origin PDX",
+          "count": 4
+        },
+        {
+          "reason": "connection airport mismatch: first destination LHR != second origin SAN",
+          "count": 4
+        },
+        {
+          "reason": "connection airport mismatch: first destination IPL != second origin OAK",
+          "count": 4
+        },
+        {
+          "reason": "connection airport mismatch: first destination IPL != second origin SJC",
+          "count": 4
+        },
+        {
+          "reason": "connection airport mismatch: first destination IAD != second origin OAK",
+          "count": 4
+        },
+        {
+          "reason": "connection airport mismatch: first destination IAD != second origin SJC",
+          "count": 4
+        },
+        {
+          "reason": "connection airport mismatch: first destination ABQ != second origin OAK",
+          "count": 4
+        },
+        {
+          "reason": "connection airport mismatch: first destination ABQ != second origin SJC",
+          "count": 4
+        },
+        {
+          "reason": "connection airport mismatch: first destination SIN != second origin OAK",
+          "count": 4
+        },
+        {
+          "reason": "connection airport mismatch: first destination SIN != second origin SJC",
+          "count": 4
+        },
+        {
+          "reason": "connection airport mismatch: first destination SBP != second origin PDX",
+          "count": 4
+        },
+        {
+          "reason": "connection airport mismatch: first destination SBP != second origin SAN",
+          "count": 4
+        },
+        {
+          "reason": "connection airport mismatch: first destination ANC != second origin PDX",
+          "count": 4
+        },
+        {
+          "reason": "connection airport mismatch: first destination ANC != second origin SAN",
+          "count": 4
+        },
+        {
+          "reason": "connection airport mismatch: first destination RDM != second origin PDX",
+          "count": 4
+        },
+        {
+          "reason": "connection airport mismatch: first destination RDM != second origin SAN",
+          "count": 4
+        },
+        {
+          "reason": "connection airport mismatch: first destination GDL != second origin PDX",
+          "count": 4
+        },
+        {
+          "reason": "connection airport mismatch: first destination GDL != second origin SAN",
+          "count": 4
+        },
+        {
+          "reason": "connection airport mismatch: first destination HSH != second origin PDX",
+          "count": 4
+        },
+        {
+          "reason": "connection airport mismatch: first destination HSH != second origin SAN",
+          "count": 4
+        },
+        {
+          "reason": "connection airport mismatch: first destination ELP != second origin PDX",
+          "count": 4
+        },
+        {
+          "reason": "connection airport mismatch: first destination ELP != second origin SAN",
+          "count": 4
+        },
+        {
+          "reason": "connection airport mismatch: first destination PVG != second origin OAK",
+          "count": 4
+        },
+        {
+          "reason": "connection airport mismatch: first destination PVG != second origin SJC",
+          "count": 4
+        },
+        {
+          "reason": "connection airport mismatch: first destination KIX != second origin OAK",
+          "count": 4
+        },
+        {
+          "reason": "connection airport mismatch: first destination KIX != second origin SJC",
+          "count": 4
+        },
+        {
+          "reason": "connection airport mismatch: first destination VNY != second origin OAK",
+          "count": 4
+        },
+        {
+          "reason": "connection airport mismatch: first destination VNY != second origin SJC",
+          "count": 4
+        },
+        {
+          "reason": "connection airport mismatch: first destination BOI != second origin SEA",
+          "count": 3
+        },
+        {
+          "reason": "connection airport mismatch: first destination CLT != second origin SEA",
+          "count": 3
+        },
+        {
+          "reason": "connection airport mismatch: first destination DUB != second origin SEA",
+          "count": 3
+        },
+        {
+          "reason": "connection airport mismatch: first destination ACV != second origin SEA",
+          "count": 3
+        },
+        {
+          "reason": "connection airport mismatch: first destination SLC != second origin SEA",
+          "count": 3
+        },
+        {
+          "reason": "connection airport mismatch: first destination IPL != second origin SEA",
+          "count": 3
+        },
+        {
+          "reason": "connection airport mismatch: first destination IAD != second origin SEA",
+          "count": 3
+        },
+        {
+          "reason": "connection airport mismatch: first destination ABQ != second origin SEA",
+          "count": 3
+        },
+        {
+          "reason": "connection airport mismatch: first destination SIN != second origin SEA",
+          "count": 3
+        },
+        {
+          "reason": "connection airport mismatch: first destination PVG != second origin SEA",
+          "count": 3
+        },
+        {
+          "reason": "connection airport mismatch: first destination KIX != second origin SEA",
+          "count": 3
+        },
+        {
+          "reason": "connection airport mismatch: first destination VNY != second origin SEA",
+          "count": 3
+        },
+        {
+          "reason": "connection airport mismatch: first destination BOI != second origin PDX",
+          "count": 2
+        },
+        {
+          "reason": "connection airport mismatch: first destination BOI != second origin SAN",
+          "count": 2
+        },
+        {
+          "reason": "connection airport mismatch: first destination CLT != second origin PDX",
+          "count": 2
+        },
+        {
+          "reason": "connection airport mismatch: first destination CLT != second origin SAN",
+          "count": 2
+        },
+        {
+          "reason": "connection airport mismatch: first destination DUB != second origin PDX",
+          "count": 2
+        },
+        {
+          "reason": "connection airport mismatch: first destination DUB != second origin SAN",
+          "count": 2
+        },
+        {
+          "reason": "connection airport mismatch: first destination ACV != second origin PDX",
+          "count": 2
+        },
+        {
+          "reason": "connection airport mismatch: first destination ACV != second origin SAN",
+          "count": 2
+        },
+        {
+          "reason": "connection airport mismatch: first destination SLC != second origin PDX",
+          "count": 2
+        },
+        {
+          "reason": "connection airport mismatch: first destination SLC != second origin SAN",
+          "count": 2
+        },
+        {
+          "reason": "connection airport mismatch: first destination IPL != second origin PDX",
+          "count": 2
+        },
+        {
+          "reason": "connection airport mismatch: first destination IPL != second origin SAN",
+          "count": 2
+        },
+        {
+          "reason": "connection airport mismatch: first destination IAD != second origin PDX",
+          "count": 2
+        },
+        {
+          "reason": "connection airport mismatch: first destination IAD != second origin SAN",
+          "count": 2
+        },
+        {
+          "reason": "connection airport mismatch: first destination ABQ != second origin PDX",
+          "count": 2
+        },
+        {
+          "reason": "connection airport mismatch: first destination ABQ != second origin SAN",
+          "count": 2
+        },
+        {
+          "reason": "connection airport mismatch: first destination SIN != second origin PDX",
+          "count": 2
+        },
+        {
+          "reason": "connection airport mismatch: first destination SIN != second origin SAN",
+          "count": 2
+        },
+        {
+          "reason": "connection airport mismatch: first destination PVG != second origin PDX",
+          "count": 2
+        },
+        {
+          "reason": "connection airport mismatch: first destination PVG != second origin SAN",
+          "count": 2
+        },
+        {
+          "reason": "connection airport mismatch: first destination KIX != second origin PDX",
+          "count": 2
+        },
+        {
+          "reason": "connection airport mismatch: first destination KIX != second origin SAN",
+          "count": 2
+        },
+        {
+          "reason": "connection airport mismatch: first destination VNY != second origin PDX",
+          "count": 2
+        },
+        {
+          "reason": "connection airport mismatch: first destination VNY != second origin SAN",
+          "count": 2
+        }
+      ],
+      "discardSamples": [
+        {
+          "legs": [
+            "SQ1651",
+            "AA7863"
+          ],
+          "path": "LAX-BOI + HNL-OGG",
+          "reason": "connection airport mismatch: first destination BOI != second origin HNL"
+        },
+        {
+          "legs": [
+            "SQ1651",
+            "JL4620"
+          ],
+          "path": "LAX-BOI + HNL-OGG",
+          "reason": "connection airport mismatch: first destination BOI != second origin HNL"
+        },
+        {
+          "legs": [
+            "SQ1651",
+            "UA7045"
+          ],
+          "path": "LAX-BOI + HNL-OGG",
+          "reason": "connection airport mismatch: first destination BOI != second origin HNL"
+        },
+        {
+          "legs": [
+            "SQ1651",
+            "HA1136"
+          ],
+          "path": "LAX-BOI + HNL-OGG",
+          "reason": "connection airport mismatch: first destination BOI != second origin HNL"
+        },
+        {
+          "legs": [
+            "SQ1651",
+            "WN2276"
+          ],
+          "path": "LAX-BOI + HNL-OGG",
+          "reason": "connection airport mismatch: first destination BOI != second origin HNL"
+        },
+        {
+          "legs": [
+            "SQ1651",
+            "JL4621"
+          ],
+          "path": "LAX-BOI + HNL-OGG",
+          "reason": "connection airport mismatch: first destination BOI != second origin HNL"
+        },
+        {
+          "legs": [
+            "SQ1651",
+            "UA7022"
+          ],
+          "path": "LAX-BOI + HNL-OGG",
+          "reason": "connection airport mismatch: first destination BOI != second origin HNL"
+        },
+        {
+          "legs": [
+            "SQ1651",
+            "HA1146"
+          ],
+          "path": "LAX-BOI + HNL-OGG",
+          "reason": "connection airport mismatch: first destination BOI != second origin HNL"
+        },
+        {
+          "legs": [
+            "SQ1651",
+            "HA1156"
+          ],
+          "path": "LAX-BOI + HNL-OGG",
+          "reason": "connection airport mismatch: first destination BOI != second origin HNL"
+        },
+        {
+          "legs": [
+            "SQ1651",
+            "WN2343"
+          ],
+          "path": "LAX-BOI + HNL-OGG",
+          "reason": "connection airport mismatch: first destination BOI != second origin HNL"
+        },
+        {
+          "legs": [
+            "SQ1651",
+            "HA1176"
+          ],
+          "path": "LAX-BOI + HNL-OGG",
+          "reason": "connection airport mismatch: first destination BOI != second origin HNL"
+        },
+        {
+          "legs": [
+            "SQ1651",
+            "JL4622"
+          ],
+          "path": "LAX-BOI + HNL-OGG",
+          "reason": "connection airport mismatch: first destination BOI != second origin HNL"
+        },
+        {
+          "legs": [
+            "SQ1651",
+            "AF5958"
+          ],
+          "path": "LAX-BOI + SEA-OGG",
+          "reason": "connection airport mismatch: first destination BOI != second origin SEA"
+        },
+        {
+          "legs": [
+            "SQ1651",
+            "KL6565"
+          ],
+          "path": "LAX-BOI + SEA-OGG",
+          "reason": "connection airport mismatch: first destination BOI != second origin SEA"
+        },
+        {
+          "legs": [
+            "SQ1651",
+            "VS1949"
+          ],
+          "path": "LAX-BOI + SEA-OGG",
+          "reason": "connection airport mismatch: first destination BOI != second origin SEA"
+        },
+        {
+          "legs": [
+            "SQ1651",
+            "AS353"
+          ],
+          "path": "LAX-BOI + PDX-OGG",
+          "reason": "connection airport mismatch: first destination BOI != second origin PDX"
+        },
+        {
+          "legs": [
+            "SQ1651",
+            "HA923"
+          ],
+          "path": "LAX-BOI + OAK-OGG",
+          "reason": "connection airport mismatch: first destination BOI != second origin OAK"
+        },
+        {
+          "legs": [
+            "SQ1651",
+            "WN1057"
+          ],
+          "path": "LAX-BOI + OAK-OGG",
+          "reason": "connection airport mismatch: first destination BOI != second origin OAK"
+        },
+        {
+          "legs": [
+            "SQ1651",
+            "1I"
+          ],
+          "path": "LAX-BOI + SJC-OGG",
+          "reason": "connection airport mismatch: first destination BOI != second origin SJC"
+        },
+        {
+          "legs": [
+            "SQ1651",
+            "1I882"
+          ],
+          "path": "LAX-BOI + SJC-OGG",
+          "reason": "connection airport mismatch: first destination BOI != second origin SJC"
+        }
+      ],
+      "generatedSamples": []
+    },
+    "twoStopGeneration": {
+      "generated": 0,
+      "discardSummary": [
+        {
+          "reason": "middle origin LAX != first destination AUS",
+          "count": 4233
+        },
+        {
+          "reason": "middle origin LAX != first destination SAN",
+          "count": 3984
+        },
+        {
+          "reason": "middle origin LAX != first destination SMF",
+          "count": 3984
+        },
+        {
+          "reason": "middle origin LAX != first destination HNL",
+          "count": 3237
+        },
+        {
+          "reason": "middle origin LAX != first destination SJC",
+          "count": 2988
+        },
+        {
+          "reason": "middle origin LAX != first destination PHX",
+          "count": 2739
+        },
+        {
+          "reason": "middle origin LAX != first destination PDX",
+          "count": 2739
+        },
+        {
+          "reason": "middle origin LAX != first destination PSP",
+          "count": 2739
+        },
+        {
+          "reason": "middle origin LAX != first destination SFO",
+          "count": 2490
+        },
+        {
+          "reason": "middle origin LAX != first destination ORD",
+          "count": 2490
+        },
+        {
+          "reason": "middle origin HNL != first destination AUS",
+          "count": 2108
+        },
+        {
+          "reason": "middle origin LAX != first destination MIA",
+          "count": 1992
+        },
+        {
+          "reason": "middle origin HNL != first destination SAN",
+          "count": 1984
+        },
+        {
+          "reason": "middle origin HNL != first destination SMF",
+          "count": 1984
+        },
+        {
+          "reason": "first connection time unavailable/unparseable",
+          "count": 1792
+        },
+        {
+          "reason": "middle origin LAX != first destination JFK",
+          "count": 1743
+        },
+        {
+          "reason": "middle origin LAX != first destination ATL",
+          "count": 1743
+        },
+        {
+          "reason": "middle origin DFW != first destination AUS",
+          "count": 1700
+        },
+        {
+          "reason": "middle origin JFK != first destination AUS",
+          "count": 1700
+        },
+        {
+          "reason": "middle origin DFW != first destination SAN",
+          "count": 1600
+        },
+        {
+          "reason": "middle origin JFK != first destination SAN",
+          "count": 1600
+        },
+        {
+          "reason": "middle origin DFW != first destination SMF",
+          "count": 1600
+        },
+        {
+          "reason": "middle origin JFK != first destination SMF",
+          "count": 1600
+        },
+        {
+          "reason": "middle origin LAX != first destination IST",
+          "count": 1494
+        },
+        {
+          "reason": "middle origin LAX != first destination BOS",
+          "count": 1494
+        },
+        {
+          "reason": "middle origin LAX != first destination MRY",
+          "count": 1494
+        },
+        {
+          "reason": "middle origin HNL != first destination SJC",
+          "count": 1488
+        },
+        {
+          "reason": "middle origin HNL != first destination PHX",
+          "count": 1364
+        },
+        {
+          "reason": "middle origin HNL != first destination PDX",
+          "count": 1364
+        },
+        {
+          "reason": "middle origin HNL != first destination PSP",
+          "count": 1364
+        },
+        {
+          "reason": "middle origin DFW != first destination HNL",
+          "count": 1300
+        },
+        {
+          "reason": "middle origin JFK != first destination HNL",
+          "count": 1300
+        },
+        {
+          "reason": "middle origin LAX != first destination HND",
+          "count": 1245
+        },
+        {
+          "reason": "middle origin LAX != first destination LIH",
+          "count": 1245
+        },
+        {
+          "reason": "middle origin LAX != first destination OKC",
+          "count": 1245
+        },
+        {
+          "reason": "middle origin LAX != first destination NRT",
+          "count": 1245
+        },
+        {
+          "reason": "middle origin HNL != first destination SFO",
+          "count": 1240
+        },
+        {
+          "reason": "middle origin HNL != first destination ORD",
+          "count": 1240
+        },
+        {
+          "reason": "middle origin DFW != first destination SJC",
+          "count": 1200
+        },
+        {
+          "reason": "middle origin JFK != first destination SJC",
+          "count": 1200
+        },
+        {
+          "reason": "middle origin DFW != first destination PHX",
+          "count": 1100
+        },
+        {
+          "reason": "middle origin JFK != first destination PHX",
+          "count": 1100
+        },
+        {
+          "reason": "middle origin DFW != first destination PDX",
+          "count": 1100
+        },
+        {
+          "reason": "middle origin JFK != first destination PDX",
+          "count": 1100
+        },
+        {
+          "reason": "middle origin DFW != first destination PSP",
+          "count": 1100
+        },
+        {
+          "reason": "middle origin JFK != first destination PSP",
+          "count": 1100
+        },
+        {
+          "reason": "middle origin DFW != first destination SFO",
+          "count": 1000
+        },
+        {
+          "reason": "middle origin JFK != first destination SFO",
+          "count": 1000
+        },
+        {
+          "reason": "middle origin DFW != first destination ORD",
+          "count": 1000
+        },
+        {
+          "reason": "middle origin JFK != first destination ORD",
+          "count": 1000
+        },
+        {
+          "reason": "middle origin LAX != first destination EWR",
+          "count": 996
+        },
+        {
+          "reason": "middle origin LAX != first destination EUG",
+          "count": 996
+        },
+        {
+          "reason": "middle origin HNL != first destination MIA",
+          "count": 992
+        },
+        {
+          "reason": "middle origin HNL != first destination JFK",
+          "count": 868
+        },
+        {
+          "reason": "middle origin HNL != first destination ATL",
+          "count": 868
+        },
+        {
+          "reason": "middle origin DFW != first destination MIA",
+          "count": 800
+        },
+        {
+          "reason": "middle origin JFK != first destination MIA",
+          "count": 800
+        },
+        {
+          "reason": "middle origin LAX != first destination DTW",
+          "count": 747
+        },
+        {
+          "reason": "middle origin LAX != first destination CDG",
+          "count": 747
+        },
+        {
+          "reason": "middle origin LAX != first destination SEA",
+          "count": 747
+        },
+        {
+          "reason": "middle origin LAX != first destination AMS",
+          "count": 747
+        },
+        {
+          "reason": "middle origin LAX != first destination LAS",
+          "count": 747
+        },
+        {
+          "reason": "middle origin LAX != first destination PHL",
+          "count": 747
+        },
+        {
+          "reason": "middle origin LAX != first destination YYC",
+          "count": 747
+        },
+        {
+          "reason": "middle origin LAX != first destination IAH",
+          "count": 747
+        },
+        {
+          "reason": "middle origin HNL != first destination IST",
+          "count": 744
+        },
+        {
+          "reason": "middle origin HNL != first destination BOS",
+          "count": 744
+        },
+        {
+          "reason": "middle origin HNL != first destination MRY",
+          "count": 744
+        },
+        {
+          "reason": "middle origin DFW != first destination JFK",
+          "count": 700
+        },
+        {
+          "reason": "middle origin DFW != first destination ATL",
+          "count": 700
+        },
+        {
+          "reason": "middle origin JFK != first destination ATL",
+          "count": 700
+        },
+        {
+          "reason": "middle origin HNL != first destination HND",
+          "count": 620
+        },
+        {
+          "reason": "middle origin HNL != first destination LIH",
+          "count": 620
+        },
+        {
+          "reason": "middle origin HNL != first destination OKC",
+          "count": 620
+        },
+        {
+          "reason": "middle origin HNL != first destination NRT",
+          "count": 620
+        },
+        {
+          "reason": "middle origin DFW != first destination IST",
+          "count": 600
+        },
+        {
+          "reason": "middle origin JFK != first destination IST",
+          "count": 600
+        },
+        {
+          "reason": "middle origin DFW != first destination BOS",
+          "count": 600
+        },
+        {
+          "reason": "middle origin JFK != first destination BOS",
+          "count": 600
+        },
+        {
+          "reason": "middle origin DFW != first destination MRY",
+          "count": 600
+        },
+        {
+          "reason": "middle origin JFK != first destination MRY",
+          "count": 600
+        },
+        {
+          "reason": "middle destination OGG is final destination; belongs to 1-stop generation",
+          "count": 579
+        },
+        {
+          "reason": "middle origin DFW != first destination HND",
+          "count": 500
+        },
+        {
+          "reason": "middle origin JFK != first destination HND",
+          "count": 500
+        },
+        {
+          "reason": "middle origin DFW != first destination LIH",
+          "count": 500
+        },
+        {
+          "reason": "middle origin JFK != first destination LIH",
+          "count": 500
+        },
+        {
+          "reason": "middle origin DFW != first destination OKC",
+          "count": 500
+        },
+        {
+          "reason": "middle origin JFK != first destination OKC",
+          "count": 500
+        },
+        {
+          "reason": "middle origin DFW != first destination NRT",
+          "count": 500
+        },
+        {
+          "reason": "middle origin JFK != first destination NRT",
+          "count": 500
+        },
+        {
+          "reason": "middle origin LAX != first destination GEG",
+          "count": 498
+        },
+        {
+          "reason": "middle origin LAX != first destination DEN",
+          "count": 498
+        },
+        {
+          "reason": "middle origin LAX != first destination LHR",
+          "count": 498
+        },
+        {
+          "reason": "middle origin LAX != first destination SBP",
+          "count": 498
+        },
+        {
+          "reason": "middle origin LAX != first destination ANC",
+          "count": 498
+        },
+        {
+          "reason": "middle origin LAX != first destination RDM",
+          "count": 498
+        },
+        {
+          "reason": "middle origin LAX != first destination GDL",
+          "count": 498
+        },
+        {
+          "reason": "middle origin LAX != first destination HSH",
+          "count": 498
+        },
+        {
+          "reason": "middle origin LAX != first destination ELP",
+          "count": 498
+        },
+        {
+          "reason": "middle origin HNL != first destination EWR",
+          "count": 496
+        },
+        {
+          "reason": "middle origin HNL != first destination EUG",
+          "count": 496
+        },
+        {
+          "reason": "middle origin DFW != first destination EWR",
+          "count": 400
+        },
+        {
+          "reason": "middle origin JFK != first destination EWR",
+          "count": 400
+        },
+        {
+          "reason": "middle origin DFW != first destination EUG",
+          "count": 400
+        },
+        {
+          "reason": "middle origin JFK != first destination EUG",
+          "count": 400
+        },
+        {
+          "reason": "middle origin HNL != first destination DTW",
+          "count": 372
+        },
+        {
+          "reason": "middle origin HNL != first destination CDG",
+          "count": 372
+        },
+        {
+          "reason": "middle origin HNL != first destination SEA",
+          "count": 372
+        },
+        {
+          "reason": "middle origin HNL != first destination AMS",
+          "count": 372
+        },
+        {
+          "reason": "middle origin HNL != first destination LAS",
+          "count": 372
+        },
+        {
+          "reason": "middle origin HNL != first destination PHL",
+          "count": 372
+        },
+        {
+          "reason": "middle origin HNL != first destination YYC",
+          "count": 372
+        },
+        {
+          "reason": "middle origin HNL != first destination IAH",
+          "count": 372
+        },
+        {
+          "reason": "middle origin DFW != first destination DTW",
+          "count": 300
+        },
+        {
+          "reason": "middle origin JFK != first destination DTW",
+          "count": 300
+        },
+        {
+          "reason": "middle origin DFW != first destination CDG",
+          "count": 300
+        },
+        {
+          "reason": "middle origin JFK != first destination CDG",
+          "count": 300
+        },
+        {
+          "reason": "middle origin DFW != first destination SEA",
+          "count": 300
+        },
+        {
+          "reason": "middle origin JFK != first destination SEA",
+          "count": 300
+        },
+        {
+          "reason": "middle origin DFW != first destination AMS",
+          "count": 300
+        },
+        {
+          "reason": "middle origin JFK != first destination AMS",
+          "count": 300
+        },
+        {
+          "reason": "middle origin DFW != first destination LAS",
+          "count": 300
+        },
+        {
+          "reason": "middle origin JFK != first destination LAS",
+          "count": 300
+        },
+        {
+          "reason": "middle origin DFW != first destination PHL",
+          "count": 300
+        },
+        {
+          "reason": "middle origin JFK != first destination PHL",
+          "count": 300
+        },
+        {
+          "reason": "middle origin DFW != first destination YYC",
+          "count": 300
+        },
+        {
+          "reason": "middle origin JFK != first destination YYC",
+          "count": 300
+        },
+        {
+          "reason": "middle origin DFW != first destination IAH",
+          "count": 300
+        },
+        {
+          "reason": "middle origin JFK != first destination IAH",
+          "count": 300
+        },
+        {
+          "reason": "middle origin LAX != first destination BOI",
+          "count": 249
+        },
+        {
+          "reason": "middle origin LAX != first destination CLT",
+          "count": 249
+        },
+        {
+          "reason": "middle origin LAX != first destination DUB",
+          "count": 249
+        },
+        {
+          "reason": "middle origin LAX != first destination ACV",
+          "count": 249
+        },
+        {
+          "reason": "middle origin LAX != first destination SLC",
+          "count": 249
+        },
+        {
+          "reason": "middle origin LAX != first destination IPL",
+          "count": 249
+        },
+        {
+          "reason": "middle origin LAX != first destination IAD",
+          "count": 249
+        },
+        {
+          "reason": "middle origin LAX != first destination ABQ",
+          "count": 249
+        },
+        {
+          "reason": "middle origin LAX != first destination SIN",
+          "count": 249
+        },
+        {
+          "reason": "middle origin LAX != first destination PVG",
+          "count": 249
+        },
+        {
+          "reason": "middle origin LAX != first destination KIX",
+          "count": 249
+        },
+        {
+          "reason": "middle origin LAX != first destination VNY",
+          "count": 249
+        },
+        {
+          "reason": "middle origin HNL != first destination GEG",
+          "count": 248
+        },
+        {
+          "reason": "middle origin HNL != first destination DEN",
+          "count": 248
+        },
+        {
+          "reason": "middle origin HNL != first destination LHR",
+          "count": 248
+        },
+        {
+          "reason": "middle origin HNL != first destination SBP",
+          "count": 248
+        },
+        {
+          "reason": "middle origin HNL != first destination ANC",
+          "count": 248
+        },
+        {
+          "reason": "middle origin HNL != first destination RDM",
+          "count": 248
+        },
+        {
+          "reason": "middle origin HNL != first destination GDL",
+          "count": 248
+        },
+        {
+          "reason": "middle origin HNL != first destination HSH",
+          "count": 248
+        },
+        {
+          "reason": "middle origin HNL != first destination ELP",
+          "count": 248
+        },
+        {
+          "reason": "middle origin DFW != first destination GEG",
+          "count": 200
+        },
+        {
+          "reason": "middle origin JFK != first destination GEG",
+          "count": 200
+        },
+        {
+          "reason": "middle origin DFW != first destination DEN",
+          "count": 200
+        },
+        {
+          "reason": "middle origin JFK != first destination DEN",
+          "count": 200
+        },
+        {
+          "reason": "middle origin DFW != first destination LHR",
+          "count": 200
+        },
+        {
+          "reason": "middle origin JFK != first destination LHR",
+          "count": 200
+        },
+        {
+          "reason": "middle origin DFW != first destination SBP",
+          "count": 200
+        },
+        {
+          "reason": "middle origin JFK != first destination SBP",
+          "count": 200
+        },
+        {
+          "reason": "middle origin DFW != first destination ANC",
+          "count": 200
+        },
+        {
+          "reason": "middle origin JFK != first destination ANC",
+          "count": 200
+        },
+        {
+          "reason": "middle origin DFW != first destination RDM",
+          "count": 200
+        },
+        {
+          "reason": "middle origin JFK != first destination RDM",
+          "count": 200
+        },
+        {
+          "reason": "middle origin DFW != first destination GDL",
+          "count": 200
+        },
+        {
+          "reason": "middle origin JFK != first destination GDL",
+          "count": 200
+        },
+        {
+          "reason": "middle origin DFW != first destination HSH",
+          "count": 200
+        },
+        {
+          "reason": "middle origin JFK != first destination HSH",
+          "count": 200
+        },
+        {
+          "reason": "middle origin DFW != first destination ELP",
+          "count": 200
+        },
+        {
+          "reason": "middle origin JFK != first destination ELP",
+          "count": 200
+        },
+        {
+          "reason": "middle origin HNL != first destination BOI",
+          "count": 124
+        },
+        {
+          "reason": "middle origin HNL != first destination CLT",
+          "count": 124
+        },
+        {
+          "reason": "middle origin HNL != first destination DUB",
+          "count": 124
+        },
+        {
+          "reason": "middle origin HNL != first destination ACV",
+          "count": 124
+        },
+        {
+          "reason": "middle origin HNL != first destination SLC",
+          "count": 124
+        },
+        {
+          "reason": "middle origin HNL != first destination IPL",
+          "count": 124
+        },
+        {
+          "reason": "middle origin HNL != first destination IAD",
+          "count": 124
+        },
+        {
+          "reason": "middle origin HNL != first destination ABQ",
+          "count": 124
+        },
+        {
+          "reason": "middle origin HNL != first destination SIN",
+          "count": 124
+        },
+        {
+          "reason": "middle origin HNL != first destination PVG",
+          "count": 124
+        },
+        {
+          "reason": "middle origin HNL != first destination KIX",
+          "count": 124
+        },
+        {
+          "reason": "middle origin HNL != first destination VNY",
+          "count": 124
+        },
+        {
+          "reason": "middle origin DFW != first destination BOI",
+          "count": 100
+        },
+        {
+          "reason": "middle origin JFK != first destination BOI",
+          "count": 100
+        },
+        {
+          "reason": "middle origin DFW != first destination CLT",
+          "count": 100
+        },
+        {
+          "reason": "middle origin JFK != first destination CLT",
+          "count": 100
+        },
+        {
+          "reason": "middle origin DFW != first destination DUB",
+          "count": 100
+        },
+        {
+          "reason": "middle origin JFK != first destination DUB",
+          "count": 100
+        },
+        {
+          "reason": "middle origin DFW != first destination ACV",
+          "count": 100
+        },
+        {
+          "reason": "middle origin JFK != first destination ACV",
+          "count": 100
+        },
+        {
+          "reason": "middle origin DFW != first destination SLC",
+          "count": 100
+        },
+        {
+          "reason": "middle origin JFK != first destination SLC",
+          "count": 100
+        },
+        {
+          "reason": "middle origin DFW != first destination IPL",
+          "count": 100
+        },
+        {
+          "reason": "middle origin JFK != first destination IPL",
+          "count": 100
+        },
+        {
+          "reason": "middle origin DFW != first destination IAD",
+          "count": 100
+        },
+        {
+          "reason": "middle origin JFK != first destination IAD",
+          "count": 100
+        },
+        {
+          "reason": "middle origin DFW != first destination ABQ",
+          "count": 100
+        },
+        {
+          "reason": "middle origin JFK != first destination ABQ",
+          "count": 100
+        },
+        {
+          "reason": "middle origin DFW != first destination SIN",
+          "count": 100
+        },
+        {
+          "reason": "middle origin JFK != first destination SIN",
+          "count": 100
+        },
+        {
+          "reason": "middle origin DFW != first destination PVG",
+          "count": 100
+        },
+        {
+          "reason": "middle origin JFK != first destination PVG",
+          "count": 100
+        },
+        {
+          "reason": "middle origin DFW != first destination KIX",
+          "count": 100
+        },
+        {
+          "reason": "middle origin JFK != first destination KIX",
+          "count": 100
+        },
+        {
+          "reason": "middle origin DFW != first destination VNY",
+          "count": 100
+        },
+        {
+          "reason": "middle origin JFK != first destination VNY",
+          "count": 100
+        },
+        {
+          "reason": "middle origin OAK != first destination AUS",
+          "count": 68
+        },
+        {
+          "reason": "middle origin SJC != first destination AUS",
+          "count": 68
+        },
+        {
+          "reason": "middle origin OAK != first destination SAN",
+          "count": 64
+        },
+        {
+          "reason": "middle origin SJC != first destination SAN",
+          "count": 64
+        },
+        {
+          "reason": "middle origin OAK != first destination SMF",
+          "count": 64
+        },
+        {
+          "reason": "middle origin SJC != first destination SMF",
+          "count": 64
+        },
+        {
+          "reason": "middle origin OAK != first destination HNL",
+          "count": 52
+        },
+        {
+          "reason": "middle origin SJC != first destination HNL",
+          "count": 52
+        },
+        {
+          "reason": "middle destination LAX returns to requested origin",
+          "count": 52
+        },
+        {
+          "reason": "middle origin SEA != first destination AUS",
+          "count": 51
+        },
+        {
+          "reason": "middle origin SEA != first destination SAN",
+          "count": 48
+        },
+        {
+          "reason": "middle origin OAK != first destination SJC",
+          "count": 48
+        },
+        {
+          "reason": "middle origin SEA != first destination SMF",
+          "count": 48
+        },
+        {
+          "reason": "middle origin OAK != first destination PHX",
+          "count": 44
+        },
+        {
+          "reason": "middle origin SJC != first destination PHX",
+          "count": 44
+        },
+        {
+          "reason": "middle origin OAK != first destination PDX",
+          "count": 44
+        },
+        {
+          "reason": "middle origin SJC != first destination PDX",
+          "count": 44
+        },
+        {
+          "reason": "middle origin OAK != first destination PSP",
+          "count": 44
+        },
+        {
+          "reason": "middle origin SJC != first destination PSP",
+          "count": 44
+        },
+        {
+          "reason": "middle origin OAK != first destination SFO",
+          "count": 40
+        },
+        {
+          "reason": "middle origin SJC != first destination SFO",
+          "count": 40
+        },
+        {
+          "reason": "middle origin OAK != first destination ORD",
+          "count": 40
+        },
+        {
+          "reason": "middle origin SJC != first destination ORD",
+          "count": 40
+        },
+        {
+          "reason": "middle origin SEA != first destination HNL",
+          "count": 39
+        },
+        {
+          "reason": "middle origin SEA != first destination SJC",
+          "count": 36
+        },
+        {
+          "reason": "middle origin PDX != first destination AUS",
+          "count": 34
+        },
+        {
+          "reason": "middle origin SAN != first destination AUS",
+          "count": 34
+        },
+        {
+          "reason": "middle origin SEA != first destination PHX",
+          "count": 33
+        },
+        {
+          "reason": "middle origin SEA != first destination PDX",
+          "count": 33
+        },
+        {
+          "reason": "middle origin SEA != first destination PSP",
+          "count": 33
+        },
+        {
+          "reason": "middle origin OAK != first destination MIA",
+          "count": 32
+        },
+        {
+          "reason": "middle origin SJC != first destination MIA",
+          "count": 32
+        },
+        {
+          "reason": "middle origin PDX != first destination SAN",
+          "count": 32
+        },
+        {
+          "reason": "middle origin PDX != first destination SMF",
+          "count": 32
+        },
+        {
+          "reason": "middle origin SAN != first destination SMF",
+          "count": 32
+        },
+        {
+          "reason": "middle origin SEA != first destination SFO",
+          "count": 30
+        },
+        {
+          "reason": "middle origin SEA != first destination ORD",
+          "count": 30
+        },
+        {
+          "reason": "middle origin OAK != first destination JFK",
+          "count": 28
+        },
+        {
+          "reason": "middle origin SJC != first destination JFK",
+          "count": 28
+        },
+        {
+          "reason": "middle origin OAK != first destination ATL",
+          "count": 28
+        },
+        {
+          "reason": "middle origin SJC != first destination ATL",
+          "count": 28
+        },
+        {
+          "reason": "middle origin PDX != first destination HNL",
+          "count": 26
+        },
+        {
+          "reason": "middle origin SAN != first destination HNL",
+          "count": 26
+        },
+        {
+          "reason": "middle origin OAK != first destination IST",
+          "count": 24
+        },
+        {
+          "reason": "middle origin SJC != first destination IST",
+          "count": 24
+        },
+        {
+          "reason": "middle origin OAK != first destination BOS",
+          "count": 24
+        },
+        {
+          "reason": "middle origin SJC != first destination BOS",
+          "count": 24
+        },
+        {
+          "reason": "middle origin SEA != first destination MIA",
+          "count": 24
+        },
+        {
+          "reason": "middle origin OAK != first destination MRY",
+          "count": 24
+        },
+        {
+          "reason": "middle origin SJC != first destination MRY",
+          "count": 24
+        },
+        {
+          "reason": "middle origin PDX != first destination SJC",
+          "count": 24
+        },
+        {
+          "reason": "middle origin SAN != first destination SJC",
+          "count": 24
+        },
+        {
+          "reason": "middle origin PDX != first destination PHX",
+          "count": 22
+        },
+        {
+          "reason": "middle origin SAN != first destination PHX",
+          "count": 22
+        },
+        {
+          "reason": "middle origin SAN != first destination PDX",
+          "count": 22
+        },
+        {
+          "reason": "middle origin PDX != first destination PSP",
+          "count": 22
+        },
+        {
+          "reason": "middle origin SAN != first destination PSP",
+          "count": 22
+        },
+        {
+          "reason": "middle origin SEA != first destination JFK",
+          "count": 21
+        },
+        {
+          "reason": "middle origin SEA != first destination ATL",
+          "count": 21
+        },
+        {
+          "reason": "middle origin PDX != first destination SFO",
+          "count": 20
+        },
+        {
+          "reason": "middle origin SAN != first destination SFO",
+          "count": 20
+        },
+        {
+          "reason": "middle origin OAK != first destination HND",
+          "count": 20
+        },
+        {
+          "reason": "middle origin SJC != first destination HND",
+          "count": 20
+        },
+        {
+          "reason": "middle origin OAK != first destination LIH",
+          "count": 20
+        },
+        {
+          "reason": "middle origin SJC != first destination LIH",
+          "count": 20
+        },
+        {
+          "reason": "middle origin OAK != first destination OKC",
+          "count": 20
+        },
+        {
+          "reason": "middle origin SJC != first destination OKC",
+          "count": 20
+        },
+        {
+          "reason": "middle origin PDX != first destination ORD",
+          "count": 20
+        },
+        {
+          "reason": "middle origin SAN != first destination ORD",
+          "count": 20
+        },
+        {
+          "reason": "middle origin OAK != first destination NRT",
+          "count": 20
+        },
+        {
+          "reason": "middle origin SJC != first destination NRT",
+          "count": 20
+        },
+        {
+          "reason": "middle origin SEA != first destination IST",
+          "count": 18
+        },
+        {
+          "reason": "middle origin SEA != first destination BOS",
+          "count": 18
+        },
+        {
+          "reason": "middle origin SEA != first destination MRY",
+          "count": 18
+        },
+        {
+          "reason": "middle origin OAK != first destination EWR",
+          "count": 16
+        },
+        {
+          "reason": "middle origin SJC != first destination EWR",
+          "count": 16
+        },
+        {
+          "reason": "middle origin PDX != first destination MIA",
+          "count": 16
+        },
+        {
+          "reason": "middle origin SAN != first destination MIA",
+          "count": 16
+        },
+        {
+          "reason": "middle origin OAK != first destination EUG",
+          "count": 16
+        },
+        {
+          "reason": "middle origin SJC != first destination EUG",
+          "count": 16
+        },
+        {
+          "reason": "middle origin SEA != first destination HND",
+          "count": 15
+        },
+        {
+          "reason": "middle origin SEA != first destination LIH",
+          "count": 15
+        },
+        {
+          "reason": "middle origin SEA != first destination OKC",
+          "count": 15
+        },
+        {
+          "reason": "middle origin SEA != first destination NRT",
+          "count": 15
+        },
+        {
+          "reason": "middle origin PDX != first destination JFK",
+          "count": 14
+        },
+        {
+          "reason": "middle origin SAN != first destination JFK",
+          "count": 14
+        },
+        {
+          "reason": "middle origin PDX != first destination ATL",
+          "count": 14
+        },
+        {
+          "reason": "middle origin SAN != first destination ATL",
+          "count": 14
+        },
+        {
+          "reason": "middle origin OAK != first destination DTW",
+          "count": 12
+        },
+        {
+          "reason": "middle origin SJC != first destination DTW",
+          "count": 12
+        },
+        {
+          "reason": "middle origin SEA != first destination EWR",
+          "count": 12
+        },
+        {
+          "reason": "middle origin PDX != first destination IST",
+          "count": 12
+        },
+        {
+          "reason": "middle origin SAN != first destination IST",
+          "count": 12
+        },
+        {
+          "reason": "middle origin PDX != first destination BOS",
+          "count": 12
+        },
+        {
+          "reason": "middle origin SAN != first destination BOS",
+          "count": 12
+        },
+        {
+          "reason": "middle origin OAK != first destination CDG",
+          "count": 12
+        },
+        {
+          "reason": "middle origin SJC != first destination CDG",
+          "count": 12
+        },
+        {
+          "reason": "middle origin OAK != first destination SEA",
+          "count": 12
+        },
+        {
+          "reason": "middle origin SJC != first destination SEA",
+          "count": 12
+        },
+        {
+          "reason": "middle origin OAK != first destination AMS",
+          "count": 12
+        },
+        {
+          "reason": "middle origin SJC != first destination AMS",
+          "count": 12
+        },
+        {
+          "reason": "middle origin OAK != first destination LAS",
+          "count": 12
+        },
+        {
+          "reason": "middle origin SJC != first destination LAS",
+          "count": 12
+        },
+        {
+          "reason": "middle origin PDX != first destination MRY",
+          "count": 12
+        },
+        {
+          "reason": "middle origin SAN != first destination MRY",
+          "count": 12
+        },
+        {
+          "reason": "middle origin OAK != first destination PHL",
+          "count": 12
+        },
+        {
+          "reason": "middle origin SJC != first destination PHL",
+          "count": 12
+        },
+        {
+          "reason": "middle origin OAK != first destination YYC",
+          "count": 12
+        },
+        {
+          "reason": "middle origin SJC != first destination YYC",
+          "count": 12
+        },
+        {
+          "reason": "middle origin SEA != first destination EUG",
+          "count": 12
+        },
+        {
+          "reason": "middle origin OAK != first destination IAH",
+          "count": 12
+        },
+        {
+          "reason": "middle origin SJC != first destination IAH",
+          "count": 12
+        },
+        {
+          "reason": "middle origin PDX != first destination HND",
+          "count": 10
+        },
+        {
+          "reason": "middle origin SAN != first destination HND",
+          "count": 10
+        },
+        {
+          "reason": "middle origin PDX != first destination LIH",
+          "count": 10
+        },
+        {
+          "reason": "middle origin SAN != first destination LIH",
+          "count": 10
+        },
+        {
+          "reason": "middle origin PDX != first destination OKC",
+          "count": 10
+        },
+        {
+          "reason": "middle origin SAN != first destination OKC",
+          "count": 10
+        },
+        {
+          "reason": "middle origin PDX != first destination NRT",
+          "count": 10
+        },
+        {
+          "reason": "middle origin SAN != first destination NRT",
+          "count": 10
+        },
+        {
+          "reason": "middle origin SEA != first destination DTW",
+          "count": 9
+        },
+        {
+          "reason": "middle origin SEA != first destination CDG",
+          "count": 9
+        },
+        {
+          "reason": "middle origin SEA != first destination AMS",
+          "count": 9
+        },
+        {
+          "reason": "middle origin SEA != first destination LAS",
+          "count": 9
+        },
+        {
+          "reason": "middle origin SEA != first destination PHL",
+          "count": 9
+        },
+        {
+          "reason": "middle origin SEA != first destination YYC",
+          "count": 9
+        },
+        {
+          "reason": "middle origin SEA != first destination IAH",
+          "count": 9
+        },
+        {
+          "reason": "middle origin PDX != first destination EWR",
+          "count": 8
+        },
+        {
+          "reason": "middle origin SAN != first destination EWR",
+          "count": 8
+        },
+        {
+          "reason": "middle origin OAK != first destination GEG",
+          "count": 8
+        },
+        {
+          "reason": "middle origin SJC != first destination GEG",
+          "count": 8
+        },
+        {
+          "reason": "middle origin OAK != first destination DEN",
+          "count": 8
+        },
+        {
+          "reason": "middle origin SJC != first destination DEN",
+          "count": 8
+        },
+        {
+          "reason": "middle origin OAK != first destination LHR",
+          "count": 8
+        },
+        {
+          "reason": "middle origin SJC != first destination LHR",
+          "count": 8
+        },
+        {
+          "reason": "middle origin OAK != first destination SBP",
+          "count": 8
+        },
+        {
+          "reason": "middle origin SJC != first destination SBP",
+          "count": 8
+        },
+        {
+          "reason": "middle origin OAK != first destination ANC",
+          "count": 8
+        },
+        {
+          "reason": "middle origin SJC != first destination ANC",
+          "count": 8
+        },
+        {
+          "reason": "middle origin OAK != first destination RDM",
+          "count": 8
+        },
+        {
+          "reason": "middle origin SJC != first destination RDM",
+          "count": 8
+        },
+        {
+          "reason": "middle origin OAK != first destination GDL",
+          "count": 8
+        },
+        {
+          "reason": "middle origin SJC != first destination GDL",
+          "count": 8
+        },
+        {
+          "reason": "middle origin OAK != first destination HSH",
+          "count": 8
+        },
+        {
+          "reason": "middle origin SJC != first destination HSH",
+          "count": 8
+        },
+        {
+          "reason": "middle origin OAK != first destination ELP",
+          "count": 8
+        },
+        {
+          "reason": "middle origin SJC != first destination ELP",
+          "count": 8
+        },
+        {
+          "reason": "middle origin PDX != first destination EUG",
+          "count": 8
+        },
+        {
+          "reason": "middle origin SAN != first destination EUG",
+          "count": 8
+        },
+        {
+          "reason": "middle origin PDX != first destination DTW",
+          "count": 6
+        },
+        {
+          "reason": "middle origin SAN != first destination DTW",
+          "count": 6
+        },
+        {
+          "reason": "middle origin PDX != first destination CDG",
+          "count": 6
+        },
+        {
+          "reason": "middle origin SAN != first destination CDG",
+          "count": 6
+        },
+        {
+          "reason": "middle origin PDX != first destination SEA",
+          "count": 6
+        },
+        {
+          "reason": "middle origin SAN != first destination SEA",
+          "count": 6
+        },
+        {
+          "reason": "middle origin PDX != first destination AMS",
+          "count": 6
+        },
+        {
+          "reason": "middle origin SAN != first destination AMS",
+          "count": 6
+        },
+        {
+          "reason": "middle origin SEA != first destination GEG",
+          "count": 6
+        },
+        {
+          "reason": "middle origin PDX != first destination LAS",
+          "count": 6
+        },
+        {
+          "reason": "middle origin SAN != first destination LAS",
+          "count": 6
+        },
+        {
+          "reason": "middle origin SEA != first destination DEN",
+          "count": 6
+        },
+        {
+          "reason": "middle origin SEA != first destination LHR",
+          "count": 6
+        },
+        {
+          "reason": "middle origin PDX != first destination PHL",
+          "count": 6
+        },
+        {
+          "reason": "middle origin SAN != first destination PHL",
+          "count": 6
+        },
+        {
+          "reason": "middle origin SEA != first destination SBP",
+          "count": 6
+        },
+        {
+          "reason": "middle origin PDX != first destination YYC",
+          "count": 6
+        },
+        {
+          "reason": "middle origin SAN != first destination YYC",
+          "count": 6
+        },
+        {
+          "reason": "middle origin SEA != first destination ANC",
+          "count": 6
+        },
+        {
+          "reason": "middle origin SEA != first destination RDM",
+          "count": 6
+        },
+        {
+          "reason": "middle origin SEA != first destination GDL",
+          "count": 6
+        },
+        {
+          "reason": "middle origin SEA != first destination HSH",
+          "count": 6
+        },
+        {
+          "reason": "middle origin SEA != first destination ELP",
+          "count": 6
+        },
+        {
+          "reason": "middle origin PDX != first destination IAH",
+          "count": 6
+        },
+        {
+          "reason": "middle origin SAN != first destination IAH",
+          "count": 6
+        },
+        {
+          "reason": "middle origin OAK != first destination BOI",
+          "count": 4
+        },
+        {
+          "reason": "middle origin SJC != first destination BOI",
+          "count": 4
+        },
+        {
+          "reason": "middle origin OAK != first destination CLT",
+          "count": 4
+        },
+        {
+          "reason": "middle origin SJC != first destination CLT",
+          "count": 4
+        },
+        {
+          "reason": "middle origin OAK != first destination DUB",
+          "count": 4
+        },
+        {
+          "reason": "middle origin SJC != first destination DUB",
+          "count": 4
+        },
+        {
+          "reason": "middle origin PDX != first destination GEG",
+          "count": 4
+        },
+        {
+          "reason": "middle origin SAN != first destination GEG",
+          "count": 4
+        },
+        {
+          "reason": "middle origin OAK != first destination ACV",
+          "count": 4
+        },
+        {
+          "reason": "middle origin SJC != first destination ACV",
+          "count": 4
+        },
+        {
+          "reason": "middle origin PDX != first destination DEN",
+          "count": 4
+        },
+        {
+          "reason": "middle origin SAN != first destination DEN",
+          "count": 4
+        },
+        {
+          "reason": "middle origin OAK != first destination SLC",
+          "count": 4
+        },
+        {
+          "reason": "middle origin SJC != first destination SLC",
+          "count": 4
+        },
+        {
+          "reason": "middle origin PDX != first destination LHR",
+          "count": 4
+        },
+        {
+          "reason": "middle origin SAN != first destination LHR",
+          "count": 4
+        },
+        {
+          "reason": "middle origin OAK != first destination IPL",
+          "count": 4
+        },
+        {
+          "reason": "middle origin SJC != first destination IPL",
+          "count": 4
+        },
+        {
+          "reason": "middle origin OAK != first destination IAD",
+          "count": 4
+        },
+        {
+          "reason": "middle origin SJC != first destination IAD",
+          "count": 4
+        },
+        {
+          "reason": "middle origin OAK != first destination ABQ",
+          "count": 4
+        },
+        {
+          "reason": "middle origin SJC != first destination ABQ",
+          "count": 4
+        },
+        {
+          "reason": "middle origin OAK != first destination SIN",
+          "count": 4
+        },
+        {
+          "reason": "middle origin SJC != first destination SIN",
+          "count": 4
+        },
+        {
+          "reason": "middle origin PDX != first destination SBP",
+          "count": 4
+        },
+        {
+          "reason": "middle origin SAN != first destination SBP",
+          "count": 4
+        },
+        {
+          "reason": "middle origin PDX != first destination ANC",
+          "count": 4
+        },
+        {
+          "reason": "middle origin SAN != first destination ANC",
+          "count": 4
+        },
+        {
+          "reason": "middle origin PDX != first destination RDM",
+          "count": 4
+        },
+        {
+          "reason": "middle origin SAN != first destination RDM",
+          "count": 4
+        },
+        {
+          "reason": "middle origin PDX != first destination GDL",
+          "count": 4
+        },
+        {
+          "reason": "middle origin SAN != first destination GDL",
+          "count": 4
+        },
+        {
+          "reason": "middle origin PDX != first destination HSH",
+          "count": 4
+        },
+        {
+          "reason": "middle origin SAN != first destination HSH",
+          "count": 4
+        },
+        {
+          "reason": "middle origin PDX != first destination ELP",
+          "count": 4
+        },
+        {
+          "reason": "middle origin SAN != first destination ELP",
+          "count": 4
+        },
+        {
+          "reason": "middle origin OAK != first destination PVG",
+          "count": 4
+        },
+        {
+          "reason": "middle origin SJC != first destination PVG",
+          "count": 4
+        },
+        {
+          "reason": "middle origin OAK != first destination KIX",
+          "count": 4
+        },
+        {
+          "reason": "middle origin SJC != first destination KIX",
+          "count": 4
+        },
+        {
+          "reason": "middle origin OAK != first destination VNY",
+          "count": 4
+        },
+        {
+          "reason": "middle origin SJC != first destination VNY",
+          "count": 4
+        },
+        {
+          "reason": "middle origin SEA != first destination BOI",
+          "count": 3
+        },
+        {
+          "reason": "middle origin SEA != first destination CLT",
+          "count": 3
+        },
+        {
+          "reason": "middle origin SEA != first destination DUB",
+          "count": 3
+        },
+        {
+          "reason": "middle origin SEA != first destination ACV",
+          "count": 3
+        },
+        {
+          "reason": "middle origin SEA != first destination SLC",
+          "count": 3
+        },
+        {
+          "reason": "middle origin SEA != first destination IPL",
+          "count": 3
+        },
+        {
+          "reason": "middle origin SEA != first destination IAD",
+          "count": 3
+        },
+        {
+          "reason": "middle origin SEA != first destination ABQ",
+          "count": 3
+        },
+        {
+          "reason": "middle origin SEA != first destination SIN",
+          "count": 3
+        },
+        {
+          "reason": "middle origin SEA != first destination PVG",
+          "count": 3
+        },
+        {
+          "reason": "middle origin SEA != first destination KIX",
+          "count": 3
+        },
+        {
+          "reason": "middle origin SEA != first destination VNY",
+          "count": 3
+        },
+        {
+          "reason": "middle origin PDX != first destination BOI",
+          "count": 2
+        },
+        {
+          "reason": "middle origin SAN != first destination BOI",
+          "count": 2
+        },
+        {
+          "reason": "middle origin PDX != first destination CLT",
+          "count": 2
+        },
+        {
+          "reason": "middle origin SAN != first destination CLT",
+          "count": 2
+        },
+        {
+          "reason": "middle origin PDX != first destination DUB",
+          "count": 2
+        },
+        {
+          "reason": "middle origin SAN != first destination DUB",
+          "count": 2
+        },
+        {
+          "reason": "middle origin PDX != first destination ACV",
+          "count": 2
+        },
+        {
+          "reason": "middle origin SAN != first destination ACV",
+          "count": 2
+        },
+        {
+          "reason": "middle origin PDX != first destination SLC",
+          "count": 2
+        },
+        {
+          "reason": "middle origin SAN != first destination SLC",
+          "count": 2
+        },
+        {
+          "reason": "middle origin PDX != first destination IPL",
+          "count": 2
+        },
+        {
+          "reason": "middle origin SAN != first destination IPL",
+          "count": 2
+        },
+        {
+          "reason": "middle origin PDX != first destination IAD",
+          "count": 2
+        },
+        {
+          "reason": "middle origin SAN != first destination IAD",
+          "count": 2
+        },
+        {
+          "reason": "middle origin PDX != first destination ABQ",
+          "count": 2
+        },
+        {
+          "reason": "middle origin SAN != first destination ABQ",
+          "count": 2
+        },
+        {
+          "reason": "middle origin PDX != first destination SIN",
+          "count": 2
+        },
+        {
+          "reason": "middle origin SAN != first destination SIN",
+          "count": 2
+        },
+        {
+          "reason": "middle origin PDX != first destination PVG",
+          "count": 2
+        },
+        {
+          "reason": "middle origin SAN != first destination PVG",
+          "count": 2
+        },
+        {
+          "reason": "middle origin PDX != first destination KIX",
+          "count": 2
+        },
+        {
+          "reason": "middle origin SAN != first destination KIX",
+          "count": 2
+        },
+        {
+          "reason": "middle origin PDX != first destination VNY",
+          "count": 2
+        },
+        {
+          "reason": "middle origin SAN != first destination VNY",
+          "count": 2
+        }
+      ],
+      "discardSamples": [
+        {
+          "stage": "first-to-middle",
+          "legs": [
+            "SQ1651",
+            "AA7863"
+          ],
+          "path": "LAX-BOI + HNL-OGG",
+          "reason": "middle origin HNL != first destination BOI"
+        },
+        {
+          "stage": "first-to-middle",
+          "legs": [
+            "SQ1651",
+            "JL4620"
+          ],
+          "path": "LAX-BOI + HNL-OGG",
+          "reason": "middle origin HNL != first destination BOI"
+        },
+        {
+          "stage": "first-to-middle",
+          "legs": [
+            "SQ1651",
+            "UA7045"
+          ],
+          "path": "LAX-BOI + HNL-OGG",
+          "reason": "middle origin HNL != first destination BOI"
+        },
+        {
+          "stage": "first-to-middle",
+          "legs": [
+            "SQ1651",
+            "HA1136"
+          ],
+          "path": "LAX-BOI + HNL-OGG",
+          "reason": "middle origin HNL != first destination BOI"
+        },
+        {
+          "stage": "first-to-middle",
+          "legs": [
+            "SQ1651",
+            "WN2276"
+          ],
+          "path": "LAX-BOI + HNL-OGG",
+          "reason": "middle origin HNL != first destination BOI"
+        },
+        {
+          "stage": "first-to-middle",
+          "legs": [
+            "SQ1651",
+            "JL4621"
+          ],
+          "path": "LAX-BOI + HNL-OGG",
+          "reason": "middle origin HNL != first destination BOI"
+        },
+        {
+          "stage": "first-to-middle",
+          "legs": [
+            "SQ1651",
+            "UA7022"
+          ],
+          "path": "LAX-BOI + HNL-OGG",
+          "reason": "middle origin HNL != first destination BOI"
+        },
+        {
+          "stage": "first-to-middle",
+          "legs": [
+            "SQ1651",
+            "HA1146"
+          ],
+          "path": "LAX-BOI + HNL-OGG",
+          "reason": "middle origin HNL != first destination BOI"
+        },
+        {
+          "stage": "first-to-middle",
+          "legs": [
+            "SQ1651",
+            "HA1156"
+          ],
+          "path": "LAX-BOI + HNL-OGG",
+          "reason": "middle origin HNL != first destination BOI"
+        },
+        {
+          "stage": "first-to-middle",
+          "legs": [
+            "SQ1651",
+            "WN2343"
+          ],
+          "path": "LAX-BOI + HNL-OGG",
+          "reason": "middle origin HNL != first destination BOI"
+        },
+        {
+          "stage": "first-to-middle",
+          "legs": [
+            "SQ1651",
+            "HA1176"
+          ],
+          "path": "LAX-BOI + HNL-OGG",
+          "reason": "middle origin HNL != first destination BOI"
+        },
+        {
+          "stage": "first-to-middle",
+          "legs": [
+            "SQ1651",
+            "JL4622"
+          ],
+          "path": "LAX-BOI + HNL-OGG",
+          "reason": "middle origin HNL != first destination BOI"
+        },
+        {
+          "stage": "first-to-middle",
+          "legs": [
+            "SQ1651",
+            "AF5958"
+          ],
+          "path": "LAX-BOI + SEA-OGG",
+          "reason": "middle origin SEA != first destination BOI"
+        },
+        {
+          "stage": "first-to-middle",
+          "legs": [
+            "SQ1651",
+            "KL6565"
+          ],
+          "path": "LAX-BOI + SEA-OGG",
+          "reason": "middle origin SEA != first destination BOI"
+        },
+        {
+          "stage": "first-to-middle",
+          "legs": [
+            "SQ1651",
+            "VS1949"
+          ],
+          "path": "LAX-BOI + SEA-OGG",
+          "reason": "middle origin SEA != first destination BOI"
+        },
+        {
+          "stage": "first-to-middle",
+          "legs": [
+            "SQ1651",
+            "SQ1651"
+          ],
+          "path": "LAX-BOI + LAX-BOI",
+          "reason": "middle origin LAX != first destination BOI"
+        },
+        {
+          "stage": "first-to-middle",
+          "legs": [
+            "SQ1651",
+            "AM3898"
+          ],
+          "path": "LAX-BOI + LAX-DTW",
+          "reason": "middle origin LAX != first destination BOI"
+        },
+        {
+          "stage": "first-to-middle",
+          "legs": [
+            "SQ1651",
+            "KE7354"
+          ],
+          "path": "LAX-BOI + LAX-DTW",
+          "reason": "middle origin LAX != first destination BOI"
+        },
+        {
+          "stage": "first-to-middle",
+          "legs": [
+            "SQ1651",
+            "MU8829"
+          ],
+          "path": "LAX-BOI + LAX-DTW",
+          "reason": "middle origin LAX != first destination BOI"
+        },
+        {
+          "stage": "first-to-middle",
+          "legs": [
+            "SQ1651",
+            "NZ9280"
+          ],
+          "path": "LAX-BOI + LAX-SFO",
+          "reason": "middle origin LAX != first destination BOI"
+        }
+      ],
+      "generatedSamples": []
+    },
+    "finalScheduledItineraryCountFromSupabaseTrace": 0
+  },
+  "BOS-SBP": {
+    "airportParsing": {
+      "origin": "BOS",
+      "destination": "SBP",
+      "date": "2026-07-01",
+      "carrier": "all",
+      "maxLegs": 3
+    },
+    "originAirportExpansion": {
+      "liveScheduleOriginsQueried": [
+        "BOS"
+      ],
+      "frameworkPositioningOnly": true,
+      "note": "Current live provider search does not expand origins into hubs for segment-level schedule retrieval."
+    },
+    "destinationAirportExpansion": {
+      "liveScheduleDestinationsQueried": [
+        "SBP"
+      ],
+      "frameworkAlternatesOnly": true,
+      "note": "Current live provider search does not expand destinations into inbound hubs for segment-level schedule retrieval."
+    },
+    "liveScheduleRetrieval": {
+      "flightAwareExactRouteStatus": 200,
+      "flightAwareRawRows": 0,
+      "flightAwareSample": [],
+      "aviationstackKnownFromApi": "see API trace: rate-limited/no usable rows"
+    },
+    "candidateFlightList": {
+      "supabaseDirectRows": 0,
+      "supabaseConnectionRows": 0,
+      "supabaseRouteCoverageRows": 300,
+      "supabaseRecentRows": 300,
+      "supabaseUniqueRows": 600,
+      "generationDateUsed": "2026-05-24",
+      "normalizedCandidatesOnGenerationDate": 600,
+      "firstLegCandidates": 294,
+      "secondLegCandidates": 6
+    },
+    "directItineraryGeneration": {
+      "generated": 0,
+      "candidates": []
+    },
+    "oneStopGeneration": {
+      "generated": 0,
+      "discardSummary": [
+        {
+          "reason": "connection airport mismatch: first destination MCO != second origin PDX",
+          "count": 108
+        },
+        {
+          "reason": "connection airport mismatch: first destination MCO != second origin LAX",
+          "count": 72
+        },
+        {
+          "reason": "connection airport mismatch: first destination LGA != second origin PDX",
+          "count": 45
+        },
+        {
+          "reason": "connection airport mismatch: first destination RIC != second origin PDX",
+          "count": 45
+        },
+        {
+          "reason": "connection airport mismatch: first destination DTW != second origin PDX",
+          "count": 45
+        },
+        {
+          "reason": "connection airport mismatch: first destination AUS != second origin PDX",
+          "count": 45
+        },
+        {
+          "reason": "connection airport mismatch: first destination MCO != second origin SFO",
+          "count": 36
+        },
+        {
+          "reason": "connection airport mismatch: first destination FLL != second origin PDX",
+          "count": 36
+        },
+        {
+          "reason": "connection airport mismatch: first destination BNA != second origin PDX",
+          "count": 36
+        },
+        {
+          "reason": "connection airport mismatch: first destination SFO != second origin PDX",
+          "count": 36
+        },
+        {
+          "reason": "connection time unavailable/unparseable",
+          "count": 34
+        },
+        {
+          "reason": "connection airport mismatch: first destination LAX != second origin PDX",
+          "count": 33
+        },
+        {
+          "reason": "connection airport mismatch: first destination LGA != second origin LAX",
+          "count": 30
+        },
+        {
+          "reason": "connection airport mismatch: first destination RIC != second origin LAX",
+          "count": 30
+        },
+        {
+          "reason": "connection airport mismatch: first destination DTW != second origin LAX",
+          "count": 30
+        },
+        {
+          "reason": "connection airport mismatch: first destination AUS != second origin LAX",
+          "count": 30
+        },
+        {
+          "reason": "connection airport mismatch: first destination CLE != second origin PDX",
+          "count": 27
+        },
+        {
+          "reason": "connection airport mismatch: first destination RDU != second origin PDX",
+          "count": 27
+        },
+        {
+          "reason": "connection airport mismatch: first destination ORD != second origin PDX",
+          "count": 27
+        },
+        {
+          "reason": "connection airport mismatch: first destination FLL != second origin LAX",
+          "count": 24
+        },
+        {
+          "reason": "connection airport mismatch: first destination BNA != second origin LAX",
+          "count": 24
+        },
+        {
+          "reason": "connection airport mismatch: first destination SFO != second origin LAX",
+          "count": 24
+        },
+        {
+          "reason": "connection airport mismatch: first destination ROC != second origin PDX",
+          "count": 21
+        },
+        {
+          "reason": "connection airport mismatch: first destination SYR != second origin PDX",
+          "count": 21
+        },
+        {
+          "reason": "connection airport mismatch: first destination SDQ != second origin PDX",
+          "count": 21
+        },
+        {
+          "reason": "connection airport mismatch: first destination BUF != second origin PDX",
+          "count": 18
+        },
+        {
+          "reason": "connection airport mismatch: first destination CMH != second origin PDX",
+          "count": 18
+        },
+        {
+          "reason": "connection airport mismatch: first destination CLE != second origin LAX",
+          "count": 18
+        },
+        {
+          "reason": "connection airport mismatch: first destination RDU != second origin LAX",
+          "count": 18
+        },
+        {
+          "reason": "connection airport mismatch: first destination RSW != second origin PDX",
+          "count": 18
+        },
+        {
+          "reason": "connection airport mismatch: first destination SJU != second origin PDX",
+          "count": 18
+        },
+        {
+          "reason": "connection airport mismatch: first destination ORD != second origin LAX",
+          "count": 18
+        },
+        {
+          "reason": "connection airport mismatch: first destination TPA != second origin PDX",
+          "count": 18
+        },
+        {
+          "reason": "connection airport mismatch: first destination DFW != second origin PDX",
+          "count": 18
+        },
+        {
+          "reason": "connection airport mismatch: first destination AMS != second origin PDX",
+          "count": 18
+        },
+        {
+          "reason": "connection airport mismatch: first destination HYA != second origin PDX",
+          "count": 15
+        },
+        {
+          "reason": "connection airport mismatch: first destination LGA != second origin SFO",
+          "count": 15
+        },
+        {
+          "reason": "connection airport mismatch: first destination RIC != second origin SFO",
+          "count": 15
+        },
+        {
+          "reason": "connection airport mismatch: first destination DTW != second origin SFO",
+          "count": 15
+        },
+        {
+          "reason": "connection airport mismatch: first destination AUS != second origin SFO",
+          "count": 15
+        },
+        {
+          "reason": "connection airport mismatch: first destination ROC != second origin LAX",
+          "count": 14
+        },
+        {
+          "reason": "connection airport mismatch: first destination SYR != second origin LAX",
+          "count": 14
+        },
+        {
+          "reason": "connection airport mismatch: first destination SDQ != second origin LAX",
+          "count": 14
+        },
+        {
+          "reason": "connection airport mismatch: first destination BUF != second origin LAX",
+          "count": 12
+        },
+        {
+          "reason": "connection airport mismatch: first destination CMH != second origin LAX",
+          "count": 12
+        },
+        {
+          "reason": "connection airport mismatch: first destination RSW != second origin LAX",
+          "count": 12
+        },
+        {
+          "reason": "connection airport mismatch: first destination SJU != second origin LAX",
+          "count": 12
+        },
+        {
+          "reason": "connection airport mismatch: first destination FLL != second origin SFO",
+          "count": 12
+        },
+        {
+          "reason": "connection airport mismatch: first destination TPA != second origin LAX",
+          "count": 12
+        },
+        {
+          "reason": "connection airport mismatch: first destination DFW != second origin LAX",
+          "count": 12
+        },
+        {
+          "reason": "connection airport mismatch: first destination BNA != second origin SFO",
+          "count": 12
+        },
+        {
+          "reason": "connection airport mismatch: first destination FCO != second origin PDX",
+          "count": 12
+        },
+        {
+          "reason": "connection airport mismatch: first destination AMS != second origin LAX",
+          "count": 12
+        },
+        {
+          "reason": "connection airport mismatch: first destination FRA != second origin PDX",
+          "count": 12
+        },
+        {
+          "reason": "connection airport mismatch: first destination LAX != second origin SFO",
+          "count": 11
+        },
+        {
+          "reason": "connection airport mismatch: first destination HYA != second origin LAX",
+          "count": 10
+        },
+        {
+          "reason": "connection airport mismatch: first destination CLE != second origin SFO",
+          "count": 9
+        },
+        {
+          "reason": "connection airport mismatch: first destination RDU != second origin SFO",
+          "count": 9
+        },
+        {
+          "reason": "connection airport mismatch: first destination PBI != second origin PDX",
+          "count": 9
+        },
+        {
+          "reason": "connection airport mismatch: first destination CLT != second origin PDX",
+          "count": 9
+        },
+        {
+          "reason": "connection airport mismatch: first destination ORD != second origin SFO",
+          "count": 9
+        },
+        {
+          "reason": "connection airport mismatch: first destination ISP != second origin PDX",
+          "count": 9
+        },
+        {
+          "reason": "connection airport mismatch: first destination PVC != second origin PDX",
+          "count": 9
+        },
+        {
+          "reason": "connection airport mismatch: first destination SAN != second origin PDX",
+          "count": 9
+        },
+        {
+          "reason": "connection airport mismatch: first destination YTZ != second origin PDX",
+          "count": 9
+        },
+        {
+          "reason": "connection airport mismatch: first destination EWR != second origin PDX",
+          "count": 9
+        },
+        {
+          "reason": "connection airport mismatch: first destination MAD != second origin PDX",
+          "count": 9
+        },
+        {
+          "reason": "connection airport mismatch: first destination FCO != second origin LAX",
+          "count": 8
+        },
+        {
+          "reason": "connection airport mismatch: first destination FRA != second origin LAX",
+          "count": 8
+        },
+        {
+          "reason": "connection airport mismatch: first destination ROC != second origin SFO",
+          "count": 7
+        },
+        {
+          "reason": "connection airport mismatch: first destination SYR != second origin SFO",
+          "count": 7
+        },
+        {
+          "reason": "connection airport mismatch: first destination SDQ != second origin SFO",
+          "count": 7
+        },
+        {
+          "reason": "connection airport mismatch: first destination BUF != second origin SFO",
+          "count": 6
+        },
+        {
+          "reason": "connection airport mismatch: first destination CMH != second origin SFO",
+          "count": 6
+        },
+        {
+          "reason": "connection airport mismatch: first destination RSW != second origin SFO",
+          "count": 6
+        },
+        {
+          "reason": "connection airport mismatch: first destination SJU != second origin SFO",
+          "count": 6
+        },
+        {
+          "reason": "connection airport mismatch: first destination PBI != second origin LAX",
+          "count": 6
+        },
+        {
+          "reason": "connection airport mismatch: first destination CLT != second origin LAX",
+          "count": 6
+        },
+        {
+          "reason": "connection airport mismatch: first destination ISP != second origin LAX",
+          "count": 6
+        },
+        {
+          "reason": "connection airport mismatch: first destination PVC != second origin LAX",
+          "count": 6
+        },
+        {
+          "reason": "connection airport mismatch: first destination SAN != second origin LAX",
+          "count": 6
+        },
+        {
+          "reason": "connection airport mismatch: first destination TPA != second origin SFO",
+          "count": 6
+        },
+        {
+          "reason": "connection airport mismatch: first destination YTZ != second origin LAX",
+          "count": 6
+        },
+        {
+          "reason": "connection airport mismatch: first destination DFW != second origin SFO",
+          "count": 6
+        },
+        {
+          "reason": "connection airport mismatch: first destination EWR != second origin LAX",
+          "count": 6
+        },
+        {
+          "reason": "connection airport mismatch: first destination MAD != second origin LAX",
+          "count": 6
+        },
+        {
+          "reason": "connection airport mismatch: first destination LIS != second origin PDX",
+          "count": 6
+        },
+        {
+          "reason": "connection airport mismatch: first destination EDI != second origin PDX",
+          "count": 6
+        },
+        {
+          "reason": "connection airport mismatch: first destination OPO != second origin PDX",
+          "count": 6
+        },
+        {
+          "reason": "connection airport mismatch: first destination KEF != second origin PDX",
+          "count": 6
+        },
+        {
+          "reason": "connection airport mismatch: first destination DXB != second origin PDX",
+          "count": 6
+        },
+        {
+          "reason": "connection airport mismatch: first destination AMS != second origin SFO",
+          "count": 6
+        },
+        {
+          "reason": "connection airport mismatch: first destination YUL != second origin PDX",
+          "count": 6
+        },
+        {
+          "reason": "connection airport mismatch: first destination SEA != second origin PDX",
+          "count": 6
+        },
+        {
+          "reason": "connection airport mismatch: first destination DEN != second origin PDX",
+          "count": 6
+        },
+        {
+          "reason": "connection airport mismatch: first destination CDG != second origin PDX",
+          "count": 6
+        },
+        {
+          "reason": "connection airport mismatch: first destination LHR != second origin PDX",
+          "count": 6
+        },
+        {
+          "reason": "connection airport mismatch: first destination HYA != second origin SFO",
+          "count": 5
+        },
+        {
+          "reason": "connection airport mismatch: first destination LIS != second origin LAX",
+          "count": 4
+        },
+        {
+          "reason": "connection airport mismatch: first destination EDI != second origin LAX",
+          "count": 4
+        },
+        {
+          "reason": "connection airport mismatch: first destination OPO != second origin LAX",
+          "count": 4
+        },
+        {
+          "reason": "connection airport mismatch: first destination KEF != second origin LAX",
+          "count": 4
+        },
+        {
+          "reason": "connection airport mismatch: first destination DXB != second origin LAX",
+          "count": 4
+        },
+        {
+          "reason": "connection airport mismatch: first destination FCO != second origin SFO",
+          "count": 4
+        },
+        {
+          "reason": "connection airport mismatch: first destination FRA != second origin SFO",
+          "count": 4
+        },
+        {
+          "reason": "connection airport mismatch: first destination YUL != second origin LAX",
+          "count": 4
+        },
+        {
+          "reason": "connection airport mismatch: first destination SEA != second origin LAX",
+          "count": 4
+        },
+        {
+          "reason": "connection airport mismatch: first destination DEN != second origin LAX",
+          "count": 4
+        },
+        {
+          "reason": "connection airport mismatch: first destination CDG != second origin LAX",
+          "count": 4
+        },
+        {
+          "reason": "connection airport mismatch: first destination LHR != second origin LAX",
+          "count": 4
+        },
+        {
+          "reason": "connection airport mismatch: first destination PBI != second origin SFO",
+          "count": 3
+        },
+        {
+          "reason": "connection airport mismatch: first destination CLT != second origin SFO",
+          "count": 3
+        },
+        {
+          "reason": "connection airport mismatch: first destination ISP != second origin SFO",
+          "count": 3
+        },
+        {
+          "reason": "connection airport mismatch: first destination PVC != second origin SFO",
+          "count": 3
+        },
+        {
+          "reason": "connection airport mismatch: first destination SAN != second origin SFO",
+          "count": 3
+        },
+        {
+          "reason": "connection airport mismatch: first destination YTZ != second origin SFO",
+          "count": 3
+        },
+        {
+          "reason": "connection airport mismatch: first destination EWR != second origin SFO",
+          "count": 3
+        },
+        {
+          "reason": "connection airport mismatch: first destination MAD != second origin SFO",
+          "count": 3
+        },
+        {
+          "reason": "connection airport mismatch: first destination LGW != second origin PDX",
+          "count": 3
+        },
+        {
+          "reason": "connection airport mismatch: first destination ZRH != second origin PDX",
+          "count": 3
+        },
+        {
+          "reason": "connection airport mismatch: first destination IST != second origin PDX",
+          "count": 3
+        },
+        {
+          "reason": "connection airport mismatch: first destination DCA != second origin PDX",
+          "count": 3
+        },
+        {
+          "reason": "connection airport mismatch: first destination LIS != second origin SFO",
+          "count": 2
+        },
+        {
+          "reason": "connection airport mismatch: first destination EDI != second origin SFO",
+          "count": 2
+        },
+        {
+          "reason": "connection airport mismatch: first destination OPO != second origin SFO",
+          "count": 2
+        },
+        {
+          "reason": "connection airport mismatch: first destination KEF != second origin SFO",
+          "count": 2
+        },
+        {
+          "reason": "connection airport mismatch: first destination DXB != second origin SFO",
+          "count": 2
+        },
+        {
+          "reason": "connection airport mismatch: first destination YUL != second origin SFO",
+          "count": 2
+        },
+        {
+          "reason": "connection airport mismatch: first destination SEA != second origin SFO",
+          "count": 2
+        },
+        {
+          "reason": "connection airport mismatch: first destination DEN != second origin SFO",
+          "count": 2
+        },
+        {
+          "reason": "connection airport mismatch: first destination CDG != second origin SFO",
+          "count": 2
+        },
+        {
+          "reason": "connection airport mismatch: first destination LHR != second origin SFO",
+          "count": 2
+        },
+        {
+          "reason": "connection airport mismatch: first destination LGW != second origin LAX",
+          "count": 2
+        },
+        {
+          "reason": "connection airport mismatch: first destination ZRH != second origin LAX",
+          "count": 2
+        },
+        {
+          "reason": "connection airport mismatch: first destination IST != second origin LAX",
+          "count": 2
+        },
+        {
+          "reason": "connection airport mismatch: first destination DCA != second origin LAX",
+          "count": 2
+        },
+        {
+          "reason": "connection airport mismatch: first destination LGW != second origin SFO",
+          "count": 1
+        },
+        {
+          "reason": "connection airport mismatch: first destination ZRH != second origin SFO",
+          "count": 1
+        },
+        {
+          "reason": "connection airport mismatch: first destination IST != second origin SFO",
+          "count": 1
+        },
+        {
+          "reason": "connection airport mismatch: first destination DCA != second origin SFO",
+          "count": 1
+        }
+      ],
+      "discardSamples": [
+        {
+          "legs": [
+            "TP4416",
+            "UA1334"
+          ],
+          "path": "BOS-BUF + SFO-SBP",
+          "reason": "connection airport mismatch: first destination BUF != second origin SFO"
+        },
+        {
+          "legs": [
+            "TP4416",
+            "AV2378"
+          ],
+          "path": "BOS-BUF + LAX-SBP",
+          "reason": "connection airport mismatch: first destination BUF != second origin LAX"
+        },
+        {
+          "legs": [
+            "TP4416",
+            "CM2058"
+          ],
+          "path": "BOS-BUF + LAX-SBP",
+          "reason": "connection airport mismatch: first destination BUF != second origin LAX"
+        },
+        {
+          "legs": [
+            "TP4416",
+            "AS2436"
+          ],
+          "path": "BOS-BUF + PDX-SBP",
+          "reason": "connection airport mismatch: first destination BUF != second origin PDX"
+        },
+        {
+          "legs": [
+            "TP4416",
+            "AS2436"
+          ],
+          "path": "BOS-BUF + PDX-SBP",
+          "reason": "connection airport mismatch: first destination BUF != second origin PDX"
+        },
+        {
+          "legs": [
+            "TP4416",
+            "AS2436"
+          ],
+          "path": "BOS-BUF + PDX-SBP",
+          "reason": "connection airport mismatch: first destination BUF != second origin PDX"
+        },
+        {
+          "legs": [
+            "BA4665",
+            "UA1334"
+          ],
+          "path": "BOS-CMH + SFO-SBP",
+          "reason": "connection airport mismatch: first destination CMH != second origin SFO"
+        },
+        {
+          "legs": [
+            "BA4665",
+            "AV2378"
+          ],
+          "path": "BOS-CMH + LAX-SBP",
+          "reason": "connection airport mismatch: first destination CMH != second origin LAX"
+        },
+        {
+          "legs": [
+            "BA4665",
+            "CM2058"
+          ],
+          "path": "BOS-CMH + LAX-SBP",
+          "reason": "connection airport mismatch: first destination CMH != second origin LAX"
+        },
+        {
+          "legs": [
+            "BA4665",
+            "AS2436"
+          ],
+          "path": "BOS-CMH + PDX-SBP",
+          "reason": "connection airport mismatch: first destination CMH != second origin PDX"
+        },
+        {
+          "legs": [
+            "BA4665",
+            "AS2436"
+          ],
+          "path": "BOS-CMH + PDX-SBP",
+          "reason": "connection airport mismatch: first destination CMH != second origin PDX"
+        },
+        {
+          "legs": [
+            "BA4665",
+            "AS2436"
+          ],
+          "path": "BOS-CMH + PDX-SBP",
+          "reason": "connection airport mismatch: first destination CMH != second origin PDX"
+        },
+        {
+          "legs": [
+            "IB4639",
+            "UA1334"
+          ],
+          "path": "BOS-CMH + SFO-SBP",
+          "reason": "connection airport mismatch: first destination CMH != second origin SFO"
+        },
+        {
+          "legs": [
+            "IB4639",
+            "AV2378"
+          ],
+          "path": "BOS-CMH + LAX-SBP",
+          "reason": "connection airport mismatch: first destination CMH != second origin LAX"
+        },
+        {
+          "legs": [
+            "IB4639",
+            "CM2058"
+          ],
+          "path": "BOS-CMH + LAX-SBP",
+          "reason": "connection airport mismatch: first destination CMH != second origin LAX"
+        },
+        {
+          "legs": [
+            "IB4639",
+            "AS2436"
+          ],
+          "path": "BOS-CMH + PDX-SBP",
+          "reason": "connection airport mismatch: first destination CMH != second origin PDX"
+        },
+        {
+          "legs": [
+            "IB4639",
+            "AS2436"
+          ],
+          "path": "BOS-CMH + PDX-SBP",
+          "reason": "connection airport mismatch: first destination CMH != second origin PDX"
+        },
+        {
+          "legs": [
+            "IB4639",
+            "AS2436"
+          ],
+          "path": "BOS-CMH + PDX-SBP",
+          "reason": "connection airport mismatch: first destination CMH != second origin PDX"
+        },
+        {
+          "legs": [
+            "BA8398",
+            "UA1334"
+          ],
+          "path": "BOS-CLE + SFO-SBP",
+          "reason": "connection airport mismatch: first destination CLE != second origin SFO"
+        },
+        {
+          "legs": [
+            "BA8398",
+            "AV2378"
+          ],
+          "path": "BOS-CLE + LAX-SBP",
+          "reason": "connection airport mismatch: first destination CLE != second origin LAX"
+        }
+      ],
+      "generatedSamples": []
+    },
+    "twoStopGeneration": {
+      "generated": 0,
+      "discardSummary": [
+        {
+          "reason": "middle origin BOS != first destination MCO",
+          "count": 10584
+        },
+        {
+          "reason": "middle origin BOS != first destination LGA",
+          "count": 4410
+        },
+        {
+          "reason": "middle origin BOS != first destination RIC",
+          "count": 4410
+        },
+        {
+          "reason": "middle origin BOS != first destination DTW",
+          "count": 4410
+        },
+        {
+          "reason": "middle origin BOS != first destination AUS",
+          "count": 4410
+        },
+        {
+          "reason": "middle origin DFW != first destination MCO",
+          "count": 3600
+        },
+        {
+          "reason": "middle origin HNL != first destination MCO",
+          "count": 3600
+        },
+        {
+          "reason": "middle origin JFK != first destination MCO",
+          "count": 3600
+        },
+        {
+          "reason": "middle origin BOS != first destination FLL",
+          "count": 3528
+        },
+        {
+          "reason": "middle origin BOS != first destination BNA",
+          "count": 3528
+        },
+        {
+          "reason": "middle origin BOS != first destination SFO",
+          "count": 3528
+        },
+        {
+          "reason": "middle origin BOS != first destination LAX",
+          "count": 3234
+        },
+        {
+          "reason": "middle origin BOS != first destination CLE",
+          "count": 2646
+        },
+        {
+          "reason": "middle origin BOS != first destination RDU",
+          "count": 2646
+        },
+        {
+          "reason": "middle origin BOS != first destination ORD",
+          "count": 2646
+        },
+        {
+          "reason": "middle origin BOS != first destination ROC",
+          "count": 2058
+        },
+        {
+          "reason": "middle origin BOS != first destination SYR",
+          "count": 2058
+        },
+        {
+          "reason": "middle origin BOS != first destination SDQ",
+          "count": 2058
+        },
+        {
+          "reason": "middle origin BOS != first destination BUF",
+          "count": 1764
+        },
+        {
+          "reason": "middle origin BOS != first destination CMH",
+          "count": 1764
+        },
+        {
+          "reason": "middle origin BOS != first destination RSW",
+          "count": 1764
+        },
+        {
+          "reason": "middle origin BOS != first destination SJU",
+          "count": 1764
+        },
+        {
+          "reason": "middle origin BOS != first destination TPA",
+          "count": 1764
+        },
+        {
+          "reason": "middle origin BOS != first destination DFW",
+          "count": 1764
+        },
+        {
+          "reason": "middle origin BOS != first destination AMS",
+          "count": 1764
+        },
+        {
+          "reason": "middle origin DFW != first destination LGA",
+          "count": 1500
+        },
+        {
+          "reason": "middle origin HNL != first destination LGA",
+          "count": 1500
+        },
+        {
+          "reason": "middle origin JFK != first destination LGA",
+          "count": 1500
+        },
+        {
+          "reason": "middle origin DFW != first destination RIC",
+          "count": 1500
+        },
+        {
+          "reason": "middle origin HNL != first destination RIC",
+          "count": 1500
+        },
+        {
+          "reason": "middle origin JFK != first destination RIC",
+          "count": 1500
+        },
+        {
+          "reason": "middle origin DFW != first destination DTW",
+          "count": 1500
+        },
+        {
+          "reason": "middle origin HNL != first destination DTW",
+          "count": 1500
+        },
+        {
+          "reason": "middle origin JFK != first destination DTW",
+          "count": 1500
+        },
+        {
+          "reason": "middle origin DFW != first destination AUS",
+          "count": 1500
+        },
+        {
+          "reason": "middle origin HNL != first destination AUS",
+          "count": 1500
+        },
+        {
+          "reason": "middle origin JFK != first destination AUS",
+          "count": 1500
+        },
+        {
+          "reason": "middle origin BOS != first destination HYA",
+          "count": 1470
+        },
+        {
+          "reason": "middle origin DFW != first destination FLL",
+          "count": 1200
+        },
+        {
+          "reason": "middle origin HNL != first destination FLL",
+          "count": 1200
+        },
+        {
+          "reason": "middle origin JFK != first destination FLL",
+          "count": 1200
+        },
+        {
+          "reason": "middle origin DFW != first destination BNA",
+          "count": 1200
+        },
+        {
+          "reason": "middle origin HNL != first destination BNA",
+          "count": 1200
+        },
+        {
+          "reason": "middle origin JFK != first destination BNA",
+          "count": 1200
+        },
+        {
+          "reason": "middle origin DFW != first destination SFO",
+          "count": 1200
+        },
+        {
+          "reason": "middle origin HNL != first destination SFO",
+          "count": 1200
+        },
+        {
+          "reason": "middle origin JFK != first destination SFO",
+          "count": 1200
+        },
+        {
+          "reason": "middle origin BOS != first destination FCO",
+          "count": 1176
+        },
+        {
+          "reason": "middle origin BOS != first destination FRA",
+          "count": 1176
+        },
+        {
+          "reason": "middle origin DFW != first destination LAX",
+          "count": 1100
+        },
+        {
+          "reason": "middle origin HNL != first destination LAX",
+          "count": 1100
+        },
+        {
+          "reason": "middle origin JFK != first destination LAX",
+          "count": 1100
+        },
+        {
+          "reason": "middle origin DFW != first destination CLE",
+          "count": 900
+        },
+        {
+          "reason": "middle origin HNL != first destination CLE",
+          "count": 900
+        },
+        {
+          "reason": "middle origin JFK != first destination CLE",
+          "count": 900
+        },
+        {
+          "reason": "middle origin DFW != first destination RDU",
+          "count": 900
+        },
+        {
+          "reason": "middle origin HNL != first destination RDU",
+          "count": 900
+        },
+        {
+          "reason": "middle origin JFK != first destination RDU",
+          "count": 900
+        },
+        {
+          "reason": "middle origin DFW != first destination ORD",
+          "count": 900
+        },
+        {
+          "reason": "middle origin HNL != first destination ORD",
+          "count": 900
+        },
+        {
+          "reason": "middle origin JFK != first destination ORD",
+          "count": 900
+        },
+        {
+          "reason": "middle origin BOS != first destination PBI",
+          "count": 882
+        },
+        {
+          "reason": "middle origin BOS != first destination CLT",
+          "count": 882
+        },
+        {
+          "reason": "middle origin BOS != first destination ISP",
+          "count": 882
+        },
+        {
+          "reason": "middle origin BOS != first destination PVC",
+          "count": 882
+        },
+        {
+          "reason": "middle origin BOS != first destination SAN",
+          "count": 882
+        },
+        {
+          "reason": "middle origin BOS != first destination YTZ",
+          "count": 882
+        },
+        {
+          "reason": "middle origin BOS != first destination EWR",
+          "count": 882
+        },
+        {
+          "reason": "middle origin BOS != first destination MAD",
+          "count": 882
+        },
+        {
+          "reason": "middle origin DFW != first destination ROC",
+          "count": 700
+        },
+        {
+          "reason": "middle origin HNL != first destination ROC",
+          "count": 700
+        },
+        {
+          "reason": "middle origin JFK != first destination ROC",
+          "count": 700
+        },
+        {
+          "reason": "middle origin DFW != first destination SYR",
+          "count": 700
+        },
+        {
+          "reason": "middle origin HNL != first destination SYR",
+          "count": 700
+        },
+        {
+          "reason": "middle origin JFK != first destination SYR",
+          "count": 700
+        },
+        {
+          "reason": "middle origin DFW != first destination SDQ",
+          "count": 700
+        },
+        {
+          "reason": "middle origin HNL != first destination SDQ",
+          "count": 700
+        },
+        {
+          "reason": "middle origin JFK != first destination SDQ",
+          "count": 700
+        },
+        {
+          "reason": "middle origin DFW != first destination BUF",
+          "count": 600
+        },
+        {
+          "reason": "middle origin HNL != first destination BUF",
+          "count": 600
+        },
+        {
+          "reason": "middle origin JFK != first destination BUF",
+          "count": 600
+        },
+        {
+          "reason": "middle origin DFW != first destination CMH",
+          "count": 600
+        },
+        {
+          "reason": "middle origin HNL != first destination CMH",
+          "count": 600
+        },
+        {
+          "reason": "middle origin JFK != first destination CMH",
+          "count": 600
+        },
+        {
+          "reason": "middle origin DFW != first destination RSW",
+          "count": 600
+        },
+        {
+          "reason": "middle origin HNL != first destination RSW",
+          "count": 600
+        },
+        {
+          "reason": "middle origin JFK != first destination RSW",
+          "count": 600
+        },
+        {
+          "reason": "middle origin DFW != first destination SJU",
+          "count": 600
+        },
+        {
+          "reason": "middle origin HNL != first destination SJU",
+          "count": 600
+        },
+        {
+          "reason": "middle origin JFK != first destination SJU",
+          "count": 600
+        },
+        {
+          "reason": "middle origin DFW != first destination TPA",
+          "count": 600
+        },
+        {
+          "reason": "middle origin HNL != first destination TPA",
+          "count": 600
+        },
+        {
+          "reason": "middle origin JFK != first destination TPA",
+          "count": 600
+        },
+        {
+          "reason": "first connection time unavailable/unparseable",
+          "count": 600
+        },
+        {
+          "reason": "middle origin HNL != first destination DFW",
+          "count": 600
+        },
+        {
+          "reason": "middle origin JFK != first destination DFW",
+          "count": 600
+        },
+        {
+          "reason": "middle origin DFW != first destination AMS",
+          "count": 600
+        },
+        {
+          "reason": "middle origin HNL != first destination AMS",
+          "count": 600
+        },
+        {
+          "reason": "middle origin JFK != first destination AMS",
+          "count": 600
+        },
+        {
+          "reason": "middle origin BOS != first destination LIS",
+          "count": 588
+        },
+        {
+          "reason": "middle origin BOS != first destination EDI",
+          "count": 588
+        },
+        {
+          "reason": "middle origin BOS != first destination OPO",
+          "count": 588
+        },
+        {
+          "reason": "middle origin BOS != first destination KEF",
+          "count": 588
+        },
+        {
+          "reason": "middle origin BOS != first destination DXB",
+          "count": 588
+        },
+        {
+          "reason": "middle origin BOS != first destination YUL",
+          "count": 588
+        },
+        {
+          "reason": "middle origin BOS != first destination SEA",
+          "count": 588
+        },
+        {
+          "reason": "middle origin BOS != first destination DEN",
+          "count": 588
+        },
+        {
+          "reason": "middle origin BOS != first destination CDG",
+          "count": 588
+        },
+        {
+          "reason": "middle origin BOS != first destination LHR",
+          "count": 588
+        },
+        {
+          "reason": "middle origin DFW != first destination HYA",
+          "count": 500
+        },
+        {
+          "reason": "middle origin HNL != first destination HYA",
+          "count": 500
+        },
+        {
+          "reason": "middle origin JFK != first destination HYA",
+          "count": 500
+        },
+        {
+          "reason": "middle origin DFW != first destination FCO",
+          "count": 400
+        },
+        {
+          "reason": "middle origin HNL != first destination FCO",
+          "count": 400
+        },
+        {
+          "reason": "middle origin JFK != first destination FCO",
+          "count": 400
+        },
+        {
+          "reason": "middle origin DFW != first destination FRA",
+          "count": 400
+        },
+        {
+          "reason": "middle origin HNL != first destination FRA",
+          "count": 400
+        },
+        {
+          "reason": "middle origin JFK != first destination FRA",
+          "count": 400
+        },
+        {
+          "reason": "middle origin DFW != first destination PBI",
+          "count": 300
+        },
+        {
+          "reason": "middle origin HNL != first destination PBI",
+          "count": 300
+        },
+        {
+          "reason": "middle origin JFK != first destination PBI",
+          "count": 300
+        },
+        {
+          "reason": "middle origin DFW != first destination CLT",
+          "count": 300
+        },
+        {
+          "reason": "middle origin HNL != first destination CLT",
+          "count": 300
+        },
+        {
+          "reason": "middle origin JFK != first destination CLT",
+          "count": 300
+        },
+        {
+          "reason": "middle origin DFW != first destination ISP",
+          "count": 300
+        },
+        {
+          "reason": "middle origin HNL != first destination ISP",
+          "count": 300
+        },
+        {
+          "reason": "middle origin JFK != first destination ISP",
+          "count": 300
+        },
+        {
+          "reason": "middle origin DFW != first destination PVC",
+          "count": 300
+        },
+        {
+          "reason": "middle origin HNL != first destination PVC",
+          "count": 300
+        },
+        {
+          "reason": "middle origin JFK != first destination PVC",
+          "count": 300
+        },
+        {
+          "reason": "middle origin DFW != first destination SAN",
+          "count": 300
+        },
+        {
+          "reason": "middle origin HNL != first destination SAN",
+          "count": 300
+        },
+        {
+          "reason": "middle origin JFK != first destination SAN",
+          "count": 300
+        },
+        {
+          "reason": "middle origin DFW != first destination YTZ",
+          "count": 300
+        },
+        {
+          "reason": "middle origin HNL != first destination YTZ",
+          "count": 300
+        },
+        {
+          "reason": "middle origin JFK != first destination YTZ",
+          "count": 300
+        },
+        {
+          "reason": "middle origin DFW != first destination EWR",
+          "count": 300
+        },
+        {
+          "reason": "middle origin HNL != first destination EWR",
+          "count": 300
+        },
+        {
+          "reason": "middle origin JFK != first destination EWR",
+          "count": 300
+        },
+        {
+          "reason": "middle origin DFW != first destination MAD",
+          "count": 300
+        },
+        {
+          "reason": "middle origin HNL != first destination MAD",
+          "count": 300
+        },
+        {
+          "reason": "middle origin JFK != first destination MAD",
+          "count": 300
+        },
+        {
+          "reason": "middle origin BOS != first destination LGW",
+          "count": 294
+        },
+        {
+          "reason": "middle origin BOS != first destination ZRH",
+          "count": 294
+        },
+        {
+          "reason": "middle origin BOS != first destination IST",
+          "count": 294
+        },
+        {
+          "reason": "middle origin BOS != first destination DCA",
+          "count": 294
+        },
+        {
+          "reason": "middle origin DFW != first destination LIS",
+          "count": 200
+        },
+        {
+          "reason": "middle origin HNL != first destination LIS",
+          "count": 200
+        },
+        {
+          "reason": "middle origin JFK != first destination LIS",
+          "count": 200
+        },
+        {
+          "reason": "middle origin DFW != first destination EDI",
+          "count": 200
+        },
+        {
+          "reason": "middle origin HNL != first destination EDI",
+          "count": 200
+        },
+        {
+          "reason": "middle origin JFK != first destination EDI",
+          "count": 200
+        },
+        {
+          "reason": "middle origin DFW != first destination OPO",
+          "count": 200
+        },
+        {
+          "reason": "middle origin HNL != first destination OPO",
+          "count": 200
+        },
+        {
+          "reason": "middle origin JFK != first destination OPO",
+          "count": 200
+        },
+        {
+          "reason": "middle origin DFW != first destination KEF",
+          "count": 200
+        },
+        {
+          "reason": "middle origin HNL != first destination KEF",
+          "count": 200
+        },
+        {
+          "reason": "middle origin JFK != first destination KEF",
+          "count": 200
+        },
+        {
+          "reason": "middle origin DFW != first destination DXB",
+          "count": 200
+        },
+        {
+          "reason": "middle origin HNL != first destination DXB",
+          "count": 200
+        },
+        {
+          "reason": "middle origin JFK != first destination DXB",
+          "count": 200
+        },
+        {
+          "reason": "middle origin DFW != first destination YUL",
+          "count": 200
+        },
+        {
+          "reason": "middle origin HNL != first destination YUL",
+          "count": 200
+        },
+        {
+          "reason": "middle origin JFK != first destination YUL",
+          "count": 200
+        },
+        {
+          "reason": "middle origin DFW != first destination SEA",
+          "count": 200
+        },
+        {
+          "reason": "middle origin HNL != first destination SEA",
+          "count": 200
+        },
+        {
+          "reason": "middle origin JFK != first destination SEA",
+          "count": 200
+        },
+        {
+          "reason": "middle origin DFW != first destination DEN",
+          "count": 200
+        },
+        {
+          "reason": "middle origin HNL != first destination DEN",
+          "count": 200
+        },
+        {
+          "reason": "middle origin JFK != first destination DEN",
+          "count": 200
+        },
+        {
+          "reason": "middle origin DFW != first destination CDG",
+          "count": 200
+        },
+        {
+          "reason": "middle origin HNL != first destination CDG",
+          "count": 200
+        },
+        {
+          "reason": "middle origin JFK != first destination CDG",
+          "count": 200
+        },
+        {
+          "reason": "middle origin DFW != first destination LHR",
+          "count": 200
+        },
+        {
+          "reason": "middle origin HNL != first destination LHR",
+          "count": 200
+        },
+        {
+          "reason": "middle origin JFK != first destination LHR",
+          "count": 200
+        },
+        {
+          "reason": "middle origin PDX != first destination MCO",
+          "count": 108
+        },
+        {
+          "reason": "middle origin DFW != first destination LGW",
+          "count": 100
+        },
+        {
+          "reason": "middle origin HNL != first destination LGW",
+          "count": 100
+        },
+        {
+          "reason": "middle origin JFK != first destination LGW",
+          "count": 100
+        },
+        {
+          "reason": "middle origin DFW != first destination ZRH",
+          "count": 100
+        },
+        {
+          "reason": "middle origin HNL != first destination ZRH",
+          "count": 100
+        },
+        {
+          "reason": "middle origin JFK != first destination ZRH",
+          "count": 100
+        },
+        {
+          "reason": "middle origin DFW != first destination IST",
+          "count": 100
+        },
+        {
+          "reason": "middle origin HNL != first destination IST",
+          "count": 100
+        },
+        {
+          "reason": "middle origin JFK != first destination IST",
+          "count": 100
+        },
+        {
+          "reason": "middle origin DFW != first destination DCA",
+          "count": 100
+        },
+        {
+          "reason": "middle origin HNL != first destination DCA",
+          "count": 100
+        },
+        {
+          "reason": "middle origin JFK != first destination DCA",
+          "count": 100
+        },
+        {
+          "reason": "middle origin LAX != first destination MCO",
+          "count": 72
+        },
+        {
+          "reason": "middle origin PDX != first destination LGA",
+          "count": 45
+        },
+        {
+          "reason": "middle origin PDX != first destination RIC",
+          "count": 45
+        },
+        {
+          "reason": "middle origin PDX != first destination DTW",
+          "count": 45
+        },
+        {
+          "reason": "middle origin PDX != first destination AUS",
+          "count": 45
+        },
+        {
+          "reason": "middle origin SFO != first destination MCO",
+          "count": 36
+        },
+        {
+          "reason": "middle origin PDX != first destination FLL",
+          "count": 36
+        },
+        {
+          "reason": "middle origin PDX != first destination BNA",
+          "count": 36
+        },
+        {
+          "reason": "middle origin PDX != first destination SFO",
+          "count": 36
+        },
+        {
+          "reason": "middle destination SBP is final destination; belongs to 1-stop generation",
+          "count": 34
+        },
+        {
+          "reason": "middle origin PDX != first destination LAX",
+          "count": 33
+        },
+        {
+          "reason": "middle origin LAX != first destination LGA",
+          "count": 30
+        },
+        {
+          "reason": "middle origin LAX != first destination RIC",
+          "count": 30
+        },
+        {
+          "reason": "middle origin LAX != first destination DTW",
+          "count": 30
+        },
+        {
+          "reason": "middle origin LAX != first destination AUS",
+          "count": 30
+        },
+        {
+          "reason": "middle origin PDX != first destination CLE",
+          "count": 27
+        },
+        {
+          "reason": "middle origin PDX != first destination RDU",
+          "count": 27
+        },
+        {
+          "reason": "middle origin PDX != first destination ORD",
+          "count": 27
+        },
+        {
+          "reason": "middle origin LAX != first destination FLL",
+          "count": 24
+        },
+        {
+          "reason": "middle origin LAX != first destination BNA",
+          "count": 24
+        },
+        {
+          "reason": "middle origin LAX != first destination SFO",
+          "count": 24
+        },
+        {
+          "reason": "middle origin PDX != first destination ROC",
+          "count": 21
+        },
+        {
+          "reason": "middle origin PDX != first destination SYR",
+          "count": 21
+        },
+        {
+          "reason": "middle origin PDX != first destination SDQ",
+          "count": 21
+        },
+        {
+          "reason": "middle origin PDX != first destination BUF",
+          "count": 18
+        },
+        {
+          "reason": "middle origin PDX != first destination CMH",
+          "count": 18
+        },
+        {
+          "reason": "middle origin LAX != first destination CLE",
+          "count": 18
+        },
+        {
+          "reason": "middle origin LAX != first destination RDU",
+          "count": 18
+        },
+        {
+          "reason": "middle origin PDX != first destination RSW",
+          "count": 18
+        },
+        {
+          "reason": "middle origin PDX != first destination SJU",
+          "count": 18
+        },
+        {
+          "reason": "middle origin LAX != first destination ORD",
+          "count": 18
+        },
+        {
+          "reason": "middle origin PDX != first destination TPA",
+          "count": 18
+        },
+        {
+          "reason": "middle origin PDX != first destination DFW",
+          "count": 18
+        },
+        {
+          "reason": "middle origin PDX != first destination AMS",
+          "count": 18
+        },
+        {
+          "reason": "middle origin PDX != first destination HYA",
+          "count": 15
+        },
+        {
+          "reason": "middle origin SFO != first destination LGA",
+          "count": 15
+        },
+        {
+          "reason": "middle origin SFO != first destination RIC",
+          "count": 15
+        },
+        {
+          "reason": "middle origin SFO != first destination DTW",
+          "count": 15
+        },
+        {
+          "reason": "middle origin SFO != first destination AUS",
+          "count": 15
+        },
+        {
+          "reason": "middle origin LAX != first destination ROC",
+          "count": 14
+        },
+        {
+          "reason": "middle origin LAX != first destination SYR",
+          "count": 14
+        },
+        {
+          "reason": "middle origin LAX != first destination SDQ",
+          "count": 14
+        },
+        {
+          "reason": "middle origin LAX != first destination BUF",
+          "count": 12
+        },
+        {
+          "reason": "middle origin LAX != first destination CMH",
+          "count": 12
+        },
+        {
+          "reason": "middle origin LAX != first destination RSW",
+          "count": 12
+        },
+        {
+          "reason": "middle origin LAX != first destination SJU",
+          "count": 12
+        },
+        {
+          "reason": "middle origin SFO != first destination FLL",
+          "count": 12
+        },
+        {
+          "reason": "middle origin LAX != first destination TPA",
+          "count": 12
+        },
+        {
+          "reason": "middle origin LAX != first destination DFW",
+          "count": 12
+        },
+        {
+          "reason": "middle origin SFO != first destination BNA",
+          "count": 12
+        },
+        {
+          "reason": "middle origin PDX != first destination FCO",
+          "count": 12
+        },
+        {
+          "reason": "middle origin LAX != first destination AMS",
+          "count": 12
+        },
+        {
+          "reason": "middle origin PDX != first destination FRA",
+          "count": 12
+        },
+        {
+          "reason": "middle origin SFO != first destination LAX",
+          "count": 11
+        },
+        {
+          "reason": "middle origin LAX != first destination HYA",
+          "count": 10
+        },
+        {
+          "reason": "middle origin SFO != first destination CLE",
+          "count": 9
+        },
+        {
+          "reason": "middle origin SFO != first destination RDU",
+          "count": 9
+        },
+        {
+          "reason": "middle origin PDX != first destination PBI",
+          "count": 9
+        },
+        {
+          "reason": "middle origin PDX != first destination CLT",
+          "count": 9
+        },
+        {
+          "reason": "middle origin SFO != first destination ORD",
+          "count": 9
+        },
+        {
+          "reason": "middle origin PDX != first destination ISP",
+          "count": 9
+        },
+        {
+          "reason": "middle origin PDX != first destination PVC",
+          "count": 9
+        },
+        {
+          "reason": "middle origin PDX != first destination SAN",
+          "count": 9
+        },
+        {
+          "reason": "middle origin PDX != first destination YTZ",
+          "count": 9
+        },
+        {
+          "reason": "middle origin PDX != first destination EWR",
+          "count": 9
+        },
+        {
+          "reason": "middle origin PDX != first destination MAD",
+          "count": 9
+        },
+        {
+          "reason": "middle origin LAX != first destination FCO",
+          "count": 8
+        },
+        {
+          "reason": "middle origin LAX != first destination FRA",
+          "count": 8
+        },
+        {
+          "reason": "middle origin SFO != first destination ROC",
+          "count": 7
+        },
+        {
+          "reason": "middle origin SFO != first destination SYR",
+          "count": 7
+        },
+        {
+          "reason": "middle origin SFO != first destination SDQ",
+          "count": 7
+        },
+        {
+          "reason": "middle origin SFO != first destination BUF",
+          "count": 6
+        },
+        {
+          "reason": "middle origin SFO != first destination CMH",
+          "count": 6
+        },
+        {
+          "reason": "middle origin SFO != first destination RSW",
+          "count": 6
+        },
+        {
+          "reason": "middle origin SFO != first destination SJU",
+          "count": 6
+        },
+        {
+          "reason": "middle origin LAX != first destination PBI",
+          "count": 6
+        },
+        {
+          "reason": "middle origin LAX != first destination CLT",
+          "count": 6
+        },
+        {
+          "reason": "middle origin LAX != first destination ISP",
+          "count": 6
+        },
+        {
+          "reason": "middle origin LAX != first destination PVC",
+          "count": 6
+        },
+        {
+          "reason": "middle origin LAX != first destination SAN",
+          "count": 6
+        },
+        {
+          "reason": "middle origin SFO != first destination TPA",
+          "count": 6
+        },
+        {
+          "reason": "middle origin LAX != first destination YTZ",
+          "count": 6
+        },
+        {
+          "reason": "middle origin SFO != first destination DFW",
+          "count": 6
+        },
+        {
+          "reason": "middle origin LAX != first destination EWR",
+          "count": 6
+        },
+        {
+          "reason": "middle origin LAX != first destination MAD",
+          "count": 6
+        },
+        {
+          "reason": "middle origin PDX != first destination LIS",
+          "count": 6
+        },
+        {
+          "reason": "middle origin PDX != first destination EDI",
+          "count": 6
+        },
+        {
+          "reason": "middle origin PDX != first destination OPO",
+          "count": 6
+        },
+        {
+          "reason": "middle origin PDX != first destination KEF",
+          "count": 6
+        },
+        {
+          "reason": "middle origin PDX != first destination DXB",
+          "count": 6
+        },
+        {
+          "reason": "middle origin SFO != first destination AMS",
+          "count": 6
+        },
+        {
+          "reason": "middle origin PDX != first destination YUL",
+          "count": 6
+        },
+        {
+          "reason": "middle origin PDX != first destination SEA",
+          "count": 6
+        },
+        {
+          "reason": "middle origin PDX != first destination DEN",
+          "count": 6
+        },
+        {
+          "reason": "middle origin PDX != first destination CDG",
+          "count": 6
+        },
+        {
+          "reason": "middle origin PDX != first destination LHR",
+          "count": 6
+        },
+        {
+          "reason": "middle origin SFO != first destination HYA",
+          "count": 5
+        },
+        {
+          "reason": "middle origin LAX != first destination LIS",
+          "count": 4
+        },
+        {
+          "reason": "middle origin LAX != first destination EDI",
+          "count": 4
+        },
+        {
+          "reason": "middle origin LAX != first destination OPO",
+          "count": 4
+        },
+        {
+          "reason": "middle origin LAX != first destination KEF",
+          "count": 4
+        },
+        {
+          "reason": "middle origin LAX != first destination DXB",
+          "count": 4
+        },
+        {
+          "reason": "middle origin SFO != first destination FCO",
+          "count": 4
+        },
+        {
+          "reason": "middle origin SFO != first destination FRA",
+          "count": 4
+        },
+        {
+          "reason": "middle origin LAX != first destination YUL",
+          "count": 4
+        },
+        {
+          "reason": "middle origin LAX != first destination SEA",
+          "count": 4
+        },
+        {
+          "reason": "middle origin LAX != first destination DEN",
+          "count": 4
+        },
+        {
+          "reason": "middle origin LAX != first destination CDG",
+          "count": 4
+        },
+        {
+          "reason": "middle origin LAX != first destination LHR",
+          "count": 4
+        },
+        {
+          "reason": "middle origin SFO != first destination PBI",
+          "count": 3
+        },
+        {
+          "reason": "middle origin SFO != first destination CLT",
+          "count": 3
+        },
+        {
+          "reason": "middle origin SFO != first destination ISP",
+          "count": 3
+        },
+        {
+          "reason": "middle origin SFO != first destination PVC",
+          "count": 3
+        },
+        {
+          "reason": "middle origin SFO != first destination SAN",
+          "count": 3
+        },
+        {
+          "reason": "middle origin SFO != first destination YTZ",
+          "count": 3
+        },
+        {
+          "reason": "middle origin SFO != first destination EWR",
+          "count": 3
+        },
+        {
+          "reason": "middle origin SFO != first destination MAD",
+          "count": 3
+        },
+        {
+          "reason": "middle origin PDX != first destination LGW",
+          "count": 3
+        },
+        {
+          "reason": "middle origin PDX != first destination ZRH",
+          "count": 3
+        },
+        {
+          "reason": "middle origin PDX != first destination IST",
+          "count": 3
+        },
+        {
+          "reason": "middle origin PDX != first destination DCA",
+          "count": 3
+        },
+        {
+          "reason": "middle origin SFO != first destination LIS",
+          "count": 2
+        },
+        {
+          "reason": "middle origin SFO != first destination EDI",
+          "count": 2
+        },
+        {
+          "reason": "middle origin SFO != first destination OPO",
+          "count": 2
+        },
+        {
+          "reason": "middle origin SFO != first destination KEF",
+          "count": 2
+        },
+        {
+          "reason": "middle origin SFO != first destination DXB",
+          "count": 2
+        },
+        {
+          "reason": "middle origin SFO != first destination YUL",
+          "count": 2
+        },
+        {
+          "reason": "middle origin SFO != first destination SEA",
+          "count": 2
+        },
+        {
+          "reason": "middle origin SFO != first destination DEN",
+          "count": 2
+        },
+        {
+          "reason": "middle origin SFO != first destination CDG",
+          "count": 2
+        },
+        {
+          "reason": "middle origin SFO != first destination LHR",
+          "count": 2
+        },
+        {
+          "reason": "middle origin LAX != first destination LGW",
+          "count": 2
+        },
+        {
+          "reason": "middle origin LAX != first destination ZRH",
+          "count": 2
+        },
+        {
+          "reason": "middle origin LAX != first destination IST",
+          "count": 2
+        },
+        {
+          "reason": "middle origin LAX != first destination DCA",
+          "count": 2
+        },
+        {
+          "reason": "middle origin SFO != first destination LGW",
+          "count": 1
+        },
+        {
+          "reason": "middle origin SFO != first destination ZRH",
+          "count": 1
+        },
+        {
+          "reason": "middle origin SFO != first destination IST",
+          "count": 1
+        },
+        {
+          "reason": "middle origin SFO != first destination DCA",
+          "count": 1
+        }
+      ],
+      "discardSamples": [
+        {
+          "stage": "first-to-middle",
+          "legs": [
+            "TP4416",
+            "UA1334"
+          ],
+          "path": "BOS-BUF + SFO-SBP",
+          "reason": "middle origin SFO != first destination BUF"
+        },
+        {
+          "stage": "first-to-middle",
+          "legs": [
+            "TP4416",
+            "AV2378"
+          ],
+          "path": "BOS-BUF + LAX-SBP",
+          "reason": "middle origin LAX != first destination BUF"
+        },
+        {
+          "stage": "first-to-middle",
+          "legs": [
+            "TP4416",
+            "CM2058"
+          ],
+          "path": "BOS-BUF + LAX-SBP",
+          "reason": "middle origin LAX != first destination BUF"
+        },
+        {
+          "stage": "first-to-middle",
+          "legs": [
+            "TP4416",
+            "AS2436"
+          ],
+          "path": "BOS-BUF + PDX-SBP",
+          "reason": "middle origin PDX != first destination BUF"
+        },
+        {
+          "stage": "first-to-middle",
+          "legs": [
+            "TP4416",
+            "TP4416"
+          ],
+          "path": "BOS-BUF + BOS-BUF",
+          "reason": "middle origin BOS != first destination BUF"
+        },
+        {
+          "stage": "first-to-middle",
+          "legs": [
+            "TP4416",
+            "BA4665"
+          ],
+          "path": "BOS-BUF + BOS-CMH",
+          "reason": "middle origin BOS != first destination BUF"
+        },
+        {
+          "stage": "first-to-middle",
+          "legs": [
+            "TP4416",
+            "IB4639"
+          ],
+          "path": "BOS-BUF + BOS-CMH",
+          "reason": "middle origin BOS != first destination BUF"
+        },
+        {
+          "stage": "first-to-middle",
+          "legs": [
+            "TP4416",
+            "BA8398"
+          ],
+          "path": "BOS-BUF + BOS-CLE",
+          "reason": "middle origin BOS != first destination BUF"
+        },
+        {
+          "stage": "first-to-middle",
+          "legs": [
+            "TP4416",
+            "AD7390"
+          ],
+          "path": "BOS-BUF + BOS-MCO",
+          "reason": "middle origin BOS != first destination BUF"
+        },
+        {
+          "stage": "first-to-middle",
+          "legs": [
+            "TP4416",
+            "BA8409"
+          ],
+          "path": "BOS-BUF + BOS-MCO",
+          "reason": "middle origin BOS != first destination BUF"
+        },
+        {
+          "stage": "first-to-middle",
+          "legs": [
+            "TP4416",
+            "EI5300"
+          ],
+          "path": "BOS-BUF + BOS-MCO",
+          "reason": "middle origin BOS != first destination BUF"
+        },
+        {
+          "stage": "first-to-middle",
+          "legs": [
+            "TP4416",
+            "TP4337"
+          ],
+          "path": "BOS-BUF + BOS-MCO",
+          "reason": "middle origin BOS != first destination BUF"
+        },
+        {
+          "stage": "first-to-middle",
+          "legs": [
+            "TP4416",
+            "BA8379"
+          ],
+          "path": "BOS-BUF + BOS-RDU",
+          "reason": "middle origin BOS != first destination BUF"
+        },
+        {
+          "stage": "first-to-middle",
+          "legs": [
+            "TP4416",
+            "EI5228"
+          ],
+          "path": "BOS-BUF + BOS-RDU",
+          "reason": "middle origin BOS != first destination BUF"
+        },
+        {
+          "stage": "first-to-middle",
+          "legs": [
+            "TP4416",
+            "TP4369"
+          ],
+          "path": "BOS-BUF + BOS-RDU",
+          "reason": "middle origin BOS != first destination BUF"
+        },
+        {
+          "stage": "first-to-middle",
+          "legs": [
+            "TP4416",
+            "EI5244"
+          ],
+          "path": "BOS-BUF + BOS-RSW",
+          "reason": "middle origin BOS != first destination BUF"
+        },
+        {
+          "stage": "first-to-middle",
+          "legs": [
+            "TP4416",
+            "TP4375"
+          ],
+          "path": "BOS-BUF + BOS-RSW",
+          "reason": "middle origin BOS != first destination BUF"
+        },
+        {
+          "stage": "first-to-middle",
+          "legs": [
+            "TP4416",
+            "EI5282"
+          ],
+          "path": "BOS-BUF + BOS-SJU",
+          "reason": "middle origin BOS != first destination BUF"
+        },
+        {
+          "stage": "first-to-middle",
+          "legs": [
+            "TP4416",
+            "TP4403"
+          ],
+          "path": "BOS-BUF + BOS-SJU",
+          "reason": "middle origin BOS != first destination BUF"
+        },
+        {
+          "stage": "first-to-middle",
+          "legs": [
+            "TP4416",
+            "SQ1535"
+          ],
+          "path": "BOS-BUF + BOS-LAX",
+          "reason": "middle origin BOS != first destination BUF"
+        }
+      ],
+      "generatedSamples": []
+    },
+    "finalScheduledItineraryCountFromSupabaseTrace": 0
+  },
+  "SBP-OGG": {
+    "airportParsing": {
+      "origin": "SBP",
+      "destination": "OGG",
+      "date": "2026-07-01",
+      "carrier": "all",
+      "maxLegs": 3
+    },
+    "originAirportExpansion": {
+      "liveScheduleOriginsQueried": [
+        "SBP"
+      ],
+      "frameworkPositioningOnly": true,
+      "note": "Current live provider search does not expand origins into hubs for segment-level schedule retrieval."
+    },
+    "destinationAirportExpansion": {
+      "liveScheduleDestinationsQueried": [
+        "OGG"
+      ],
+      "frameworkAlternatesOnly": true,
+      "note": "Current live provider search does not expand destinations into inbound hubs for segment-level schedule retrieval."
+    },
+    "liveScheduleRetrieval": {
+      "flightAwareExactRouteStatus": 200,
+      "flightAwareRawRows": 0,
+      "flightAwareSample": [],
+      "aviationstackKnownFromApi": "see API trace: rate-limited/no usable rows"
+    },
+    "candidateFlightList": {
+      "supabaseDirectRows": 0,
+      "supabaseConnectionRows": 0,
+      "supabaseRouteCoverageRows": 69,
+      "supabaseRecentRows": 300,
+      "supabaseUniqueRows": 357,
+      "generationDateUsed": "2026-05-24",
+      "normalizedCandidatesOnGenerationDate": 357,
+      "firstLegCandidates": 0,
+      "secondLegCandidates": 69
+    },
+    "directItineraryGeneration": {
+      "generated": 0,
+      "candidates": []
+    },
+    "oneStopGeneration": {
+      "generated": 0,
+      "discardSummary": [],
+      "discardSamples": [],
+      "generatedSamples": []
+    },
+    "twoStopGeneration": {
+      "generated": 0,
+      "discardSummary": [],
+      "discardSamples": [],
+      "generatedSamples": []
+    },
+    "finalScheduledItineraryCountFromSupabaseTrace": 0
+  },
+  "SBP-NRT": {
+    "airportParsing": {
+      "origin": "SBP",
+      "destination": "NRT",
+      "date": "2026-07-01",
+      "carrier": "all",
+      "maxLegs": 3
+    },
+    "originAirportExpansion": {
+      "liveScheduleOriginsQueried": [
+        "SBP"
+      ],
+      "frameworkPositioningOnly": true,
+      "note": "Current live provider search does not expand origins into hubs for segment-level schedule retrieval."
+    },
+    "destinationAirportExpansion": {
+      "liveScheduleDestinationsQueried": [
+        "NRT"
+      ],
+      "frameworkAlternatesOnly": true,
+      "note": "Current live provider search does not expand destinations into inbound hubs for segment-level schedule retrieval."
+    },
+    "liveScheduleRetrieval": {
+      "flightAwareExactRouteStatus": 200,
+      "flightAwareRawRows": 0,
+      "flightAwareSample": [],
+      "aviationstackKnownFromApi": "see API trace: rate-limited/no usable rows"
+    },
+    "candidateFlightList": {
+      "supabaseDirectRows": 0,
+      "supabaseConnectionRows": 0,
+      "supabaseRouteCoverageRows": 32,
+      "supabaseRecentRows": 300,
+      "supabaseUniqueRows": 332,
+      "generationDateUsed": "2026-05-24",
+      "normalizedCandidatesOnGenerationDate": 332,
+      "firstLegCandidates": 0,
+      "secondLegCandidates": 32
+    },
+    "directItineraryGeneration": {
+      "generated": 0,
+      "candidates": []
+    },
+    "oneStopGeneration": {
+      "generated": 0,
+      "discardSummary": [],
+      "discardSamples": [],
+      "generatedSamples": []
+    },
+    "twoStopGeneration": {
+      "generated": 0,
+      "discardSummary": [],
+      "discardSamples": [],
+      "generatedSamples": []
+    },
+    "finalScheduledItineraryCountFromSupabaseTrace": 0
+  }
+}

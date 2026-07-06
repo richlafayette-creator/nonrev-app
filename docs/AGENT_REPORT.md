@@ -42,6 +42,12 @@ Begin Historical Reliability Engine — provider abstraction only.
 
 - No blocker. This sprint intentionally stopped at provider abstraction/framework only; live adapters and scoring integration remain future work.
 
+## Recovery note — 2026-07-06 03:48 UTC
+
+- Recovery found untracked trace artifacts under `tmp/` from the interrupted itinerary integrity investigation.
+- Reviewed and committed those artifacts without reimplementing Sprint 12 work.
+- `git diff --check` passed for the recovered artifacts.
+
 ## Recommended next sprint
 
 Add a non-live BTS historical reliability adapter scaffold behind `NONREV_HISTORICAL_RELIABILITY_ENGINE_ENABLED`, still returning null/advisory data until a cached data source is explicitly approved.

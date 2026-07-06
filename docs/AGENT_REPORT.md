@@ -1,49 +1,48 @@
-# Agent Report — 2026-07-06 03:15 UTC Sprint 6
+# Agent Report — 2026-07-06 03:15 UTC Sprint 7
 
 ## Selected task
 
-Recovery Engine v2 — readiness/guardrail contract.
+Hotels — feature-flagged read-only provider readiness contract.
 
 ## Scope completed
 
-- Added `lib/recoveryV2Readiness.ts` with feature-flagged readiness contracts for:
-  - Live schedule recovery
-  - Hotel recovery
-  - Ground transport recovery
-  - Alternate airport intelligence
-  - Weather/disruption recovery
-- Added explicit feature flag: `NONREV_RECOVERY_ENGINE_V2_ENABLED`.
-- Kept Recovery Engine v2 disabled by default.
-- Preserved current recovery scoring with `currentRecoveryScoringUnchanged: true`.
-- Kept all sources advisory-only with `liveBookingEnabled: false`.
-- Added tests covering disabled-by-default behavior, feature-flagged configured/manual readiness, and no booking/standby-clearance claims.
+- Added `lib/hotelProviderReadiness.ts` with provider readiness contracts for:
+  - Booking.com proxy
+  - Expedia/Rapid proxy
+  - Google Hotels context
+  - Manual hotel note
+- Added explicit feature flag: `NONREV_HOTEL_PROVIDER_ENABLED`.
+- Kept every provider disabled by default, even when credentials exist.
+- Kept all hotel context advisory/read-only with `bookingEnabled: false`.
+- Added helper output for enabled hotel providers only when the feature flag and required credentials/manual readiness are present.
+- Added tests covering disabled-by-default behavior, feature-flagged credential/manual readiness, and no booking/availability guarantees.
 
 ## Safety decisions
 
 - No planner behavior changed.
-- No current recovery scoring changed.
-- No external provider calls, booking flows, or scheduler behavior were added.
+- No recovery behavior changed.
+- No external hotel provider calls or booking flows were added.
 - No airline websites are scraped.
-- Recovery v2 readiness never claims confirmed reaccommodation, hotel rooms, ground transport, seat inventory, or standby clearance.
+- Hotel readiness never claims guaranteed rooms, booked rooms, guaranteed rates, airline vouchers, disruption compensation, seat inventory, or standby clearance.
 - Existing untracked `tmp/` was left untouched.
 
 ## Files changed
 
-- `lib/recoveryV2Readiness.ts`
-- `lib/recoveryV2Readiness.test.ts`
+- `lib/hotelProviderReadiness.ts`
+- `lib/hotelProviderReadiness.test.ts`
 - `docs/NEXT_TASKS.md`
 - `docs/AGENT_REPORT.md`
 
 ## Validation
 
-- `npx tsx --test lib/recoveryV2Readiness.test.ts`
+- `npx tsx --test lib/hotelProviderReadiness.test.ts`
 - `git diff --check`
 - `npx tsc --noEmit`
 
 ## Known blockers / not done
 
-- No blocker. This sprint intentionally stopped at readiness contracts; no Recovery Engine v2 runtime integration was added.
+- No blocker. This sprint intentionally stopped at read-only readiness contracts; no hotel search or booking adapter was implemented.
 
 ## Recommended next sprint
 
-Hotels: add a small feature-flagged hotel provider readiness/proxy contract that cannot book rooms or imply guaranteed availability.
+Ground transportation: add a small feature-flagged provider readiness/proxy contract that cannot book rides/cars or guarantee vehicle availability.

@@ -62,6 +62,7 @@ Remaining P0 work:
 8. Completed 2026-07-06: Tightened the commercial seat availability abstraction with feature-flagged provider readiness for Duffel, Amadeus/GDS, Sabre, and manual/community proxy sources; all remain proxy-only and disabled by default.
 9. Completed 2026-07-06: Added a feature-flagged standby confidence guardrail engine that requires trusted structured load data, caps advisory scores, and never returns confirmed clearance or standby availability.
 10. Completed 2026-07-06: Added feature-flagged Recovery Engine v2 readiness contracts for future live schedule, hotel, ground transport, alternate-airport, and weather/disruption inputs without changing current recovery scoring or enabling booking/provider calls.
+11. Completed 2026-07-06: Added feature-flagged hotel provider readiness contracts for Booking.com, Expedia/Rapid, Google Hotels context, and manual hotel notes; all are advisory/read-only and cannot book rooms or guarantee availability.
 
 ### P3 — Product polish
 

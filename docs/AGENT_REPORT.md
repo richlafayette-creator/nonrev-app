@@ -1,53 +1,59 @@
-# Agent Report — 2026-07-06 03:43 UTC Sprint 12
+# Agent Report — 2026-07-06 04:00 UTC Sprint 13
 
 ## Selected task
 
-Begin Historical Reliability Engine — provider abstraction only.
+Add airport intelligence provider abstraction.
 
 ## Scope completed
 
-- Added `lib/historicalReliabilityProviderFramework.ts` with:
-  - `HistoricalReliabilityProvider` interface
-  - `HistoricalReliabilityProviderResult` fields: `onTimePercentage`, `cancellationPercentage`, `averageDepartureDelay`, `averageArrivalDelay`, `confidenceScore`, `lastUpdated`, `providerName`
-  - `NullHistoricalReliabilityProvider`
-  - provider registry and factory helpers
-  - future provider configuration for BTS, FlightAware historical, and internal aggregate providers
-- Added explicit feature flag: `NONREV_HISTORICAL_RELIABILITY_ENGINE_ENABLED`.
-- Added unit tests for null-provider defaults, feature-gated registry/factory lookup, future-provider configuration, and unknown-provider fallback.
+- Expanded `lib/airportIntelligenceProvider.ts` with airport intelligence interfaces only:
+  - `AirportIntelligenceProvider`
+  - `AirportIntelligenceQuery`
+  - `AirportIntelligenceProviderResult`
+  - `AlternateAirportOption`
+- Added the requested future result fields:
+  - `airportCode`
+  - `congestionLevel`
+  - `connectionRisk`
+  - `minimumConnectionMinutes`
+  - `customsImmigrationRisk`
+  - `terminalTransferRisk`
+  - `alternateAirportOptions`
+  - `recoveryScore`
+  - `confidence`
+  - `providerName`
+  - `lastUpdated`
+- Added `NullAirportIntelligenceProvider` returning conservative unknown/null advisory results.
+- Added provider registry and feature-flagged factory helpers.
+- Added future provider configuration guardrails for OurAirports, FAA airport facilities, FlightAware airport endpoints, and Mapbox airport context.
+- Extended unit tests for null-provider defaults, registry/factory gating, future config guardrails, unknown-provider fallback, and no standby/seat-availability claims.
 
 ## Safety decisions
 
-- No live providers were integrated.
-- No UI changes.
-- No itinerary scoring changes.
-- No planner behavior changes.
-- No airline websites are scraped.
-- Provider outputs are advisory framework plumbing only and do not claim standby availability.
-- Existing untracked `tmp/` was left untouched.
+- No live provider integration was added.
+- No UI changes were made.
+- No itinerary scoring changes were made.
+- No planner behavior changes were made.
+- Feature flag remains `NONREV_AIRPORT_INTELLIGENCE_PROVIDER_ENABLED` for future use.
+- All provider framework outputs are advisory-only and `liveCallsEnabled: false`.
 
 ## Files changed
 
-- `lib/historicalReliabilityProviderFramework.ts`
-- `lib/historicalReliabilityProviderFramework.test.ts`
+- `lib/airportIntelligenceProvider.ts`
+- `lib/airportIntelligenceProvider.test.ts`
 - `docs/NEXT_TASKS.md`
 - `docs/AGENT_REPORT.md`
 
 ## Validation
 
-- `npx tsx --test lib/historicalReliabilityProviderFramework.test.ts`
+- `npx tsx --test lib/airportIntelligenceProvider.test.ts`
 - `git diff --check`
 - `npx tsc --noEmit`
 
 ## Known blockers / not done
 
-- No blocker. This sprint intentionally stopped at provider abstraction/framework only; live adapters and scoring integration remain future work.
-
-## Recovery note — 2026-07-06 03:48 UTC
-
-- Recovery found untracked trace artifacts under `tmp/` from the interrupted itinerary integrity investigation.
-- Reviewed and committed those artifacts without reimplementing Sprint 12 work.
-- `git diff --check` passed for the recovered artifacts.
+- No blocker. This sprint intentionally stopped at the provider framework/interface layer; live adapters, UI wiring, scoring, and planner behavior remain future work.
 
 ## Recommended next sprint
 
-Add a non-live BTS historical reliability adapter scaffold behind `NONREV_HISTORICAL_RELIABILITY_ENGINE_ENABLED`, still returning null/advisory data until a cached data source is explicitly approved.
+Add a cached, server-side airport metadata adapter scaffold for one public source behind `NONREV_AIRPORT_INTELLIGENCE_PROVIDER_ENABLED`, still returning null/advisory provider results until dataset caching, attribution, freshness, and planner-use rules are approved.

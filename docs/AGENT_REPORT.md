@@ -1,45 +1,47 @@
-# Agent Report — 2026-07-06 03:07 UTC Sprint
+# Agent Report — 2026-07-06 03:15 UTC Sprint
 
 ## Selected task
 
-Add a compact browser/UI smoke test for the planner origin-coverage notice.
+Historical Reliability provider — sprint-sized foundation.
 
 ## Scope completed
 
-- Extracted `OriginCoverageNotice` into `app/plan/OriginCoverageNotice.tsx` so it can be rendered directly in a lightweight UI smoke test.
-- Added `lib/plannerOriginCoverageNotice.smoke.test.tsx`, which:
-  - calls the real `/api/itinerary/search` `GET` handler with deterministic missing-provider env for `MRY → OGG`
-  - verifies the fallback returns no fabricated `itineraries`
-  - renders the planner notice with React static markup
-  - verifies the visible insufficient-origin coverage message
-  - verifies nearby supported airport recommendations and links for `SFO`, `LAX`, and `SJC`
-  - verifies advisory-only wording and no positive standby / clearance availability claims
+- Added `lib/historicalReliabilityProvider.ts` with a feature-flagged provider readiness abstraction for:
+  - FAA BTS
+  - FlightAware historical
+  - Cirium
+  - AviationStack
+  - Internal analytics
+- Added explicit feature flag: `NONREV_HISTORICAL_RELIABILITY_PROVIDER_ENABLED`.
+- Kept every source advisory-only with `liveCallsEnabled: false`; no external calls, scraping, planner behavior changes, or provider integration calls were added.
+- Added helper output for enabled provider names only when the feature flag and required credentials/public/internal readiness are present.
+- Added tests covering disabled-by-default behavior, credential/public/internal readiness, and guardrails against standby/seat-availability claims.
 
 ## Safety decisions
 
 - No itinerary generation logic changed.
-- No provider integrations changed.
-- Provider env vars are cleared in the smoke test to keep fallback behavior deterministic.
+- No planner behavior changed.
+- No airline websites are scraped.
+- No source claims confirmed standby availability, seat inventory, load factors, guaranteed boarding, or clearance.
 - Existing untracked `tmp/` was left untouched.
 
 ## Files changed
 
-- `app/plan/OriginCoverageNotice.tsx`
-- `app/plan/PlanPage.tsx`
-- `lib/plannerOriginCoverageNotice.smoke.test.tsx`
+- `lib/historicalReliabilityProvider.ts`
+- `lib/historicalReliabilityProvider.test.ts`
 - `docs/NEXT_TASKS.md`
 - `docs/AGENT_REPORT.md`
 
 ## Validation
 
-- `npx tsx --test lib/plannerOriginCoverageNotice.smoke.test.tsx`
+- `npx tsx --test lib/historicalReliabilityProvider.test.ts`
 - `git diff --check`
 - `npx tsc --noEmit`
 
 ## Known blockers / not done
 
-- No blocker. This is a lightweight React render smoke test rather than a full Playwright/browser screenshot harness because the repo does not currently include a browser test dependency.
+- No blocker. This sprint intentionally stopped at provider readiness contracts; no live historical provider adapter was implemented.
 
-## Recommended next task
+## Recommended next sprint
 
-Add the first true browser/screenshot harness for planner cards and notices, then reuse it for itinerary integrity and origin-coverage visual checks.
+Airport Intelligence: add a small feature-flagged airport intelligence readiness/guardrail layer or targeted airport-intelligence regression without changing planner behavior.

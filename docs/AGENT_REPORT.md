@@ -1,40 +1,42 @@
-# Agent Report — 2026-07-06 02:48 UTC Sprint
+# Agent Report — 2026-07-06 03:00 UTC Sprint
 
 ## Selected task
 
-When a requested origin has insufficient provider data, do not fail itinerary generation. Detect the coverage gap, surface a clear UI message, and recommend nearest supported airports without fabricating flights or claiming standby availability.
+Add API-level regression tests for `/api/itinerary/search` fallback responses.
 
 ## Scope completed
 
-Added an origin coverage diagnostic that treats limited requested-origin provider data as non-fatal. The itinerary API now attaches this diagnostic to final planning-fallback responses and includes nearest supported alternate-origin recommendations. The planner UI now surfaces a visible origin-coverage notice and uses the coverage message as the search status when applicable.
+Added route-handler tests that call the real `GET` handler and cover:
+
+- insufficient requested-origin coverage diagnostics and nearest supported origin recommendations
+- provider-rate-limit fallback behavior with FlightAware mocked to return HTTP 429
+- empty-provider fallback responses when no provider rows or frameworks are available
+- fallback responses returning no fabricated `itineraries`
+- fallback responses avoiding positive standby availability / clearance claims
 
 ## Safety decisions
 
-- No provider search behavior was changed.
-- No itinerary generation logic was changed.
-- No flights, legs, flight numbers, live availability, load factors, or standby availability are fabricated.
-- Supported alternate airports are presented only as separate search origins; positioning from the requested origin remains separate planning.
-- Existing route-framework and production-safe guardrails remain intact.
+- No search behavior or production route logic was changed.
+- Provider calls in the rate-limit regression are mocked at `globalThis.fetch`.
+- Tests clear provider env vars by default so fallback behavior is deterministic.
+- Existing untracked `tmp/` was left untouched.
 
 ## Files changed
 
-- `app/api/itinerary/search/route.ts`
-- `app/plan/PlanPage.tsx`
-- `lib/originCoverage.ts`
-- `lib/originCoverage.test.ts`
+- `lib/itinerarySearchFallbackResponses.test.ts`
 - `docs/NEXT_TASKS.md`
 - `docs/AGENT_REPORT.md`
 
 ## Validation
 
-- `npx tsx --test lib/originCoverage.test.ts`
-- `npx tsc --noEmit`
+- `npx tsx --test lib/itinerarySearchFallbackResponses.test.ts`
 - `git diff --check`
+- `npx tsc --noEmit`
 
 ## Known blockers / not done
 
-- No browser screenshot validation was run; the repo still does not have a browser test harness configured for this UI path.
+- None.
 
 ## Recommended next task
 
-Add a lightweight API-level regression test harness for `/api/itinerary/search` fallback responses so origin coverage, provider diagnostics, and route-framework guardrails can be validated end-to-end without relying on browser automation.
+Add a compact browser/UI smoke test for the planner notice so the visible insufficient-origin coverage message and alternate-origin links are covered end-to-end.

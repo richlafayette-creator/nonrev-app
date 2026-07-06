@@ -149,6 +149,10 @@ function providerName(provider: HistoricalReliabilityProvider | null | undefined
   return provider?.providerName || 'MissingHistoricalReliabilityProvider'
 }
 
+function isProviderResult(value: unknown): value is HistoricalReliabilityProviderResult {
+  return typeof value === 'object' && value !== null
+}
+
 function contributedMetrics(result?: HistoricalReliabilityProviderResult): ReliabilityMetricName[] {
   if (!result) return []
   return reliabilityMetricNames.filter((metric) => typeof result[metric] === 'number' && Number.isFinite(result[metric]))
@@ -263,7 +267,7 @@ function aggregateProviderStatus(outcomes: ProviderOutcome[]): HistoricalReliabi
   return {
     status: aggregateStatus,
     featureFlagEnvVar: historicalReliabilityProviderFrameworkFeatureFlag,
-    attemptedProviderCount: providers.filter((provider) => provider.status !== 'null-provider' && provider.status !== 'unavailable').length,
+    attemptedProviderCount: providers.filter((provider) => provider.configuredStatus === 'configured' && provider.status !== 'null-provider').length,
     successfulProviderCount,
     partialProviderCount,
     unavailableProviderCount,
@@ -338,6 +342,12 @@ export class HistoricalReliabilityService {
 
     try {
       const result = await withTimeout(provider.getReliability(query), this.timeoutMs)
+      if (!isProviderResult(result)) {
+        return {
+          status: providerUnavailableStatus(provider, 'unavailable', 'Provider returned no usable historical reliability payload.')
+        }
+      }
+
       const status = providerResultStatus(provider, result)
       const metrics = contributedMetrics(result)
       return {

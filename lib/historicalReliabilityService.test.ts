@@ -132,16 +132,19 @@ describe('HistoricalReliabilityService', () => {
     ])
   })
 
-  it('handles null, missing, and unavailable providers with neutral values', async () => {
+  it('handles null, missing, unavailable, and unusable providers with neutral values', async () => {
     let called = false
     const unavailableProvider = new TestHistoricalReliabilityProvider('CredentialMissingProvider', 'credential-missing', async () => {
       called = true
       return providerResult({ providerName: 'CredentialMissingProvider', onTimePercentage: 75 })
     })
+    const unusableProvider = new TestHistoricalReliabilityProvider('UnusablePayloadProvider', 'configured', async () => {
+      return null as unknown as HistoricalReliabilityProviderResult
+    })
 
     const result = await createHistoricalReliabilityService({
       env: { NONREV_HISTORICAL_RELIABILITY_ENGINE_ENABLED: 'yes' },
-      providers: [null, undefined, new NullHistoricalReliabilityProvider(), unavailableProvider]
+      providers: [null, undefined, new NullHistoricalReliabilityProvider(), unavailableProvider, unusableProvider]
     }).aggregate({ origin: 'SBP', destination: 'NRT' })
 
     assert.equal(called, false)
@@ -152,13 +155,16 @@ describe('HistoricalReliabilityService', () => {
     assert.equal(result.confidenceScore, 0)
     assert.equal(result.dataFreshness.status, 'unavailable')
     assert.equal(result.providerStatus.status, 'unavailable')
-    assert.equal(result.providerStatus.unavailableProviderCount, 4)
+    assert.equal(result.providerStatus.attemptedProviderCount, 1)
+    assert.equal(result.providerStatus.unavailableProviderCount, 5)
     assert.deepEqual(result.providerStatus.providers.map((provider) => provider.status), [
       'null-provider',
       'null-provider',
       'null-provider',
+      'unavailable',
       'unavailable'
     ])
+    assert.match(result.providerStatus.providers.at(-1)?.diagnostic || '', /no usable historical reliability payload/)
   })
 
   it('handles timeouts and errors while preserving available provider data', async () => {
@@ -193,6 +199,7 @@ describe('HistoricalReliabilityService', () => {
     assert.equal(result.averageArrivalDelay, 18)
     assert.equal(result.confidenceScore, 55)
     assert.equal(result.providerStatus.status, 'partial')
+    assert.equal(result.providerStatus.attemptedProviderCount, 3)
     assert.equal(result.providerStatus.timeoutProviderCount, 1)
     assert.equal(result.providerStatus.errorProviderCount, 1)
     assert.deepEqual(result.providerStatus.providers.map((provider) => provider.status), ['available', 'timeout', 'error'])

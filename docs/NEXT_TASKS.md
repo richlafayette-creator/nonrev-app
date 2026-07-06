@@ -8,6 +8,22 @@ This file is the operating guide for autonomous development agents working on No
 
 Itinerary integrity is sacred. Nonrevy may show less information when certainty is low, but it must never fabricate legs, substitute hubs for origins, hide generated legs, display stale rows as live availability, or overstate provider/weather/reliability certainty.
 
+## Parallel-agent ownership
+
+Parallel development now uses `docs/MULTI_AGENT_WORKFLOW.md` as the branch and merge protocol.
+
+- `main` is stable.
+- `agent-dev` is the integration branch.
+- Data Agent works from `agent/data` and owns provider integrations, weather, historical reliability, commercial availability, airport intelligence, caching, and diagnostics.
+- Frontend Agent works from `agent/frontend` and owns itinerary cards, mobile layout, planner UI, accessibility, and confidence displays.
+- Shared files require integration branch review before merge into `agent-dev`.
+- Merge candidates require QA validation before landing on `agent-dev`.
+
+Initial parallel assignments:
+
+- Data Agent next: Historical Reliability aggregation service.
+- Frontend Agent next: Improve intelligence sections on itinerary cards without changing API shape.
+
 ## Priority task queue
 
 ### P0 — Trust and correctness

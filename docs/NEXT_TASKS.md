@@ -1,6 +1,6 @@
 # Nonrevy Autonomous Development Task Queue
 
-_Last updated: 2026-07-06 04:00 UTC_
+_Last updated: 2026-07-06 04:02 UTC_
 
 This file is the operating guide for autonomous development agents working on Nonrevy. It defines the next task queue, safety boundaries, validation gates, and priorities for moving the beta toward trustworthy private-beta readiness.
 
@@ -69,6 +69,7 @@ Remaining P0 work:
 15. Completed 2026-07-06: Restored route-framework label regression coverage for non-framework scheduled itineraries and source-label consistency after the certainty-label test extraction.
 16. Completed 2026-07-06: Began the Historical Reliability Engine with a feature-flagged provider interface, null provider, registry/factory, and future provider configuration; no live providers, UI wiring, scoring changes, or planner behavior changes were added.
 17. Completed 2026-07-06: Added the airport intelligence provider framework with feature-flagged interfaces, null provider, registry/factory, future provider configuration guardrails, and result fields for congestion, connection/customs/terminal risk, alternate airports, recovery score, confidence, provider name, and update time; no live providers, UI wiring, scoring changes, or planner behavior changes were added.
+18. Completed 2026-07-06: Added the commercial sellable seat availability provider framework with feature-flagged interfaces, `NullSellableSeatAvailabilityProvider`, registry/factory, future provider configuration guardrails, and result fields for carrier, flight number, origin, destination, departure date, cabin/fare-class availability, observed price, price trend, sellable status, confidence, provider name, and update time; no live providers, scraping, UI wiring, itinerary generation changes, or scoring changes were added.
 
 ### P3 — Product polish
 

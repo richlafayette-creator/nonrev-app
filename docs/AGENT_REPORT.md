@@ -1,49 +1,49 @@
-# Agent Report — 2026-07-06 03:15 UTC Sprint 5
+# Agent Report — 2026-07-06 03:15 UTC Sprint 6
 
 ## Selected task
 
-Standby confidence engine — advisory guardrail foundation.
+Recovery Engine v2 — readiness/guardrail contract.
 
 ## Scope completed
 
-- Added `lib/standbyConfidenceEngine.ts` with a standalone feature-flagged advisory confidence engine.
-- Added explicit feature flag: `NONREV_STANDBY_CONFIDENCE_ENGINE_ENABLED`.
-- Engine stays disabled by default.
-- When enabled, it requires trusted structured load data before showing an advisory score.
-- Advisory scores are capped and output as `N/100 advisory`, never as clearance or availability.
-- Result contract hard-codes:
-  - `advisoryOnly: true`
-  - `confirmedClearance: false`
-  - `standbyAvailabilityConfirmed: false`
-  - `appliesToBookingDecision: false`
-- Added tests covering disabled default, stale/weak load guardrails, capped favorable scores, and no confirmed standby claims.
+- Added `lib/recoveryV2Readiness.ts` with feature-flagged readiness contracts for:
+  - Live schedule recovery
+  - Hotel recovery
+  - Ground transport recovery
+  - Alternate airport intelligence
+  - Weather/disruption recovery
+- Added explicit feature flag: `NONREV_RECOVERY_ENGINE_V2_ENABLED`.
+- Kept Recovery Engine v2 disabled by default.
+- Preserved current recovery scoring with `currentRecoveryScoringUnchanged: true`.
+- Kept all sources advisory-only with `liveBookingEnabled: false`.
+- Added tests covering disabled-by-default behavior, feature-flagged configured/manual readiness, and no booking/standby-clearance claims.
 
 ## Safety decisions
 
 - No planner behavior changed.
-- No scoring behavior changed.
-- No external provider calls were added.
+- No current recovery scoring changed.
+- No external provider calls, booking flows, or scheduler behavior were added.
 - No airline websites are scraped.
-- The engine never claims confirmed standby availability, seat inventory, clearance, guaranteed boarding, or booking suitability.
+- Recovery v2 readiness never claims confirmed reaccommodation, hotel rooms, ground transport, seat inventory, or standby clearance.
 - Existing untracked `tmp/` was left untouched.
 
 ## Files changed
 
-- `lib/standbyConfidenceEngine.ts`
-- `lib/standbyConfidenceEngine.test.ts`
+- `lib/recoveryV2Readiness.ts`
+- `lib/recoveryV2Readiness.test.ts`
 - `docs/NEXT_TASKS.md`
 - `docs/AGENT_REPORT.md`
 
 ## Validation
 
-- `npx tsx --test lib/standbyConfidenceEngine.test.ts`
+- `npx tsx --test lib/recoveryV2Readiness.test.ts`
 - `git diff --check`
 - `npx tsc --noEmit`
 
 ## Known blockers / not done
 
-- No blocker. This sprint intentionally stopped at a standalone guardrail engine; no planner/UI integration was added.
+- No blocker. This sprint intentionally stopped at readiness contracts; no Recovery Engine v2 runtime integration was added.
 
 ## Recommended next sprint
 
-Recovery Engine v2: add a small readiness/guardrail contract for future recovery inputs without changing current recovery scoring.
+Hotels: add a small feature-flagged hotel provider readiness/proxy contract that cannot book rooms or imply guaranteed availability.

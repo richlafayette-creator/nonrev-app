@@ -61,6 +61,7 @@ Remaining P0 work:
 7. Completed 2026-07-06: Added feature-flagged airport intelligence provider readiness contracts for OurAirports, FAA airport facilities, FlightAware airport endpoints, and Mapbox airport context while preserving the existing local static scaffold and disabling live calls by default.
 8. Completed 2026-07-06: Tightened the commercial seat availability abstraction with feature-flagged provider readiness for Duffel, Amadeus/GDS, Sabre, and manual/community proxy sources; all remain proxy-only and disabled by default.
 9. Completed 2026-07-06: Added a feature-flagged standby confidence guardrail engine that requires trusted structured load data, caps advisory scores, and never returns confirmed clearance or standby availability.
+10. Completed 2026-07-06: Added feature-flagged Recovery Engine v2 readiness contracts for future live schedule, hotel, ground transport, alternate-airport, and weather/disruption inputs without changing current recovery scoring or enabling booking/provider calls.
 
 ### P3 — Product polish
 

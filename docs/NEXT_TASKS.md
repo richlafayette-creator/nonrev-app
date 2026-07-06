@@ -64,6 +64,7 @@ Remaining P0 work:
 10. Completed 2026-07-06: Added feature-flagged Recovery Engine v2 readiness contracts for future live schedule, hotel, ground transport, alternate-airport, and weather/disruption inputs without changing current recovery scoring or enabling booking/provider calls.
 11. Completed 2026-07-06: Added feature-flagged hotel provider readiness contracts for Booking.com, Expedia/Rapid, Google Hotels context, and manual hotel notes; all are advisory/read-only and cannot book rooms or guarantee availability.
 12. Completed 2026-07-06: Added feature-flagged ground transportation provider readiness contracts for rideshare, rental car, public transit, and manual pickup notes; all are advisory/read-only and cannot book or guarantee vehicle availability.
+13. Completed 2026-07-06: Added a bounded, mutation-safe cache for repeated `airportCodesFromRoute` parsing across planner/intelligence/weather paths, with regression coverage preserving extraction behavior.
 
 ### P3 — Product polish
 

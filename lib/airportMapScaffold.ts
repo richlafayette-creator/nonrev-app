@@ -402,8 +402,30 @@ export const airportMapScaffolds: Record<string, AirportMapScaffold> = {
   }
 }
 
+export const airportCodesFromRouteCacheLimit = 250
+
+const airportCodesFromRouteCache = new Map<string, string[]>()
+const airportCodePattern = /\b[A-Z]{3}\b/g
+
+export function clearAirportCodesFromRouteCacheForTest() {
+  airportCodesFromRouteCache.clear()
+}
+
+export function airportCodesFromRouteCacheSize() {
+  return airportCodesFromRouteCache.size
+}
+
 export function airportCodesFromRoute(route: string) {
-  return Array.from(new Set((route.match(/\b[A-Z]{3}\b/g) || [])))
+  const cached = airportCodesFromRouteCache.get(route)
+  if (cached) return [...cached]
+
+  const codes = Array.from(new Set((route.match(airportCodePattern) || [])))
+  if (airportCodesFromRouteCache.size >= airportCodesFromRouteCacheLimit) {
+    const oldestKey = airportCodesFromRouteCache.keys().next().value
+    if (oldestKey !== undefined) airportCodesFromRouteCache.delete(oldestKey)
+  }
+  airportCodesFromRouteCache.set(route, codes)
+  return [...codes]
 }
 
 export function airportScaffoldFor(code?: string | null) {

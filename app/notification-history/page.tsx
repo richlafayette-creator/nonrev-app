@@ -22,10 +22,10 @@ function formatDate(value: string) {
 }
 
 function statusColor(status: string) {
-  if (status === 'sent-browser' || status === 'sent-service-worker') return '#22c55e'
-  if (status === 'placeholder' || status === 'stored-local') return '#38bdf8'
-  if (status === 'queued-by-frequency' || status === 'browser-permission-blocked') return '#facc15'
-  return '#f87171'
+  if (status === 'sent-browser' || status === 'sent-service-worker') return 'var(--color-green-500)'
+  if (status === 'placeholder' || status === 'stored-local') return 'var(--color-sky-400)'
+  if (status === 'queued-by-frequency' || status === 'browser-permission-blocked') return 'var(--color-yellow-400)'
+  return 'var(--color-red-400)'
 }
 
 export default function NotificationHistoryPage() {
@@ -60,70 +60,70 @@ export default function NotificationHistoryPage() {
   const filteredDeliveries = filter === 'all' ? deliveries : deliveries.filter((delivery) => delivery.eventType === filter)
 
   return (
-    <main className="app-shell" style={{ minHeight: '100vh', background: '#020617', color: 'white', padding: 40, fontFamily: 'Arial' }}>
+    <main className="app-shell" style={{ minHeight: '100vh', background: 'var(--color-slate-950)', color: 'white', padding: 40, fontFamily: 'Arial' }}>
       <nav className="top-nav" style={{ marginBottom: 24 }}>
-        <a href="/" style={{ marginRight: 16, color: '#38bdf8' }}>Flights</a>
-        <a href="/notifications" style={{ marginRight: 16, color: '#f472b6' }}>Notifications</a>
-        <a href="/notification-preferences" style={{ marginRight: 16, color: '#fb7185' }}>Preferences</a>
-        <a href="/notification-diagnostics" style={{ marginRight: 16, color: '#38bdf8' }}>Diagnostics</a>
-        <a href="/alerts" style={{ marginRight: 16, color: '#22c55e' }}>Alerts</a>
-        <a href="/data-health" style={{ color: '#c084fc' }}>Data Health</a>
+        <a href="/" style={{ marginRight: 16, color: 'var(--color-sky-400)' }}>Flights</a>
+        <a href="/notifications" style={{ marginRight: 16, color: 'var(--color-pink-400)' }}>Notifications</a>
+        <a href="/notification-preferences" style={{ marginRight: 16, color: 'var(--color-rose-400)' }}>Preferences</a>
+        <a href="/notification-diagnostics" style={{ marginRight: 16, color: 'var(--color-sky-400)' }}>Diagnostics</a>
+        <a href="/alerts" style={{ marginRight: 16, color: 'var(--color-green-500)' }}>Alerts</a>
+        <a href="/data-health" style={{ color: 'var(--color-purple-400)' }}>Data Health</a>
       </nav>
 
-      <section style={{ border: '1px solid #334155', borderRadius: 24, padding: 24, background: 'linear-gradient(135deg, rgba(244, 114, 182, 0.16), rgba(15, 23, 42, 0.98))' }}>
-        <p style={{ color: '#f472b6', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1, marginTop: 0 }}>Notification history</p>
+      <section style={{ border: '1px solid var(--color-slate-700)', borderRadius: 24, padding: 24, background: 'linear-gradient(135deg, rgba(244, 114, 182, 0.16), rgba(15, 23, 42, 0.98))' }}>
+        <p style={{ color: 'var(--color-pink-400)', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1, marginTop: 0 }}>Notification history</p>
         <h1 style={{ fontSize: 44, margin: '8px 0 12px' }}>Delivery history and queue</h1>
-        <p style={{ color: '#94a3b8', fontSize: 18, maxWidth: 900 }}>{diagnostics.detail}</p>
+        <p style={{ color: 'var(--color-slate-400)', fontSize: 18, maxWidth: 900 }}>{diagnostics.detail}</p>
       </section>
 
       <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14, margin: '24px 0' }}>
         {[
-          ['Queued', diagnostics.queued, '#facc15'],
-          ['Browser sent', diagnostics.sentBrowser, '#22c55e'],
-          ['Stored local', diagnostics.storedLocal, '#38bdf8'],
-          ['Placeholders', diagnostics.placeholders, '#c084fc'],
-          ['Blocked/errors', diagnostics.blocked, '#f87171']
+          ['Queued', diagnostics.queued, 'var(--color-yellow-400)'],
+          ['Browser sent', diagnostics.sentBrowser, 'var(--color-green-500)'],
+          ['Stored local', diagnostics.storedLocal, 'var(--color-sky-400)'],
+          ['Placeholders', diagnostics.placeholders, 'var(--color-purple-400)'],
+          ['Blocked/errors', diagnostics.blocked, 'var(--color-red-400)']
         ].map(([label, value, color]) => (
-          <article key={label} style={{ border: '1px solid #334155', borderRadius: 18, padding: 18, background: '#0f172a' }}>
+          <article key={label} style={{ border: '1px solid var(--color-slate-700)', borderRadius: 18, padding: 18, background: 'var(--color-slate-850)' }}>
             <strong style={{ color: String(color), fontSize: 30 }}>{value}</strong>
             <h2 style={{ fontSize: 18, marginBottom: 0 }}>{label}</h2>
           </article>
         ))}
       </section>
 
-      <section style={{ border: '1px solid #334155', borderRadius: 22, padding: 20, background: '#0f172a', marginBottom: 24 }}>
+      <section style={{ border: '1px solid var(--color-slate-700)', borderRadius: 22, padding: 20, background: 'var(--color-slate-850)', marginBottom: 24 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
           <div>
             <h2 style={{ margin: 0 }}>Queued notifications</h2>
-            <p style={{ color: '#94a3b8' }}>Notifications waiting on frequency controls, rate limits, or placeholder providers.</p>
+            <p style={{ color: 'var(--color-slate-400)' }}>Notifications waiting on frequency controls, rate limits, or placeholder providers.</p>
           </div>
-          <button type="button" onClick={() => { processNotificationQueue({ force: true }); refresh() }} style={{ border: '1px solid #22c55e', borderRadius: 12, padding: '10px 14px', background: '#020617', color: '#bbf7d0', fontWeight: 'bold' }}>
+          <button type="button" onClick={() => { processNotificationQueue({ force: true }); refresh() }} style={{ border: '1px solid var(--color-green-500)', borderRadius: 12, padding: '10px 14px', background: 'var(--color-slate-950)', color: 'var(--color-green-200)', fontWeight: 'bold' }}>
             Process now
           </button>
         </div>
         <div style={{ display: 'grid', gap: 12 }}>
-          {queue.length === 0 ? <p style={{ color: '#cbd5e1' }}>No queued notifications.</p> : queue.map((item) => (
-            <article key={item.id} style={{ border: '1px solid #facc15', borderRadius: 16, padding: 14, background: '#020617' }}>
+          {queue.length === 0 ? <p style={{ color: 'var(--color-slate-300)' }}>No queued notifications.</p> : queue.map((item) => (
+            <article key={item.id} style={{ border: '1px solid var(--color-yellow-400)', borderRadius: 16, padding: 14, background: 'var(--color-slate-950)' }}>
               <strong>{item.title}</strong>
-              <p style={{ color: '#cbd5e1' }}>{item.body}</p>
-              <small style={{ color: '#94a3b8' }}>{item.eventType} · {item.channels.join(', ')} · next {formatDate(item.nextAttemptAt)}</small>
-              <p style={{ color: '#94a3b8', marginBottom: 0 }}>{item.statusMessage}</p>
+              <p style={{ color: 'var(--color-slate-300)' }}>{item.body}</p>
+              <small style={{ color: 'var(--color-slate-400)' }}>{item.eventType} · {item.channels.join(', ')} · next {formatDate(item.nextAttemptAt)}</small>
+              <p style={{ color: 'var(--color-slate-400)', marginBottom: 0 }}>{item.statusMessage}</p>
             </article>
           ))}
         </div>
       </section>
 
-      <section style={{ border: '1px solid #334155', borderRadius: 22, padding: 20, background: '#0f172a', marginBottom: 24 }}>
+      <section style={{ border: '1px solid var(--color-slate-700)', borderRadius: 22, padding: 20, background: 'var(--color-slate-850)', marginBottom: 24 }}>
         <div>
           <h2 style={{ margin: 0 }}>Engine run diagnostics</h2>
-          <p style={{ color: '#94a3b8' }}>Each run checks watchlists, route confidence, load-report-driven confidence, better itineraries, weather/disruption risk, outcome reminders, and then processes the queue.</p>
+          <p style={{ color: 'var(--color-slate-400)' }}>Each run checks watchlists, route confidence, load-report-driven confidence, better itineraries, weather/disruption risk, outcome reminders, and then processes the queue.</p>
         </div>
         <div style={{ display: 'grid', gap: 12 }}>
-          {engineRuns.length === 0 ? <p style={{ color: '#cbd5e1' }}>No engine runs recorded yet.</p> : engineRuns.slice(0, 8).map((run) => (
-            <article key={run.id} style={{ border: `1px solid ${run.status === 'completed' ? '#22c55e' : '#facc15'}`, borderRadius: 16, padding: 14, background: '#020617' }}>
-              <strong style={{ color: run.status === 'completed' ? '#bbf7d0' : '#fde68a' }}>{run.status} · {formatDate(run.completedAt)}</strong>
-              <p style={{ color: '#cbd5e1' }}>{run.statusMessage}</p>
-              <small style={{ color: '#94a3b8' }}>
+          {engineRuns.length === 0 ? <p style={{ color: 'var(--color-slate-300)' }}>No engine runs recorded yet.</p> : engineRuns.slice(0, 8).map((run) => (
+            <article key={run.id} style={{ border: `1px solid ${run.status === 'completed' ? 'var(--color-green-500)' : 'var(--color-yellow-400)'}`, borderRadius: 16, padding: 14, background: 'var(--color-slate-950)' }}>
+              <strong style={{ color: run.status === 'completed' ? 'var(--color-green-200)' : 'var(--color-yellow-300)' }}>{run.status} · {formatDate(run.completedAt)}</strong>
+              <p style={{ color: 'var(--color-slate-300)' }}>{run.statusMessage}</p>
+              <small style={{ color: 'var(--color-slate-400)' }}>
                 Alerts {run.alertsBefore} → {run.alertsAfter} · reminders {run.remindersBefore} → {run.remindersAfter} · queue {run.queueBefore} → {run.queueAfter} · deliveries {run.deliveriesBefore} → {run.deliveriesAfter}
               </small>
             </article>
@@ -131,30 +131,30 @@ export default function NotificationHistoryPage() {
         </div>
       </section>
 
-      <section style={{ border: '1px solid #334155', borderRadius: 22, padding: 20, background: '#0f172a' }}>
+      <section style={{ border: '1px solid var(--color-slate-700)', borderRadius: 22, padding: 20, background: 'var(--color-slate-850)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
           <div>
             <h2 style={{ margin: 0 }}>Delivery records</h2>
-            <p style={{ color: '#94a3b8' }}>Browser push attempts, local inbox records, blocked events, and provider placeholders.</p>
+            <p style={{ color: 'var(--color-slate-400)' }}>Browser push attempts, local inbox records, blocked events, and provider placeholders.</p>
           </div>
-          <select value={filter} onChange={(event) => setFilter(event.target.value)} style={{ padding: 12, borderRadius: 12, border: '1px solid #475569', background: '#020617', color: 'white' }}>
+          <select value={filter} onChange={(event) => setFilter(event.target.value)} style={{ padding: 12, borderRadius: 12, border: '1px solid var(--color-slate-600)', background: 'var(--color-slate-950)', color: 'white' }}>
             <option value="all">All event types</option>
             {eventTypes.map((type) => <option key={type} value={type}>{type}</option>)}
           </select>
         </div>
         <div style={{ display: 'grid', gap: 12, marginTop: 16 }}>
-          {filteredDeliveries.length === 0 ? <p style={{ color: '#cbd5e1' }}>No delivery records yet.</p> : filteredDeliveries.map((delivery) => (
-            <article key={delivery.id} style={{ border: `1px solid ${statusColor(delivery.status)}`, borderRadius: 16, padding: 14, background: '#020617' }}>
+          {filteredDeliveries.length === 0 ? <p style={{ color: 'var(--color-slate-300)' }}>No delivery records yet.</p> : filteredDeliveries.map((delivery) => (
+            <article key={delivery.id} style={{ border: `1px solid ${statusColor(delivery.status)}`, borderRadius: 16, padding: 14, background: 'var(--color-slate-950)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
                 <div>
-                  <strong style={{ color: '#f8fafc' }}>{delivery.title}</strong>
-                  <p style={{ color: '#cbd5e1', margin: '6px 0' }}>{delivery.body}</p>
-                  <small style={{ color: '#94a3b8' }}>{delivery.eventType} · {delivery.channel} · {formatDate(delivery.createdAt)}</small>
+                  <strong style={{ color: 'var(--color-slate-50)' }}>{delivery.title}</strong>
+                  <p style={{ color: 'var(--color-slate-300)', margin: '6px 0' }}>{delivery.body}</p>
+                  <small style={{ color: 'var(--color-slate-400)' }}>{delivery.eventType} · {delivery.channel} · {formatDate(delivery.createdAt)}</small>
                 </div>
                 <span style={{ color: statusColor(delivery.status), fontWeight: 'bold' }}>{delivery.status}</span>
               </div>
-              <p style={{ color: '#94a3b8', marginBottom: 0 }}>{delivery.statusMessage}</p>
-              {delivery.details?.length ? <ul style={{ color: '#cbd5e1' }}>{delivery.details.map((detail) => <li key={detail}>{detail}</li>)}</ul> : null}
+              <p style={{ color: 'var(--color-slate-400)', marginBottom: 0 }}>{delivery.statusMessage}</p>
+              {delivery.details?.length ? <ul style={{ color: 'var(--color-slate-300)' }}>{delivery.details.map((detail) => <li key={detail}>{detail}</li>)}</ul> : null}
             </article>
           ))}
         </div>

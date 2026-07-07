@@ -109,39 +109,39 @@ export default function RequestsPage() {
   }
 
   return (
-    <main className="app-shell" style={{ minHeight: '100vh', background: '#020617', color: 'white', padding: 32, fontFamily: 'Arial' }}>
+    <main className="app-shell" style={{ minHeight: '100vh', background: 'var(--color-slate-950)', color: 'white', padding: 32, fontFamily: 'Arial' }}>
       <nav className="top-nav" style={{ marginBottom: 24 }}>
-        <a href="/" style={{ marginRight: 16, color: '#38bdf8' }}>Flights</a>
-        <a href="/best-routes" style={{ marginRight: 16, color: '#fb7185' }}>Best Routes</a>
-        <a href="/watchlist" style={{ marginRight: 16, color: '#facc15' }}>Watchlist</a>
-        <a href="/credits" style={{ marginRight: 16, color: '#fbbf24' }}>Credits</a>
-        <a href="/reputation" style={{ marginRight: 16, color: '#34d399' }}>Trust</a>
-        <a href="/notifications" style={{ marginRight: 16, color: '#f472b6' }}>Notifications</a>
-        <a href="/requests" style={{ marginRight: 16, color: '#c084fc' }}>Open Requests</a>
-        <a href="/my-requests" style={{ marginRight: 16, color: '#facc15' }}>My Requests</a>
-        <a href="/outcomes" style={{ marginRight: 16, color: '#22c55e' }}>Outcomes</a>
-        <a href="/login" style={{ color: '#f472b6' }}>Login</a>
+        <a href="/" style={{ marginRight: 16, color: 'var(--color-sky-400)' }}>Flights</a>
+        <a href="/best-routes" style={{ marginRight: 16, color: 'var(--color-rose-400)' }}>Best Routes</a>
+        <a href="/watchlist" style={{ marginRight: 16, color: 'var(--color-yellow-400)' }}>Watchlist</a>
+        <a href="/credits" style={{ marginRight: 16, color: 'var(--color-amber-400)' }}>Credits</a>
+        <a href="/reputation" style={{ marginRight: 16, color: 'var(--color-green-400)' }}>Trust</a>
+        <a href="/notifications" style={{ marginRight: 16, color: 'var(--color-pink-400)' }}>Notifications</a>
+        <a href="/requests" style={{ marginRight: 16, color: 'var(--color-purple-400)' }}>Open Requests</a>
+        <a href="/my-requests" style={{ marginRight: 16, color: 'var(--color-yellow-400)' }}>My Requests</a>
+        <a href="/outcomes" style={{ marginRight: 16, color: 'var(--color-green-500)' }}>Outcomes</a>
+        <a href="/login" style={{ color: 'var(--color-pink-400)' }}>Login</a>
       </nav>
 
       <section className="hero-grid">
         <div>
           <h1>Open Load Requests</h1>
-          <p style={{ color: '#94a3b8' }}>Requests loaded: {requests.length} · Auto-refresh every 20s{lastUpdated ? ` · Last refresh ${lastUpdated}` : ''}</p>
-          <p style={{ color: '#34d399' }}>Responder reward scaffold: +{ANSWER_REWARD_CREDITS} credits per accepted answer · Earned this session: {rewardBalance.earned}</p>
+          <p style={{ color: 'var(--color-slate-400)' }}>Requests loaded: {requests.length} · Auto-refresh every 20s{lastUpdated ? ` · Last refresh ${lastUpdated}` : ''}</p>
+          <p style={{ color: 'var(--color-green-400)' }}>Responder reward scaffold: +{ANSWER_REWARD_CREDITS} credits per accepted answer · Earned this session: {rewardBalance.earned}</p>
         </div>
-        <button onClick={() => loadRequests(true)} style={{ alignSelf: 'start', padding: 12, borderRadius: 10, border: 'none', background: '#c084fc', color: '#020617', fontWeight: 'bold' }}>
+        <button onClick={() => loadRequests(true)} style={{ alignSelf: 'start', padding: 12, borderRadius: 10, border: 'none', background: 'var(--color-purple-400)', color: 'var(--color-slate-950)', fontWeight: 'bold' }}>
           Refresh requests
         </button>
       </section>
-      {message && <p style={{ color: '#38bdf8' }}>{message}</p>}
+      {message && <p style={{ color: 'var(--color-sky-400)' }}>{message}</p>}
 
       {requests.map((request) => (
-        <div className="flight-card" key={request.id} style={{ border: '1px solid #334155', borderRadius: 18, padding: 18, marginBottom: 14, background: '#0f172a' }}>
+        <div className="flight-card" key={request.id} style={{ border: '1px solid var(--color-slate-700)', borderRadius: 18, padding: 18, marginBottom: 14, background: 'var(--color-slate-850)' }}>
           <h2>{request.flights?.flight_number || 'Unknown Flight'}</h2>
           <p>{request.flights?.origin} → {request.flights?.destination}</p>
           <p>Status: {request.status}</p>
           <p>Credits spent: {request.credits_spent}</p>
-          {request.flights?.id && <a href={`/flights/${request.flights.id}`} style={{ color: '#38bdf8', display: 'inline-block', marginBottom: 10 }}>View flight detail</a>}
+          {request.flights?.id && <a href={`/flights/${request.flights.id}`} style={{ color: 'var(--color-sky-400)', display: 'inline-block', marginBottom: 10 }}>View flight detail</a>}
 
           <button
             disabled={pendingIds.includes(request.id)}
@@ -150,7 +150,7 @@ export default function RequestsPage() {
               padding: 10,
               borderRadius: 8,
               border: 'none',
-              background: pendingIds.includes(request.id) ? '#64748b' : '#22c55e',
+              background: pendingIds.includes(request.id) ? 'var(--color-slate-500)' : 'var(--color-green-500)',
               fontWeight: 'bold',
               marginTop: 10
             }}

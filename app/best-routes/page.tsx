@@ -28,38 +28,38 @@ const routeIdeas = [
 ]
 
 function confidenceColor(confidence: string) {
-  return confidence.includes('Strong') ? '#22c55e' : '#facc15'
+  return confidence.includes('Strong') ? 'var(--color-green-500)' : 'var(--color-yellow-400)'
 }
 
 export default function BestRoutesPage() {
   return (
-    <main style={{ minHeight: '100vh', background: '#020617', color: 'white', padding: 32, fontFamily: 'Arial' }}>
+    <main style={{ minHeight: '100vh', background: 'var(--color-slate-950)', color: 'white', padding: 32, fontFamily: 'Arial' }}>
       <nav style={{ marginBottom: 24 }}>
-        <a href="/" style={{ marginRight: 16, color: '#38bdf8' }}>Flights</a>
-        <a href="/best-routes" style={{ marginRight: 16, color: '#fb7185' }}>Best Routes</a>
-        <a href="/plan" style={{ marginRight: 16, color: '#fb7185' }}>Plan</a>
-        <a href="/watchlist" style={{ marginRight: 16, color: '#facc15' }}>Watchlist</a>
-        <a href="/agent" style={{ marginRight: 16, color: '#a78bfa' }}>Agent</a>
-        <a href="/requests" style={{ marginRight: 16, color: '#c084fc' }}>Open Requests</a>
-        <a href="/outcomes" style={{ color: '#22c55e' }}>Outcomes</a>
+        <a href="/" style={{ marginRight: 16, color: 'var(--color-sky-400)' }}>Flights</a>
+        <a href="/best-routes" style={{ marginRight: 16, color: 'var(--color-rose-400)' }}>Best Routes</a>
+        <a href="/plan" style={{ marginRight: 16, color: 'var(--color-rose-400)' }}>Plan</a>
+        <a href="/watchlist" style={{ marginRight: 16, color: 'var(--color-yellow-400)' }}>Watchlist</a>
+        <a href="/agent" style={{ marginRight: 16, color: 'var(--color-violet-400)' }}>Agent</a>
+        <a href="/requests" style={{ marginRight: 16, color: 'var(--color-purple-400)' }}>Open Requests</a>
+        <a href="/outcomes" style={{ color: 'var(--color-green-500)' }}>Outcomes</a>
       </nav>
 
       <section style={{ maxWidth: 1080, margin: '0 auto' }}>
-        <p style={{ color: '#fb7185', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1 }}>Route intelligence scaffold</p>
+        <p style={{ color: 'var(--color-rose-400)', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1 }}>Route intelligence scaffold</p>
         <h1 style={{ fontSize: 44, margin: '8px 0 12px' }}>Best routes to watch right now</h1>
-        <p style={{ color: '#94a3b8', maxWidth: 760, fontSize: 18 }}>
+        <p style={{ color: 'var(--color-slate-400)', maxWidth: 760, fontSize: 18 }}>
           A production-ready landing zone for ranking routes by capacity, fallback options, historical outcomes, and close-in nonrev risk.
         </p>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 16, marginTop: 28 }}>
           {routeIdeas.map((idea) => (
-            <article key={idea.id} style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: 20, padding: 18 }}>
+            <article key={idea.id} style={{ background: 'var(--color-slate-850)', border: '1px solid var(--color-slate-700)', borderRadius: 20, padding: 18 }}>
               <h2 style={{ marginTop: 0 }}>{idea.title}</h2>
-              <p style={{ color: '#38bdf8', fontWeight: 'bold', fontSize: 18 }}>{idea.route}</p>
+              <p style={{ color: 'var(--color-sky-400)', fontWeight: 'bold', fontSize: 18 }}>{idea.route}</p>
               <p style={{ color: confidenceColor(idea.confidence), fontWeight: 'bold' }}>{idea.confidence}</p>
               <p>{idea.why}</p>
-              <p style={{ color: '#cbd5e1' }}><strong>Watch:</strong> {idea.watch}</p>
-              <button style={{ padding: 12, borderRadius: 10, border: 'none', background: '#38bdf8', color: '#020617', fontWeight: 'bold' }}>
+              <p style={{ color: 'var(--color-slate-300)' }}><strong>Watch:</strong> {idea.watch}</p>
+              <button style={{ padding: 12, borderRadius: 10, border: 'none', background: 'var(--color-sky-400)', color: 'var(--color-slate-950)', fontWeight: 'bold' }}>
                 Save route scaffold
               </button>
             </article>

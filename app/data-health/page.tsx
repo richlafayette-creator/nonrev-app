@@ -72,23 +72,23 @@ type HealthResponse = {
 }
 
 const statusColors: Record<HealthStatus, { border: string; text: string; bg: string }> = {
-  Connected: { border: '#22c55e', text: '#86efac', bg: 'rgba(34,197,94,0.12)' },
-  Missing: { border: '#f59e0b', text: '#facc15', bg: 'rgba(245,158,11,0.12)' },
-  Limited: { border: '#38bdf8', text: '#7dd3fc', bg: 'rgba(56,189,248,0.12)' },
-  Error: { border: '#fb7185', text: '#fda4af', bg: 'rgba(251,113,133,0.12)' }
+  Connected: { border: 'var(--color-green-500)', text: 'var(--color-green-300)', bg: 'rgba(34,197,94,0.12)' },
+  Missing: { border: '#f59e0b', text: 'var(--color-yellow-400)', bg: 'rgba(245,158,11,0.12)' },
+  Limited: { border: 'var(--color-sky-400)', text: 'var(--color-cyan-300)', bg: 'rgba(56,189,248,0.12)' },
+  Error: { border: 'var(--color-rose-400)', text: '#fda4af', bg: 'rgba(251,113,133,0.12)' }
 }
 
 const readinessColors: Record<ScheduleProviderReadinessStatus, { border: string; text: string; bg: string }> = {
-  Configured: { border: '#22c55e', text: '#86efac', bg: 'rgba(34,197,94,0.12)' },
-  Missing: { border: '#f59e0b', text: '#facc15', bg: 'rgba(245,158,11,0.12)' },
-  Limited: { border: '#38bdf8', text: '#7dd3fc', bg: 'rgba(56,189,248,0.12)' },
-  Placeholder: { border: '#94a3b8', text: '#cbd5e1', bg: 'rgba(148,163,184,0.12)' }
+  Configured: { border: 'var(--color-green-500)', text: 'var(--color-green-300)', bg: 'rgba(34,197,94,0.12)' },
+  Missing: { border: '#f59e0b', text: 'var(--color-yellow-400)', bg: 'rgba(245,158,11,0.12)' },
+  Limited: { border: 'var(--color-sky-400)', text: 'var(--color-cyan-300)', bg: 'rgba(56,189,248,0.12)' },
+  Placeholder: { border: 'var(--color-slate-400)', text: 'var(--color-slate-300)', bg: 'rgba(148,163,184,0.12)' }
 }
 
 const liveReadinessColors: Record<LiveReadinessStatus, { border: string; text: string; bg: string }> = {
-  Ready: { border: '#22c55e', text: '#86efac', bg: 'rgba(34,197,94,0.12)' },
-  Limited: { border: '#38bdf8', text: '#7dd3fc', bg: 'rgba(56,189,248,0.12)' },
-  Blocked: { border: '#f59e0b', text: '#facc15', bg: 'rgba(245,158,11,0.12)' }
+  Ready: { border: 'var(--color-green-500)', text: 'var(--color-green-300)', bg: 'rgba(34,197,94,0.12)' },
+  Limited: { border: 'var(--color-sky-400)', text: 'var(--color-cyan-300)', bg: 'rgba(56,189,248,0.12)' },
+  Blocked: { border: '#f59e0b', text: 'var(--color-yellow-400)', bg: 'rgba(245,158,11,0.12)' }
 }
 
 function formatDate(value: string) {
@@ -368,19 +368,19 @@ export default function DataHealthPage() {
   const sortedChecks = useMemo(() => [...checks].sort((a, b) => statusRank(a.status) - statusRank(b.status)), [checks])
 
   return (
-    <main className="app-shell" style={{ minHeight: '100vh', background: '#020617', color: 'white', padding: 32, fontFamily: 'Arial' }}>
+    <main className="app-shell" style={{ minHeight: '100vh', background: 'var(--color-slate-950)', color: 'white', padding: 32, fontFamily: 'Arial' }}>
       <nav className="top-nav" style={{ marginBottom: 24 }}>
-        <a href="/" style={{ marginRight: 16, color: '#38bdf8' }}>Home</a>
-        <a href="/account" style={{ marginRight: 16, color: '#fbbf24' }}>Account</a>
-        <a href="/plan" style={{ marginRight: 16, color: '#fb7185' }}>Plan</a>
-        <a href="/alerts" style={{ marginRight: 16, color: '#c084fc' }}>Alerts</a>
-        <a href="/intelligence" style={{ color: '#22c55e' }}>Intelligence</a>
+        <a href="/" style={{ marginRight: 16, color: 'var(--color-sky-400)' }}>Home</a>
+        <a href="/account" style={{ marginRight: 16, color: 'var(--color-amber-400)' }}>Account</a>
+        <a href="/plan" style={{ marginRight: 16, color: 'var(--color-rose-400)' }}>Plan</a>
+        <a href="/alerts" style={{ marginRight: 16, color: 'var(--color-purple-400)' }}>Alerts</a>
+        <a href="/intelligence" style={{ color: 'var(--color-green-500)' }}>Intelligence</a>
       </nav>
 
       <section style={{ maxWidth: 1120 }}>
-        <p style={{ color: '#38bdf8', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1 }}>Admin diagnostic</p>
+        <p style={{ color: 'var(--color-sky-400)', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1 }}>Admin diagnostic</p>
         <h1 style={{ fontSize: 44, margin: '8px 0' }}>Real-time data health</h1>
-        <p style={{ color: '#94a3b8', maxWidth: 760 }}>
+        <p style={{ color: 'var(--color-slate-400)', maxWidth: 760 }}>
           Quick visibility into the NONREVY data stack without exposing API keys. External provider checks run server-side; traveler, community, and outcome checks read only this browser&apos;s local app data.
         </p>
 
@@ -388,28 +388,28 @@ export default function DataHealthPage() {
           {(['Connected', 'Limited', 'Missing', 'Error'] as HealthStatus[]).map((status) => (
             <article key={status} style={{ border: `1px solid ${statusColors[status].border}`, borderRadius: 16, padding: '14px 16px', background: statusColors[status].bg, minWidth: 150 }}>
               <small style={{ color: statusColors[status].text }}>{status}</small>
-              <h2 style={{ margin: '4px 0 0', color: '#f8fafc' }}>{summary[status]}</h2>
+              <h2 style={{ margin: '4px 0 0', color: 'var(--color-slate-50)' }}>{summary[status]}</h2>
             </article>
           ))}
           <button
             type="button"
             onClick={refreshHealth}
             disabled={loading}
-            style={{ border: '1px solid #38bdf8', borderRadius: 999, padding: '0 18px', color: '#e0f2fe', background: loading ? '#0f172a' : '#075985', cursor: loading ? 'wait' : 'pointer' }}
+            style={{ border: '1px solid var(--color-sky-400)', borderRadius: 999, padding: '0 18px', color: 'var(--color-sky-100)', background: loading ? 'var(--color-slate-850)' : '#075985', cursor: loading ? 'wait' : 'pointer' }}
           >
             {loading ? 'Checking...' : 'Refresh checks'}
           </button>
         </div>
 
-        <p style={{ color: '#cbd5e1' }}>{pageStatus}</p>
+        <p style={{ color: 'var(--color-slate-300)' }}>{pageStatus}</p>
 
         {providerPersistence ? (
-          <section style={{ border: `1px solid ${providerPersistenceColor(providerPersistence.status).border}`, borderRadius: 18, padding: 18, background: '#020617', marginTop: 18 }}>
+          <section style={{ border: `1px solid ${providerPersistenceColor(providerPersistence.status).border}`, borderRadius: 18, padding: 18, background: 'var(--color-slate-950)', marginTop: 18 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'flex-start' }}>
               <div>
-                <p style={{ color: '#67e8f9', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1, margin: 0 }}>Provider result persistence diagnostics</p>
-                <h2 style={{ margin: '6px 0', color: '#f8fafc' }}>FlightAware result storage</h2>
-                <p style={{ color: '#cbd5e1', maxWidth: 820, margin: 0 }}>{providerPersistence.detail}</p>
+                <p style={{ color: 'var(--color-sky-300)', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1, margin: 0 }}>Provider result persistence diagnostics</p>
+                <h2 style={{ margin: '6px 0', color: 'var(--color-slate-50)' }}>FlightAware result storage</h2>
+                <p style={{ color: 'var(--color-slate-300)', maxWidth: 820, margin: 0 }}>{providerPersistence.detail}</p>
               </div>
               <span style={{ border: `1px solid ${providerPersistenceColor(providerPersistence.status).border}`, borderRadius: 999, padding: '6px 12px', color: providerPersistenceColor(providerPersistence.status).text, background: providerPersistenceColor(providerPersistence.status).bg, whiteSpace: 'nowrap', fontSize: 13, fontWeight: 'bold' }}>
                 {providerPersistenceStatusLabel(providerPersistence.status)}
@@ -423,44 +423,44 @@ export default function DataHealthPage() {
                 ['Stored records', formatCount(providerPersistence.totalStoredRecords)],
                 ['Newest record', providerPersistence.newestStoredProviderRecordTimestamp ? formatDate(providerPersistence.newestStoredProviderRecordTimestamp) : 'Not available']
               ].map(([label, value]) => (
-                <article key={label} style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#0f172a' }}>
-                  <small style={{ color: '#94a3b8' }}>{label}</small>
-                  <p style={{ color: '#f8fafc', margin: '5px 0 0', fontWeight: 'bold' }}>{value}</p>
+                <article key={label} style={{ border: '1px solid var(--color-slate-700)', borderRadius: 14, padding: 14, background: 'var(--color-slate-850)' }}>
+                  <small style={{ color: 'var(--color-slate-400)' }}>{label}</small>
+                  <p style={{ color: 'var(--color-slate-50)', margin: '5px 0 0', fontWeight: 'bold' }}>{value}</p>
                 </article>
               ))}
             </div>
 
             <div style={{ marginTop: 16 }}>
-              <p style={{ color: '#facc15', fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.8, margin: '0 0 8px' }}>Recommended next action</p>
-              <p style={{ color: '#fde68a', margin: 0 }}>{providerPersistence.recommendedNextAction}</p>
+              <p style={{ color: 'var(--color-yellow-400)', fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.8, margin: '0 0 8px' }}>Recommended next action</p>
+              <p style={{ color: 'var(--color-yellow-300)', margin: 0 }}>{providerPersistence.recommendedNextAction}</p>
             </div>
 
             <div style={{ marginTop: 16 }}>
-              <p style={{ color: '#94a3b8', fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.8, margin: '0 0 8px' }}>Coverage by source provider</p>
+              <p style={{ color: 'var(--color-slate-400)', fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.8, margin: '0 0 8px' }}>Coverage by source provider</p>
               {providerPersistence.coverageBySourceProvider.length ? (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10 }}>
                   {providerPersistence.coverageBySourceProvider.map((entry) => (
-                    <article key={entry.sourceProvider} style={{ border: '1px solid #334155', borderRadius: 14, padding: 12, background: '#0f172a' }}>
-                      <strong style={{ color: '#e2e8f0' }}>{entry.sourceProvider}</strong>
-                      <p style={{ color: '#67e8f9', margin: '4px 0 0', fontWeight: 'bold' }}>{entry.count.toLocaleString()} record{entry.count === 1 ? '' : 's'}</p>
+                    <article key={entry.sourceProvider} style={{ border: '1px solid var(--color-slate-700)', borderRadius: 14, padding: 12, background: 'var(--color-slate-850)' }}>
+                      <strong style={{ color: 'var(--color-slate-200)' }}>{entry.sourceProvider}</strong>
+                      <p style={{ color: 'var(--color-sky-300)', margin: '4px 0 0', fontWeight: 'bold' }}>{entry.count.toLocaleString()} record{entry.count === 1 ? '' : 's'}</p>
                     </article>
                   ))}
                 </div>
               ) : (
-                <p style={{ color: '#cbd5e1', margin: 0 }}>No source-provider coverage rows are available yet.</p>
+                <p style={{ color: 'var(--color-slate-300)', margin: 0 }}>No source-provider coverage rows are available yet.</p>
               )}
             </div>
           </section>
         ) : null}
 
         {liveItineraryReadiness ? (
-          <section style={{ border: `1px solid ${liveReadinessColors[liveItineraryReadiness.status].border}`, borderRadius: 18, padding: 18, background: '#020617', marginTop: 18 }}>
+          <section style={{ border: `1px solid ${liveReadinessColors[liveItineraryReadiness.status].border}`, borderRadius: 18, padding: 18, background: 'var(--color-slate-950)', marginTop: 18 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'flex-start' }}>
               <div>
-                <p style={{ color: '#38bdf8', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1, margin: 0 }}>True live itinerary readiness</p>
-                <h2 style={{ margin: '6px 0', color: '#f8fafc' }}>Live data provider checklist</h2>
-                <p style={{ color: '#cbd5e1', maxWidth: 820, margin: 0 }}>{liveItineraryReadiness.trueLiveAvailabilityMessage}</p>
-                <p style={{ color: liveItineraryReadiness.testDataModeEnabled ? '#fde68a' : '#bbf7d0', maxWidth: 820, margin: '8px 0 0' }}>
+                <p style={{ color: 'var(--color-sky-400)', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1, margin: 0 }}>True live itinerary readiness</p>
+                <h2 style={{ margin: '6px 0', color: 'var(--color-slate-50)' }}>Live data provider checklist</h2>
+                <p style={{ color: 'var(--color-slate-300)', maxWidth: 820, margin: 0 }}>{liveItineraryReadiness.trueLiveAvailabilityMessage}</p>
+                <p style={{ color: liveItineraryReadiness.testDataModeEnabled ? 'var(--color-yellow-300)' : 'var(--color-green-200)', maxWidth: 820, margin: '8px 0 0' }}>
                   Active data mode: <strong>{liveItineraryReadiness.activeDataMode === 'test-data' ? 'Test data mode' : 'Production-safe mode'}</strong> · NONREVY_TEST_DATA_MODE={liveItineraryReadiness.testDataModeEnabled ? 'true' : 'false or unset'}
                 </p>
               </div>
@@ -472,19 +472,19 @@ export default function DataHealthPage() {
               {liveItineraryReadiness.checklist.map((entry) => {
                 const colors = liveReadinessColors[entry.status]
                 return (
-                  <article key={entry.key} style={{ border: `1px solid ${colors.border}`, borderRadius: 16, padding: 14, background: '#0f172a' }}>
+                  <article key={entry.key} style={{ border: `1px solid ${colors.border}`, borderRadius: 16, padding: 14, background: 'var(--color-slate-850)' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'flex-start' }}>
-                      <h3 style={{ margin: 0, color: '#f8fafc' }}>{entry.label}</h3>
+                      <h3 style={{ margin: 0, color: 'var(--color-slate-50)' }}>{entry.label}</h3>
                       <span style={{ border: `1px solid ${colors.border}`, borderRadius: 999, padding: '4px 9px', color: colors.text, background: colors.bg, whiteSpace: 'nowrap', fontSize: 12, fontWeight: 'bold' }}>
                         {entry.status}
                       </span>
                     </div>
-                    <p style={{ color: '#cbd5e1' }}>{entry.detail}</p>
+                    <p style={{ color: 'var(--color-slate-300)' }}>{entry.detail}</p>
                     <div>
-                      <p style={{ color: entry.status === 'Ready' ? '#86efac' : '#facc15', fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.8, margin: '0 0 4px' }}>
+                      <p style={{ color: entry.status === 'Ready' ? 'var(--color-green-300)' : 'var(--color-yellow-400)', fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.8, margin: '0 0 4px' }}>
                         {entry.status === 'Ready' ? 'Next action' : 'Recommended next action'}
                       </p>
-                      <p style={{ color: entry.status === 'Ready' ? '#bbf7d0' : '#fde68a', margin: 0 }}>{entry.recommendedNextAction}</p>
+                      <p style={{ color: entry.status === 'Ready' ? 'var(--color-green-200)' : 'var(--color-yellow-300)', margin: 0 }}>{entry.recommendedNextAction}</p>
                     </div>
                   </article>
                 )
@@ -494,12 +494,12 @@ export default function DataHealthPage() {
         ) : null}
 
         {scheduleProviderReadiness.length ? (
-          <section style={{ border: '1px solid #334155', borderRadius: 18, padding: 18, background: '#020617', marginTop: 18 }}>
+          <section style={{ border: '1px solid var(--color-slate-700)', borderRadius: 18, padding: 18, background: 'var(--color-slate-950)', marginTop: 18 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'flex-start' }}>
               <div>
-                <p style={{ color: '#c084fc', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1, margin: 0 }}>Live schedule provider readiness</p>
-                <h2 style={{ margin: '6px 0', color: '#f8fafc' }}>Provider integration diagnostics</h2>
-                <p style={{ color: '#94a3b8', maxWidth: 780, margin: 0 }}>
+                <p style={{ color: 'var(--color-purple-400)', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1, margin: 0 }}>Live schedule provider readiness</p>
+                <h2 style={{ margin: '6px 0', color: 'var(--color-slate-50)' }}>Provider integration diagnostics</h2>
+                <p style={{ color: 'var(--color-slate-400)', maxWidth: 780, margin: 0 }}>
                   These readiness cards describe what each schedule provider can and cannot provide without exposing API keys. Stored Supabase data remains stored data, not live provider API data.
                 </p>
               </div>
@@ -508,26 +508,26 @@ export default function DataHealthPage() {
               {scheduleProviderReadiness.map((provider) => {
                 const colors = readinessColors[provider.status]
                 return (
-                  <article key={provider.key} style={{ border: `1px solid ${colors.border}`, borderRadius: 16, padding: 14, background: '#0f172a' }}>
+                  <article key={provider.key} style={{ border: `1px solid ${colors.border}`, borderRadius: 16, padding: 14, background: 'var(--color-slate-850)' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'flex-start' }}>
-                      <h3 style={{ margin: 0, color: '#f8fafc' }}>{provider.label}</h3>
+                      <h3 style={{ margin: 0, color: 'var(--color-slate-50)' }}>{provider.label}</h3>
                       <span style={{ border: `1px solid ${colors.border}`, borderRadius: 999, padding: '4px 9px', color: colors.text, background: colors.bg, whiteSpace: 'nowrap', fontSize: 12, fontWeight: 'bold' }}>
                         {provider.status}
                       </span>
                     </div>
-                    <p style={{ color: '#cbd5e1' }}>{provider.detail}</p>
+                    <p style={{ color: 'var(--color-slate-300)' }}>{provider.detail}</p>
                     <dl style={{ display: 'grid', gap: 10, margin: 0 }}>
                       <div>
-                        <dt style={{ color: '#86efac', fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.8 }}>Can provide</dt>
-                        <dd style={{ margin: '4px 0 0', color: '#e2e8f0' }}>{provider.whatItCanProvide.join(', ') || 'None yet'}</dd>
+                        <dt style={{ color: 'var(--color-green-300)', fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.8 }}>Can provide</dt>
+                        <dd style={{ margin: '4px 0 0', color: 'var(--color-slate-200)' }}>{provider.whatItCanProvide.join(', ') || 'None yet'}</dd>
                       </div>
                       <div>
                         <dt style={{ color: '#fda4af', fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.8 }}>Cannot provide</dt>
-                        <dd style={{ margin: '4px 0 0', color: '#e2e8f0' }}>{provider.whatItCannotProvide.join(', ') || 'No known gaps'}</dd>
+                        <dd style={{ margin: '4px 0 0', color: 'var(--color-slate-200)' }}>{provider.whatItCannotProvide.join(', ') || 'No known gaps'}</dd>
                       </div>
                       <div>
-                        <dt style={{ color: '#facc15', fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.8 }}>Recommended next action</dt>
-                        <dd style={{ margin: '4px 0 0', color: '#fde68a' }}>{provider.recommendedNextAction}</dd>
+                        <dt style={{ color: 'var(--color-yellow-400)', fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.8 }}>Recommended next action</dt>
+                        <dd style={{ margin: '4px 0 0', color: 'var(--color-yellow-300)' }}>{provider.recommendedNextAction}</dd>
                       </div>
                     </dl>
                   </article>
@@ -541,30 +541,30 @@ export default function DataHealthPage() {
           {sortedChecks.map((check) => {
             const colors = statusColors[check.status]
             return (
-              <article key={check.key} style={{ border: `1px solid ${colors.border}`, borderRadius: 18, padding: 18, background: '#0f172a' }}>
+              <article key={check.key} style={{ border: `1px solid ${colors.border}`, borderRadius: 18, padding: 18, background: 'var(--color-slate-850)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start' }}>
                   <div>
-                    <small style={{ color: '#94a3b8' }}>Data source</small>
-                    <h2 style={{ margin: '6px 0', color: '#f8fafc', fontSize: 22 }}>{check.label}</h2>
+                    <small style={{ color: 'var(--color-slate-400)' }}>Data source</small>
+                    <h2 style={{ margin: '6px 0', color: 'var(--color-slate-50)', fontSize: 22 }}>{check.label}</h2>
                   </div>
                   <span style={{ border: `1px solid ${colors.border}`, borderRadius: 999, padding: '5px 10px', color: colors.text, background: colors.bg, whiteSpace: 'nowrap' }}>
                     {check.status}
                   </span>
                 </div>
 
-                <p style={{ color: '#cbd5e1', minHeight: 44 }}>{check.detail}</p>
+                <p style={{ color: 'var(--color-slate-300)', minHeight: 44 }}>{check.detail}</p>
                 <dl style={{ display: 'grid', gap: 10, margin: 0 }}>
                   <div>
-                    <dt style={{ color: '#94a3b8', fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.8 }}>Last checked</dt>
-                    <dd style={{ margin: '4px 0 0', color: '#e2e8f0' }}>{formatDate(check.lastChecked)}</dd>
+                    <dt style={{ color: 'var(--color-slate-400)', fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.8 }}>Last checked</dt>
+                    <dd style={{ margin: '4px 0 0', color: 'var(--color-slate-200)' }}>{formatDate(check.lastChecked)}</dd>
                   </div>
                   <div>
-                    <dt style={{ color: '#94a3b8', fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.8 }}>Safe error message</dt>
-                    <dd style={{ margin: '4px 0 0', color: check.safeErrorMessage ? '#fda4af' : '#86efac' }}>{check.safeErrorMessage || 'None'}</dd>
+                    <dt style={{ color: 'var(--color-slate-400)', fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.8 }}>Safe error message</dt>
+                    <dd style={{ margin: '4px 0 0', color: check.safeErrorMessage ? '#fda4af' : 'var(--color-green-300)' }}>{check.safeErrorMessage || 'None'}</dd>
                   </div>
                   <div>
-                    <dt style={{ color: '#94a3b8', fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.8 }}>Recommended fix</dt>
-                    <dd style={{ margin: '4px 0 0', color: '#facc15' }}>{check.recommendedFix}</dd>
+                    <dt style={{ color: 'var(--color-slate-400)', fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.8 }}>Recommended fix</dt>
+                    <dd style={{ margin: '4px 0 0', color: 'var(--color-yellow-400)' }}>{check.recommendedFix}</dd>
                   </div>
                 </dl>
               </article>

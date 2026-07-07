@@ -289,14 +289,14 @@ function filterOpportunities(opportunities: OpportunityCard[], filters: Opportun
 }
 
 function opportunityAccent(category: OpportunityCategory) {
-  if (category.includes('Polaris')) return '#38bdf8'
-  if (category.includes('Delta')) return '#60a5fa'
-  if (category.includes('Hawaii')) return '#22c55e'
-  if (category.includes('Europe')) return '#c084fc'
-  if (category.includes('Asia')) return '#f97316'
-  if (category.includes('same-day')) return '#facc15'
-  if (category.includes('Hidden')) return '#fb7185'
-  return '#67e8f9'
+  if (category.includes('Polaris')) return 'var(--color-sky-400)'
+  if (category.includes('Delta')) return 'var(--color-blue-300)'
+  if (category.includes('Hawaii')) return 'var(--color-green-500)'
+  if (category.includes('Europe')) return 'var(--color-purple-400)'
+  if (category.includes('Asia')) return 'var(--color-orange-500)'
+  if (category.includes('same-day')) return 'var(--color-yellow-400)'
+  if (category.includes('Hidden')) return 'var(--color-rose-400)'
+  return 'var(--color-sky-300)'
 }
 
 function OpportunityCardView({ opportunity, onSave, onWatchlist }: { opportunity: OpportunityCard; onSave: (opportunity: OpportunityCard) => void; onWatchlist: (opportunity: OpportunityCard) => void }) {
@@ -307,53 +307,53 @@ function OpportunityCardView({ opportunity, onSave, onWatchlist }: { opportunity
         <div>
           <p style={{ color: accent, fontWeight: 900, margin: 0, letterSpacing: 0.7, textTransform: 'uppercase', fontSize: 12 }}>{opportunity.category}</p>
           <h2 style={{ fontSize: 25, lineHeight: 1.05, margin: '8px 0 6px' }}>{opportunity.route}</h2>
-          <p style={{ color: '#cbd5e1', margin: 0 }}>{opportunity.carrier} · {opportunity.cabinSignal}</p>
+          <p style={{ color: 'var(--color-slate-300)', margin: 0 }}>{opportunity.carrier} · {opportunity.cabinSignal}</p>
         </div>
-        <div style={{ minWidth: 92, textAlign: 'center', border: `1px solid ${successPredictionBadgeColor(opportunity.successPrediction.badge)}`, borderRadius: 18, padding: '10px 8px', background: 'rgba(2, 6, 23, 0.78)' }}>
+        <div style={{ minWidth: 92, textAlign: 'center', border: `1px solid ${successPredictionBadgeColor(opportunity.successPrediction.badge)}`, borderRadius: 18, padding: '10px 8px', background: 'var(--surface-control-strong)' }}>
           <strong style={{ color: successPredictionBadgeColor(opportunity.successPrediction.badge), display: 'block', fontSize: 28 }}>{opportunity.successPrediction.displayValue}</strong>
-          <small style={{ color: '#94a3b8', fontWeight: 800 }}>{opportunity.successPrediction.scoreLabel}</small>
+          <small style={{ color: 'var(--color-slate-400)', fontWeight: 800 }}>{opportunity.successPrediction.scoreLabel}</small>
         </div>
       </div>
 
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', margin: '14px 0' }}>
         {opportunity.tags.filter((tag) => tag !== 'Highest Success').map((tag) => (
-          <span key={tag} style={{ border: '1px solid #334155', borderRadius: 999, padding: '6px 9px', color: '#cbd5e1', background: '#020617', fontSize: 12, fontWeight: 800 }}>{tag}</span>
+          <span key={tag} style={{ border: '1px solid var(--color-slate-700)', borderRadius: 999, padding: '6px 9px', color: 'var(--color-slate-300)', background: 'var(--color-slate-950)', fontSize: 12, fontWeight: 800 }}>{tag}</span>
         ))}
-        <span style={{ border: '1px solid #334155', borderRadius: 999, padding: '6px 9px', color: '#d8b4fe', background: '#1e1b4b', fontSize: 12, fontWeight: 800 }}>{opportunity.confidenceBadge} confidence · {opportunity.confidenceScore}</span>
+        <span style={{ border: '1px solid var(--color-slate-700)', borderRadius: 999, padding: '6px 9px', color: 'var(--color-purple-300)', background: 'var(--color-indigo-950)', fontSize: 12, fontWeight: 800 }}>{opportunity.confidenceBadge} confidence · {opportunity.confidenceScore}</span>
       </div>
 
-      <section style={{ border: `1px solid ${successPredictionBadgeColor(opportunity.successPrediction.badge)}`, borderRadius: 16, padding: 12, background: 'rgba(2, 6, 23, 0.72)', marginBottom: 10 }}>
+      <section style={{ border: `1px solid ${successPredictionBadgeColor(opportunity.successPrediction.badge)}`, borderRadius: 16, padding: 12, background: 'var(--surface-control)', marginBottom: 10 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
           <strong style={{ color: successPredictionBadgeColor(opportunity.successPrediction.badge) }}>{opportunity.successPrediction.scoreLabel} {opportunity.successPrediction.displayValue} {opportunity.successPrediction.label}</strong>
           <span style={{ border: `1px solid ${successPredictionBadgeColor(opportunity.successPrediction.badge)}`, borderRadius: 999, padding: '5px 8px', color: successPredictionBadgeColor(opportunity.successPrediction.badge), fontSize: 12, fontWeight: 900 }}>{opportunity.successPrediction.badge}</span>
         </div>
-        <p style={{ color: '#cbd5e1', margin: '8px 0 4px', fontWeight: 800 }}>Reasoning:</p>
-        <ul style={{ color: '#cbd5e1', margin: 0, paddingLeft: 18 }}>
+        <p style={{ color: 'var(--color-slate-300)', margin: '8px 0 4px', fontWeight: 800 }}>Reasoning:</p>
+        <ul style={{ color: 'var(--color-slate-300)', margin: 0, paddingLeft: 18 }}>
           {opportunity.successPrediction.reasoning.map((reason) => <li key={`${opportunity.id}-${reason}`}>{reason}</li>)}
         </ul>
-        <p style={{ color: '#94a3b8', margin: '8px 0 0' }}>Confidence: {opportunity.successPrediction.confidenceLevel} · Risk: {opportunity.successPrediction.riskLevel}</p>
+        <p style={{ color: 'var(--color-slate-400)', margin: '8px 0 0' }}>Confidence: {opportunity.successPrediction.confidenceLevel} · Risk: {opportunity.successPrediction.riskLevel}</p>
       </section>
 
       <section style={{ display: 'grid', gap: 10 }}>
-        <div style={{ border: '1px solid #1e293b', borderRadius: 16, padding: 12, background: 'rgba(2, 6, 23, 0.62)' }}>
-          <strong style={{ color: '#f8fafc' }}>Why it is interesting</strong>
-          <p style={{ color: '#cbd5e1', margin: '6px 0 0' }}>{opportunity.why}</p>
+        <div style={{ border: '1px solid var(--color-slate-800)', borderRadius: 16, padding: 12, background: 'rgba(2, 6, 23, 0.62)' }}>
+          <strong style={{ color: 'var(--color-slate-50)' }}>Why it is interesting</strong>
+          <p style={{ color: 'var(--color-slate-300)', margin: '6px 0 0' }}>{opportunity.why}</p>
         </div>
-        <div style={{ border: '1px solid #1e293b', borderRadius: 16, padding: 12, background: 'rgba(2, 6, 23, 0.62)' }}>
-          <strong style={{ color: '#f8fafc' }}>Recommended traveler profile</strong>
-          <p style={{ color: '#cbd5e1', margin: '6px 0 0' }}>{opportunity.recommendedTravelerProfile}</p>
+        <div style={{ border: '1px solid var(--color-slate-800)', borderRadius: 16, padding: 12, background: 'rgba(2, 6, 23, 0.62)' }}>
+          <strong style={{ color: 'var(--color-slate-50)' }}>Recommended traveler profile</strong>
+          <p style={{ color: 'var(--color-slate-300)', margin: '6px 0 0' }}>{opportunity.recommendedTravelerProfile}</p>
         </div>
-        <div style={{ border: '1px solid #1e293b', borderRadius: 16, padding: 12, background: 'rgba(2, 6, 23, 0.62)' }}>
-          <strong style={{ color: '#f8fafc' }}>Route intelligence + recovery</strong>
-          <p style={{ color: '#94a3b8', margin: '6px 0 0' }}>{opportunity.routeIntelligence}</p>
-          <p style={{ color: '#94a3b8', margin: '6px 0 0' }}>{opportunity.recoveryNote}</p>
+        <div style={{ border: '1px solid var(--color-slate-800)', borderRadius: 16, padding: 12, background: 'rgba(2, 6, 23, 0.62)' }}>
+          <strong style={{ color: 'var(--color-slate-50)' }}>Route intelligence + recovery</strong>
+          <p style={{ color: 'var(--color-slate-400)', margin: '6px 0 0' }}>{opportunity.routeIntelligence}</p>
+          <p style={{ color: 'var(--color-slate-400)', margin: '6px 0 0' }}>{opportunity.recoveryNote}</p>
         </div>
       </section>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 130px), 1fr))', gap: 10, marginTop: 14 }}>
-        <button type="button" onClick={() => onSave(opportunity)} style={{ border: '1px solid #475569', borderRadius: 12, padding: 11, background: '#020617', color: '#e2e8f0', fontWeight: 900 }}>Save</button>
-        <button type="button" onClick={() => onWatchlist(opportunity)} style={{ border: '1px solid #facc15', borderRadius: 12, padding: 11, background: '#422006', color: '#fef3c7', fontWeight: 900 }}>Watchlist</button>
-        <a href={`/plan?aiTrip=${encodeURIComponent(opportunity.plannerQuery)}`} style={{ textAlign: 'center', textDecoration: 'none', border: `1px solid ${accent}`, borderRadius: 12, padding: 11, background: accent, color: '#020617', fontWeight: 900 }}>Open in Planner</a>
+        <button type="button" onClick={() => onSave(opportunity)} style={{ border: '1px solid var(--color-slate-600)', borderRadius: 12, padding: 11, background: 'var(--color-slate-950)', color: 'var(--color-slate-200)', fontWeight: 900 }}>Save</button>
+        <button type="button" onClick={() => onWatchlist(opportunity)} style={{ border: '1px solid var(--color-yellow-400)', borderRadius: 12, padding: 11, background: '#422006', color: 'var(--color-yellow-100)', fontWeight: 900 }}>Watchlist</button>
+        <a href={`/plan?aiTrip=${encodeURIComponent(opportunity.plannerQuery)}`} style={{ textAlign: 'center', textDecoration: 'none', border: `1px solid ${accent}`, borderRadius: 12, padding: 11, background: accent, color: 'var(--color-slate-950)', fontWeight: 900 }}>Open in Planner</a>
       </div>
     </article>
   )
@@ -396,35 +396,35 @@ export default function OpportunitiesPage() {
   }
 
   return (
-    <main className="app-shell" style={{ minHeight: '100vh', background: 'radial-gradient(circle at top left, rgba(56, 189, 248, 0.16), transparent 32%), radial-gradient(circle at top right, rgba(192, 132, 252, 0.18), transparent 34%), #020617', color: 'white', padding: 'clamp(16px, 4vw, 32px)', fontFamily: 'Arial', overflowX: 'hidden' }}>
+    <main className="app-shell" style={{ minHeight: '100vh', background: 'radial-gradient(circle at top left, rgba(56, 189, 248, 0.16), transparent 32%), radial-gradient(circle at top right, rgba(192, 132, 252, 0.18), transparent 34%), var(--color-slate-950)', color: 'white', padding: 'clamp(16px, 4vw, 32px)', fontFamily: 'Arial', overflowX: 'hidden' }}>
       <nav className="top-nav" style={{ marginBottom: 24 }}>
-        <a href="/" style={{ marginRight: 16, color: '#38bdf8' }}>Home</a>
-        <a href="/plan" style={{ marginRight: 16, color: '#fb7185' }}>Plan</a>
-        <a href="/opportunities" style={{ marginRight: 16, color: '#67e8f9' }}>Opportunities</a>
-        <a href="/saved-searches" style={{ marginRight: 16, color: '#67e8f9' }}>Saved Searches</a>
-        <a href="/watchlist" style={{ color: '#facc15' }}>Watchlist</a>
+        <a href="/" style={{ marginRight: 16, color: 'var(--color-sky-400)' }}>Home</a>
+        <a href="/plan" style={{ marginRight: 16, color: 'var(--color-rose-400)' }}>Plan</a>
+        <a href="/opportunities" style={{ marginRight: 16, color: 'var(--color-sky-300)' }}>Opportunities</a>
+        <a href="/saved-searches" style={{ marginRight: 16, color: 'var(--color-sky-300)' }}>Saved Searches</a>
+        <a href="/watchlist" style={{ color: 'var(--color-yellow-400)' }}>Watchlist</a>
       </nav>
 
       <section style={{ maxWidth: 1160, margin: '0 auto' }}>
-        <p style={{ color: '#67e8f9', fontWeight: 900, letterSpacing: 1, textTransform: 'uppercase' }}>Opportunity Feed MVP</p>
+        <p style={{ color: 'var(--color-sky-300)', fontWeight: 900, letterSpacing: 1, textTransform: 'uppercase' }}>Opportunity Feed MVP</p>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 320px), 1fr))', gap: 18, alignItems: 'end' }}>
           <div>
             <h1 style={{ fontSize: 'clamp(34px, 9vw, 58px)', lineHeight: 0.98, margin: '8px 0 12px' }}>Today’s best nonrev opportunities.</h1>
-            <p style={{ color: '#cbd5e1', fontSize: 18, maxWidth: 780 }}>Personalized discovery cards surface premium cabin upside, same-day success candidates, Hawaii/Europe/Asia ideas, and hidden-gem routes using existing NONREVY scoring and traveler-profile signals.</p>
+            <p style={{ color: 'var(--color-slate-300)', fontSize: 18, maxWidth: 780 }}>Personalized discovery cards surface premium cabin upside, same-day success candidates, Hawaii/Europe/Asia ideas, and hidden-gem routes using existing NONREVY scoring and traveler-profile signals.</p>
           </div>
           <aside style={{ border: '1px solid rgba(103, 232, 249, 0.38)', borderRadius: 22, padding: 16, background: 'rgba(8, 47, 73, 0.45)' }}>
-            <strong style={{ color: '#e0f2fe' }}>Profile lens</strong>
-            <p style={{ color: '#bae6fd', margin: '8px 0 0' }}>{travelerProfile.travelerType} · {travelerProfile.passPriority} · home {travelerProfile.homeAirport}</p>
-            <p style={{ color: '#94a3b8', margin: '8px 0 0' }}>Watchlist items: {watchlistCount}</p>
+            <strong style={{ color: 'var(--color-sky-100)' }}>Profile lens</strong>
+            <p style={{ color: 'var(--color-sky-200)', margin: '8px 0 0' }}>{travelerProfile.travelerType} · {travelerProfile.passPriority} · home {travelerProfile.homeAirport}</p>
+            <p style={{ color: 'var(--color-slate-400)', margin: '8px 0 0' }}>Watchlist items: {watchlistCount}</p>
           </aside>
         </div>
 
         <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 210px), 1fr))', gap: 12, marginTop: 18 }} aria-label="Today's Best Opportunities preview">
           {topOpportunities.map((opportunity) => (
             <a key={opportunity.id} href={`/plan?aiTrip=${encodeURIComponent(opportunity.plannerQuery)}`} style={{ textDecoration: 'none', color: 'inherit', border: '1px solid rgba(148, 163, 184, 0.28)', borderRadius: 18, padding: 14, background: 'rgba(15, 23, 42, 0.7)' }}>
-              <small style={{ color: '#94a3b8', fontWeight: 900 }}>Today’s Best Opportunities</small>
+              <small style={{ color: 'var(--color-slate-400)', fontWeight: 900 }}>Today’s Best Opportunities</small>
               <h2 style={{ margin: '6px 0', fontSize: 18 }}>{opportunity.route}</h2>
-              <p style={{ margin: 0, color: '#67e8f9', fontWeight: 900 }}>{opportunity.successPrediction.probability}% prediction · open planner</p>
+              <p style={{ margin: 0, color: 'var(--color-sky-300)', fontWeight: 900 }}>{opportunity.successPrediction.probability}% prediction · open planner</p>
             </a>
           ))}
         </section>
@@ -434,14 +434,14 @@ export default function OpportunitiesPage() {
             {filterOptions.map((filter) => {
               const active = activeFilters.includes(filter)
               return (
-                <button key={filter} type="button" onClick={() => toggleFilter(filter)} style={{ border: `1px solid ${active ? '#67e8f9' : '#334155'}`, borderRadius: 999, padding: '10px 12px', background: active ? '#164e63' : '#020617', color: active ? '#e0f2fe' : '#cbd5e1', fontWeight: 900 }}>
+                <button key={filter} type="button" onClick={() => toggleFilter(filter)} style={{ border: `1px solid ${active ? 'var(--color-sky-300)' : 'var(--color-slate-700)'}`, borderRadius: 999, padding: '10px 12px', background: active ? '#164e63' : 'var(--color-slate-950)', color: active ? 'var(--color-sky-100)' : 'var(--color-slate-300)', fontWeight: 900 }}>
                   {filter}
                 </button>
               )
             })}
-            {activeFilters.length > 0 && <button type="button" onClick={() => setActiveFilters([])} style={{ border: '1px solid #475569', borderRadius: 999, padding: '10px 12px', background: 'transparent', color: '#94a3b8', fontWeight: 900 }}>Clear</button>}
+            {activeFilters.length > 0 && <button type="button" onClick={() => setActiveFilters([])} style={{ border: '1px solid var(--color-slate-600)', borderRadius: 999, padding: '10px 12px', background: 'transparent', color: 'var(--color-slate-400)', fontWeight: 900 }}>Clear</button>}
           </div>
-          <p style={{ color: '#94a3b8', margin: '10px 0 0' }}>{status}</p>
+          <p style={{ color: 'var(--color-slate-400)', margin: '10px 0 0' }}>{status}</p>
         </section>
 
         <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 320px), 1fr))', gap: 16, marginTop: 20 }}>
@@ -451,9 +451,9 @@ export default function OpportunitiesPage() {
         </section>
 
         {!visibleOpportunities.length && (
-          <section style={{ border: '1px solid #334155', borderRadius: 22, padding: 22, background: '#0f172a', marginTop: 20 }}>
+          <section style={{ border: '1px solid var(--color-slate-700)', borderRadius: 22, padding: 22, background: 'var(--color-slate-850)', marginTop: 20 }}>
             <h2>No opportunities match those filters yet.</h2>
-            <p style={{ color: '#94a3b8' }}>Try clearing one carrier or region filter. The feed is intentionally conservative in MVP form.</p>
+            <p style={{ color: 'var(--color-slate-400)' }}>Try clearing one carrier or region filter. The feed is intentionally conservative in MVP form.</p>
           </section>
         )}
       </section>

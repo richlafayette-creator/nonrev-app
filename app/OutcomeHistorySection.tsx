@@ -24,50 +24,50 @@ export default function OutcomeHistorySection() {
   const repository = useMemo(() => outcomeRepositoryDiagnostics(), [])
 
   return (
-    <section style={{ border: '1px solid #334155', borderRadius: 22, padding: 22, background: '#0f172a', marginTop: 24 }}>
+    <section style={{ border: '1px solid var(--color-slate-700)', borderRadius: 22, padding: 22, background: 'var(--color-slate-850)', marginTop: 24 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', alignItems: 'flex-start' }}>
         <div>
-          <p style={{ color: '#22c55e', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1, marginTop: 0 }}>
+          <p style={{ color: 'var(--color-green-500)', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1, marginTop: 0 }}>
             Outcome History
           </p>
           <h2 style={{ margin: '4px 0' }}>{repository.activeSource} trip outcomes</h2>
-          <p style={{ color: '#94a3b8', marginBottom: 0 }}>
+          <p style={{ color: 'var(--color-slate-400)', marginBottom: 0 }}>
             Stored through the outcome repository scaffold. Local fallback remains enabled until database sync is configured.
           </p>
-          <a href="/outcomes" style={{ display: 'inline-block', color: '#38bdf8', marginTop: 10 }}>Open outcome dashboard</a>
+          <a href="/outcomes" style={{ display: 'inline-block', color: 'var(--color-sky-400)', marginTop: 10 }}>Open outcome dashboard</a>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(120px, 1fr))', gap: 10 }}>
-          <article style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#020617' }}>
-            <small style={{ color: '#94a3b8' }}>Outcome count</small>
-            <h3 style={{ color: '#f8fafc', margin: '6px 0 0' }}>{stats.outcomeCount}</h3>
+          <article style={{ border: '1px solid var(--color-slate-700)', borderRadius: 14, padding: 14, background: 'var(--color-slate-950)' }}>
+            <small style={{ color: 'var(--color-slate-400)' }}>Outcome count</small>
+            <h3 style={{ color: 'var(--color-slate-50)', margin: '6px 0 0' }}>{stats.outcomeCount}</h3>
           </article>
-          <article style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#020617' }}>
-            <small style={{ color: '#94a3b8' }}>Success rate</small>
-            <h3 style={{ color: '#f8fafc', margin: '6px 0 0' }}>{stats.successRate}%</h3>
+          <article style={{ border: '1px solid var(--color-slate-700)', borderRadius: 14, padding: 14, background: 'var(--color-slate-950)' }}>
+            <small style={{ color: 'var(--color-slate-400)' }}>Success rate</small>
+            <h3 style={{ color: 'var(--color-slate-50)', margin: '6px 0 0' }}>{stats.successRate}%</h3>
           </article>
         </div>
       </div>
 
       <div style={{ display: 'grid', gap: 12, marginTop: 16 }}>
         {outcomes.length === 0 && (
-          <article style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#020617' }}>
-            <p style={{ color: '#cbd5e1', margin: 0 }}>No local outcomes recorded yet.</p>
+          <article style={{ border: '1px solid var(--color-slate-700)', borderRadius: 14, padding: 14, background: 'var(--color-slate-950)' }}>
+            <p style={{ color: 'var(--color-slate-300)', margin: 0 }}>No local outcomes recorded yet.</p>
           </article>
         )}
         {outcomes.slice(0, 8).map((outcome) => (
-          <article key={outcome.id} style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#020617' }}>
+          <article key={outcome.id} style={{ border: '1px solid var(--color-slate-700)', borderRadius: 14, padding: 14, background: 'var(--color-slate-950)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
               <div>
-                <h3 style={{ color: '#f8fafc', margin: 0 }}>{outcome.title}</h3>
-                <p style={{ color: '#38bdf8', margin: '6px 0' }}>{outcome.route}</p>
-                <small style={{ color: outcome.source === 'Database' ? '#22c55e' : '#facc15' }}>Source: {outcome.source}</small>
+                <h3 style={{ color: 'var(--color-slate-50)', margin: 0 }}>{outcome.title}</h3>
+                <p style={{ color: 'var(--color-sky-400)', margin: '6px 0' }}>{outcome.route}</p>
+                <small style={{ color: outcome.source === 'Database' ? 'var(--color-green-500)' : 'var(--color-yellow-400)' }}>Source: {outcome.source}</small>
               </div>
-              <strong style={{ color: outcome.status === 'Yes, got on' ? '#22c55e' : outcome.status === 'Cancelled trip' ? '#facc15' : '#f87171' }}>
+              <strong style={{ color: outcome.status === 'Yes, got on' ? 'var(--color-green-500)' : outcome.status === 'Cancelled trip' ? 'var(--color-yellow-400)' : 'var(--color-red-400)' }}>
                 {outcome.status}
               </strong>
             </div>
-            {outcome.notes && <p style={{ color: '#cbd5e1', marginBottom: 0 }}>{outcome.notes}</p>}
-            <small style={{ color: '#94a3b8' }}>{new Date(outcome.createdAt).toLocaleString()}</small>
+            {outcome.notes && <p style={{ color: 'var(--color-slate-300)', marginBottom: 0 }}>{outcome.notes}</p>}
+            <small style={{ color: 'var(--color-slate-400)' }}>{new Date(outcome.createdAt).toLocaleString()}</small>
           </article>
         ))}
       </div>

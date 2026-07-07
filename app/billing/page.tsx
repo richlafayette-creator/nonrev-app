@@ -60,30 +60,30 @@ export default function BillingPage() {
   ]
 
   return (
-    <main className="app-shell" style={{ minHeight: '100vh', background: '#020617', color: 'white', padding: 32, fontFamily: 'Arial' }}>
+    <main className="app-shell" style={{ minHeight: '100vh', background: 'var(--color-slate-950)', color: 'white', padding: 32, fontFamily: 'Arial' }}>
       <nav className="top-nav" style={{ marginBottom: 24 }}>
-        <a href="/" style={{ marginRight: 16, color: '#38bdf8' }}>Home</a>
-        <a href="/account" style={{ marginRight: 16, color: '#38bdf8' }}>My Account</a>
-        <a href="/credits" style={{ marginRight: 16, color: '#fbbf24' }}>Credits</a>
-        <a href="/membership" style={{ marginRight: 16, color: '#34d399' }}>Membership</a>
-        <a href="/data-health" style={{ marginRight: 16, color: '#c084fc' }}>Data Health</a>
-        <a href="/plan" style={{ color: '#fb7185' }}>Plan</a>
+        <a href="/" style={{ marginRight: 16, color: 'var(--color-sky-400)' }}>Home</a>
+        <a href="/account" style={{ marginRight: 16, color: 'var(--color-sky-400)' }}>My Account</a>
+        <a href="/credits" style={{ marginRight: 16, color: 'var(--color-amber-400)' }}>Credits</a>
+        <a href="/membership" style={{ marginRight: 16, color: 'var(--color-green-400)' }}>Membership</a>
+        <a href="/data-health" style={{ marginRight: 16, color: 'var(--color-purple-400)' }}>Data Health</a>
+        <a href="/plan" style={{ color: 'var(--color-rose-400)' }}>Plan</a>
       </nav>
 
       <section style={{ maxWidth: 1120 }}>
-        <p style={{ color: '#fbbf24', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1 }}>Stripe billing scaffold</p>
+        <p style={{ color: 'var(--color-amber-400)', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1 }}>Stripe billing scaffold</p>
         <h1 style={{ fontSize: 44, margin: '8px 0' }}>Billing</h1>
-        <p style={{ color: '#94a3b8', maxWidth: 760 }}>
+        <p style={{ color: 'var(--color-slate-400)', maxWidth: 760 }}>
           Test-mode subscription status, plan catalog, and billing portal readiness live here. Checkout and portal redirects are intentionally disabled until live charging is approved.
         </p>
-        <p style={{ color: '#38bdf8' }}>{message}</p>
+        <p style={{ color: 'var(--color-sky-400)' }}>{message}</p>
 
         <BillingStatusCard compact />
 
         <div className="stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 14, marginTop: 24 }}>
           {billingItems.map((item) => (
-            <article key={item.label} className="mini-card" style={{ border: '1px solid #334155', borderRadius: 18, padding: 18, background: '#0f172a' }}>
-              <small style={{ color: '#94a3b8' }}>{item.label}</small>
+            <article key={item.label} className="mini-card" style={{ border: '1px solid var(--color-slate-700)', borderRadius: 18, padding: 18, background: 'var(--color-slate-850)' }}>
+              <small style={{ color: 'var(--color-slate-400)' }}>{item.label}</small>
               <p style={{ fontWeight: 'bold' }}>{item.value}</p>
             </article>
           ))}
@@ -93,26 +93,26 @@ export default function BillingPage() {
           <h2>Plan catalog</h2>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: 16 }}>
             {billingPlans.map((plan) => (
-              <article key={plan.id} className="mini-card" style={{ border: `1px solid ${plan.recommended ? '#34d399' : '#334155'}`, borderRadius: 22, padding: 20, background: '#0f172a' }}>
-                <small style={{ color: plan.recommended ? '#34d399' : '#94a3b8' }}>{plan.recommended ? 'Recommended test tier' : 'Stripe test plan'}</small>
+              <article key={plan.id} className="mini-card" style={{ border: `1px solid ${plan.recommended ? 'var(--color-green-400)' : 'var(--color-slate-700)'}`, borderRadius: 22, padding: 20, background: 'var(--color-slate-850)' }}>
+                <small style={{ color: plan.recommended ? 'var(--color-green-400)' : 'var(--color-slate-400)' }}>{plan.recommended ? 'Recommended test tier' : 'Stripe test plan'}</small>
                 <h3 style={{ fontSize: 24, margin: '8px 0' }}>{plan.name}</h3>
-                <strong style={{ color: '#fbbf24' }}>{plan.priceLabel} · {plan.cadence}</strong>
-                <p style={{ color: '#cbd5e1' }}>{plan.description}</p>
-                <ul style={{ color: '#94a3b8', paddingLeft: 18 }}>
+                <strong style={{ color: 'var(--color-amber-400)' }}>{plan.priceLabel} · {plan.cadence}</strong>
+                <p style={{ color: 'var(--color-slate-300)' }}>{plan.description}</p>
+                <ul style={{ color: 'var(--color-slate-400)', paddingLeft: 18 }}>
                   {plan.features.map((feature) => <li key={feature}>{feature}</li>)}
                 </ul>
-                <p style={{ color: '#64748b' }}>Lookup key: {plan.stripeLookupKey}</p>
+                <p style={{ color: 'var(--color-slate-500)' }}>Lookup key: {plan.stripeLookupKey}</p>
                 <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                   {plan.id === 'free' ? (
-                    <button type="button" onClick={() => { const next = resetToFreePlan(); setSubscription(next); setMessage(next.statusMessage) }} style={{ padding: 11, borderRadius: 10, border: '1px solid #475569', background: '#020617', color: '#cbd5e1', fontWeight: 'bold', cursor: 'pointer' }}>
+                    <button type="button" onClick={() => { const next = resetToFreePlan(); setSubscription(next); setMessage(next.statusMessage) }} style={{ padding: 11, borderRadius: 10, border: '1px solid var(--color-slate-600)', background: 'var(--color-slate-950)', color: 'var(--color-slate-300)', fontWeight: 'bold', cursor: 'pointer' }}>
                       Use Free locally
                     </button>
                   ) : (
-                    <button type="button" onClick={() => stagePlan(plan.id)} style={{ padding: 11, borderRadius: 10, border: 'none', background: plan.recommended ? '#34d399' : '#38bdf8', color: '#020617', fontWeight: 'bold', cursor: 'pointer' }}>
+                    <button type="button" onClick={() => stagePlan(plan.id)} style={{ padding: 11, borderRadius: 10, border: 'none', background: plan.recommended ? 'var(--color-green-400)' : 'var(--color-sky-400)', color: 'var(--color-slate-950)', fontWeight: 'bold', cursor: 'pointer' }}>
                       Stage upgrade
                     </button>
                   )}
-                  <button type="button" onClick={() => activatePlan(plan.id)} style={{ padding: 11, borderRadius: 10, border: '1px solid #475569', background: '#020617', color: '#cbd5e1', fontWeight: 'bold', cursor: 'pointer' }}>
+                  <button type="button" onClick={() => activatePlan(plan.id)} style={{ padding: 11, borderRadius: 10, border: '1px solid var(--color-slate-600)', background: 'var(--color-slate-950)', color: 'var(--color-slate-300)', fontWeight: 'bold', cursor: 'pointer' }}>
                     Mark active placeholder
                   </button>
                 </div>
@@ -121,10 +121,10 @@ export default function BillingPage() {
           </div>
         </section>
 
-        <section style={{ border: '1px solid #334155', borderRadius: 22, padding: 20, background: '#0f172a', marginTop: 24 }}>
+        <section style={{ border: '1px solid var(--color-slate-700)', borderRadius: 22, padding: 20, background: 'var(--color-slate-850)', marginTop: 24 }}>
           <h2 style={{ marginTop: 0 }}>Billing portal placeholder</h2>
-          <p style={{ color: '#cbd5e1' }}>The customer portal button is intentionally non-navigating until a Stripe test customer and portal session endpoint exist.</p>
-          <button type="button" onClick={openPortal} style={{ padding: 12, borderRadius: 10, border: 'none', background: '#fbbf24', color: '#020617', fontWeight: 'bold', cursor: 'pointer' }}>
+          <p style={{ color: 'var(--color-slate-300)' }}>The customer portal button is intentionally non-navigating until a Stripe test customer and portal session endpoint exist.</p>
+          <button type="button" onClick={openPortal} style={{ padding: 12, borderRadius: 10, border: 'none', background: 'var(--color-amber-400)', color: 'var(--color-slate-950)', fontWeight: 'bold', cursor: 'pointer' }}>
             Open portal placeholder
           </button>
         </section>

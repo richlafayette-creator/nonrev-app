@@ -43,51 +43,51 @@ export default function MembershipPage() {
   }
 
   return (
-    <main className="app-shell" style={{ minHeight: '100vh', background: '#020617', color: 'white', padding: 32, fontFamily: 'Arial' }}>
+    <main className="app-shell" style={{ minHeight: '100vh', background: 'var(--color-slate-950)', color: 'white', padding: 32, fontFamily: 'Arial' }}>
       <nav className="top-nav" style={{ marginBottom: 24 }}>
-        <a href="/" style={{ marginRight: 16, color: '#38bdf8' }}>Home</a>
-        <a href="/account" style={{ marginRight: 16, color: '#38bdf8' }}>My Account</a>
-        <a href="/billing" style={{ marginRight: 16, color: '#fbbf24' }}>Billing</a>
-        <a href="/credits" style={{ marginRight: 16, color: '#fbbf24' }}>Credits</a>
-        <a href="/data-health" style={{ marginRight: 16, color: '#c084fc' }}>Data Health</a>
-        <a href="/plan" style={{ color: '#fb7185' }}>Plan</a>
+        <a href="/" style={{ marginRight: 16, color: 'var(--color-sky-400)' }}>Home</a>
+        <a href="/account" style={{ marginRight: 16, color: 'var(--color-sky-400)' }}>My Account</a>
+        <a href="/billing" style={{ marginRight: 16, color: 'var(--color-amber-400)' }}>Billing</a>
+        <a href="/credits" style={{ marginRight: 16, color: 'var(--color-amber-400)' }}>Credits</a>
+        <a href="/data-health" style={{ marginRight: 16, color: 'var(--color-purple-400)' }}>Data Health</a>
+        <a href="/plan" style={{ color: 'var(--color-rose-400)' }}>Plan</a>
       </nav>
 
       <section style={{ maxWidth: 1120 }}>
-        <p style={{ color: '#34d399', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1 }}>Membership scaffold</p>
+        <p style={{ color: 'var(--color-green-400)', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1 }}>Membership scaffold</p>
         <h1 style={{ fontSize: 44, margin: '8px 0' }}>Membership</h1>
-        <p style={{ color: '#94a3b8', maxWidth: 760 }}>Upgrade and cancellation flows are staged for Stripe test mode. Live checkout, charging, and portal redirects remain disabled.</p>
-        <p style={{ color: '#38bdf8' }}>{message}</p>
+        <p style={{ color: 'var(--color-slate-400)', maxWidth: 760 }}>Upgrade and cancellation flows are staged for Stripe test mode. Live checkout, charging, and portal redirects remain disabled.</p>
+        <p style={{ color: 'var(--color-sky-400)' }}>{message}</p>
 
         <BillingStatusCard compact />
 
         <div className="hero-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 18, marginTop: 24 }}>
           {billingPlans.map((plan) => (
-            <article key={plan.id} className="mini-card" style={{ border: `1px solid ${plan.recommended ? '#34d399' : '#334155'}`, borderRadius: 20, padding: 22, background: '#0f172a' }}>
-              <small style={{ color: plan.recommended ? '#34d399' : '#94a3b8' }}>{plan.recommended ? 'Founding tier' : 'Test plan'}</small>
+            <article key={plan.id} className="mini-card" style={{ border: `1px solid ${plan.recommended ? 'var(--color-green-400)' : 'var(--color-slate-700)'}`, borderRadius: 20, padding: 22, background: 'var(--color-slate-850)' }}>
+              <small style={{ color: plan.recommended ? 'var(--color-green-400)' : 'var(--color-slate-400)' }}>{plan.recommended ? 'Founding tier' : 'Test plan'}</small>
               <h2 style={{ margin: '6px 0' }}>{plan.name}</h2>
-              <strong style={{ color: '#fbbf24' }}>{plan.priceLabel}</strong>
-              <p style={{ color: '#cbd5e1' }}>{plan.description}</p>
-              <ul style={{ color: '#94a3b8', paddingLeft: 18 }}>
+              <strong style={{ color: 'var(--color-amber-400)' }}>{plan.priceLabel}</strong>
+              <p style={{ color: 'var(--color-slate-300)' }}>{plan.description}</p>
+              <ul style={{ color: 'var(--color-slate-400)', paddingLeft: 18 }}>
                 {plan.features.map((feature) => <li key={feature}>{feature}</li>)}
               </ul>
               {plan.id === 'free' ? (
-                <button onClick={cancelPlaceholder} style={{ padding: 12, borderRadius: 10, border: '1px solid #475569', background: '#020617', color: '#cbd5e1', fontWeight: 'bold', cursor: 'pointer' }}>
+                <button onClick={cancelPlaceholder} style={{ padding: 12, borderRadius: 10, border: '1px solid var(--color-slate-600)', background: 'var(--color-slate-950)', color: 'var(--color-slate-300)', fontWeight: 'bold', cursor: 'pointer' }}>
                   Keep Free
                 </button>
               ) : (
-                <button onClick={() => stagePlan(plan.id)} style={{ padding: 12, borderRadius: 10, border: 'none', background: plan.recommended ? '#34d399' : '#38bdf8', color: '#020617', fontWeight: 'bold', cursor: 'pointer' }}>
+                <button onClick={() => stagePlan(plan.id)} style={{ padding: 12, borderRadius: 10, border: 'none', background: plan.recommended ? 'var(--color-green-400)' : 'var(--color-sky-400)', color: 'var(--color-slate-950)', fontWeight: 'bold', cursor: 'pointer' }}>
                   Stage {plan.name} upgrade
                 </button>
               )}
             </article>
           ))}
 
-          <article id="cancel" className="mini-card" style={{ border: '1px solid #334155', borderRadius: 20, padding: 22, background: '#0f172a' }}>
+          <article id="cancel" className="mini-card" style={{ border: '1px solid var(--color-slate-700)', borderRadius: 20, padding: 22, background: 'var(--color-slate-850)' }}>
             <h2 style={{ marginTop: 0 }}>Cancel Membership</h2>
-            <p style={{ color: '#cbd5e1' }}>Future cancellation flow will confirm Stripe subscription status, billing period, retained credits, and data export options.</p>
-            <p style={{ color: '#94a3b8' }}>Current local status: {subscription.status}</p>
-            <button onClick={cancelPlaceholder} style={{ padding: 12, borderRadius: 10, border: 'none', background: '#f87171', color: '#020617', fontWeight: 'bold', cursor: 'pointer' }}>
+            <p style={{ color: 'var(--color-slate-300)' }}>Future cancellation flow will confirm Stripe subscription status, billing period, retained credits, and data export options.</p>
+            <p style={{ color: 'var(--color-slate-400)' }}>Current local status: {subscription.status}</p>
+            <button onClick={cancelPlaceholder} style={{ padding: 12, borderRadius: 10, border: 'none', background: 'var(--color-red-400)', color: 'var(--color-slate-950)', fontWeight: 'bold', cursor: 'pointer' }}>
               Cancel placeholder
             </button>
           </article>

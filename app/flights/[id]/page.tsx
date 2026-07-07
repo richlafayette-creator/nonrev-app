@@ -65,24 +65,24 @@ export default function FlightDetailPage() {
   const risk = flight ? delayRiskScore(flight) : null
 
   return (
-    <main className="app-shell" style={{ minHeight: '100vh', background: '#020617', color: 'white', padding: 32, fontFamily: 'Arial' }}>
+    <main className="app-shell" style={{ minHeight: '100vh', background: 'var(--color-slate-950)', color: 'white', padding: 32, fontFamily: 'Arial' }}>
       <nav className="top-nav" style={{ marginBottom: 24 }}>
-        <a href="/" style={{ marginRight: 16, color: '#38bdf8' }}>Flights</a>
-        <a href="/best-routes" style={{ marginRight: 16, color: '#fb7185' }}>Best Routes</a>
-        <a href="/plan" style={{ marginRight: 16, color: '#fb7185' }}>Plan</a>
-        <a href="/watchlist" style={{ marginRight: 16, color: '#facc15' }}>Watchlist</a>
-        <a href="/notifications" style={{ marginRight: 16, color: '#f472b6' }}>Notifications</a>
-        <a href="/requests" style={{ color: '#c084fc' }}>Open Requests</a>
+        <a href="/" style={{ marginRight: 16, color: 'var(--color-sky-400)' }}>Flights</a>
+        <a href="/best-routes" style={{ marginRight: 16, color: 'var(--color-rose-400)' }}>Best Routes</a>
+        <a href="/plan" style={{ marginRight: 16, color: 'var(--color-rose-400)' }}>Plan</a>
+        <a href="/watchlist" style={{ marginRight: 16, color: 'var(--color-yellow-400)' }}>Watchlist</a>
+        <a href="/notifications" style={{ marginRight: 16, color: 'var(--color-pink-400)' }}>Notifications</a>
+        <a href="/requests" style={{ color: 'var(--color-purple-400)' }}>Open Requests</a>
       </nav>
 
-      {message && <p style={{ color: '#38bdf8' }}>{message}</p>}
+      {message && <p style={{ color: 'var(--color-sky-400)' }}>{message}</p>}
 
       {flight && (
-        <section className="flight-card" style={{ maxWidth: 760, background: '#0f172a', border: '1px solid #334155', borderRadius: 22, padding: 24 }}>
-          <p style={{ color: '#94a3b8', marginTop: 0 }}>Flight detail scaffold · Auto-refresh every 30s{lastUpdated ? ` · Last refresh ${lastUpdated}` : ''}</p>
+        <section className="flight-card" style={{ maxWidth: 760, background: 'var(--color-slate-850)', border: '1px solid var(--color-slate-700)', borderRadius: 22, padding: 24 }}>
+          <p style={{ color: 'var(--color-slate-400)', marginTop: 0 }}>Flight detail scaffold · Auto-refresh every 30s{lastUpdated ? ` · Last refresh ${lastUpdated}` : ''}</p>
           <h1 style={{ fontSize: 42, margin: '8px 0' }}>{flight.flight_number || `Flight ${flight.id}`}</h1>
           <h2>{recommendation(flight.score)}</h2>
-          <p style={{ color: '#38bdf8', fontSize: 22, fontWeight: 'bold' }}>{flight.origin} → {flight.destination}</p>
+          <p style={{ color: 'var(--color-sky-400)', fontSize: 22, fontWeight: 'bold' }}>{flight.origin} → {flight.destination}</p>
           <p>Aircraft: {flight.aircraft || 'Unknown'}</p>
           <p>Status: {flight.status || 'Unknown'}</p>
           <p>Score: {flight.score ?? 'Not scored'}</p>
@@ -90,27 +90,27 @@ export default function FlightDetailPage() {
             <h3>Richer flight detail placeholders</h3>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10 }}>
               {richFlightFieldLabels.map((field) => (
-                <div key={field.key} style={{ border: '1px solid #334155', borderRadius: 12, padding: 10, background: '#020617' }}>
-                  <small style={{ color: '#94a3b8' }}>{field.label}</small>
+                <div key={field.key} style={{ border: '1px solid var(--color-slate-700)', borderRadius: 12, padding: 10, background: 'var(--color-slate-950)' }}>
+                  <small style={{ color: 'var(--color-slate-400)' }}>{field.label}</small>
                   <p style={{ margin: '4px 0 0' }}>{fieldValue(flight, field.key)}</p>
                 </div>
               ))}
             </div>
-            <div style={{ border: '1px dashed #475569', borderRadius: 14, padding: 14, marginTop: 12, background: '#020617' }}>
+            <div style={{ border: '1px dashed var(--color-slate-600)', borderRadius: 14, padding: 14, marginTop: 12, background: 'var(--color-slate-950)' }}>
               <strong>Airport map/GPS placeholder</strong>
-              <p style={{ color: '#cbd5e1', marginBottom: 0 }}>
+              <p style={{ color: 'var(--color-slate-300)', marginBottom: 0 }}>
                 Future airport maps, walking directions, lounge proximity, terminal GPS, and gate-level wayfinding will render here when provider data is connected.
               </p>
             </div>
             <details style={{ marginTop: 12 }}>
-              <summary style={{ color: '#38bdf8', cursor: 'pointer', fontWeight: 'bold' }}>Airport maps and terminal navigation</summary>
+              <summary style={{ color: 'var(--color-sky-400)', cursor: 'pointer', fontWeight: 'bold' }}>Airport maps and terminal navigation</summary>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 12, marginTop: 12 }}>
                 <MapboxAirportMap airportCode={flight.origin} title={`${flight.origin || 'Origin'} airport terminal map`} />
                 <MapboxAirportMap airportCode={flight.destination} title={`${flight.destination || 'Destination'} airport terminal map`} />
               </div>
-              <div style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, marginTop: 12, background: '#020617' }}>
+              <div style={{ border: '1px solid var(--color-slate-700)', borderRadius: 14, padding: 14, marginTop: 12, background: 'var(--color-slate-950)' }}>
                 <strong>Navigation placeholders</strong>
-                <ul style={{ color: '#cbd5e1', marginBottom: 0 }}>
+                <ul style={{ color: 'var(--color-slate-300)', marginBottom: 0 }}>
                   <li>Gates: {fieldValue(flight, 'departure_gate')} / {fieldValue(flight, 'arrival_gate')}</li>
                   <li>Terminals: {fieldValue(flight, 'departure_terminal')} / {fieldValue(flight, 'arrival_terminal')}</li>
                   <li>Lounges nearby: {fieldValue(flight, 'lounges_nearby')}</li>
@@ -121,26 +121,26 @@ export default function FlightDetailPage() {
             </details>
           </section>
           {risk && (
-            <div style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, marginTop: 12, background: '#020617' }}>
+            <div style={{ border: '1px solid var(--color-slate-700)', borderRadius: 14, padding: 14, marginTop: 12, background: 'var(--color-slate-950)' }}>
               <strong>Delay-risk scaffold: {risk.label} ({risk.score}/100)</strong>
-              <ul style={{ color: '#cbd5e1' }}>
+              <ul style={{ color: 'var(--color-slate-300)' }}>
                 {risk.reasons.map((reason) => <li key={reason}>{reason}</li>)}
               </ul>
             </div>
           )}
           <details style={{ marginTop: 12 }}>
-            <summary style={{ color: '#38bdf8', cursor: 'pointer' }}>Show all DB fields</summary>
+            <summary style={{ color: 'var(--color-sky-400)', cursor: 'pointer' }}>Show all DB fields</summary>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 8, marginTop: 10 }}>
               {allFlightFields(flight).map(([key, value]) => (
-                <div key={key} style={{ border: '1px solid #334155', borderRadius: 10, padding: 8, background: '#020617' }}>
-                  <small style={{ color: '#94a3b8' }}>{key}</small>
+                <div key={key} style={{ border: '1px solid var(--color-slate-700)', borderRadius: 10, padding: 8, background: 'var(--color-slate-950)' }}>
+                  <small style={{ color: 'var(--color-slate-400)' }}>{key}</small>
                   <p style={{ margin: '4px 0 0', overflowWrap: 'anywhere' }}>{value === null || value === undefined || value === '' ? 'Not available yet' : String(value)}</p>
                 </div>
               ))}
             </div>
           </details>
-          <p style={{ color: '#cbd5e1' }}>Created: {flight.created_at || 'Not available'}</p>
-          <a href="/watchlist" style={{ display: 'inline-block', marginTop: 12, padding: 12, borderRadius: 10, background: '#facc15', color: '#020617', textDecoration: 'none', fontWeight: 'bold' }}>
+          <p style={{ color: 'var(--color-slate-300)' }}>Created: {flight.created_at || 'Not available'}</p>
+          <a href="/watchlist" style={{ display: 'inline-block', marginTop: 12, padding: 12, borderRadius: 10, background: 'var(--color-yellow-400)', color: 'var(--color-slate-950)', textDecoration: 'none', fontWeight: 'bold' }}>
             Watch this route scaffold
           </a>
         </section>

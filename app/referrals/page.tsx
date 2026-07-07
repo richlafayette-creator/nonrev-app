@@ -14,9 +14,9 @@ import {
 const statusOptions: ReferralInviteStatus[] = ['sent', 'signed-up', 'activated']
 
 function statusColor(status: ReferralInviteStatus) {
-  if (status === 'activated') return '#22c55e'
-  if (status === 'signed-up') return '#38bdf8'
-  return '#facc15'
+  if (status === 'activated') return 'var(--color-green-500)'
+  if (status === 'signed-up') return 'var(--color-sky-400)'
+  return 'var(--color-yellow-400)'
 }
 
 export default function ReferralsPage() {
@@ -78,31 +78,31 @@ export default function ReferralsPage() {
   }
 
   return (
-    <main className="app-shell" style={{ minHeight: '100vh', background: '#020617', color: 'white', padding: 32, fontFamily: 'Arial' }}>
+    <main className="app-shell" style={{ minHeight: '100vh', background: 'var(--color-slate-950)', color: 'white', padding: 32, fontFamily: 'Arial' }}>
       <nav className="top-nav" style={{ marginBottom: 24 }}>
-        <a href="/" style={{ marginRight: 16, color: '#38bdf8' }}>Home</a>
-        <a href="/plan" style={{ marginRight: 16, color: '#fb7185' }}>Plan</a>
-        <a href="/profile" style={{ marginRight: 16, color: '#22c55e' }}>Profile</a>
-        <a href="/account" style={{ marginRight: 16, color: '#fbbf24' }}>Account</a>
-        <a href="/referrals" style={{ marginRight: 16, color: '#38bdf8' }}>Referrals</a>
-        <a href="/watchlist" style={{ color: '#facc15' }}>Watchlist</a>
+        <a href="/" style={{ marginRight: 16, color: 'var(--color-sky-400)' }}>Home</a>
+        <a href="/plan" style={{ marginRight: 16, color: 'var(--color-rose-400)' }}>Plan</a>
+        <a href="/profile" style={{ marginRight: 16, color: 'var(--color-green-500)' }}>Profile</a>
+        <a href="/account" style={{ marginRight: 16, color: 'var(--color-amber-400)' }}>Account</a>
+        <a href="/referrals" style={{ marginRight: 16, color: 'var(--color-sky-400)' }}>Referrals</a>
+        <a href="/watchlist" style={{ color: 'var(--color-yellow-400)' }}>Watchlist</a>
       </nav>
 
       <section style={{ maxWidth: 1120, margin: '0 auto' }}>
-        <p style={{ color: '#38bdf8', fontWeight: 'bold', letterSpacing: 1, textTransform: 'uppercase' }}>Referral program scaffold</p>
+        <p style={{ color: 'var(--color-sky-400)', fontWeight: 'bold', letterSpacing: 1, textTransform: 'uppercase' }}>Referral program scaffold</p>
         <h1 style={{ fontSize: 44, lineHeight: 1.05, margin: '8px 0 12px' }}>Grow the standby network.</h1>
-        <p style={{ color: '#94a3b8', maxWidth: 820, fontSize: 18 }}>
+        <p style={{ color: 'var(--color-slate-400)', maxWidth: 820, fontSize: 18 }}>
           Track local referral activity now: invites sent, signups, activated users, and reward progress. Server attribution can plug into the same shape later.
         </p>
 
-        <section style={{ border: '1px solid #38bdf8', borderRadius: 24, padding: 22, background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.98), rgba(14, 116, 144, 0.18))', marginTop: 24 }}>
+        <section style={{ border: '1px solid var(--color-sky-400)', borderRadius: 24, padding: 22, background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.98), rgba(14, 116, 144, 0.18))', marginTop: 24 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', alignItems: 'flex-start' }}>
             <div>
-              <p style={{ color: '#94a3b8', margin: 0 }}>Your referral code</p>
+              <p style={{ color: 'var(--color-slate-400)', margin: 0 }}>Your referral code</p>
               <h2 style={{ fontSize: 34, margin: '6px 0', letterSpacing: 2 }}>{state.code}</h2>
-              <p style={{ color: '#cbd5e1', margin: 0, wordBreak: 'break-all' }}>{link}</p>
+              <p style={{ color: 'var(--color-slate-300)', margin: 0, wordBreak: 'break-all' }}>{link}</p>
             </div>
-            <button onClick={copyReferralLink} style={{ padding: '12px 16px', borderRadius: 999, border: 'none', background: '#38bdf8', color: '#020617', fontWeight: 'bold' }}>
+            <button onClick={copyReferralLink} style={{ padding: '12px 16px', borderRadius: 999, border: 'none', background: 'var(--color-sky-400)', color: 'var(--color-slate-950)', fontWeight: 'bold' }}>
               Copy link
             </button>
           </div>
@@ -112,23 +112,23 @@ export default function ReferralsPage() {
               value={recipient}
               onChange={(event) => setRecipient(event.target.value)}
               placeholder="friend@example.com or phone label"
-              style={{ boxSizing: 'border-box', width: '100%', padding: 12, borderRadius: 12, border: '1px solid #475569', background: '#020617', color: 'white' }}
+              style={{ boxSizing: 'border-box', width: '100%', padding: 12, borderRadius: 12, border: '1px solid var(--color-slate-600)', background: 'var(--color-slate-950)', color: 'white' }}
             />
-            <button type="submit" style={{ padding: '12px 14px', borderRadius: 12, border: '1px solid #475569', background: '#0f172a', color: '#f8fafc', fontWeight: 'bold' }}>Log invite</button>
-            <button type="button" onClick={emailReferral} style={{ padding: '12px 14px', borderRadius: 12, border: '1px solid #38bdf8', background: '#020617', color: '#38bdf8', fontWeight: 'bold' }}>Email</button>
-            <button type="button" onClick={smsReferral} style={{ padding: '12px 14px', borderRadius: 12, border: '1px solid #f472b6', background: '#020617', color: '#f472b6', fontWeight: 'bold' }}>SMS placeholder</button>
+            <button type="submit" style={{ padding: '12px 14px', borderRadius: 12, border: '1px solid var(--color-slate-600)', background: 'var(--color-slate-850)', color: 'var(--color-slate-50)', fontWeight: 'bold' }}>Log invite</button>
+            <button type="button" onClick={emailReferral} style={{ padding: '12px 14px', borderRadius: 12, border: '1px solid var(--color-sky-400)', background: 'var(--color-slate-950)', color: 'var(--color-sky-400)', fontWeight: 'bold' }}>Email</button>
+            <button type="button" onClick={smsReferral} style={{ padding: '12px 14px', borderRadius: 12, border: '1px solid var(--color-pink-400)', background: 'var(--color-slate-950)', color: 'var(--color-pink-400)', fontWeight: 'bold' }}>SMS placeholder</button>
           </form>
-          <p style={{ color: '#94a3b8', marginBottom: 0 }}>{shareStatus}</p>
+          <p style={{ color: 'var(--color-slate-400)', marginBottom: 0 }}>{shareStatus}</p>
         </section>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14, marginTop: 18 }}>
           {([
-            ['Invites sent', progress.invitesSent, '#facc15'],
-            ['Signups', progress.signups, '#38bdf8'],
-            ['Activated users', progress.activatedUsers, '#22c55e']
+            ['Invites sent', progress.invitesSent, 'var(--color-yellow-400)'],
+            ['Signups', progress.signups, 'var(--color-sky-400)'],
+            ['Activated users', progress.activatedUsers, 'var(--color-green-500)']
           ] as Array<[string, number, string]>).map(([label, value, color]) => (
-            <article key={label} style={{ border: `1px solid ${color}`, borderRadius: 18, padding: 18, background: '#0f172a' }}>
-              <small style={{ color: '#94a3b8' }}>{label}</small>
+            <article key={label} style={{ border: `1px solid ${color}`, borderRadius: 18, padding: 18, background: 'var(--color-slate-850)' }}>
+              <small style={{ color: 'var(--color-slate-400)' }}>{label}</small>
               <h2 style={{ color, margin: '6px 0 0', fontSize: 34 }}>{value}</h2>
             </article>
           ))}
@@ -138,14 +138,14 @@ export default function ReferralsPage() {
           <h2>Reward framework</h2>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 14 }}>
             {progress.rewards.map((reward) => (
-              <article key={reward.key} style={{ border: `1px solid ${reward.unlocked ? '#22c55e' : '#334155'}`, borderRadius: 18, padding: 18, background: '#0f172a' }}>
-                <p style={{ color: reward.unlocked ? '#22c55e' : '#38bdf8', fontWeight: 'bold', marginTop: 0 }}>{reward.unlocked ? 'Unlocked' : `${reward.remaining} ${reward.metric} to go`}</p>
+              <article key={reward.key} style={{ border: `1px solid ${reward.unlocked ? 'var(--color-green-500)' : 'var(--color-slate-700)'}`, borderRadius: 18, padding: 18, background: 'var(--color-slate-850)' }}>
+                <p style={{ color: reward.unlocked ? 'var(--color-green-500)' : 'var(--color-sky-400)', fontWeight: 'bold', marginTop: 0 }}>{reward.unlocked ? 'Unlocked' : `${reward.remaining} ${reward.metric} to go`}</p>
                 <h3 style={{ margin: '6px 0' }}>{reward.label}</h3>
-                <p style={{ color: '#94a3b8' }}>{reward.description}</p>
-                <div style={{ height: 10, borderRadius: 999, background: '#020617', border: '1px solid #334155', overflow: 'hidden' }}>
-                  <div style={{ width: `${reward.progress}%`, height: '100%', background: reward.unlocked ? '#22c55e' : '#38bdf8' }} />
+                <p style={{ color: 'var(--color-slate-400)' }}>{reward.description}</p>
+                <div style={{ height: 10, borderRadius: 999, background: 'var(--color-slate-950)', border: '1px solid var(--color-slate-700)', overflow: 'hidden' }}>
+                  <div style={{ width: `${reward.progress}%`, height: '100%', background: reward.unlocked ? 'var(--color-green-500)' : 'var(--color-sky-400)' }} />
                 </div>
-                <small style={{ color: '#64748b' }}>{reward.progress}% toward {reward.threshold} {reward.metric}</small>
+                <small style={{ color: 'var(--color-slate-500)' }}>{reward.progress}% toward {reward.threshold} {reward.metric}</small>
               </article>
             ))}
           </div>
@@ -155,18 +155,18 @@ export default function ReferralsPage() {
           <h2>Referral activity</h2>
           <div style={{ display: 'grid', gap: 10 }}>
             {state.invites.length === 0 && (
-              <article style={{ border: '1px solid #334155', borderRadius: 18, padding: 18, background: '#0f172a', color: '#94a3b8' }}>
+              <article style={{ border: '1px solid var(--color-slate-700)', borderRadius: 18, padding: 18, background: 'var(--color-slate-850)', color: 'var(--color-slate-400)' }}>
                 No referral invites logged yet. Copy, email, or log an invite to start tracking progress.
               </article>
             )}
             {state.invites.map((invite) => (
-              <article key={invite.id} style={{ border: '1px solid #334155', borderRadius: 18, padding: 16, background: '#0f172a', display: 'grid', gridTemplateColumns: 'minmax(220px, 1fr) 180px', gap: 12, alignItems: 'center' }}>
+              <article key={invite.id} style={{ border: '1px solid var(--color-slate-700)', borderRadius: 18, padding: 16, background: 'var(--color-slate-850)', display: 'grid', gridTemplateColumns: 'minmax(220px, 1fr) 180px', gap: 12, alignItems: 'center' }}>
                 <div>
                   <strong>{invite.recipient}</strong>
-                  <p style={{ color: '#94a3b8', margin: '6px 0 0' }}>{invite.channel.replace('-', ' ')} · sent {new Date(invite.sentAt).toLocaleString()}</p>
+                  <p style={{ color: 'var(--color-slate-400)', margin: '6px 0 0' }}>{invite.channel.replace('-', ' ')} · sent {new Date(invite.sentAt).toLocaleString()}</p>
                   <p style={{ color: statusColor(invite.status), margin: '6px 0 0', textTransform: 'capitalize' }}>{invite.status.replace('-', ' ')}</p>
                 </div>
-                <select value={invite.status} onChange={(event) => changeStatus(invite.id, event.target.value as ReferralInviteStatus)} style={{ padding: 10, borderRadius: 12, border: '1px solid #475569', background: '#020617', color: 'white' }}>
+                <select value={invite.status} onChange={(event) => changeStatus(invite.id, event.target.value as ReferralInviteStatus)} style={{ padding: 10, borderRadius: 12, border: '1px solid var(--color-slate-600)', background: 'var(--color-slate-950)', color: 'white' }}>
                   {statusOptions.map((status) => <option key={status} value={status}>{status.replace('-', ' ')}</option>)}
                 </select>
               </article>

@@ -125,9 +125,9 @@ const demoSearchFlights = [
 ]
 
 function confidenceColor(confidence: string) {
-  if (confidence === 'Strong') return '#22c55e'
-  if (confidence === 'Verify') return '#facc15'
-  return '#f87171'
+  if (confidence === 'Strong') return 'var(--color-green-500)'
+  if (confidence === 'Verify') return 'var(--color-yellow-400)'
+  return 'var(--color-red-400)'
 }
 
 type LiveItineraryLeg = {
@@ -478,9 +478,9 @@ type SearchTrustReceiptProps = {
 type CommonTranslator = (key: CommonTranslationKey) => string
 
 function riskColor(risk: string) {
-  if (risk.includes('Low')) return '#22c55e'
-  if (risk.includes('Medium')) return '#facc15'
-  return '#f87171'
+  if (risk.includes('Low')) return 'var(--color-green-500)'
+  if (risk.includes('Medium')) return 'var(--color-yellow-400)'
+  return 'var(--color-red-400)'
 }
 
 function translateSharedValue(value: string | undefined, t: CommonTranslator) {
@@ -498,14 +498,14 @@ function translateSharedValue(value: string | undefined, t: CommonTranslator) {
 }
 
 function providerBadgeStyle(label: string) {
-  if (label.includes('Live provider API data') || label.includes('Freshness: Live') || label.includes('Exact requested date') || label.includes('Freshness: Exact')) return { border: '#22c55e', text: '#bbf7d0', background: 'rgba(34, 197, 94, 0.12)' }
-  if (label.includes('Stored Supabase flight data') || label.includes('Stored Supabase data') || label.includes('Stored historical') || label.includes('Freshness: Stored')) return { border: '#38bdf8', text: '#bae6fd', background: 'rgba(56, 189, 248, 0.12)' }
-  if (label.includes('Route framework') || label.includes('Live availability unavailable')) return { border: '#facc15', text: '#fef3c7', background: 'rgba(250, 204, 21, 0.12)' }
-  if (label.includes('Nearest-date') || label.includes('Demo fallback') || label.includes('MVP test data') || label.includes('Freshness: Demo')) return { border: '#facc15', text: '#fef3c7', background: 'rgba(250, 204, 21, 0.12)' }
-  if (label.includes('Supabase')) return { border: '#22c55e', text: '#bbf7d0', background: 'rgba(34, 197, 94, 0.12)' }
-  if (label.includes('Aviationstack')) return { border: '#38bdf8', text: '#bae6fd', background: 'rgba(56, 189, 248, 0.12)' }
-  if (label.includes('FlightAware')) return { border: '#c084fc', text: '#e9d5ff', background: 'rgba(192, 132, 252, 0.12)' }
-  return { border: '#facc15', text: '#fef3c7', background: 'rgba(250, 204, 21, 0.12)' }
+  if (label.includes('Live provider API data') || label.includes('Freshness: Live') || label.includes('Exact requested date') || label.includes('Freshness: Exact')) return { border: 'var(--color-green-500)', text: 'var(--color-green-200)', background: 'rgba(34, 197, 94, 0.12)' }
+  if (label.includes('Stored Supabase flight data') || label.includes('Stored Supabase data') || label.includes('Stored historical') || label.includes('Freshness: Stored')) return { border: 'var(--color-sky-400)', text: 'var(--color-sky-200)', background: 'rgba(56, 189, 248, 0.12)' }
+  if (label.includes('Route framework') || label.includes('Live availability unavailable')) return { border: 'var(--color-yellow-400)', text: 'var(--color-yellow-100)', background: 'rgba(250, 204, 21, 0.12)' }
+  if (label.includes('Nearest-date') || label.includes('Demo fallback') || label.includes('MVP test data') || label.includes('Freshness: Demo')) return { border: 'var(--color-yellow-400)', text: 'var(--color-yellow-100)', background: 'rgba(250, 204, 21, 0.12)' }
+  if (label.includes('Supabase')) return { border: 'var(--color-green-500)', text: 'var(--color-green-200)', background: 'rgba(34, 197, 94, 0.12)' }
+  if (label.includes('Aviationstack')) return { border: 'var(--color-sky-400)', text: 'var(--color-sky-200)', background: 'rgba(56, 189, 248, 0.12)' }
+  if (label.includes('FlightAware')) return { border: 'var(--color-purple-400)', text: 'var(--color-purple-200)', background: 'rgba(192, 132, 252, 0.12)' }
+  return { border: 'var(--color-yellow-400)', text: 'var(--color-yellow-100)', background: 'rgba(250, 204, 21, 0.12)' }
 }
 
 function sourceBadgeLabel(source?: string, sourceProvider?: string) {
@@ -534,10 +534,10 @@ function itineraryDateWarning(itinerary: LiveItineraryResult) {
 }
 
 function readinessBadgeStyle(status: ScheduleProviderReadinessStatus) {
-  if (status === 'Configured') return { border: '#22c55e', text: '#bbf7d0', background: 'rgba(34, 197, 94, 0.12)' }
-  if (status === 'Limited') return { border: '#38bdf8', text: '#bae6fd', background: 'rgba(56, 189, 248, 0.12)' }
-  if (status === 'Missing') return { border: '#facc15', text: '#fef3c7', background: 'rgba(250, 204, 21, 0.12)' }
-  return { border: '#94a3b8', text: '#cbd5e1', background: 'rgba(148, 163, 184, 0.12)' }
+  if (status === 'Configured') return { border: 'var(--color-green-500)', text: 'var(--color-green-200)', background: 'rgba(34, 197, 94, 0.12)' }
+  if (status === 'Limited') return { border: 'var(--color-sky-400)', text: 'var(--color-sky-200)', background: 'rgba(56, 189, 248, 0.12)' }
+  if (status === 'Missing') return { border: 'var(--color-yellow-400)', text: 'var(--color-yellow-100)', background: 'rgba(250, 204, 21, 0.12)' }
+  return { border: 'var(--color-slate-400)', text: 'var(--color-slate-300)', background: 'rgba(148, 163, 184, 0.12)' }
 }
 
 function validateTravelDate(value: string) {
@@ -607,7 +607,7 @@ function WeatherRiskBadge({ weatherRisk }: { weatherRisk: WeatherRisk }) {
   const { t } = useI18n()
   const color = weatherRiskColor(weatherRisk.level)
   return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', border: `1px solid ${color}`, borderRadius: 999, padding: '4px 9px', color, background: '#020617', fontSize: 12, fontWeight: 'bold', letterSpacing: 0.3 }}>
+    <span style={{ display: 'inline-flex', alignItems: 'center', border: `1px solid ${color}`, borderRadius: 999, padding: '4px 9px', color, background: 'var(--color-slate-950)', fontSize: 12, fontWeight: 'bold', letterSpacing: 0.3 }}>
       {t('weather')}: {weatherRisk.displayLabel}
     </span>
   )
@@ -1685,9 +1685,9 @@ function buildFallbackItineraryComparison(
 
 
 function successScoreColor(value: number, isLoadSupported = false) {
-  if (isLoadSupported && value >= 72) return '#22c55e'
-  if (value >= 55) return '#facc15'
-  return '#f87171'
+  if (isLoadSupported && value >= 72) return 'var(--color-green-500)'
+  if (value >= 55) return 'var(--color-yellow-400)'
+  return 'var(--color-red-400)'
 }
 
 function loadAwareScorePhrase(comparison: ItineraryComparison) {
@@ -2076,15 +2076,15 @@ function compactScoreLabel(comparison: ItineraryComparison) {
 
 function compactScoreIcon(comparison: ItineraryComparison) {
   const color = successScoreColor(comparison.nextGenSuccess.score, comparison.successPrediction.isLoadSupported)
-  if (color === '#22c55e') return '🟢'
-  if (color === '#f87171') return '🔴'
+  if (color === 'var(--color-green-500)') return '🟢'
+  if (color === 'var(--color-red-400)') return '🔴'
   return '🟡'
 }
 
 function trafficLightScoreColor(value: number) {
-  if (value >= 80) return '#22c55e'
-  if (value >= 60) return '#facc15'
-  return '#f87171'
+  if (value >= 80) return 'var(--color-green-500)'
+  if (value >= 60) return 'var(--color-yellow-400)'
+  return 'var(--color-red-400)'
 }
 
 function trafficLightScoreLabel(value: number) {
@@ -2245,10 +2245,10 @@ function compactLegLabel(connections: number) {
 }
 
 function comparisonMetricColor(value: number) {
-  if (value >= 80) return '#22c55e'
-  if (value >= 70) return '#38bdf8'
-  if (value >= 60) return '#facc15'
-  return '#f87171'
+  if (value >= 80) return 'var(--color-green-500)'
+  if (value >= 70) return 'var(--color-sky-400)'
+  if (value >= 60) return 'var(--color-yellow-400)'
+  return 'var(--color-red-400)'
 }
 
 function savedConfidenceTrend(value?: string): ConfidenceTrend | null {
@@ -2258,20 +2258,20 @@ function savedConfidenceTrend(value?: string): ConfidenceTrend | null {
 
 function savedConfidenceTrendColor(value?: string) {
   const trend = savedConfidenceTrend(value)
-  return trend ? confidenceTrendColor(trend) : '#94a3b8'
+  return trend ? confidenceTrendColor(trend) : 'var(--color-slate-400)'
 }
 
 function explanationSectionColor(label: string) {
-  if (label.includes('Probability')) return '#38bdf8'
-  if (label.includes('Carrier')) return '#c084fc'
-  if (label.includes('Historical')) return '#facc15'
-  if (label.includes('Traveler')) return '#34d399'
-  if (label.includes('Community')) return '#22c55e'
-  if (label.includes('Weather')) return '#22c55e'
-  if (label.includes('Confidence')) return '#38bdf8'
-  if (label.includes('Airport')) return '#facc15'
-  if (label.includes('Backup')) return '#fb7185'
-  return '#f8fafc'
+  if (label.includes('Probability')) return 'var(--color-sky-400)'
+  if (label.includes('Carrier')) return 'var(--color-purple-400)'
+  if (label.includes('Historical')) return 'var(--color-yellow-400)'
+  if (label.includes('Traveler')) return 'var(--color-green-400)'
+  if (label.includes('Community')) return 'var(--color-green-500)'
+  if (label.includes('Weather')) return 'var(--color-green-500)'
+  if (label.includes('Confidence')) return 'var(--color-sky-400)'
+  if (label.includes('Airport')) return 'var(--color-yellow-400)'
+  if (label.includes('Backup')) return 'var(--color-rose-400)'
+  return 'var(--color-slate-50)'
 }
 
 function backupRouteReasoning(comparison: ItineraryComparison, backup?: ItineraryComparison) {
@@ -2320,10 +2320,10 @@ function ItineraryIntelligenceDetailPanel({ comparison, backup }: { comparison: 
     : 'No same-search backup is available; broaden carrier scope or routing before relying on this option.'
   const loadLine = rowLoadIntelligenceLabel(comparison)
   const intelligenceCards = [
-    ['Decision', decision, decision === 'Primary candidate' ? '#22c55e' : decision === 'Back up first' ? '#f87171' : '#facc15'],
+    ['Decision', decision, decision === 'Primary candidate' ? 'var(--color-green-500)' : decision === 'Back up first' ? 'var(--color-red-400)' : 'var(--color-yellow-400)'],
     ['Estimated success', `${comparison.personalSuccessPrediction.probability}% · ${comparison.personalSuccessPrediction.confidence}`, comparisonMetricColor(comparison.personalSuccessPrediction.probability)],
-    ['Load signal', loadLine, comparison.loadSupport.status === 'verified' || comparison.loadSupport.status === 'trusted' ? '#22c55e' : '#facc15'],
-    ['Recovery', `${comparison.airportIntelligence.backupFlightAvailability} · ${compactStopsLabel(comparison.connections)}`, comparison.airportIntelligence.backupFlightAvailability === 'Excellent' || comparison.airportIntelligence.backupFlightAvailability === 'Good' ? '#38bdf8' : '#facc15']
+    ['Load signal', loadLine, comparison.loadSupport.status === 'verified' || comparison.loadSupport.status === 'trusted' ? 'var(--color-green-500)' : 'var(--color-yellow-400)'],
+    ['Recovery', `${comparison.airportIntelligence.backupFlightAvailability} · ${compactStopsLabel(comparison.connections)}`, comparison.airportIntelligence.backupFlightAvailability === 'Excellent' || comparison.airportIntelligence.backupFlightAvailability === 'Good' ? 'var(--color-sky-400)' : 'var(--color-yellow-400)']
   ] as const
 
   return (
@@ -2394,13 +2394,13 @@ function ScoringExplanationDetails({ comparison, backup }: { comparison: Itinera
   ] as const
 
   return (
-    <details className="nonrevy-premium-details" style={{ marginTop: 14, border: '1px solid #334155', borderRadius: 14, padding: 12, background: '#020617' }}>
-      <summary style={{ color: '#facc15', cursor: 'pointer', fontWeight: 'bold' }}>{t('whyThisRoute')}?</summary>
+    <details className="nonrevy-premium-details" style={{ marginTop: 14, border: '1px solid var(--color-slate-700)', borderRadius: 14, padding: 12, background: 'var(--color-slate-950)' }}>
+      <summary style={{ color: 'var(--color-yellow-400)', cursor: 'pointer', fontWeight: 'bold' }}>{t('whyThisRoute')}?</summary>
       <div style={{ display: 'grid', gap: 10, marginTop: 12 }}>
         {sections.map(([label, reasons]) => (
-          <section key={label} style={{ border: '1px solid #1e293b', borderRadius: 12, padding: 12, background: '#0f172a' }}>
+          <section key={label} style={{ border: '1px solid var(--color-slate-800)', borderRadius: 12, padding: 12, background: 'var(--color-slate-850)' }}>
             <strong style={{ color: explanationSectionColor(label) }}>{label}</strong>
-            <ul style={{ color: '#cbd5e1', paddingLeft: 20, margin: '8px 0 0' }}>
+            <ul style={{ color: 'var(--color-slate-300)', paddingLeft: 20, margin: '8px 0 0' }}>
               {reasons.map((reason) => <li key={reason}>{reason}</li>)}
             </ul>
           </section>
@@ -2422,12 +2422,12 @@ function DisruptionIntelligenceSection({ comparisons }: { comparisons: Itinerary
   const averageImpact = Math.round(comparisons.reduce((total, comparison) => total + comparison.disruption.disruptionImpactScore, 0) / comparisons.length)
 
   return (
-    <section style={{ border: '1px solid #fb7185', borderRadius: 22, padding: 18, background: 'linear-gradient(135deg, rgba(127, 29, 29, 0.28), rgba(15, 23, 42, 0.96))', marginTop: 16 }}>
+    <section style={{ border: '1px solid var(--color-rose-400)', borderRadius: 22, padding: 18, background: 'linear-gradient(135deg, rgba(127, 29, 29, 0.28), rgba(15, 23, 42, 0.96))', marginTop: 16 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap', alignItems: 'flex-start' }}>
         <div>
-          <strong style={{ color: '#fb7185', textTransform: 'uppercase', letterSpacing: 1 }}>Disruption Intelligence</strong>
+          <strong style={{ color: 'var(--color-rose-400)', textTransform: 'uppercase', letterSpacing: 1 }}>Disruption Intelligence</strong>
           <h3 style={{ fontSize: 26, margin: '8px 0' }}>Flight disruption impact engine</h3>
-          <p style={{ color: '#cbd5e1', margin: 0 }}>
+          <p style={{ color: 'var(--color-slate-300)', margin: 0 }}>
             Uses FlightAware enrichment when present, then falls back to itinerary status and local airport operational alert scaffolds.
           </p>
         </div>
@@ -2438,49 +2438,49 @@ function DisruptionIntelligenceSection({ comparisons }: { comparisons: Itinerary
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 150px), 1fr))', gap: 12, marginTop: 14 }}>
         {[
-          ['Avg Impact Score', `${averageImpact}/99`, averageImpact >= 50 ? '#f87171' : averageImpact >= 22 ? '#facc15' : '#22c55e'],
-          ['Delays', totalDelaySignals, totalDelaySignals ? '#facc15' : '#22c55e'],
-          ['Cancellations', totalCancellationSignals, totalCancellationSignals ? '#f87171' : '#22c55e'],
-          ['Diversions', totalDiversionSignals, totalDiversionSignals ? '#f87171' : '#22c55e'],
-          ['Airport Alerts', totalAirportAlerts, totalAirportAlerts ? '#facc15' : '#22c55e']
+          ['Avg Impact Score', `${averageImpact}/99`, averageImpact >= 50 ? 'var(--color-red-400)' : averageImpact >= 22 ? 'var(--color-yellow-400)' : 'var(--color-green-500)'],
+          ['Delays', totalDelaySignals, totalDelaySignals ? 'var(--color-yellow-400)' : 'var(--color-green-500)'],
+          ['Cancellations', totalCancellationSignals, totalCancellationSignals ? 'var(--color-red-400)' : 'var(--color-green-500)'],
+          ['Diversions', totalDiversionSignals, totalDiversionSignals ? 'var(--color-red-400)' : 'var(--color-green-500)'],
+          ['Airport Alerts', totalAirportAlerts, totalAirportAlerts ? 'var(--color-yellow-400)' : 'var(--color-green-500)']
         ].map(([label, value, color]) => (
-          <article key={label} style={{ border: '1px solid #334155', borderRadius: 14, padding: 12, background: '#020617' }}>
-            <small style={{ color: '#94a3b8' }}>{label}</small>
+          <article key={label} style={{ border: '1px solid var(--color-slate-700)', borderRadius: 14, padding: 12, background: 'var(--color-slate-950)' }}>
+            <small style={{ color: 'var(--color-slate-400)' }}>{label}</small>
             <h4 style={{ color: String(color), margin: '6px 0 0', fontSize: 22 }}>{value}</h4>
           </article>
         ))}
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 260px), 1fr))', gap: 12, marginTop: 14 }}>
-        <article style={{ border: '1px solid #334155', borderRadius: 16, padding: 14, background: '#0f172a' }}>
-          <strong style={{ color: '#38bdf8' }}>Impact on Success Probability</strong>
-          <p style={{ color: '#cbd5e1' }}>{mostImpacted.route}: {mostImpacted.disruption.successProbabilityImpact} points from disruption signals.</p>
-          <p style={{ color: '#94a3b8', marginBottom: 0 }}>Probability is reduced after the community-weighted probability engine so disruption reflects current operational risk.</p>
+        <article style={{ border: '1px solid var(--color-slate-700)', borderRadius: 16, padding: 14, background: 'var(--color-slate-850)' }}>
+          <strong style={{ color: 'var(--color-sky-400)' }}>Impact on Success Probability</strong>
+          <p style={{ color: 'var(--color-slate-300)' }}>{mostImpacted.route}: {mostImpacted.disruption.successProbabilityImpact} points from disruption signals.</p>
+          <p style={{ color: 'var(--color-slate-400)', marginBottom: 0 }}>Probability is reduced after the community-weighted probability engine so disruption reflects current operational risk.</p>
         </article>
-        <article style={{ border: '1px solid #334155', borderRadius: 16, padding: 14, background: '#0f172a' }}>
-          <strong style={{ color: '#c084fc' }}>Impact on Route Ranking</strong>
-          <p style={{ color: '#cbd5e1' }}>{mostImpacted.route}: {mostImpacted.disruption.routeRankingImpact} ranking points.</p>
-          <p style={{ color: '#94a3b8', marginBottom: 0 }}>Routes with Red or Yellow health can move below cleaner backup options even when their baseline score is strong.</p>
+        <article style={{ border: '1px solid var(--color-slate-700)', borderRadius: 16, padding: 14, background: 'var(--color-slate-850)' }}>
+          <strong style={{ color: 'var(--color-purple-400)' }}>Impact on Route Ranking</strong>
+          <p style={{ color: 'var(--color-slate-300)' }}>{mostImpacted.route}: {mostImpacted.disruption.routeRankingImpact} ranking points.</p>
+          <p style={{ color: 'var(--color-slate-400)', marginBottom: 0 }}>Routes with Red or Yellow health can move below cleaner backup options even when their baseline score is strong.</p>
         </article>
-        <article style={{ border: '1px solid #334155', borderRadius: 16, padding: 14, background: '#0f172a' }}>
-          <strong style={{ color: '#22c55e' }}>Backup Route Recommendations</strong>
-          <p style={{ color: '#cbd5e1' }}>Healthiest current option: {healthiest.route} · {healthiest.disruption.routeHealth}</p>
-          <ul style={{ color: '#94a3b8', marginBottom: 0, paddingLeft: 20 }}>
+        <article style={{ border: '1px solid var(--color-slate-700)', borderRadius: 16, padding: 14, background: 'var(--color-slate-850)' }}>
+          <strong style={{ color: 'var(--color-green-500)' }}>Backup Route Recommendations</strong>
+          <p style={{ color: 'var(--color-slate-300)' }}>Healthiest current option: {healthiest.route} · {healthiest.disruption.routeHealth}</p>
+          <ul style={{ color: 'var(--color-slate-400)', marginBottom: 0, paddingLeft: 20 }}>
             {mostImpacted.disruption.backupRouteRecommendations.map((recommendation) => <li key={recommendation}>{recommendation}</li>)}
           </ul>
         </article>
       </div>
 
-      <details style={{ border: '1px solid #334155', borderRadius: 16, padding: 14, background: '#020617', marginTop: 14 }}>
-        <summary style={{ color: '#facc15', cursor: 'pointer', fontWeight: 'bold' }}>Disruption explanation</summary>
+      <details style={{ border: '1px solid var(--color-slate-700)', borderRadius: 16, padding: 14, background: 'var(--color-slate-950)', marginTop: 14 }}>
+        <summary style={{ color: 'var(--color-yellow-400)', cursor: 'pointer', fontWeight: 'bold' }}>Disruption explanation</summary>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))', gap: 12, marginTop: 12 }}>
           {comparisons.map((comparison) => (
-            <article key={`disruption-${comparison.id}`} style={{ border: '1px solid #1e293b', borderRadius: 14, padding: 12, background: '#0f172a' }}>
+            <article key={`disruption-${comparison.id}`} style={{ border: '1px solid var(--color-slate-800)', borderRadius: 14, padding: 12, background: 'var(--color-slate-850)' }}>
               <strong style={{ color: routeHealthColor(comparison.disruption.routeHealth) }}>{comparison.route} · {comparison.disruption.routeHealth}</strong>
-              <ul style={{ color: '#cbd5e1', paddingLeft: 20, margin: '8px 0' }}>
+              <ul style={{ color: 'var(--color-slate-300)', paddingLeft: 20, margin: '8px 0' }}>
                 {comparison.disruption.explanation.map((item) => <li key={item}>{item}</li>)}
               </ul>
-              <small style={{ color: '#94a3b8' }}>{comparison.disruption.dataSources.join(' · ')}</small>
+              <small style={{ color: 'var(--color-slate-400)' }}>{comparison.disruption.dataSources.join(' · ')}</small>
             </article>
           ))}
         </div>
@@ -2498,12 +2498,12 @@ function WeatherIntelligenceSection({ comparisons }: { comparisons: ItineraryCom
   const sources = Array.from(new Set(comparisons.map((comparison) => `${comparison.weatherRisk.source} (${comparison.weatherRisk.status})`)))
 
   return (
-    <section style={{ border: '1px solid #22c55e', borderRadius: 22, padding: 18, background: 'linear-gradient(135deg, rgba(20, 83, 45, 0.28), rgba(15, 23, 42, 0.96))', marginTop: 16 }}>
+    <section style={{ border: '1px solid var(--color-green-500)', borderRadius: 22, padding: 18, background: 'linear-gradient(135deg, rgba(20, 83, 45, 0.28), rgba(15, 23, 42, 0.96))', marginTop: 16 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap', alignItems: 'flex-start' }}>
         <div>
-          <strong style={{ color: '#22c55e', textTransform: 'uppercase', letterSpacing: 1 }}>Weather Intelligence</strong>
+          <strong style={{ color: 'var(--color-green-500)', textTransform: 'uppercase', letterSpacing: 1 }}>Weather Intelligence</strong>
           <h3 style={{ fontSize: 26, margin: '8px 0' }}>Route weather risk layer</h3>
-          <p style={{ color: '#cbd5e1', margin: 0 }}>
+          <p style={{ color: 'var(--color-slate-300)', margin: 0 }}>
             Uses a provider abstraction for live weather, currently backed by placeholder airport weather sensitivity when live data is unavailable.
           </p>
         </div>
@@ -2514,29 +2514,29 @@ function WeatherIntelligenceSection({ comparisons }: { comparisons: ItineraryCom
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 170px), 1fr))', gap: 12, marginTop: 14 }}>
         {[
-          ['Avg Weather Impact', `${averageImpact}/40`, averageImpact >= 30 ? '#f87171' : averageImpact >= 18 ? '#fb7185' : averageImpact >= 7 ? '#facc15' : '#22c55e'],
+          ['Avg Weather Impact', `${averageImpact}/40`, averageImpact >= 30 ? 'var(--color-red-400)' : averageImpact >= 18 ? 'var(--color-rose-400)' : averageImpact >= 7 ? 'var(--color-yellow-400)' : 'var(--color-green-500)'],
           ['Lowest Risk Route', lowestRisk.route, weatherRiskColor(lowestRisk.weatherRisk.category)],
-          ['Provider Source', sources.join(' · '), '#38bdf8'],
-          ['Status', highestRisk.weatherRisk.status, '#facc15']
+          ['Provider Source', sources.join(' · '), 'var(--color-sky-400)'],
+          ['Status', highestRisk.weatherRisk.status, 'var(--color-yellow-400)']
         ].map(([label, value, color]) => (
-          <article key={label} style={{ border: '1px solid #334155', borderRadius: 14, padding: 12, background: '#020617' }}>
-            <small style={{ color: '#94a3b8' }}>{label}</small>
+          <article key={label} style={{ border: '1px solid var(--color-slate-700)', borderRadius: 14, padding: 12, background: 'var(--color-slate-950)' }}>
+            <small style={{ color: 'var(--color-slate-400)' }}>{label}</small>
             <h4 style={{ color: String(color), margin: '6px 0 0', fontSize: 20 }}>{value}</h4>
           </article>
         ))}
       </div>
 
-      <details style={{ border: '1px solid #334155', borderRadius: 16, padding: 14, background: '#020617', marginTop: 14 }}>
-        <summary style={{ color: '#22c55e', cursor: 'pointer', fontWeight: 'bold' }}>Weather diagnostics</summary>
+      <details style={{ border: '1px solid var(--color-slate-700)', borderRadius: 16, padding: 14, background: 'var(--color-slate-950)', marginTop: 14 }}>
+        <summary style={{ color: 'var(--color-green-500)', cursor: 'pointer', fontWeight: 'bold' }}>Weather diagnostics</summary>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))', gap: 12, marginTop: 12 }}>
           {comparisons.map((comparison) => (
-            <article key={`weather-${comparison.id}`} style={{ border: '1px solid #1e293b', borderRadius: 14, padding: 12, background: '#0f172a' }}>
+            <article key={`weather-${comparison.id}`} style={{ border: '1px solid var(--color-slate-800)', borderRadius: 14, padding: 12, background: 'var(--color-slate-850)' }}>
               <strong style={{ color: weatherRiskColor(comparison.weatherRisk.category) }}>{comparison.route} · {comparison.weatherRisk.category}</strong>
-              <p style={{ color: '#cbd5e1', margin: '8px 0' }}>
+              <p style={{ color: 'var(--color-slate-300)', margin: '8px 0' }}>
                 Impact {comparison.weatherRisk.scoreImpact}/40 · Probability {comparison.weatherRisk.successProbabilityImpact} · Ranking {comparison.weatherRisk.routeRankingImpact}
               </p>
-              <small style={{ color: '#94a3b8' }}>Source: {comparison.weatherRisk.source} · Status: {comparison.weatherRisk.status}</small>
-              <ul style={{ color: '#cbd5e1', paddingLeft: 20, margin: '8px 0 0' }}>
+              <small style={{ color: 'var(--color-slate-400)' }}>Source: {comparison.weatherRisk.source} · Status: {comparison.weatherRisk.status}</small>
+              <ul style={{ color: 'var(--color-slate-300)', paddingLeft: 20, margin: '8px 0 0' }}>
                 {[...comparison.weatherRisk.details, ...comparison.weatherRisk.diagnostics].map((item) => <li key={item}>{item}</li>)}
               </ul>
             </article>
@@ -2558,15 +2558,15 @@ function RouteConfidenceSection({ comparisons }: { comparisons: ItineraryCompari
   }, {})
 
   return (
-    <section style={{ border: '1px solid #38bdf8', borderRadius: 22, padding: 18, background: 'linear-gradient(135deg, rgba(14, 116, 144, 0.22), rgba(15, 23, 42, 0.96))', marginTop: 16 }}>
+    <section style={{ border: '1px solid var(--color-sky-400)', borderRadius: 22, padding: 18, background: 'linear-gradient(135deg, rgba(14, 116, 144, 0.22), rgba(15, 23, 42, 0.96))', marginTop: 16 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap', alignItems: 'flex-start' }}>
         <div>
-          <strong style={{ color: '#38bdf8', textTransform: 'uppercase', letterSpacing: 1 }}>Route Confidence Engine</strong>
+          <strong style={{ color: 'var(--color-sky-400)', textTransform: 'uppercase', letterSpacing: 1 }}>Route Confidence Engine</strong>
           <h3 style={{ fontSize: 26, margin: '8px 0' }}>Real-time confidence score</h3>
-          <p style={{ color: '#cbd5e1', margin: 0 }}>
+          <p style={{ color: 'var(--color-slate-300)', margin: 0 }}>
             Combines success probability, historical route data, community reports, traveler profile, disruption intelligence, and weather impact.
           </p>
-          <p style={{ color: '#94a3b8', margin: '8px 0 0' }}>
+          <p style={{ color: 'var(--color-slate-400)', margin: '8px 0 0' }}>
             Last confidence update: {new Date(bestConfidence.routeConfidence.lastUpdated).toLocaleString()} · Trigger: {confidenceUpdateTriggerLabel(bestConfidence.routeConfidence.updateTrigger)}
           </p>
         </div>
@@ -2577,38 +2577,38 @@ function RouteConfidenceSection({ comparisons }: { comparisons: ItineraryCompari
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 180px), 1fr))', gap: 12, marginTop: 14 }}>
         {[
-          ['Avg Route Confidence', `${averageConfidence}/100`, averageConfidence >= 85 ? '#22c55e' : averageConfidence >= 72 ? '#38bdf8' : averageConfidence >= 58 ? '#facc15' : '#f87171'],
+          ['Avg Route Confidence', `${averageConfidence}/100`, averageConfidence >= 85 ? 'var(--color-green-500)' : averageConfidence >= 72 ? 'var(--color-sky-400)' : averageConfidence >= 58 ? 'var(--color-yellow-400)' : 'var(--color-red-400)'],
           ['Top Badge', bestConfidence.routeConfidence.badge, confidenceBadgeColor(bestConfidence.routeConfidence.badge)],
           ['Top Trend', bestConfidence.routeConfidence.trend, confidenceTrendColor(bestConfidence.routeConfidence.trend)],
           ['Weather Impact', bestConfidence.routeConfidence.weatherImpact.label, weatherRiskColor(bestConfidence.routeConfidence.weatherImpact.label)]
         ].map(([label, value, color]) => (
-          <article key={label} style={{ border: '1px solid #334155', borderRadius: 14, padding: 12, background: '#020617' }}>
-            <small style={{ color: '#94a3b8' }}>{label}</small>
+          <article key={label} style={{ border: '1px solid var(--color-slate-700)', borderRadius: 14, padding: 12, background: 'var(--color-slate-950)' }}>
+            <small style={{ color: 'var(--color-slate-400)' }}>{label}</small>
             <h4 style={{ color: String(color), margin: '6px 0 0', fontSize: 22 }}>{value}</h4>
           </article>
         ))}
       </div>
 
-      <details style={{ border: '1px solid #334155', borderRadius: 16, padding: 14, background: '#020617', marginTop: 14 }}>
-        <summary style={{ color: '#38bdf8', cursor: 'pointer', fontWeight: 'bold' }}>Confidence explanation</summary>
+      <details style={{ border: '1px solid var(--color-slate-700)', borderRadius: 16, padding: 14, background: 'var(--color-slate-950)', marginTop: 14 }}>
+        <summary style={{ color: 'var(--color-sky-400)', cursor: 'pointer', fontWeight: 'bold' }}>Confidence explanation</summary>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))', gap: 12, marginTop: 12 }}>
           {comparisons.map((comparison) => (
-            <article key={`confidence-${comparison.id}`} style={{ border: '1px solid #1e293b', borderRadius: 14, padding: 12, background: '#0f172a' }}>
+            <article key={`confidence-${comparison.id}`} style={{ border: '1px solid var(--color-slate-800)', borderRadius: 14, padding: 12, background: 'var(--color-slate-850)' }}>
               <strong style={{ color: confidenceBadgeColor(comparison.routeConfidence.badge) }}>{comparison.route} · {comparison.routeConfidence.score}/100 · {comparison.routeConfidence.badge}</strong>
               <p style={{ color: confidenceTrendColor(comparison.routeConfidence.trend), margin: '8px 0' }}>
                 Trend: {comparison.routeConfidence.trend}{comparison.routeConfidence.trendDelta ? ` (${comparison.routeConfidence.trendDelta > 0 ? '+' : ''}${comparison.routeConfidence.trendDelta})` : ''}
               </p>
-              <p style={{ color: '#94a3b8', margin: '8px 0' }}>
+              <p style={{ color: 'var(--color-slate-400)', margin: '8px 0' }}>
                 Last confidence update: {new Date(comparison.routeConfidence.lastUpdated).toLocaleString()} · {confidenceUpdateTriggerLabel(comparison.routeConfidence.updateTrigger)}
               </p>
-              <p style={{ color: '#cbd5e1', margin: '8px 0' }}>{comparison.routeConfidence.updateExplanation}</p>
-              <ul style={{ color: '#cbd5e1', paddingLeft: 20, margin: '8px 0' }}>
+              <p style={{ color: 'var(--color-slate-300)', margin: '8px 0' }}>{comparison.routeConfidence.updateExplanation}</p>
+              <ul style={{ color: 'var(--color-slate-300)', paddingLeft: 20, margin: '8px 0' }}>
                 {comparison.routeConfidence.explanation.map((item) => <li key={item}>{item}</li>)}
               </ul>
             </article>
           ))}
         </div>
-        <p style={{ color: '#94a3b8', marginBottom: 0 }}>Trend mix: {Object.entries(trendSummary).map(([label, count]) => `${label} ${count}`).join(' · ')}</p>
+        <p style={{ color: 'var(--color-slate-400)', marginBottom: 0 }}>Trend mix: {Object.entries(trendSummary).map(([label, count]) => `${label} ${count}`).join(' · ')}</p>
       </details>
     </section>
   )
@@ -2623,12 +2623,12 @@ function AirportIntelligenceSection({ comparisons }: { comparisons: ItineraryCom
   const supportedAirports = Array.from(new Set(comparisons.flatMap((comparison) => comparison.airportIntelligence.airports.map((airport) => airport.code))))
 
   return (
-    <section style={{ border: '1px solid #facc15', borderRadius: 22, padding: 18, background: 'linear-gradient(135deg, rgba(113, 63, 18, 0.28), rgba(15, 23, 42, 0.96))', marginTop: 16 }}>
+    <section style={{ border: '1px solid var(--color-yellow-400)', borderRadius: 22, padding: 18, background: 'linear-gradient(135deg, rgba(113, 63, 18, 0.28), rgba(15, 23, 42, 0.96))', marginTop: 16 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap', alignItems: 'flex-start' }}>
         <div>
-          <strong style={{ color: '#facc15', textTransform: 'uppercase', letterSpacing: 1 }}>Airport Intelligence</strong>
+          <strong style={{ color: 'var(--color-yellow-400)', textTransform: 'uppercase', letterSpacing: 1 }}>Airport Intelligence</strong>
           <h3 style={{ fontSize: 26, margin: '8px 0' }}>Connection and terminal risk layer</h3>
-          <p style={{ color: '#cbd5e1', margin: 0 }}>
+          <p style={{ color: 'var(--color-slate-300)', margin: 0 }}>
             Static major-hub data for terminal notes, typical connection terminals, walking distance, hub strength, backup availability, and connection risk.
           </p>
         </div>
@@ -2640,32 +2640,32 @@ function AirportIntelligenceSection({ comparisons }: { comparisons: ItineraryCom
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 170px), 1fr))', gap: 12, marginTop: 14 }}>
         {[
           ['Avg Connection Risk', `${averageRisk}/100`, connectionRiskColor(averageRisk)],
-          ['Easiest Route', easiest.route, '#22c55e'],
-          ['Backup Availability', highestRisk.airportIntelligence.backupFlightAvailability, '#38bdf8'],
-          ['Airport Profiles', supportedAirports.join(' · ') || 'Pending', '#facc15']
+          ['Easiest Route', easiest.route, 'var(--color-green-500)'],
+          ['Backup Availability', highestRisk.airportIntelligence.backupFlightAvailability, 'var(--color-sky-400)'],
+          ['Airport Profiles', supportedAirports.join(' · ') || 'Pending', 'var(--color-yellow-400)']
         ].map(([label, value, color]) => (
-          <article key={label} style={{ border: '1px solid #334155', borderRadius: 14, padding: 12, background: '#020617' }}>
-            <small style={{ color: '#94a3b8' }}>{label}</small>
+          <article key={label} style={{ border: '1px solid var(--color-slate-700)', borderRadius: 14, padding: 12, background: 'var(--color-slate-950)' }}>
+            <small style={{ color: 'var(--color-slate-400)' }}>{label}</small>
             <h4 style={{ color: String(color), margin: '6px 0 0', fontSize: 20 }}>{value}</h4>
           </article>
         ))}
       </div>
 
-      <details style={{ border: '1px solid #334155', borderRadius: 16, padding: 14, background: '#020617', marginTop: 14 }}>
-        <summary style={{ color: '#facc15', cursor: 'pointer', fontWeight: 'bold' }}>Airport intelligence details</summary>
+      <details style={{ border: '1px solid var(--color-slate-700)', borderRadius: 16, padding: 14, background: 'var(--color-slate-950)', marginTop: 14 }}>
+        <summary style={{ color: 'var(--color-yellow-400)', cursor: 'pointer', fontWeight: 'bold' }}>Airport intelligence details</summary>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 270px), 1fr))', gap: 12, marginTop: 12 }}>
           {comparisons.map((comparison) => (
-            <article key={`airport-${comparison.id}`} style={{ border: '1px solid #1e293b', borderRadius: 14, padding: 12, background: '#0f172a' }}>
+            <article key={`airport-${comparison.id}`} style={{ border: '1px solid var(--color-slate-800)', borderRadius: 14, padding: 12, background: 'var(--color-slate-850)' }}>
               <strong style={{ color: connectionRiskColor(comparison.airportIntelligence.connectionRiskScore) }}>{comparison.route} · Risk {comparison.airportIntelligence.connectionRiskScore}/100</strong>
-              <p style={{ color: '#cbd5e1', margin: '8px 0' }}>
+              <p style={{ color: 'var(--color-slate-300)', margin: '8px 0' }}>
                 Difficulty: {comparison.airportIntelligence.overallConnectionDifficulty} · Walking: {comparison.airportIntelligence.walkingDistanceCategory} · Backup: {comparison.airportIntelligence.backupFlightAvailability}
               </p>
               <div style={{ display: 'grid', gap: 8 }}>
                 {comparison.airportIntelligence.airports.map((airport) => (
-                  <div key={`${comparison.id}-${airport.code}`} style={{ border: '1px solid #334155', borderRadius: 12, padding: 10, background: '#020617' }}>
-                    <strong style={{ color: '#f8fafc' }}>{airport.code} · {airport.name}</strong>
-                    <p style={{ color: '#94a3b8', margin: '6px 0' }}>{airport.terminalInformation}</p>
-                    <small style={{ color: '#cbd5e1' }}>Typical connections: {airport.typicalConnectionTerminals}</small>
+                  <div key={`${comparison.id}-${airport.code}`} style={{ border: '1px solid var(--color-slate-700)', borderRadius: 12, padding: 10, background: 'var(--color-slate-950)' }}>
+                    <strong style={{ color: 'var(--color-slate-50)' }}>{airport.code} · {airport.name}</strong>
+                    <p style={{ color: 'var(--color-slate-400)', margin: '6px 0' }}>{airport.terminalInformation}</p>
+                    <small style={{ color: 'var(--color-slate-300)' }}>Typical connections: {airport.typicalConnectionTerminals}</small>
                   </div>
                 ))}
               </div>
@@ -2682,26 +2682,26 @@ function RouteAirportDetails({ route }: { route: string }) {
   const weatherRisk = getRouteWeatherRisk(route)
 
   return (
-    <details style={{ marginTop: 12, border: '1px solid #334155', borderRadius: 14, padding: 12, background: '#020617' }}>
-      <summary style={{ color: '#facc15', cursor: 'pointer', fontWeight: 'bold' }}>
+    <details style={{ marginTop: 12, border: '1px solid var(--color-slate-700)', borderRadius: 14, padding: 12, background: 'var(--color-slate-950)' }}>
+      <summary style={{ color: 'var(--color-yellow-400)', cursor: 'pointer', fontWeight: 'bold' }}>
         Route details · Connection risk {airportIntelligence.connectionRiskScore}/100 · Weather {weatherRisk.category}
       </summary>
-      <p style={{ color: '#cbd5e1' }}>
+      <p style={{ color: 'var(--color-slate-300)' }}>
         Difficulty: {airportIntelligence.overallConnectionDifficulty} · Walking: {airportIntelligence.walkingDistanceCategory} · Backup availability: {airportIntelligence.backupFlightAvailability}
       </p>
-      <div style={{ border: `1px solid ${weatherRiskColor(weatherRisk.category)}`, borderRadius: 12, padding: 10, background: '#0f172a', marginBottom: 10 }}>
+      <div style={{ border: `1px solid ${weatherRiskColor(weatherRisk.category)}`, borderRadius: 12, padding: 10, background: 'var(--color-slate-850)', marginBottom: 10 }}>
         <strong style={{ color: weatherRiskColor(weatherRisk.category) }}>Weather risk: {weatherRisk.category}</strong>
-        <p style={{ color: '#cbd5e1', margin: '6px 0' }}>
+        <p style={{ color: 'var(--color-slate-300)', margin: '6px 0' }}>
           Impact {weatherRisk.scoreImpact}/40 · Probability {weatherRisk.successProbabilityImpact} · Ranking {weatherRisk.routeRankingImpact}
         </p>
-        <small style={{ color: '#94a3b8' }}>Source: {weatherRisk.source} · Status: {weatherRisk.status}</small>
+        <small style={{ color: 'var(--color-slate-400)' }}>Source: {weatherRisk.source} · Status: {weatherRisk.status}</small>
       </div>
       <div style={{ display: 'grid', gap: 8 }}>
         {airportIntelligence.airports.map((airport) => (
-          <article key={`${route}-${airport.code}`} style={{ border: '1px solid #1e293b', borderRadius: 12, padding: 10, background: '#0f172a' }}>
+          <article key={`${route}-${airport.code}`} style={{ border: '1px solid var(--color-slate-800)', borderRadius: 12, padding: 10, background: 'var(--color-slate-850)' }}>
             <strong style={{ color: connectionRiskColor(airport.connectionRiskScore) }}>{airport.code} · {airport.name}</strong>
-            <p style={{ color: '#94a3b8', margin: '6px 0' }}>{airport.terminalInformation}</p>
-            <small style={{ color: '#cbd5e1' }}>
+            <p style={{ color: 'var(--color-slate-400)', margin: '6px 0' }}>{airport.terminalInformation}</p>
+            <small style={{ color: 'var(--color-slate-300)' }}>
               Typical terminals: {airport.typicalConnectionTerminals} · Walking {airport.walkingDistanceCategory} · Hub {airport.hubStrength} · Backup {airport.backupFlightAvailability}
             </small>
           </article>
@@ -2727,11 +2727,11 @@ const premiumCabinAirportHints = new Set(['HND', 'NRT', 'LHR', 'CDG', 'FRA', 'MU
 const backupAvailabilityWeights: Record<string, number> = { excellent: 5, strong: 4, good: 3, moderate: 2, limited: 1, low: 1, pending: 0, unknown: 0 }
 
 function routeIntelligenceColor(badge: RouteIntelligenceBadge) {
-  if (badge === 'Recommended') return '#22c55e'
-  if (badge === 'Lowest Risk') return '#67e8f9'
-  if (badge === 'Best Premium Cabin') return '#c084fc'
-  if (badge === 'Most Backup Options') return '#facc15'
-  return '#fb7185'
+  if (badge === 'Recommended') return 'var(--color-green-500)'
+  if (badge === 'Lowest Risk') return 'var(--color-sky-300)'
+  if (badge === 'Best Premium Cabin') return 'var(--color-purple-400)'
+  if (badge === 'Most Backup Options') return 'var(--color-yellow-400)'
+  return 'var(--color-rose-400)'
 }
 
 function routeIntelligenceBadgeStyle(badge: RouteIntelligenceBadge) {
@@ -2868,12 +2868,12 @@ function RouteIntelligenceSection({ insights }: { insights: RouteIntelligenceIns
 
   const primary = insights[0]
   return (
-    <section className="nonrevy-route-intel" style={{ border: '1px solid #7dd3fc', borderRadius: 22, padding: 'clamp(14px, 3vw, 18px)', background: 'linear-gradient(135deg, rgba(14, 116, 144, 0.22), rgba(49, 46, 129, 0.34), rgba(15, 23, 42, 0.96))', marginTop: 16 }}>
+    <section className="nonrevy-route-intel" style={{ border: '1px solid var(--color-cyan-300)', borderRadius: 22, padding: 'clamp(14px, 3vw, 18px)', background: 'linear-gradient(135deg, rgba(14, 116, 144, 0.22), rgba(49, 46, 129, 0.34), rgba(15, 23, 42, 0.96))', marginTop: 16 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap', alignItems: 'flex-start' }}>
         <div>
-          <strong style={{ color: '#67e8f9', textTransform: 'uppercase', letterSpacing: 1 }}>Route Intelligence</strong>
+          <strong style={{ color: 'var(--color-sky-300)', textTransform: 'uppercase', letterSpacing: 1 }}>Route Intelligence</strong>
           <h3 style={{ fontSize: 26, margin: '8px 0' }}>Strategy picks for this search</h3>
-          <p style={{ color: '#cbd5e1', margin: 0 }}>Simple traveler-focused recommendations from the current itinerary scores, confidence, airport backup data, and route risk signals.</p>
+          <p style={{ color: 'var(--color-slate-300)', margin: 0 }}>Simple traveler-focused recommendations from the current itinerary scores, confidence, airport backup data, and route risk signals.</p>
         </div>
         <span style={{ border: `1px solid ${primary.color}`, borderRadius: 999, color: primary.color, padding: '8px 12px', fontWeight: 'bold' }}>
           {primary.badge}: {primary.route}
@@ -2884,13 +2884,13 @@ function RouteIntelligenceSection({ insights }: { insights: RouteIntelligenceIns
         {insights.map((insight) => {
           const badgeStyle = routeIntelligenceBadgeStyle(insight.badge)
           return (
-            <article key={insight.key} className="nonrevy-intel-card" style={{ border: `1px solid ${insight.color}`, borderRadius: 16, padding: 14, background: 'rgba(2, 6, 23, 0.72)' }}>
+            <article key={insight.key} className="nonrevy-intel-card" style={{ border: `1px solid ${insight.color}`, borderRadius: 16, padding: 14, background: 'var(--surface-control)' }}>
               <span style={{ display: 'inline-flex', border: `1px solid ${badgeStyle.border}`, borderRadius: 999, padding: '4px 9px', color: badgeStyle.color, background: badgeStyle.background, fontSize: 12, fontWeight: 'bold' }}>
                 {insight.badge}
               </span>
-              <h4 style={{ color: '#f8fafc', margin: '10px 0 6px', fontSize: 18 }}>{insight.title}</h4>
-              <p style={{ color: '#38bdf8', margin: '0 0 8px', fontWeight: 'bold' }}>{insight.route}</p>
-              <p style={{ color: '#cbd5e1', margin: 0 }}>{insight.summary}</p>
+              <h4 style={{ color: 'var(--color-slate-50)', margin: '10px 0 6px', fontSize: 18 }}>{insight.title}</h4>
+              <p style={{ color: 'var(--color-sky-400)', margin: '0 0 8px', fontWeight: 'bold' }}>{insight.route}</p>
+              <p style={{ color: 'var(--color-slate-300)', margin: 0 }}>{insight.summary}</p>
             </article>
           )
         })}
@@ -2918,9 +2918,9 @@ type RecoveryStrategy = {
 }
 
 function recoveryBadgeColor(badge: RecoveryStrength) {
-  if (badge === 'Strong Recovery') return '#22c55e'
-  if (badge === 'Moderate Recovery') return '#facc15'
-  return '#f87171'
+  if (badge === 'Strong Recovery') return 'var(--color-green-500)'
+  if (badge === 'Moderate Recovery') return 'var(--color-yellow-400)'
+  return 'var(--color-red-400)'
 }
 
 function recoveryBadgeFor(score: number): RecoveryStrength {
@@ -3221,17 +3221,17 @@ function UniversalSearchPanel({
   if (!model) return null
 
   return (
-    <section className="nonrevy-results-shell" style={{ border: '1px solid #334155', borderRadius: 22, padding: 'clamp(14px, 3vw, 18px)', background: 'rgba(15, 23, 42, 0.82)', marginTop: 18 }}>
+    <section className="nonrevy-results-shell" style={{ border: '1px solid var(--color-slate-700)', borderRadius: 22, padding: 'clamp(14px, 3vw, 18px)', background: 'rgba(15, 23, 42, 0.82)', marginTop: 18 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap', alignItems: 'flex-start' }}>
         <div>
-          <p style={{ color: '#67e8f9', fontWeight: 900, letterSpacing: 1, textTransform: 'uppercase', margin: 0 }}>Universal search</p>
+          <p style={{ color: 'var(--color-sky-300)', fontWeight: 900, letterSpacing: 1, textTransform: 'uppercase', margin: 0 }}>Universal search</p>
           <h2 style={{ margin: '6px 0', fontSize: 24 }}>Best interpretation: {model.bestInterpretation}</h2>
-          <p style={{ color: '#94a3b8', margin: 0 }}>Search matches airports, routes, itineraries, flight numbers, and premium cabin opportunities without exposing technical diagnostics.</p>
+          <p style={{ color: 'var(--color-slate-400)', margin: 0 }}>Search matches airports, routes, itineraries, flight numbers, and premium cabin opportunities without exposing technical diagnostics.</p>
         </div>
         {model.alternateQueries.length ? (
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', maxWidth: 520 }}>
             {model.alternateQueries.map((alternate) => (
-              <button key={alternate} type="button" onClick={() => onChoose(alternate)} style={{ border: '1px solid #475569', borderRadius: 999, background: '#020617', color: '#cbd5e1', padding: '8px 10px', fontWeight: 700 }}>
+              <button key={alternate} type="button" onClick={() => onChoose(alternate)} style={{ border: '1px solid var(--color-slate-600)', borderRadius: 999, background: 'var(--color-slate-950)', color: 'var(--color-slate-300)', padding: '8px 10px', fontWeight: 700 }}>
                 {alternate}
               </button>
             ))}
@@ -3240,11 +3240,11 @@ function UniversalSearchPanel({
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 230px), 1fr))', gap: 12, marginTop: 14 }}>
         {model.results.map((result) => (
-          <article key={`${result.category}-${result.title}`} style={{ border: '1px solid #1e293b', borderRadius: 16, padding: 14, background: '#020617' }}>
-            <small style={{ color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 1, fontWeight: 900 }}>{result.category}</small>
-            <h3 style={{ color: '#f8fafc', margin: '6px 0', fontSize: 18 }}>{result.title}</h3>
-            <p style={{ color: '#cbd5e1', margin: '0 0 10px' }}>{result.summary}</p>
-            <button type="button" onClick={() => onChoose(result.actionQuery)} style={{ border: '1px solid #38bdf8', borderRadius: 999, background: '#082f49', color: '#cffafe', padding: '8px 10px', fontWeight: 800 }}>
+          <article key={`${result.category}-${result.title}`} style={{ border: '1px solid var(--color-slate-800)', borderRadius: 16, padding: 14, background: 'var(--color-slate-950)' }}>
+            <small style={{ color: 'var(--color-slate-400)', textTransform: 'uppercase', letterSpacing: 1, fontWeight: 900 }}>{result.category}</small>
+            <h3 style={{ color: 'var(--color-slate-50)', margin: '6px 0', fontSize: 18 }}>{result.title}</h3>
+            <p style={{ color: 'var(--color-slate-300)', margin: '0 0 10px' }}>{result.summary}</p>
+            <button type="button" onClick={() => onChoose(result.actionQuery)} style={{ border: '1px solid var(--color-sky-400)', borderRadius: 999, background: '#082f49', color: '#cffafe', padding: '8px 10px', fontWeight: 800 }}>
               Search this
             </button>
           </article>
@@ -3261,9 +3261,9 @@ function recommendationLabel(index: number) {
 }
 
 function recommendationAccent(index: number) {
-  if (index === 0) return '#22c55e'
-  if (index === 1) return '#facc15'
-  return '#fb7185'
+  if (index === 0) return 'var(--color-green-500)'
+  if (index === 1) return 'var(--color-yellow-400)'
+  return 'var(--color-rose-400)'
 }
 
 function carrierFlightSummary(comparison: ItineraryComparison) {
@@ -3420,9 +3420,9 @@ function RecoverySummarySection({ recovery }: { recovery?: RecoveryAnalysis }) {
   const reasons = recovery.reasons.slice(0, 4)
 
   return (
-    <section style={{ marginTop: 12, border: '1px solid #334155', borderRadius: 12, padding: 12, background: '#020617' }} aria-label="Recovery intelligence">
-      <strong style={{ color: '#f8fafc' }}>{t('recovery')} {badge} {translateSharedValue(recovery.strength, t)}</strong>
-      <ul style={{ margin: '8px 0 0', paddingLeft: 18, color: '#cbd5e1' }}>
+    <section style={{ marginTop: 12, border: '1px solid var(--color-slate-700)', borderRadius: 12, padding: 12, background: 'var(--color-slate-950)' }} aria-label="Recovery intelligence">
+      <strong style={{ color: 'var(--color-slate-50)' }}>{t('recovery')} {badge} {translateSharedValue(recovery.strength, t)}</strong>
+      <ul style={{ margin: '8px 0 0', paddingLeft: 18, color: 'var(--color-slate-300)' }}>
         {reasons.map((reason) => <li key={`recovery-${reason}`}>{reason}</li>)}
       </ul>
     </section>
@@ -3437,10 +3437,10 @@ function DoorToDoorPlanSection({ plan }: { plan?: EndToEndTripPlan }) {
     <details className="nonrevy-flight-board-row__details" onClick={(event) => event.stopPropagation()}>
       <summary>{t('doorToDoorPlan')}</summary>
       <div style={{ display: 'grid', gap: 8, marginTop: 10 }}>
-        <p style={{ color: '#cbd5e1', margin: 0 }}><strong style={{ color: '#f8fafc' }}>Departure airport access:</strong> {plan?.departureGroundPlan || fallback}</p>
-        <p style={{ color: '#cbd5e1', margin: 0 }}><strong style={{ color: '#f8fafc' }}>Arrival transport:</strong> {plan?.arrivalGroundPlan || fallback}</p>
-        <p style={{ color: '#cbd5e1', margin: 0 }}><strong style={{ color: '#f8fafc' }}>Hotel/final destination:</strong> {plan?.hotelPlan || fallback}</p>
-        <p style={{ color: '#cbd5e1', margin: 0 }}><strong style={{ color: '#f8fafc' }}>Backup if stranded:</strong> {plan?.backupPlan.summary || fallback}</p>
+        <p style={{ color: 'var(--color-slate-300)', margin: 0 }}><strong style={{ color: 'var(--color-slate-50)' }}>Departure airport access:</strong> {plan?.departureGroundPlan || fallback}</p>
+        <p style={{ color: 'var(--color-slate-300)', margin: 0 }}><strong style={{ color: 'var(--color-slate-50)' }}>Arrival transport:</strong> {plan?.arrivalGroundPlan || fallback}</p>
+        <p style={{ color: 'var(--color-slate-300)', margin: 0 }}><strong style={{ color: 'var(--color-slate-50)' }}>Hotel/final destination:</strong> {plan?.hotelPlan || fallback}</p>
+        <p style={{ color: 'var(--color-slate-300)', margin: 0 }}><strong style={{ color: 'var(--color-slate-50)' }}>Backup if stranded:</strong> {plan?.backupPlan.summary || fallback}</p>
       </div>
     </details>
   )
@@ -3452,8 +3452,8 @@ function CommercialAvailabilitySection({ signal }: { signal?: SellableSeatSignal
   if (!label) return null
 
   return (
-    <p style={{ color: '#cbd5e1', margin: '8px 0 0' }}>
-      <strong style={{ color: '#f8fafc' }}>{t('commercialAvailability')}:</strong> {translateSharedValue(label, t)}. Proxy signal only; not confirmed non-rev seat availability.
+    <p style={{ color: 'var(--color-slate-300)', margin: '8px 0 0' }}>
+      <strong style={{ color: 'var(--color-slate-50)' }}>{t('commercialAvailability')}:</strong> {translateSharedValue(label, t)}. Proxy signal only; not confirmed non-rev seat availability.
     </p>
   )
 }
@@ -3563,22 +3563,22 @@ function ItineraryIntelligenceSummary({ comparison, recommendation, reasons }: {
   return (
     <div className="nonrevy-flight-board-row__decision" aria-label="Itinerary intelligence summary">
       <strong>⭐ {cleanRecommendationTitle(recommendation, t)}</strong>
-      <div style={{ display: 'flex', gap: 6, marginTop: 8, color: '#cbd5e1', flexWrap: 'wrap' }} aria-label="Concise itinerary trust signals">
+      <div style={{ display: 'flex', gap: 6, marginTop: 8, color: 'var(--color-slate-300)', flexWrap: 'wrap' }} aria-label="Concise itinerary trust signals">
         {signalChips.map((signal) => (
-          <span key={`${comparison.id}-signal-${signal}`} style={{ border: '1px solid #334155', borderRadius: 999, padding: '3px 7px', background: '#0f172a' }}>{signal}</span>
+          <span key={`${comparison.id}-signal-${signal}`} style={{ border: '1px solid var(--color-slate-700)', borderRadius: 999, padding: '3px 7px', background: 'var(--color-slate-850)' }}>{signal}</span>
         ))}
       </div>
       <details className="nonrevy-premium-details" style={{ marginTop: 8 }}>
-        <summary style={{ color: '#67e8f9', cursor: 'pointer', fontWeight: 'bold' }}>Why / trust details</summary>
+        <summary style={{ color: 'var(--color-sky-300)', cursor: 'pointer', fontWeight: 'bold' }}>Why / trust details</summary>
         {whyReasons.length ? (
           <ul style={{ marginBottom: 8 }}>
             {whyReasons.map((reason) => <li key={`${comparison.id}-intel-why-${reason}`}>{reason}</li>)}
           </ul>
         ) : null}
-        <p style={{ color: '#cbd5e1', margin: '6px 0 0' }}>{recoveryCardSummary(comparison.recovery)}</p>
-        <p style={{ color: '#cbd5e1', margin: '6px 0 0' }}>{t('doorToDoorPlan')}: {doorToDoorCardSummary(comparison)}</p>
+        <p style={{ color: 'var(--color-slate-300)', margin: '6px 0 0' }}>{recoveryCardSummary(comparison.recovery)}</p>
+        <p style={{ color: 'var(--color-slate-300)', margin: '6px 0 0' }}>{t('doorToDoorPlan')}: {doorToDoorCardSummary(comparison)}</p>
       </details>
-      <small style={{ color: '#94a3b8' }}>Advisory only: no guaranteed seats, confirmed standby clearance, or exact nonrev loads.</small>
+      <small style={{ color: 'var(--color-slate-400)' }}>Advisory only: no guaranteed seats, confirmed standby clearance, or exact nonrev loads.</small>
     </div>
   )
 }
@@ -3587,8 +3587,8 @@ function CommunitySignalLine({ signal }: { signal?: FlightCommunitySummary }) {
   const { t } = useI18n()
   if (!signal || signal.activeReportCount === 0 || signal.status === 'unknown') return null
   return (
-    <p style={{ color: '#cbd5e1', margin: '8px 0 0' }}>
-      <strong style={{ color: '#f8fafc' }}>{t('communitySignal')}:</strong> {communitySignalLabel(signal.status)} · {signal.activeReportCount} recent report{signal.activeReportCount === 1 ? '' : 's'} · {signal.confidence} confidence. <small style={{ color: '#94a3b8' }}>Not confirmed standby clearance.</small>
+    <p style={{ color: 'var(--color-slate-300)', margin: '8px 0 0' }}>
+      <strong style={{ color: 'var(--color-slate-50)' }}>{t('communitySignal')}:</strong> {communitySignalLabel(signal.status)} · {signal.activeReportCount} recent report{signal.activeReportCount === 1 ? '' : 's'} · {signal.confidence} confidence. <small style={{ color: 'var(--color-slate-400)' }}>Not confirmed standby clearance.</small>
     </p>
   )
 }
@@ -3597,8 +3597,8 @@ function HistoricalReliabilityLine({ reliability }: { reliability?: HistoricalRe
   const { t } = useI18n()
   const label = reliability ? historicalReliabilityDisplayLabel(reliability.signal.level) : 'Unknown'
   return (
-    <p style={{ color: '#cbd5e1', margin: '8px 0 0' }}>
-      <strong style={{ color: '#f8fafc' }}>Historical Reliability:</strong> {translateSharedValue(label, t)}. <small style={{ color: '#94a3b8' }}>Advisory past-performance signal; future API placeholders include FlightAware historical, Cirium, AviationStack, FAA BTS, Eurocontrol, and internal analytics.</small>
+    <p style={{ color: 'var(--color-slate-300)', margin: '8px 0 0' }}>
+      <strong style={{ color: 'var(--color-slate-50)' }}>Historical Reliability:</strong> {translateSharedValue(label, t)}. <small style={{ color: 'var(--color-slate-400)' }}>Advisory past-performance signal; future API placeholders include FlightAware historical, Cirium, AviationStack, FAA BTS, Eurocontrol, and internal analytics.</small>
     </p>
   )
 }
@@ -3610,9 +3610,9 @@ function CompactRouteConfidenceLine({ confidence }: { confidence?: RouteConfiden
   const cautionFactor = confidence.cautionFactors[0]
 
   return (
-    <div style={{ color: '#cbd5e1', margin: '8px 0 0' }}>
+    <div style={{ color: 'var(--color-slate-300)', margin: '8px 0 0' }}>
       <p style={{ margin: 0 }}>
-        <strong style={{ color: '#f8fafc' }}>{t('routeConfidence')}:</strong> {translateSharedValue(routeConfidenceLabel(confidence.level), t)}
+        <strong style={{ color: 'var(--color-slate-50)' }}>{t('routeConfidence')}:</strong> {translateSharedValue(routeConfidenceLabel(confidence.level), t)}
       </p>
       {positiveFactors.length || cautionFactor ? (
         <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
@@ -3620,7 +3620,7 @@ function CompactRouteConfidenceLine({ confidence }: { confidence?: RouteConfiden
           {cautionFactor ? <li key={`${cautionFactor.source}-${cautionFactor.label}`}>{cautionFactor.label}</li> : null}
         </ul>
       ) : null}
-      <small style={{ color: '#94a3b8' }}>Not guaranteed standby clearance.</small>
+      <small style={{ color: 'var(--color-slate-400)' }}>Not guaranteed standby clearance.</small>
     </div>
   )
 }
@@ -3630,11 +3630,11 @@ function RecoveryStrategySection({ comparison, comparisons }: { comparison: Itin
   const color = recoveryBadgeColor(recovery.badge)
 
   return (
-    <details className="nonrevy-premium-details nonrevy-recovery-details" style={{ marginTop: 14, border: `1px solid ${color}`, borderRadius: 14, padding: 12, background: '#020617' }}>
+    <details className="nonrevy-premium-details nonrevy-recovery-details" style={{ marginTop: 14, border: `1px solid ${color}`, borderRadius: 14, padding: 12, background: 'var(--color-slate-950)' }}>
       <summary style={{ color, cursor: 'pointer', fontWeight: 'bold' }}>
         Recovery Strategy · {recovery.badge}
       </summary>
-      <p style={{ color: '#cbd5e1', margin: '10px 0 0' }}>
+      <p style={{ color: 'var(--color-slate-300)', margin: '10px 0 0' }}>
         {recovery.elevatedRisk
           ? 'This itinerary has elevated risk signals, so keep these recovery moves ready before you commit.'
           : 'Risk is currently manageable, but these are the available recovery moves from the current result set.'}
@@ -3642,33 +3642,33 @@ function RecoveryStrategySection({ comparison, comparisons }: { comparison: Itin
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 150px), 1fr))', gap: 10, marginTop: 12 }}>
         {[
           ['Recovery Score', `${recovery.score}/100`, color],
-          ['Alternative departures', recovery.alternativeDepartures, '#38bdf8'],
-          ['Alternative gateways', recovery.alternativeGateways, '#c084fc'],
-          ['Same-day recovery', recovery.sameDayRecoveryPossible ? 'Yes' : 'No', recovery.sameDayRecoveryPossible ? '#22c55e' : '#f87171']
+          ['Alternative departures', recovery.alternativeDepartures, 'var(--color-sky-400)'],
+          ['Alternative gateways', recovery.alternativeGateways, 'var(--color-purple-400)'],
+          ['Same-day recovery', recovery.sameDayRecoveryPossible ? 'Yes' : 'No', recovery.sameDayRecoveryPossible ? 'var(--color-green-500)' : 'var(--color-red-400)']
         ].map(([label, value, metricColor]) => (
-          <div key={`${comparison.id}-recovery-${label}`} style={{ border: '1px solid #334155', borderRadius: 12, padding: 10, background: '#0f172a' }}>
-            <small style={{ color: '#94a3b8' }}>{label}</small>
+          <div key={`${comparison.id}-recovery-${label}`} style={{ border: '1px solid var(--color-slate-700)', borderRadius: 12, padding: 10, background: 'var(--color-slate-850)' }}>
+            <small style={{ color: 'var(--color-slate-400)' }}>{label}</small>
             <p style={{ margin: '4px 0 0', color: String(metricColor), fontWeight: 'bold' }}>{value}</p>
           </div>
         ))}
       </div>
       <div style={{ display: 'grid', gap: 10, marginTop: 12 }}>
         {comparison.suggestedRecoveryPaths?.map((path) => (
-          <article key={`${comparison.id}-suggested-${path.id}`} style={{ border: '1px solid #334155', borderRadius: 12, padding: 12, background: '#0f172a' }}>
-            <strong style={{ color: '#f8fafc' }}>Backup option · {path.label}</strong>
-            {path.route ? <p style={{ color: '#38bdf8', margin: '6px 0', fontWeight: 'bold' }}>{path.route}</p> : null}
-            <p style={{ color: '#cbd5e1', margin: 0 }}>{path.note}</p>
+          <article key={`${comparison.id}-suggested-${path.id}`} style={{ border: '1px solid var(--color-slate-700)', borderRadius: 12, padding: 12, background: 'var(--color-slate-850)' }}>
+            <strong style={{ color: 'var(--color-slate-50)' }}>Backup option · {path.label}</strong>
+            {path.route ? <p style={{ color: 'var(--color-sky-400)', margin: '6px 0', fontWeight: 'bold' }}>{path.route}</p> : null}
+            <p style={{ color: 'var(--color-slate-300)', margin: 0 }}>{path.note}</p>
           </article>
         ))}
         {recovery.plans.map((plan) => (
-          <article key={`${comparison.id}-${plan.label}`} style={{ border: '1px solid #334155', borderRadius: 12, padding: 12, background: '#0f172a' }}>
-            <strong style={{ color: '#f8fafc' }}>{plan.label}</strong>
-            <p style={{ color: '#38bdf8', margin: '6px 0', fontWeight: 'bold' }}>{plan.route}</p>
-            <p style={{ color: '#cbd5e1', margin: 0 }}>{plan.summary}</p>
+          <article key={`${comparison.id}-${plan.label}`} style={{ border: '1px solid var(--color-slate-700)', borderRadius: 12, padding: 12, background: 'var(--color-slate-850)' }}>
+            <strong style={{ color: 'var(--color-slate-50)' }}>{plan.label}</strong>
+            <p style={{ color: 'var(--color-sky-400)', margin: '6px 0', fontWeight: 'bold' }}>{plan.route}</p>
+            <p style={{ color: 'var(--color-slate-300)', margin: 0 }}>{plan.summary}</p>
           </article>
         ))}
       </div>
-      <p style={{ color: '#94a3b8', margin: '10px 0 0' }}>
+      <p style={{ color: 'var(--color-slate-400)', margin: '10px 0 0' }}>
         Recovery uses only the current itinerary recommendations, airport backup-routing signals, and existing route scoring. It does not create or imply seat availability.
       </p>
     </details>
@@ -3817,20 +3817,20 @@ function CopilotPanel({
   )
 
   return (
-    <section className="nonrevy-copilot-panel" style={{ border: '1px solid #7dd3fc', borderRadius: 24, padding: 'clamp(16px, 4vw, 22px)', background: 'linear-gradient(135deg, rgba(8, 47, 73, 0.72), rgba(49, 46, 129, 0.46), rgba(15, 23, 42, 0.96))', marginTop: 24 }}>
+    <section className="nonrevy-copilot-panel" style={{ border: '1px solid var(--color-cyan-300)', borderRadius: 24, padding: 'clamp(16px, 4vw, 22px)', background: 'linear-gradient(135deg, rgba(8, 47, 73, 0.72), rgba(49, 46, 129, 0.46), rgba(15, 23, 42, 0.96))', marginTop: 24 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', alignItems: 'flex-start' }}>
         <div>
-          <p style={{ color: '#67e8f9', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1, marginTop: 0 }}>NONREVY Copilot</p>
+          <p style={{ color: 'var(--color-sky-300)', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1, marginTop: 0 }}>NONREVY Copilot</p>
           <h2 style={{ margin: '0 0 8px' }}>Tell Copilot what matters most.</h2>
-          <p style={{ color: '#cbd5e1', margin: 0 }}>Copilot turns plain English into planner searches, then summarizes route intelligence, recovery, profile, and watchlist signals.</p>
+          <p style={{ color: 'var(--color-slate-300)', margin: 0 }}>Copilot turns plain English into planner searches, then summarizes route intelligence, recovery, profile, and watchlist signals.</p>
         </div>
-        <span style={{ border: '1px solid #22c55e', borderRadius: 999, color: '#bbf7d0', padding: '8px 12px', fontWeight: 'bold' }}>
+        <span style={{ border: '1px solid var(--color-green-500)', borderRadius: 999, color: 'var(--color-green-200)', padding: '8px 12px', fontWeight: 'bold' }}>
           Existing planner engine
         </span>
       </div>
 
       <form onSubmit={onSubmit} style={{ marginTop: 16 }}>
-        <label htmlFor="nonrevy-copilot-prompt" style={{ display: 'block', color: '#f8fafc', fontWeight: 'bold', marginBottom: 8 }}>
+        <label htmlFor="nonrevy-copilot-prompt" style={{ display: 'block', color: 'var(--color-slate-50)', fontWeight: 'bold', marginBottom: 8 }}>
           Ask Copilot
         </label>
         <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 10 }}>
@@ -3839,9 +3839,9 @@ function CopilotPanel({
             value={prompt}
             onChange={(event) => setPrompt(event.target.value)}
             placeholder="Get me to Tokyo tomorrow."
-            style={{ boxSizing: 'border-box', width: '100%', padding: 14, borderRadius: 16, border: '1px solid #475569', background: '#020617', color: 'white' }}
+            style={{ boxSizing: 'border-box', width: '100%', padding: 14, borderRadius: 16, border: '1px solid var(--color-slate-600)', background: 'var(--color-slate-950)', color: 'white' }}
           />
-          <button type="submit" disabled={loading} style={{ padding: '12px 18px', borderRadius: 14, border: 'none', background: loading ? '#475569' : '#67e8f9', color: '#020617', fontWeight: 'bold', cursor: loading ? 'not-allowed' : 'pointer' }}>
+          <button type="submit" disabled={loading} style={{ padding: '12px 18px', borderRadius: 14, border: 'none', background: loading ? 'var(--color-slate-600)' : 'var(--color-sky-300)', color: 'var(--color-slate-950)', fontWeight: 'bold', cursor: loading ? 'not-allowed' : 'pointer' }}>
             {loading ? 'Searching…' : 'Ask'}
           </button>
         </div>
@@ -3849,7 +3849,7 @@ function CopilotPanel({
 
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
         {copilotExamples.map((example) => (
-          <button key={example} type="button" onClick={() => setPrompt(example)} style={{ padding: '8px 12px', borderRadius: 999, border: '1px solid #334155', background: '#020617', color: '#cbd5e1', fontWeight: 'bold' }}>
+          <button key={example} type="button" onClick={() => setPrompt(example)} style={{ padding: '8px 12px', borderRadius: 999, border: '1px solid var(--color-slate-700)', background: 'var(--color-slate-950)', color: 'var(--color-slate-300)', fontWeight: 'bold' }}>
             {example}
           </button>
         ))}
@@ -3857,25 +3857,25 @@ function CopilotPanel({
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))', gap: 12, marginTop: 16 }}>
         {[
-          ['Recommended action', response.recommendedAction, '#67e8f9'],
-          ['Best route', response.bestRoute, '#22c55e'],
-          ['Backup route', response.backupRoute, '#facc15'],
-          ['Recovery strategy', response.recoveryStrategy, '#c084fc']
+          ['Recommended action', response.recommendedAction, 'var(--color-sky-300)'],
+          ['Best route', response.bestRoute, 'var(--color-green-500)'],
+          ['Backup route', response.backupRoute, 'var(--color-yellow-400)'],
+          ['Recovery strategy', response.recoveryStrategy, 'var(--color-purple-400)']
         ].map(([label, value, color]) => (
-          <article key={label} style={{ border: '1px solid #334155', borderRadius: 16, padding: 14, background: '#020617' }}>
-            <small style={{ color: '#94a3b8' }}>{label}</small>
+          <article key={label} style={{ border: '1px solid var(--color-slate-700)', borderRadius: 16, padding: 14, background: 'var(--color-slate-950)' }}>
+            <small style={{ color: 'var(--color-slate-400)' }}>{label}</small>
             <p style={{ margin: '6px 0 0', color: String(color), fontWeight: 'bold' }}>{value}</p>
           </article>
         ))}
       </div>
 
-      <section style={{ border: '1px solid #334155', borderRadius: 16, padding: 14, background: '#020617', marginTop: 14 }}>
-        <strong style={{ color: '#f8fafc' }}>Why this recommendation</strong>
-        <ul style={{ color: '#cbd5e1', paddingLeft: 20, marginBottom: 0 }}>
+      <section style={{ border: '1px solid var(--color-slate-700)', borderRadius: 16, padding: 14, background: 'var(--color-slate-950)', marginTop: 14 }}>
+        <strong style={{ color: 'var(--color-slate-50)' }}>Why this recommendation</strong>
+        <ul style={{ color: 'var(--color-slate-300)', paddingLeft: 20, marginBottom: 0 }}>
           {response.why.map((reason) => <li key={reason}>{reason}</li>)}
         </ul>
       </section>
-      {status ? <p style={{ color: '#67e8f9', fontWeight: 'bold', marginBottom: 0 }}>{status}</p> : null}
+      {status ? <p style={{ color: 'var(--color-sky-300)', fontWeight: 'bold', marginBottom: 0 }}>{status}</p> : null}
     </section>
   )
 }
@@ -4201,7 +4201,7 @@ function searchTrustReceiptTone(dataMode: string, debug: ItineraryDebugMetadata 
   if (debug?.trueLiveDataAvailable || normalizedMode.includes('live provider')) {
     return {
       label: 'Live data checked',
-      color: '#22c55e',
+      color: 'var(--color-green-500)',
       border: 'rgba(34, 197, 94, 0.42)',
       background: 'rgba(20, 83, 45, 0.20)',
       message: 'Rankings are using current provider data where available. Still verify final loads before leaving for the airport.'
@@ -4210,7 +4210,7 @@ function searchTrustReceiptTone(dataMode: string, debug: ItineraryDebugMetadata 
   if (normalizedMode.includes('stored supabase')) {
     return {
       label: 'Stored schedule data',
-      color: '#38bdf8',
+      color: 'var(--color-sky-400)',
       border: 'rgba(56, 189, 248, 0.40)',
       background: 'rgba(8, 47, 73, 0.24)',
       message: 'Rankings use stored schedule rows and local signals. Treat load confidence as planning guidance until a fresh load is confirmed.'
@@ -4219,7 +4219,7 @@ function searchTrustReceiptTone(dataMode: string, debug: ItineraryDebugMetadata 
   if (normalizedMode.includes('no current')) {
     return {
       label: 'No live rows shown',
-      color: '#facc15',
+      color: 'var(--color-yellow-400)',
       border: 'rgba(250, 204, 21, 0.42)',
       background: 'rgba(113, 63, 18, 0.24)',
       message: 'No current live itinerary data is confirmed for this search. Use alternate dates, broader carrier scope, or request a load.'
@@ -4228,7 +4228,7 @@ function searchTrustReceiptTone(dataMode: string, debug: ItineraryDebugMetadata 
   if (normalizedMode.includes('demo') || normalizedMode.includes('test') || normalizedMode.includes('nearest')) {
     return {
       label: 'Testing data',
-      color: '#f472b6',
+      color: 'var(--color-pink-400)',
       border: 'rgba(244, 114, 182, 0.42)',
       background: 'rgba(131, 24, 67, 0.22)',
       message: 'These rows may include testing or nearest-date data. Useful for beta QA, not airport-day decisions.'
@@ -4236,7 +4236,7 @@ function searchTrustReceiptTone(dataMode: string, debug: ItineraryDebugMetadata 
   }
   return {
     label: 'Planning guidance',
-    color: '#94a3b8',
+    color: 'var(--color-slate-400)',
     border: 'rgba(148, 163, 184, 0.30)',
     background: 'rgba(15, 23, 42, 0.72)',
     message: 'Use these rankings as planning guidance and verify critical load details before travel.'
@@ -4480,8 +4480,8 @@ function renderFlightBoardRow(comparison: ItineraryComparison, showPlanB = false
               <p><strong>Top positives:</strong> {comparison.nextGenSuccess.topPositiveFactors.map((factor) => factor.detail).join(' · ')}</p>
               <p><strong>Top risk:</strong> {comparison.nextGenSuccess.topRiskFactor.detail}</p>
               <p><strong>Load:</strong> {rowLoadIntelligenceLabel(comparison)}</p>
-              <details className="nonrevy-premium-details" style={{ border: '1px solid #334155', borderRadius: 12, padding: 10, background: '#020617', marginTop: 10 }}>
-                <summary style={{ color: '#38bdf8', cursor: 'pointer', fontWeight: 'bold' }}>Personal Success Predictor</summary>
+              <details className="nonrevy-premium-details" style={{ border: '1px solid var(--color-slate-700)', borderRadius: 12, padding: 10, background: 'var(--color-slate-950)', marginTop: 10 }}>
+                <summary style={{ color: 'var(--color-sky-400)', cursor: 'pointer', fontWeight: 'bold' }}>Personal Success Predictor</summary>
                 <p><strong>Estimated Success:</strong> {comparison.personalSuccessPrediction.probability}% · <strong>Confidence:</strong> {comparison.personalSuccessPrediction.confidence}</p>
                 <strong>Why:</strong>
                 <ul>
@@ -4547,80 +4547,80 @@ function renderFlightBoardRow(comparison: ItineraryComparison, showPlanB = false
       </div>
 
       {moreRouteItineraries.length ? (
-        <details className="nonrevy-more-routes" style={{ marginTop: 8, border: '1px solid #334155', borderRadius: 10, padding: 8, background: '#020617' }}>
-          <summary style={{ color: '#67e8f9', cursor: 'pointer', fontWeight: 'bold' }}>{displayMoreTitle} ▼</summary>
-          <p style={{ color: '#94a3b8', margin: '8px 0' }}>Routes 6+ stay sorted by earliest available arrival time. Route frameworks without live times are labeled “Live time unavailable.”</p>
+        <details className="nonrevy-more-routes" style={{ marginTop: 8, border: '1px solid var(--color-slate-700)', borderRadius: 10, padding: 8, background: 'var(--color-slate-950)' }}>
+          <summary style={{ color: 'var(--color-sky-300)', cursor: 'pointer', fontWeight: 'bold' }}>{displayMoreTitle} ▼</summary>
+          <p style={{ color: 'var(--color-slate-400)', margin: '8px 0' }}>Routes 6+ stay sorted by earliest available arrival time. Route frameworks without live times are labeled “Live time unavailable.”</p>
           <div className="nonrevy-flight-board__list" aria-label="More route options">
             {moreRouteItineraries.map((comparison) => renderFlightBoardRow(comparison))}
           </div>
         </details>
       ) : null}
 
-      <details className="nonrevy-premium-details" style={{ marginTop: 8, border: '1px solid #334155', borderRadius: 10, padding: 8, background: '#020617' }}>
-        <summary style={{ color: '#c084fc', cursor: 'pointer', fontWeight: 'bold' }}>Advanced sections</summary>
+      <details className="nonrevy-premium-details" style={{ marginTop: 8, border: '1px solid var(--color-slate-700)', borderRadius: 10, padding: 8, background: 'var(--color-slate-950)' }}>
+        <summary style={{ color: 'var(--color-purple-400)', cursor: 'pointer', fontWeight: 'bold' }}>Advanced sections</summary>
         <details className="nonrevy-premium-details" style={{ marginTop: 8 }}>
-          <summary style={{ color: '#67e8f9', cursor: 'pointer', fontWeight: 'bold' }}>Diagnostics</summary>
+          <summary style={{ color: 'var(--color-sky-300)', cursor: 'pointer', fontWeight: 'bold' }}>Diagnostics</summary>
           <SearchTrustReceipt {...trustReceipt} />
         </details>
         <details className="nonrevy-premium-details" style={{ marginTop: 8 }}>
-          <summary style={{ color: '#67e8f9', cursor: 'pointer', fontWeight: 'bold' }}>Provider details</summary>
-          <p style={{ color: '#cbd5e1' }}>Source: {trustReceipt.source}</p>
-          <p style={{ color: '#cbd5e1' }}>Status: {trustReceipt.status}</p>
+          <summary style={{ color: 'var(--color-sky-300)', cursor: 'pointer', fontWeight: 'bold' }}>Provider details</summary>
+          <p style={{ color: 'var(--color-slate-300)' }}>Source: {trustReceipt.source}</p>
+          <p style={{ color: 'var(--color-slate-300)' }}>Status: {trustReceipt.status}</p>
         </details>
         <details className="nonrevy-premium-details" style={{ marginTop: 8 }}>
-          <summary className="nonrevy-secondary-action" style={{ color: '#67e8f9', cursor: 'pointer', fontWeight: 'bold' }}>Route intelligence</summary>
+          <summary className="nonrevy-secondary-action" style={{ color: 'var(--color-sky-300)', cursor: 'pointer', fontWeight: 'bold' }}>Route intelligence</summary>
           <RouteIntelligenceSection insights={routeInsights} />
         </details>
         <details className="nonrevy-premium-details" style={{ marginTop: 8 }}>
-          <summary className="nonrevy-secondary-action" style={{ color: '#67e8f9', cursor: 'pointer', fontWeight: 'bold' }}>Recovery guidance</summary>
-          <p style={{ color: '#cbd5e1' }}>Recovery guidance is separated from {t('topRoutes')} so positioning and recovery moves are not presented as ranked itineraries.</p>
+          <summary className="nonrevy-secondary-action" style={{ color: 'var(--color-sky-300)', cursor: 'pointer', fontWeight: 'bold' }}>Recovery guidance</summary>
+          <p style={{ color: 'var(--color-slate-300)' }}>Recovery guidance is separated from {t('topRoutes')} so positioning and recovery moves are not presented as ranked itineraries.</p>
           {topRouteItineraries.slice(0, 3).map((comparison) => (
             <section key={`${comparison.id}-recovery-guidance`} style={{ marginTop: 8 }}>
               <strong>{comparison.route}</strong>
-              <p style={{ color: '#cbd5e1' }}>{keyRiskNote(comparison)}</p>
+              <p style={{ color: 'var(--color-slate-300)' }}>{keyRiskNote(comparison)}</p>
               <RecoveryStrategySection comparison={comparison} comparisons={compactItineraries} />
             </section>
           ))}
         </details>
         <details className="nonrevy-premium-details" style={{ marginTop: 8 }}>
-          <summary className="nonrevy-secondary-action" style={{ color: '#67e8f9', cursor: 'pointer', fontWeight: 'bold' }}>Nearby airports</summary>
+          <summary className="nonrevy-secondary-action" style={{ color: 'var(--color-sky-300)', cursor: 'pointer', fontWeight: 'bold' }}>Nearby airports</summary>
           <AirportIntelligenceSection comparisons={compactItineraries} />
         </details>
         <details className="nonrevy-premium-details" style={{ marginTop: 8 }}>
-          <summary className="nonrevy-secondary-action" style={{ color: '#67e8f9', cursor: 'pointer', fontWeight: 'bold' }}>Historical trends</summary>
+          <summary className="nonrevy-secondary-action" style={{ color: 'var(--color-sky-300)', cursor: 'pointer', fontWeight: 'bold' }}>Historical trends</summary>
           {trustReceipt.debug?.historicalIntelligence ? (
-            <p style={{ color: '#cbd5e1' }}>Historical success {trustReceipt.debug.historicalIntelligence.historicalSuccess.score}/100 · confidence {trustReceipt.debug.historicalIntelligence.historicalSuccess.confidence}/100 · sample size {trustReceipt.debug.historicalIntelligence.historicalSuccess.sampleSize}.</p>
+            <p style={{ color: 'var(--color-slate-300)' }}>Historical success {trustReceipt.debug.historicalIntelligence.historicalSuccess.score}/100 · confidence {trustReceipt.debug.historicalIntelligence.historicalSuccess.confidence}/100 · sample size {trustReceipt.debug.historicalIntelligence.historicalSuccess.sampleSize}.</p>
           ) : (
-            <p style={{ color: '#cbd5e1' }}>Historical data is not available for this search.</p>
+            <p style={{ color: 'var(--color-slate-300)' }}>Historical data is not available for this search.</p>
           )}
         </details>
         <details className="nonrevy-premium-details" style={{ marginTop: 8 }}>
-          <summary style={{ color: '#67e8f9', cursor: 'pointer', fontWeight: 'bold' }}>Copilot settings</summary>
-          <p style={{ color: '#cbd5e1' }}>Copilot and operator controls stay hidden unless operator tools are enabled.</p>
+          <summary style={{ color: 'var(--color-sky-300)', cursor: 'pointer', fontWeight: 'bold' }}>Copilot settings</summary>
+          <p style={{ color: 'var(--color-slate-300)' }}>Copilot and operator controls stay hidden unless operator tools are enabled.</p>
         </details>
         <details className="nonrevy-premium-details" style={{ marginTop: 8 }}>
-          <summary style={{ color: '#67e8f9', cursor: 'pointer', fontWeight: 'bold' }}>Confidence factors</summary>
+          <summary style={{ color: 'var(--color-sky-300)', cursor: 'pointer', fontWeight: 'bold' }}>Confidence factors</summary>
           <RouteConfidenceSection comparisons={compactItineraries} />
           <WeatherIntelligenceSection comparisons={compactItineraries} />
           <DisruptionIntelligenceSection comparisons={compactItineraries} />
         </details>
       </details>
 
-      <details className="nonrevy-premium-details" style={{ border: '1px solid #334155', borderRadius: 10, padding: 8, background: '#020617', marginTop: 8 }}>
-        <summary style={{ color: '#c084fc', cursor: 'pointer', fontWeight: 'bold' }}>Saved itinerary comparison</summary>
+      <details className="nonrevy-premium-details" style={{ border: '1px solid var(--color-slate-700)', borderRadius: 10, padding: 8, background: 'var(--color-slate-950)', marginTop: 8 }}>
+        <summary style={{ color: 'var(--color-purple-400)', cursor: 'pointer', fontWeight: 'bold' }}>Saved itinerary comparison</summary>
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'center', marginTop: 10 }}>
-          <p style={{ color: '#94a3b8', margin: 0 }}>Saved locally in this browser for side-by-side planning. Exact displayed route paths and source labels are preserved.</p>
-          {savedComparisons.length > 0 && <button type="button" onClick={clearComparisons} style={{ padding: '7px 9px', borderRadius: 9, border: '1px solid #475569', background: '#0f172a', color: '#f8fafc', fontWeight: 'bold' }}>Clear saved comparisons</button>}
+          <p style={{ color: 'var(--color-slate-400)', margin: 0 }}>Saved locally in this browser for side-by-side planning. Exact displayed route paths and source labels are preserved.</p>
+          {savedComparisons.length > 0 && <button type="button" onClick={clearComparisons} style={{ padding: '7px 9px', borderRadius: 9, border: '1px solid var(--color-slate-600)', background: 'var(--color-slate-850)', color: 'var(--color-slate-50)', fontWeight: 'bold' }}>Clear saved comparisons</button>}
         </div>
         {savedComparisons.length === 0 ? (
-          <p style={{ color: '#cbd5e1' }}>No saved itinerary options yet. Use Save on any row.</p>
+          <p style={{ color: 'var(--color-slate-300)' }}>No saved itinerary options yet. Use Save on any row.</p>
         ) : (
           <div style={{ display: 'grid', gap: 8, marginTop: 10 }}>
             {savedComparisons.map((item) => (
-              <article key={item.id} style={{ border: '1px solid #334155', borderRadius: 10, padding: 8, background: '#0f172a' }}>
+              <article key={item.id} style={{ border: '1px solid var(--color-slate-700)', borderRadius: 10, padding: 8, background: 'var(--color-slate-850)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center' }}>
-                  <p style={{ color: '#cbd5e1', margin: 0 }}><strong>Exact path:</strong> {item.route} · {item.carrier} · {item.connections + 1} leg{item.connections === 0 ? '' : 's'} · Saved score {item.successProbability}% · {item.totalTravelTime}<br /><small style={{ color: '#94a3b8' }}>Source: {item.sourceLabel}</small></p>
-                  <button type="button" onClick={() => removeComparison(item.id)} style={{ padding: '6px 8px', borderRadius: 9, border: '1px solid #f87171', background: '#1f2937', color: '#fecaca', fontWeight: 'bold' }}>Remove</button>
+                  <p style={{ color: 'var(--color-slate-300)', margin: 0 }}><strong>Exact path:</strong> {item.route} · {item.carrier} · {item.connections + 1} leg{item.connections === 0 ? '' : 's'} · Saved score {item.successProbability}% · {item.totalTravelTime}<br /><small style={{ color: 'var(--color-slate-400)' }}>Source: {item.sourceLabel}</small></p>
+                  <button type="button" onClick={() => removeComparison(item.id)} style={{ padding: '6px 8px', borderRadius: 9, border: '1px solid var(--color-red-400)', background: 'var(--color-slate-800)', color: 'var(--color-red-200)', fontWeight: 'bold' }}>Remove</button>
                 </div>
               </article>
             ))}
@@ -5100,7 +5100,7 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
 
   if (compactResultsMode) {
     return (
-      <main className="app-shell nonrevy-plan-shell nonrevy-results-page" style={{ minHeight: '100vh', background: '#020617', color: 'white', padding: 'clamp(8px, 2.4vw, 14px)', fontFamily: 'Arial', overflowX: 'hidden' }}>
+      <main className="app-shell nonrevy-plan-shell nonrevy-results-page" style={{ minHeight: '100vh', background: 'var(--color-slate-950)', color: 'white', padding: 'clamp(8px, 2.4vw, 14px)', fontFamily: 'Arial', overflowX: 'hidden' }}>
         <section className="nonrevy-results-page__shell">
           <form onSubmit={submitPlanRequest} className="nonrevy-results-search" aria-label="Edit itinerary search">
             <a href="/" className="nonrevy-results-search__brand" aria-label="NONREVY home">NONREVY</a>
@@ -5151,10 +5151,10 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
                 travelerProfile={travelerProfile}
                 onChoose={runUniversalSearchChoice}
               />
-              <details style={{ border: '1px solid #334155', borderRadius: 14, padding: 12, background: '#020617', marginTop: 12 }}>
-                <summary style={{ color: '#67e8f9', cursor: 'pointer', fontWeight: 'bold' }}>Developer Diagnostics</summary>
-                <p style={{ color: '#94a3b8' }}>Source: {itinerarySource} · Mode: {itineraryDataMode} · Max legs: 2 default · Status: {itineraryStatus}</p>
-                {itineraryDebug ? <pre style={{ whiteSpace: 'pre-wrap', color: '#cbd5e1', fontSize: 12 }}>{JSON.stringify(itineraryDebug, null, 2)}</pre> : null}
+              <details style={{ border: '1px solid var(--color-slate-700)', borderRadius: 14, padding: 12, background: 'var(--color-slate-950)', marginTop: 12 }}>
+                <summary style={{ color: 'var(--color-sky-300)', cursor: 'pointer', fontWeight: 'bold' }}>Developer Diagnostics</summary>
+                <p style={{ color: 'var(--color-slate-400)' }}>Source: {itinerarySource} · Mode: {itineraryDataMode} · Max legs: 2 default · Status: {itineraryStatus}</p>
+                {itineraryDebug ? <pre style={{ whiteSpace: 'pre-wrap', color: 'var(--color-slate-300)', fontSize: 12 }}>{JSON.stringify(itineraryDebug, null, 2)}</pre> : null}
               </details>
             </details>
           ) : null}
@@ -5164,37 +5164,37 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
   }
 
   return (
-    <main className="app-shell nonrevy-plan-shell" style={{ minHeight: '100vh', background: '#020617', color: 'white', padding: 'clamp(16px, 4vw, 32px)', fontFamily: 'Arial', overflowX: 'hidden' }}>
+    <main className="app-shell nonrevy-plan-shell" style={{ minHeight: '100vh', background: 'var(--color-slate-950)', color: 'white', padding: 'clamp(16px, 4vw, 32px)', fontFamily: 'Arial', overflowX: 'hidden' }}>
       <nav className="top-nav" style={{ marginBottom: 24 }}>
-        <a href="/" style={{ marginRight: 16, color: '#38bdf8' }}>Home</a>
-        <a href="/results" style={{ marginRight: 16, color: '#67e8f9' }}>Search</a>
-        <a href="/plan" style={{ marginRight: 16, color: '#fb7185' }}>Plan</a>
+        <a href="/" style={{ marginRight: 16, color: 'var(--color-sky-400)' }}>Home</a>
+        <a href="/results" style={{ marginRight: 16, color: 'var(--color-sky-300)' }}>Search</a>
+        <a href="/plan" style={{ marginRight: 16, color: 'var(--color-rose-400)' }}>Plan</a>
       </nav>
 
       <section style={{ maxWidth: 1120, margin: '0 auto' }}>
-        <p style={{ color: '#fb7185', fontWeight: 'bold', letterSpacing: 1, textTransform: 'uppercase' }}>
+        <p style={{ color: 'var(--color-rose-400)', fontWeight: 'bold', letterSpacing: 1, textTransform: 'uppercase' }}>
           Search and itinerary planner
         </p>
         <h1 style={{ fontSize: 'clamp(34px, 9vw, 44px)', lineHeight: 1.05, margin: '8px 0 12px' }}>
           Plan your nonrevy route.
         </h1>
-        <p style={{ color: '#94a3b8', maxWidth: 720, fontSize: 18 }}>
+        <p style={{ color: 'var(--color-slate-400)', maxWidth: 720, fontSize: 18 }}>
           Compact feasible itinerary rows appear first. Settings, scoring internals, recovery, route intelligence, and diagnostics stay below or behind details.
         </p>
-        <details style={{ border: '1px solid #334155', borderRadius: 18, padding: 16, background: '#0f172a', color: '#cbd5e1' }}>
-          <summary style={{ color: '#38bdf8', cursor: 'pointer', fontWeight: 'bold' }}>Passenger flight coverage details</summary>
+        <details style={{ border: '1px solid var(--color-slate-700)', borderRadius: 18, padding: 16, background: 'var(--color-slate-850)', color: 'var(--color-slate-300)' }}>
+          <summary style={{ color: 'var(--color-sky-400)', cursor: 'pointer', fontWeight: 'bold' }}>Passenger flight coverage details</summary>
           <ul style={{ marginBottom: 0, marginTop: 10 }}>
             {passengerFlightCoverageNotes.map((note) => <li key={note}>{note}</li>)}
           </ul>
         </details>
 
 
-        <section className="nonrevy-planner-card" style={{ border: '1px solid #c084fc', borderRadius: 24, padding: 'clamp(16px, 4vw, 22px)', background: 'linear-gradient(135deg, rgba(49, 46, 129, 0.66), rgba(15, 23, 42, 0.96))', marginTop: 24, overflow: 'hidden' }}>
-          <p style={{ color: '#c084fc', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1, marginTop: 0 }}>Universal AI search</p>
+        <section className="nonrevy-planner-card" style={{ border: '1px solid var(--color-purple-400)', borderRadius: 24, padding: 'clamp(16px, 4vw, 22px)', background: 'linear-gradient(135deg, rgba(49, 46, 129, 0.66), rgba(15, 23, 42, 0.96))', marginTop: 24, overflow: 'hidden' }}>
+          <p style={{ color: 'var(--color-purple-400)', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1, marginTop: 0 }}>Universal AI search</p>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 320px), 1fr))', gap: 18, alignItems: 'start', width: '100%' }}>
             <form onSubmit={submitAiTripPlanner} style={{ minWidth: 0 }}>
               <h2 style={{ fontSize: 30, margin: '0 0 10px' }}>Search airports, routes, flights, cabins, or trip ideas.</h2>
-              <p style={{ color: '#cbd5e1' }}>
+              <p style={{ color: 'var(--color-slate-300)' }}>
                 Examples: “LAX to HND”, “UA39”, “San Luis Obispo”, “open flights out of SBP today”, “where can I get Polaris”.
               </p>
               <textarea
@@ -5202,7 +5202,7 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
                 onChange={(event) => setAiTripPrompt(event.target.value)}
                 rows={4}
                 placeholder="LAX to HND, UA39, Tokyo Haneda, Polaris, open flights out of SBP today..."
-                style={{ boxSizing: 'border-box', width: '100%', padding: 14, borderRadius: 16, border: '1px solid #475569', background: '#020617', color: 'white' }}
+                style={{ boxSizing: 'border-box', width: '100%', padding: 14, borderRadius: 16, border: '1px solid var(--color-slate-600)', background: 'var(--color-slate-950)', color: 'white' }}
               />
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 150px), 1fr))', gap: 10, marginTop: 12 }}>
                 {[
@@ -5211,36 +5211,36 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
                   ['Date range', aiTripPreview.dateRange],
                   ['Preferences', aiTripPreview.preferences.join(', ')]
                 ].map(([label, value]) => (
-                  <article key={label} style={{ border: '1px solid #334155', borderRadius: 12, padding: 10, background: '#020617' }}>
-                    <small style={{ color: '#94a3b8' }}>{label}</small>
-                    <p style={{ margin: '4px 0 0', color: '#f8fafc', fontWeight: 'bold' }}>{value}</p>
+                  <article key={label} style={{ border: '1px solid var(--color-slate-700)', borderRadius: 12, padding: 10, background: 'var(--color-slate-950)' }}>
+                    <small style={{ color: 'var(--color-slate-400)' }}>{label}</small>
+                    <p style={{ margin: '4px 0 0', color: 'var(--color-slate-50)', fontWeight: 'bold' }}>{value}</p>
                   </article>
                 ))}
               </div>
-              <button type="submit" style={{ marginTop: 14, padding: '14px 18px', borderRadius: 12, border: 'none', background: '#c084fc', color: '#020617', fontWeight: 'bold' }}>
+              <button type="submit" style={{ marginTop: 14, padding: '14px 18px', borderRadius: 12, border: 'none', background: 'var(--color-purple-400)', color: 'var(--color-slate-950)', fontWeight: 'bold' }}>
                 Search with AI
               </button>
-              <p style={{ color: '#d8b4fe', marginBottom: 0 }}>{aiPlannerStatus}</p>
+              <p style={{ color: 'var(--color-purple-300)', marginBottom: 0 }}>{aiPlannerStatus}</p>
             </form>
 
-            <aside style={{ border: '1px solid #334155', borderRadius: 18, padding: 18, background: '#020617', minWidth: 0, overflowWrap: 'anywhere' }}>
+            <aside style={{ border: '1px solid var(--color-slate-700)', borderRadius: 18, padding: 18, background: 'var(--color-slate-950)', minWidth: 0, overflowWrap: 'anywhere' }}>
               <details>
-                <summary style={{ color: '#22c55e', cursor: 'pointer', fontWeight: 'bold' }}>AI recommendation preview</summary>
-                <h3 style={{ color: '#f8fafc', margin: '8px 0' }}>{aiTripPlan.bestRoute}</h3>
-              <p style={{ color: '#38bdf8', fontWeight: 'bold' }}>Backup: {aiTripPlan.backupRoute}</p>
+                <summary style={{ color: 'var(--color-green-500)', cursor: 'pointer', fontWeight: 'bold' }}>AI recommendation preview</summary>
+                <h3 style={{ color: 'var(--color-slate-50)', margin: '8px 0' }}>{aiTripPlan.bestRoute}</h3>
+              <p style={{ color: 'var(--color-sky-400)', fontWeight: 'bold' }}>Backup: {aiTripPlan.backupRoute}</p>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 150px), 1fr))', gap: 10 }}>
-                <div style={{ border: '1px solid #334155', borderRadius: 12, padding: 10, background: '#0f172a' }}>
-                  <small style={{ color: '#94a3b8' }}>Estimated success</small>
-                  <p style={{ margin: '4px 0 0', color: '#22c55e', fontWeight: 'bold' }}>{aiTripPlan.estimatedSuccessProbability}%</p>
+                <div style={{ border: '1px solid var(--color-slate-700)', borderRadius: 12, padding: 10, background: 'var(--color-slate-850)' }}>
+                  <small style={{ color: 'var(--color-slate-400)' }}>Estimated success</small>
+                  <p style={{ margin: '4px 0 0', color: 'var(--color-green-500)', fontWeight: 'bold' }}>{aiTripPlan.estimatedSuccessProbability}%</p>
                 </div>
-                <div style={{ border: '1px solid #334155', borderRadius: 12, padding: 10, background: '#0f172a' }}>
-                  <small style={{ color: '#94a3b8' }}>Risk level</small>
+                <div style={{ border: '1px solid var(--color-slate-700)', borderRadius: 12, padding: 10, background: 'var(--color-slate-850)' }}>
+                  <small style={{ color: 'var(--color-slate-400)' }}>Risk level</small>
                   <p style={{ margin: '4px 0 0', color: riskColor(aiTripPlan.riskLevel), fontWeight: 'bold' }}>{aiTripPlan.riskLevel}</p>
                 </div>
               </div>
               <details style={{ marginTop: 12 }}>
-                <summary style={{ color: '#facc15', cursor: 'pointer', fontWeight: 'bold' }}>{t('whyThisRoute')}?</summary>
-                <ul style={{ color: '#cbd5e1', paddingLeft: 20, marginBottom: 0 }}>
+                <summary style={{ color: 'var(--color-yellow-400)', cursor: 'pointer', fontWeight: 'bold' }}>{t('whyThisRoute')}?</summary>
+                <ul style={{ color: 'var(--color-slate-300)', paddingLeft: 20, marginBottom: 0 }}>
                   {aiTripPlan.whyThisRoute.map((reason) => <li key={reason}>{reason}</li>)}
                 </ul>
               </details>
@@ -5252,7 +5252,7 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
         <section style={{ marginTop: 18 }}>
           <h2 style={{ fontSize: 26, marginBottom: 10 }}>Feasible itineraries</h2>
           {itineraryLoading ? (
-            <p style={{ color: '#facc15' }}>{itineraryStatus}</p>
+            <p style={{ color: 'var(--color-yellow-400)' }}>{itineraryStatus}</p>
           ) : null}
           {itineraryLoading ? <PlannerSkeletonLoaders /> : null}
           {!itineraryLoading ? <OriginCoverageNotice coverage={itineraryDebug?.originCoverage} /> : null}
@@ -5281,35 +5281,35 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
               onChoose={runUniversalSearchChoice}
             />
 
-            <details style={{ border: '1px solid #334155', borderRadius: 20, padding: 16, background: '#0f172a', marginTop: 18 }}>
-              <summary style={{ color: '#67e8f9', cursor: 'pointer', fontWeight: 'bold' }}>Operator search settings, carrier scope, and voice input</summary>
+            <details style={{ border: '1px solid var(--color-slate-700)', borderRadius: 20, padding: 16, background: 'var(--color-slate-850)', marginTop: 18 }}>
+              <summary style={{ color: 'var(--color-sky-300)', cursor: 'pointer', fontWeight: 'bold' }}>Operator search settings, carrier scope, and voice input</summary>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))', gap: 18, marginTop: 16 }}>
           <form
             onSubmit={submitPlanRequest}
-            style={{ border: '1px solid #334155', borderRadius: 22, padding: 22, background: '#0f172a' }}
+            style={{ border: '1px solid var(--color-slate-700)', borderRadius: 22, padding: 22, background: 'var(--color-slate-850)' }}
           >
             <h2 style={{ marginTop: 0 }}>Itinerary request</h2>
-            <label style={{ display: 'block', color: '#cbd5e1', marginBottom: 12 }}>
+            <label style={{ display: 'block', color: 'var(--color-slate-300)', marginBottom: 12 }}>
               Trip goal or flight search
               <textarea
                 value={tripGoal}
                 onChange={(event) => setTripGoal(event.target.value)}
                 placeholder="LAX-HNL, LAX to HNL, AA123, beach weekend from SFO..."
                 rows={4}
-                style={{ boxSizing: 'border-box', width: '100%', marginTop: 6, padding: 12, borderRadius: 12, border: '1px solid #475569', background: '#020617', color: 'white' }}
+                style={{ boxSizing: 'border-box', width: '100%', marginTop: 6, padding: 12, borderRadius: 12, border: '1px solid var(--color-slate-600)', background: 'var(--color-slate-950)', color: 'white' }}
               />
             </label>
-            <label style={{ display: 'block', color: '#cbd5e1', marginBottom: 12 }}>
+            <label style={{ display: 'block', color: 'var(--color-slate-300)', marginBottom: 12 }}>
               Home airport
               <input
                 value={homeAirport}
                 onChange={(event) => setHomeAirport(event.target.value.toUpperCase())}
                 placeholder="LAX"
-                style={{ boxSizing: 'border-box', width: '100%', marginTop: 6, padding: 12, borderRadius: 12, border: '1px solid #475569', background: '#020617', color: 'white' }}
+                style={{ boxSizing: 'border-box', width: '100%', marginTop: 6, padding: 12, borderRadius: 12, border: '1px solid var(--color-slate-600)', background: 'var(--color-slate-950)', color: 'white' }}
               />
             </label>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 180px), 1fr))', gap: 12 }}>
-              <label style={{ display: 'block', color: '#cbd5e1', marginBottom: 12 }}>
+              <label style={{ display: 'block', color: 'var(--color-slate-300)', marginBottom: 12 }}>
                 Travel date (optional single date)
                 <input
                   type="date"
@@ -5324,48 +5324,48 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
                   pattern="\d{4}-\d{2}-\d{2}"
                   aria-describedby="travel-date-helper"
                   aria-invalid={Boolean(travelDateError)}
-                  style={{ boxSizing: 'border-box', width: '100%', marginTop: 6, padding: 12, borderRadius: 12, border: `1px solid ${travelDateError ? '#f87171' : '#475569'}`, background: '#020617', color: 'white', colorScheme: 'dark' }}
+                  style={{ boxSizing: 'border-box', width: '100%', marginTop: 6, padding: 12, borderRadius: 12, border: `1px solid ${travelDateError ? 'var(--color-red-400)' : 'var(--color-slate-600)'}`, background: 'var(--color-slate-950)', color: 'white', colorScheme: 'dark' }}
                 />
-                <small id="travel-date-helper" style={{ display: 'block', color: travelDateError ? '#fecaca' : '#94a3b8', marginTop: 6, lineHeight: 1.4 }}>
+                <small id="travel-date-helper" style={{ display: 'block', color: travelDateError ? 'var(--color-red-200)' : 'var(--color-slate-400)', marginTop: 6, lineHeight: 1.4 }}>
                   {travelDateHelperText}
                 </small>
               </label>
-              <label style={{ display: 'block', color: '#cbd5e1', marginBottom: 12 }}>
+              <label style={{ display: 'block', color: 'var(--color-slate-300)', marginBottom: 12 }}>
                 Travelers
                 <input
                   value={travelerCount}
                   onChange={(event) => setTravelerCount(event.target.value)}
                   inputMode="numeric"
-                  style={{ boxSizing: 'border-box', width: '100%', marginTop: 6, padding: 12, borderRadius: 12, border: '1px solid #475569', background: '#020617', color: 'white' }}
+                  style={{ boxSizing: 'border-box', width: '100%', marginTop: 6, padding: 12, borderRadius: 12, border: '1px solid var(--color-slate-600)', background: 'var(--color-slate-950)', color: 'white' }}
                 />
               </label>
             </div>
-            <label style={{ display: 'block', color: '#cbd5e1', marginBottom: 12 }}>
+            <label style={{ display: 'block', color: 'var(--color-slate-300)', marginBottom: 12 }}>
               Max legs
               <select
                 value={maxLegs}
                 onChange={(event) => handleMaxLegsChange(event.target.value)}
-                style={{ boxSizing: 'border-box', width: '100%', marginTop: 6, padding: 12, borderRadius: 12, border: '1px solid #475569', background: '#020617', color: 'white' }}
+                style={{ boxSizing: 'border-box', width: '100%', marginTop: 6, padding: 12, borderRadius: 12, border: '1px solid var(--color-slate-600)', background: 'var(--color-slate-950)', color: 'white' }}
               >
                 <option value="1">Nonstop only</option>
                 <option value="2">Up to 2 legs</option>
                 <option value="3">Up to 3 legs scaffold</option>
               </select>
             </label>
-            <label style={{ display: 'block', color: '#cbd5e1', marginBottom: 12 }}>
+            <label style={{ display: 'block', color: 'var(--color-slate-300)', marginBottom: 12 }}>
               Carrier scope scaffold
               <select
                 value={carrier}
                 onChange={(event) => handleCarrierChange(event.target.value)}
-                style={{ boxSizing: 'border-box', width: '100%', marginTop: 6, padding: 12, borderRadius: 12, border: '1px solid #475569', background: '#020617', color: 'white' }}
+                style={{ boxSizing: 'border-box', width: '100%', marginTop: 6, padding: 12, borderRadius: 12, border: '1px solid var(--color-slate-600)', background: 'var(--color-slate-950)', color: 'white' }}
               >
                 {supportedCarrierOptions.map((option) => (
                   <option key={option.value} value={option.value}>{option.label}</option>
                 ))}
               </select>
             </label>
-            <div style={{ border: '1px solid #475569', borderRadius: 14, padding: 12, background: '#020617', marginBottom: 12 }}>
-              <label style={{ display: 'flex', gap: 10, alignItems: 'flex-start', color: '#fde68a', fontWeight: 'bold' }}>
+            <div style={{ border: '1px solid var(--color-slate-600)', borderRadius: 14, padding: 12, background: 'var(--color-slate-950)', marginBottom: 12 }}>
+              <label style={{ display: 'flex', gap: 10, alignItems: 'flex-start', color: 'var(--color-yellow-300)', fontWeight: 'bold' }}>
                 <input
                   type="checkbox"
                   checked={personalTestingMode}
@@ -5374,53 +5374,53 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
                 />
                 Personal Testing Mode: request nearest-date matches when server test data mode is enabled
               </label>
-              <label style={{ display: 'block', color: '#cbd5e1', marginTop: 10 }}>
+              <label style={{ display: 'block', color: 'var(--color-slate-300)', marginTop: 10 }}>
                 Nearest-date tolerance days
                 <input
                   value={nearestDateToleranceDays}
                   onChange={(event) => setNearestDateToleranceDays(event.target.value.replace(/[^0-9]/g, ''))}
                   inputMode="numeric"
-                  style={{ boxSizing: 'border-box', width: '100%', marginTop: 6, padding: 10, borderRadius: 10, border: '1px solid #475569', background: '#0f172a', color: 'white' }}
+                  style={{ boxSizing: 'border-box', width: '100%', marginTop: 6, padding: 10, borderRadius: 10, border: '1px solid var(--color-slate-600)', background: 'var(--color-slate-850)', color: 'white' }}
                 />
               </label>
-              <p style={{ color: '#94a3b8', margin: '8px 0 0' }}>
+              <p style={{ color: 'var(--color-slate-400)', margin: '8px 0 0' }}>
                 Server must have NONREVY_TEST_DATA_MODE=true for this to take effect. In production-safe mode, nearest-date and demo fallback availability cards are hidden.
               </p>
             </div>
-            <p style={{ color: '#94a3b8' }}>
+            <p style={{ color: 'var(--color-slate-400)' }}>
               Supported today: United, Delta, Alaska Group. Alaska Group includes Alaska and Hawaiian. Search uses FlightAware live provider API data first, exact-date stored Supabase flight data second, and Aviationstack fallback third. Demo fallback appears only when server test data mode is enabled.
             </p>
             <button
               type="submit"
               disabled={itineraryLoading}
-              style={{ width: '100%', padding: 14, borderRadius: 12, border: 'none', background: itineraryLoading ? '#475569' : '#38bdf8', color: '#020617', fontWeight: 'bold', cursor: itineraryLoading ? 'not-allowed' : 'pointer' }}
+              style={{ width: '100%', padding: 14, borderRadius: 12, border: 'none', background: itineraryLoading ? 'var(--color-slate-600)' : 'var(--color-sky-400)', color: 'var(--color-slate-950)', fontWeight: 'bold', cursor: itineraryLoading ? 'not-allowed' : 'pointer' }}
             >
               {itineraryLoading ? 'Searching providers…' : 'Update planner results'}
             </button>
             {submitted && (
-              <p style={{ color: '#38bdf8', marginBottom: 0 }}>
+              <p style={{ color: 'var(--color-sky-400)', marginBottom: 0 }}>
                 Draft request staged for {homeAirport || 'your home airport'} · {travelWindow || 'flexible dates'} · {travelerCount || '1'} traveler(s).
               </p>
             )}
           </form>
 
-          <aside style={{ border: '1px solid #334155', borderRadius: 22, padding: 22, background: 'linear-gradient(135deg, #111827, #312e81)' }}>
+          <aside style={{ border: '1px solid var(--color-slate-700)', borderRadius: 22, padding: 22, background: 'linear-gradient(135deg, var(--color-slate-850), #312e81)' }}>
             <h2 style={{ marginTop: 0 }}>Voice input</h2>
-            <p style={{ color: '#cbd5e1' }}>
+            <p style={{ color: 'var(--color-slate-300)' }}>
               Capture spoken trip ideas here and fill the itinerary request automatically when your browser supports speech recognition.
             </p>
             <button
               type="button"
               onClick={startVoiceScaffold}
               title={voiceInput.isSupported ? 'Speak a route, flight number, or trip idea' : 'Voice capture is not supported in this browser'}
-              style={{ padding: 14, borderRadius: 999, border: '1px solid #fda4af', background: voiceInput.isListening ? '#be123c' : '#fb7185', color: 'white', fontWeight: 'bold' }}
+              style={{ padding: 14, borderRadius: 999, border: '1px solid #fda4af', background: voiceInput.isListening ? '#be123c' : 'var(--color-rose-400)', color: 'white', fontWeight: 'bold' }}
             >
               {voiceInput.isListening ? '● Listening' : '🎙 Start voice note'}
             </button>
-            <p style={{ color: '#fecdd3' }}>{voiceStatus}</p>
+            <p style={{ color: 'var(--color-rose-200)' }}>{voiceStatus}</p>
             <div style={{ marginTop: 20, padding: 14, borderRadius: 16, background: 'rgba(15, 23, 42, 0.7)' }}>
               <strong>Current search</strong>
-              <p style={{ color: '#cbd5e1', marginBottom: 0 }}>
+              <p style={{ color: 'var(--color-slate-300)', marginBottom: 0 }}>
                 {query || 'No homepage query yet. Try searching from nonrevy home.'}
               </p>
             </div>
@@ -5430,14 +5430,14 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
 
             <section style={{ marginTop: 30 }}>
               <h2 style={{ fontSize: 24, marginBottom: 10 }}>Additional provider details</h2>
-          <details className="nonrevy-premium-details" style={{ border: '1px solid #334155', borderRadius: 16, padding: 14, background: '#020617', marginBottom: 16 }}>
-            <summary style={{ color: '#38bdf8', cursor: 'pointer', fontWeight: 'bold' }}>Developer Diagnostics</summary>
-            <p style={{ color: '#94a3b8', marginTop: 12 }}>{itineraryStatus} · Source: {itinerarySource}</p>
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, border: `1px solid ${itineraryDataMode === 'Live provider API data' ? '#22c55e' : itineraryDataMode.includes('Fallback') || itineraryDataMode.includes('Nearest') || itineraryDataMode.includes('test') || itineraryDataMode.includes('No current') ? '#facc15' : '#334155'}`, borderRadius: 999, padding: '6px 12px', background: '#020617', color: itineraryDataMode === 'Live provider API data' ? '#bbf7d0' : itineraryDataMode.includes('Fallback') || itineraryDataMode.includes('Nearest') || itineraryDataMode.includes('test') || itineraryDataMode.includes('No current') ? '#fef3c7' : '#cbd5e1', marginBottom: 14, fontWeight: 'bold' }}>
+          <details className="nonrevy-premium-details" style={{ border: '1px solid var(--color-slate-700)', borderRadius: 16, padding: 14, background: 'var(--color-slate-950)', marginBottom: 16 }}>
+            <summary style={{ color: 'var(--color-sky-400)', cursor: 'pointer', fontWeight: 'bold' }}>Developer Diagnostics</summary>
+            <p style={{ color: 'var(--color-slate-400)', marginTop: 12 }}>{itineraryStatus} · Source: {itinerarySource}</p>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, border: `1px solid ${itineraryDataMode === 'Live provider API data' ? 'var(--color-green-500)' : itineraryDataMode.includes('Fallback') || itineraryDataMode.includes('Nearest') || itineraryDataMode.includes('test') || itineraryDataMode.includes('No current') ? 'var(--color-yellow-400)' : 'var(--color-slate-700)'}`, borderRadius: 999, padding: '6px 12px', background: 'var(--color-slate-950)', color: itineraryDataMode === 'Live provider API data' ? 'var(--color-green-200)' : itineraryDataMode.includes('Fallback') || itineraryDataMode.includes('Nearest') || itineraryDataMode.includes('test') || itineraryDataMode.includes('No current') ? 'var(--color-yellow-100)' : 'var(--color-slate-300)', marginBottom: 14, fontWeight: 'bold' }}>
               Data mode: {itineraryDataMode}
             </div>
             {itineraryWarnings.length > 0 && (
-              <div style={{ border: '1px solid #854d0e', borderRadius: 14, padding: 14, background: '#1c1917', color: '#fde68a', marginBottom: 14 }}>
+              <div style={{ border: '1px solid #854d0e', borderRadius: 14, padding: 14, background: '#1c1917', color: 'var(--color-yellow-300)', marginBottom: 14 }}>
                 <strong>Pipeline notes</strong>
                 <ul style={{ marginBottom: 0 }}>
                   {itineraryWarnings.map((warning) => <li key={warning}>{warning}</li>)}
@@ -5445,7 +5445,7 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
               </div>
             )}
             {itineraryDebug?.deduplicationNotes?.length ? (
-              <div style={{ border: '1px solid #38bdf8', borderRadius: 14, padding: 14, background: '#082f49', color: '#bae6fd', marginBottom: 14 }}>
+              <div style={{ border: '1px solid var(--color-sky-400)', borderRadius: 14, padding: 14, background: '#082f49', color: 'var(--color-sky-200)', marginBottom: 14 }}>
                 <strong>Deduplication diagnostics</strong>
                 <p style={{ margin: '6px 0 0' }}>Removed rows: {itineraryDebug.deduplicatedRowsRemoved || 0}</p>
                 <ul style={{ marginBottom: 0 }}>
@@ -5468,21 +5468,21 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
                 ['FlightAware enrichment', itineraryDebug?.flightAwareEnrichmentStatus || 'Pending'],
                 ['Final itinerary count', itineraryDebug?.finalItineraryCount ?? liveItineraries.length]
               ].map(([label, value]) => (
-                <article key={label} style={{ border: '1px solid #334155', borderRadius: 12, padding: 10, background: '#0f172a' }}>
-                  <small style={{ color: '#94a3b8' }}>{label}</small>
-                  <p style={{ margin: '4px 0 0', color: '#f8fafc' }}>{value}</p>
+                <article key={label} style={{ border: '1px solid var(--color-slate-700)', borderRadius: 12, padding: 10, background: 'var(--color-slate-850)' }}>
+                  <small style={{ color: 'var(--color-slate-400)' }}>{label}</small>
+                  <p style={{ margin: '4px 0 0', color: 'var(--color-slate-50)' }}>{value}</p>
                 </article>
               ))}
             </div>
             {itineraryDebug?.parserExplanation ? (
-              <p style={{ color: '#cbd5e1', margin: '12px 0 0' }}>
-                <strong style={{ color: '#38bdf8' }}>Parser explanation:</strong> {itineraryDebug.parserExplanation}
+              <p style={{ color: 'var(--color-slate-300)', margin: '12px 0 0' }}>
+                <strong style={{ color: 'var(--color-sky-400)' }}>Parser explanation:</strong> {itineraryDebug.parserExplanation}
               </p>
             ) : null}
             {itineraryDebug ? (
-              <div style={{ border: `1px solid ${itineraryDebug.trueLiveDataAvailable ? '#22c55e' : '#facc15'}`, borderRadius: 12, padding: 12, background: '#0f172a', marginTop: 12 }}>
-                <strong style={{ color: itineraryDebug.trueLiveDataAvailable ? '#22c55e' : '#facc15' }}>Live provider API status</strong>
-                <p style={{ color: '#cbd5e1', margin: '6px 0 0' }}>
+              <div style={{ border: `1px solid ${itineraryDebug.trueLiveDataAvailable ? 'var(--color-green-500)' : 'var(--color-yellow-400)'}`, borderRadius: 12, padding: 12, background: 'var(--color-slate-850)', marginTop: 12 }}>
+                <strong style={{ color: itineraryDebug.trueLiveDataAvailable ? 'var(--color-green-500)' : 'var(--color-yellow-400)' }}>Live provider API status</strong>
+                <p style={{ color: 'var(--color-slate-300)', margin: '6px 0 0' }}>
                   {itineraryDebug.trueLiveDataAvailable
                     ? 'Current provider API data is available for this result set.'
                     : itineraryDebug.trueLiveDataUnavailableReason || 'Current provider API data is unavailable for this result set.'}
@@ -5491,25 +5491,25 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
             ) : null}
             {itineraryDebug?.scheduleProviderReadiness?.length ? (
               <div style={{ marginTop: 12 }}>
-                <strong style={{ color: '#c084fc' }}>Live schedule provider readiness</strong>
-                <p style={{ color: '#94a3b8', margin: '6px 0 0' }}>
+                <strong style={{ color: 'var(--color-purple-400)' }}>Live schedule provider readiness</strong>
+                <p style={{ color: 'var(--color-slate-400)', margin: '6px 0 0' }}>
                   Readiness is diagnostic only. Itinerary search checks FlightAware live provider API data first, then stored Supabase flight data, Aviationstack fallback, and demo fallback.
                 </p>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))', gap: 10, marginTop: 10 }}>
                   {itineraryDebug.scheduleProviderReadiness.map((provider) => {
                     const colors = readinessBadgeStyle(provider.status)
                     return (
-                      <article key={provider.key} style={{ border: `1px solid ${colors.border}`, borderRadius: 12, padding: 10, background: '#0f172a' }}>
+                      <article key={provider.key} style={{ border: `1px solid ${colors.border}`, borderRadius: 12, padding: 10, background: 'var(--color-slate-850)' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'flex-start' }}>
-                          <strong style={{ color: '#f8fafc' }}>{provider.label}</strong>
+                          <strong style={{ color: 'var(--color-slate-50)' }}>{provider.label}</strong>
                           <span style={{ border: `1px solid ${colors.border}`, borderRadius: 999, padding: '4px 9px', color: colors.text, background: colors.background, whiteSpace: 'nowrap', fontSize: 12, fontWeight: 'bold' }}>
                             {provider.status}
                           </span>
                         </div>
-                        <p style={{ color: '#cbd5e1', margin: '8px 0' }}>{provider.detail}</p>
-                        <p style={{ color: '#bbf7d0', margin: '6px 0 0' }}><strong>Can:</strong> {provider.whatItCanProvide.join(', ') || 'None yet'}</p>
-                        <p style={{ color: '#fecaca', margin: '6px 0 0' }}><strong>Cannot:</strong> {provider.whatItCannotProvide.join(', ') || 'No known gaps'}</p>
-                        <p style={{ color: '#fde68a', margin: '6px 0 0' }}><strong>Next:</strong> {provider.recommendedNextAction}</p>
+                        <p style={{ color: 'var(--color-slate-300)', margin: '8px 0' }}>{provider.detail}</p>
+                        <p style={{ color: 'var(--color-green-200)', margin: '6px 0 0' }}><strong>Can:</strong> {provider.whatItCanProvide.join(', ') || 'None yet'}</p>
+                        <p style={{ color: 'var(--color-red-200)', margin: '6px 0 0' }}><strong>Cannot:</strong> {provider.whatItCannotProvide.join(', ') || 'No known gaps'}</p>
+                        <p style={{ color: 'var(--color-yellow-300)', margin: '6px 0 0' }}><strong>Next:</strong> {provider.recommendedNextAction}</p>
                       </article>
                     )
                   })}
@@ -5518,7 +5518,7 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
             ) : null}
             {itineraryDebug?.apiResponseCounts ? (
               <div style={{ marginTop: 12 }}>
-                <strong style={{ color: '#38bdf8' }}>API response counts</strong>
+                <strong style={{ color: 'var(--color-sky-400)' }}>API response counts</strong>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 150px), 1fr))', gap: 10, marginTop: 10 }}>
                   {[
                     ['FlightAware schedule calls', itineraryDebug.apiResponseCounts.flightAwareScheduleRequests ?? 0],
@@ -5534,9 +5534,9 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
                     ['FlightAware enriched', itineraryDebug.apiResponseCounts.flightAwareEnriched],
                     ['Final itineraries', itineraryDebug.apiResponseCounts.finalItineraries]
                   ].map(([label, value]) => (
-                    <article key={label} style={{ border: '1px solid #334155', borderRadius: 12, padding: 10, background: '#0f172a' }}>
-                      <small style={{ color: '#94a3b8' }}>{label}</small>
-                      <p style={{ margin: '4px 0 0', color: '#f8fafc', fontWeight: 'bold' }}>{value}</p>
+                    <article key={label} style={{ border: '1px solid var(--color-slate-700)', borderRadius: 12, padding: 10, background: 'var(--color-slate-850)' }}>
+                      <small style={{ color: 'var(--color-slate-400)' }}>{label}</small>
+                      <p style={{ margin: '4px 0 0', color: 'var(--color-slate-50)', fontWeight: 'bold' }}>{value}</p>
                     </article>
                   ))}
                 </div>
@@ -5544,16 +5544,16 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
             ) : null}
             {itineraryDebug?.routeMatching ? (
               <div style={{ marginTop: 12 }}>
-                <strong style={{ color: '#38bdf8' }}>Route matching diagnostics</strong>
-                <p style={{ color: '#94a3b8', margin: '6px 0 0' }}>
+                <strong style={{ color: 'var(--color-sky-400)' }}>Route matching diagnostics</strong>
+                <p style={{ color: 'var(--color-slate-400)', margin: '6px 0 0' }}>
                   Normalized request: {itineraryDebug.routeMatching.requested.origin || 'any'} → {itineraryDebug.routeMatching.requested.destination || 'any'} · {itineraryDebug.routeMatching.requested.date || 'any date'} · {itineraryDebug.routeMatching.requested.carrier || 'all carriers'}
                 </p>
-                <p style={{ color: itineraryDebug.routeMatching.finalMatchedRows > 0 ? '#bbf7d0' : '#fde68a', margin: '6px 0 0' }}>
+                <p style={{ color: itineraryDebug.routeMatching.finalMatchedRows > 0 ? 'var(--color-green-200)' : 'var(--color-yellow-300)', margin: '6px 0 0' }}>
                   {itineraryDebug.routeMatching.matchExplanation}
                 </p>
                 {itineraryDebug.routeMatching.dateCoverage ? (
-                  <div style={{ border: `1px solid ${itineraryDebug.routeMatching.dateCoverage.nearestDateApplied ? '#facc15' : '#334155'}`, borderRadius: 12, padding: 12, background: '#0f172a', marginTop: 10 }}>
-                    <strong style={{ color: itineraryDebug.routeMatching.dateCoverage.nearestDateApplied ? '#facc15' : '#38bdf8' }}>Flight date coverage</strong>
+                  <div style={{ border: `1px solid ${itineraryDebug.routeMatching.dateCoverage.nearestDateApplied ? 'var(--color-yellow-400)' : 'var(--color-slate-700)'}`, borderRadius: 12, padding: 12, background: 'var(--color-slate-850)', marginTop: 10 }}>
+                    <strong style={{ color: itineraryDebug.routeMatching.dateCoverage.nearestDateApplied ? 'var(--color-yellow-400)' : 'var(--color-sky-400)' }}>Flight date coverage</strong>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 150px), 1fr))', gap: 10, marginTop: 10 }}>
                       {[
                         ['Oldest flight date', itineraryDebug.routeMatching.dateCoverage.oldestFlightDate || 'Unavailable'],
@@ -5563,17 +5563,17 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
                         ['Date mode', itineraryDebug.routeMatching.dateCoverage.dateMode],
                         ['Tolerance', itineraryDebug.routeMatching.dateCoverage.nearestDateToleranceDays !== undefined ? `${itineraryDebug.routeMatching.dateCoverage.nearestDateToleranceDays} days` : 'Strict']
                       ].map(([label, value]) => (
-                        <article key={label} style={{ border: '1px solid #334155', borderRadius: 10, padding: 10, background: '#020617' }}>
-                          <small style={{ color: '#94a3b8' }}>{label}</small>
-                          <p style={{ margin: '4px 0 0', color: '#f8fafc', fontWeight: 'bold' }}>{value}</p>
+                        <article key={label} style={{ border: '1px solid var(--color-slate-700)', borderRadius: 10, padding: 10, background: 'var(--color-slate-950)' }}>
+                          <small style={{ color: 'var(--color-slate-400)' }}>{label}</small>
+                          <p style={{ margin: '4px 0 0', color: 'var(--color-slate-50)', fontWeight: 'bold' }}>{value}</p>
                         </article>
                       ))}
                     </div>
                     {itineraryDebug.routeMatching.dateCoverage.warning ? (
-                      <p style={{ color: '#fde68a', margin: '10px 0 0' }}>{itineraryDebug.routeMatching.dateCoverage.warning}</p>
+                      <p style={{ color: 'var(--color-yellow-300)', margin: '10px 0 0' }}>{itineraryDebug.routeMatching.dateCoverage.warning}</p>
                     ) : null}
                     {itineraryDebug.routeMatching.dateCoverage.closestAvailableDates.length ? (
-                      <p style={{ color: '#cbd5e1', margin: '8px 0 0' }}>
+                      <p style={{ color: 'var(--color-slate-300)', margin: '8px 0 0' }}>
                         Closest available dates: {itineraryDebug.routeMatching.dateCoverage.closestAvailableDates.join(', ')}
                       </p>
                     ) : null}
@@ -5588,21 +5588,21 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
                     ['Carrier matches', itineraryDebug.routeMatching.carrierMatches],
                     ['Final matched rows', itineraryDebug.routeMatching.finalMatchedRows]
                   ].map(([label, value]) => (
-                    <article key={label} style={{ border: '1px solid #334155', borderRadius: 12, padding: 10, background: '#0f172a' }}>
-                      <small style={{ color: '#94a3b8' }}>{label}</small>
-                      <p style={{ margin: '4px 0 0', color: '#f8fafc', fontWeight: 'bold' }}>{value}</p>
+                    <article key={label} style={{ border: '1px solid var(--color-slate-700)', borderRadius: 12, padding: 10, background: 'var(--color-slate-850)' }}>
+                      <small style={{ color: 'var(--color-slate-400)' }}>{label}</small>
+                      <p style={{ margin: '4px 0 0', color: 'var(--color-slate-50)', fontWeight: 'bold' }}>{value}</p>
                     </article>
                   ))}
                 </div>
                 {itineraryDebug.routeMatching.closestMatchingRoutes.length > 0 ? (
                   <div style={{ marginTop: 12 }}>
-                    <strong style={{ color: '#bbf7d0' }}>Closest matching routes in fetched rows</strong>
+                    <strong style={{ color: 'var(--color-green-200)' }}>Closest matching routes in fetched rows</strong>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))', gap: 10, marginTop: 10 }}>
                       {itineraryDebug.routeMatching.closestMatchingRoutes.map((route) => (
                         <article key={route.route} style={{ border: '1px solid #14532d', borderRadius: 12, padding: 10, background: 'rgba(20, 83, 45, 0.18)' }}>
                           <strong>{route.route}</strong>
-                          <p style={{ color: '#cbd5e1', margin: '6px 0 0' }}>{route.count} candidate row{route.count === 1 ? '' : 's'} · {route.reason}</p>
-                          <small style={{ color: '#94a3b8' }}>Samples: {route.sampleFlightNumbers.join(', ') || 'none'}</small>
+                          <p style={{ color: 'var(--color-slate-300)', margin: '6px 0 0' }}>{route.count} candidate row{route.count === 1 ? '' : 's'} · {route.reason}</p>
+                          <small style={{ color: 'var(--color-slate-400)' }}>Samples: {route.sampleFlightNumbers.join(', ') || 'none'}</small>
                         </article>
                       ))}
                     </div>
@@ -5610,16 +5610,16 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
                 ) : null}
                 {itineraryDebug.routeMatching.routeNormalization.normalizedRoutes.length > 0 ? (
                   <div style={{ marginTop: 12 }}>
-                    <strong style={{ color: '#38bdf8' }}>Route normalization diagnostics</strong>
-                    <p style={{ color: '#94a3b8', margin: '6px 0 0' }}>
+                    <strong style={{ color: 'var(--color-sky-400)' }}>Route normalization diagnostics</strong>
+                    <p style={{ color: 'var(--color-slate-400)', margin: '6px 0 0' }}>
                       Missing origin: {itineraryDebug.routeMatching.routeNormalization.missingOriginCount} · Missing destination: {itineraryDebug.routeMatching.routeNormalization.missingDestinationCount} · Missing date: {itineraryDebug.routeMatching.routeNormalization.missingDateCount}
                     </p>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 190px), 1fr))', gap: 10, marginTop: 10 }}>
                       {itineraryDebug.routeMatching.routeNormalization.normalizedRoutes.map((route) => (
-                        <article key={route.route} style={{ border: '1px solid #334155', borderRadius: 12, padding: 10, background: '#0f172a' }}>
+                        <article key={route.route} style={{ border: '1px solid var(--color-slate-700)', borderRadius: 12, padding: 10, background: 'var(--color-slate-850)' }}>
                           <strong>{route.route}</strong>
-                          <p style={{ color: '#cbd5e1', margin: '6px 0 0' }}>{route.count} row{route.count === 1 ? '' : 's'}</p>
-                          <small style={{ color: '#94a3b8' }}>Samples: {route.sampleFlightNumbers.join(', ') || 'none'}</small>
+                          <p style={{ color: 'var(--color-slate-300)', margin: '6px 0 0' }}>{route.count} row{route.count === 1 ? '' : 's'}</p>
+                          <small style={{ color: 'var(--color-slate-400)' }}>Samples: {route.sampleFlightNumbers.join(', ') || 'none'}</small>
                         </article>
                       ))}
                     </div>
@@ -5627,18 +5627,18 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
                 ) : null}
                 {itineraryDebug.routeMatching.rejectedCandidates.length > 0 ? (
                   <div style={{ marginTop: 12 }}>
-                    <strong style={{ color: '#facc15' }}>First rejected Supabase candidate flights</strong>
+                    <strong style={{ color: 'var(--color-yellow-400)' }}>First rejected Supabase candidate flights</strong>
                     <div style={{ display: 'grid', gap: 10, marginTop: 10 }}>
                       {itineraryDebug.routeMatching.rejectedCandidates.map((candidate) => (
-                        <article key={`${candidate.id}-${candidate.flightNumber}`} style={{ border: '1px solid #334155', borderRadius: 12, padding: 10, background: '#0f172a' }}>
+                        <article key={`${candidate.id}-${candidate.flightNumber}`} style={{ border: '1px solid var(--color-slate-700)', borderRadius: 12, padding: 10, background: 'var(--color-slate-850)' }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
                             <strong>{candidate.flightNumber}</strong>
-                            <span style={{ color: '#94a3b8' }}>{candidate.normalized.origin || '??'} → {candidate.normalized.destination || '??'} · {candidate.normalized.date || 'no date'}</span>
+                            <span style={{ color: 'var(--color-slate-400)' }}>{candidate.normalized.origin || '??'} → {candidate.normalized.destination || '??'} · {candidate.normalized.date || 'no date'}</span>
                           </div>
-                          <p style={{ color: '#cbd5e1', margin: '6px 0 0' }}>
+                          <p style={{ color: 'var(--color-slate-300)', margin: '6px 0 0' }}>
                             Raw route: {candidate.normalized.originRaw || 'missing'} → {candidate.normalized.destinationRaw || 'missing'} · Raw date: {candidate.normalized.dateRaw || 'missing'} · Carrier text: {candidate.normalized.carrierText || 'missing'}
                           </p>
-                          <p style={{ color: '#fecaca', margin: '6px 0 0' }}>Rejected because: {candidate.rejectionReasons.join('; ')}</p>
+                          <p style={{ color: 'var(--color-red-200)', margin: '6px 0 0' }}>Rejected because: {candidate.rejectionReasons.join('; ')}</p>
                         </article>
                       ))}
                     </div>
@@ -5647,7 +5647,7 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
               </div>
             ) : null}
             {[...(itineraryDebug?.emptyResults || []), ...(itineraryDebug?.rateLimits || []), ...(itineraryDebug?.invalidAirportCodes || []), ...(itineraryDebug?.unsupportedAirportCodes || []), ...(itineraryDebug?.invalidDates || [])].length ? (
-              <div style={{ border: '1px solid #854d0e', borderRadius: 12, padding: 10, background: '#1c1917', color: '#fde68a', marginTop: 12 }}>
+              <div style={{ border: '1px solid #854d0e', borderRadius: 12, padding: 10, background: '#1c1917', color: 'var(--color-yellow-300)', marginTop: 12 }}>
                 <strong>Reliability diagnostics</strong>
                 <ul style={{ marginBottom: 0 }}>
                   {(itineraryDebug?.emptyResults || []).map((message) => <li key={`empty-${message}`}>Empty result: {message}</li>)}
@@ -5659,13 +5659,13 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
               </div>
             ) : null}
             {itineraryDebug?.normalizedFlightAwareItinerarySample ? (
-              <div style={{ border: '1px solid #7e22ce', borderRadius: 12, padding: 10, background: 'rgba(88, 28, 135, 0.22)', color: '#e9d5ff', marginTop: 12 }}>
+              <div style={{ border: '1px solid #7e22ce', borderRadius: 12, padding: 10, background: 'rgba(88, 28, 135, 0.22)', color: 'var(--color-purple-200)', marginTop: 12 }}>
                 <strong>Temporary FlightAware normalized itinerary sample</strong>
-                <p style={{ color: '#cbd5e1', margin: '6px 0 0' }}>Safe sample only; no credentials or raw provider payloads are shown.</p>
+                <p style={{ color: 'var(--color-slate-300)', margin: '6px 0 0' }}>Safe sample only; no credentials or raw provider payloads are shown.</p>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 150px), 1fr))', gap: 8, marginTop: 10 }}>
                   {Object.entries(itineraryDebug.normalizedFlightAwareItinerarySample).map(([label, value]) => (
-                    <div key={`flightaware-sample-${label}`} style={{ border: '1px solid #581c87', borderRadius: 10, padding: 8, background: '#020617' }}>
-                      <small style={{ color: '#c084fc', textTransform: 'uppercase' }}>{label}</small>
+                    <div key={`flightaware-sample-${label}`} style={{ border: '1px solid #581c87', borderRadius: 10, padding: 8, background: 'var(--color-slate-950)' }}>
+                      <small style={{ color: 'var(--color-purple-400)', textTransform: 'uppercase' }}>{label}</small>
                       <p style={{ margin: '4px 0 0', overflowWrap: 'anywhere' }}>{displayField(value)}</p>
                     </div>
                   ))}
@@ -5675,17 +5675,17 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
             {itineraryDebug?.providerDiagnostics?.length ? (
               <div style={{ border: '1px solid #155e75', borderRadius: 12, padding: 10, background: 'rgba(8, 47, 73, 0.38)', color: '#cffafe', marginTop: 12 }}>
                 <strong>Structured provider diagnostics</strong>
-                <p style={{ color: '#94a3b8', margin: '6px 0 0' }}>Freshness, partial coverage, rate-limit, and fallback signals are separated so the UI does not imply stronger provider certainty than exists.</p>
+                <p style={{ color: 'var(--color-slate-400)', margin: '6px 0 0' }}>Freshness, partial coverage, rate-limit, and fallback signals are separated so the UI does not imply stronger provider certainty than exists.</p>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))', gap: 10, marginTop: 10 }}>
                   {itineraryDebug.providerDiagnostics.map((diagnostic) => (
-                    <article key={diagnostic.id} style={{ border: `1px solid ${diagnostic.severity === 'error' ? '#f87171' : diagnostic.severity === 'warning' ? '#facc15' : '#38bdf8'}`, borderRadius: 12, padding: 10, background: '#020617' }}>
+                    <article key={diagnostic.id} style={{ border: `1px solid ${diagnostic.severity === 'error' ? 'var(--color-red-400)' : diagnostic.severity === 'warning' ? 'var(--color-yellow-400)' : 'var(--color-sky-400)'}`, borderRadius: 12, padding: 10, background: 'var(--color-slate-950)' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center' }}>
                         <strong style={{ textTransform: 'capitalize' }}>{diagnostic.category.replace('-', ' ')}</strong>
-                        <small style={{ color: diagnostic.severity === 'error' ? '#fecaca' : diagnostic.severity === 'warning' ? '#fde68a' : '#bae6fd', textTransform: 'uppercase', fontWeight: 'bold' }}>{diagnostic.severity}</small>
+                        <small style={{ color: diagnostic.severity === 'error' ? 'var(--color-red-200)' : diagnostic.severity === 'warning' ? 'var(--color-yellow-300)' : 'var(--color-sky-200)', textTransform: 'uppercase', fontWeight: 'bold' }}>{diagnostic.severity}</small>
                       </div>
-                      <p style={{ margin: '6px 0 0', color: '#e0f2fe' }}>{diagnostic.summary}</p>
-                      <p style={{ margin: '6px 0 0', color: '#94a3b8' }}>{diagnostic.detail}</p>
-                      {diagnostic.evidenceCount ? <small style={{ color: '#67e8f9' }}>Evidence count: {diagnostic.evidenceCount}</small> : null}
+                      <p style={{ margin: '6px 0 0', color: 'var(--color-sky-100)' }}>{diagnostic.summary}</p>
+                      <p style={{ margin: '6px 0 0', color: 'var(--color-slate-400)' }}>{diagnostic.detail}</p>
+                      {diagnostic.evidenceCount ? <small style={{ color: 'var(--color-sky-300)' }}>Evidence count: {diagnostic.evidenceCount}</small> : null}
                     </article>
                   ))}
                 </div>
@@ -5693,15 +5693,15 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
             ) : null}
             {itineraryDebug?.providerStatuses?.length ? (
               <div style={{ marginTop: 12 }}>
-                <strong style={{ color: '#c084fc' }}>Provider fallback strategy</strong>
+                <strong style={{ color: 'var(--color-purple-400)' }}>Provider fallback strategy</strong>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 210px), 1fr))', gap: 10, marginTop: 10 }}>
                   {itineraryDebug.providerStatuses.map((status) => (
-                    <article key={status.provider} style={{ border: `1px solid ${status.state === 'success' ? '#22c55e' : status.state === 'warning' ? '#facc15' : '#334155'}`, borderRadius: 12, padding: 10, background: '#0f172a' }}>
+                    <article key={status.provider} style={{ border: `1px solid ${status.state === 'success' ? 'var(--color-green-500)' : status.state === 'warning' ? 'var(--color-yellow-400)' : 'var(--color-slate-700)'}`, borderRadius: 12, padding: 10, background: 'var(--color-slate-850)' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center' }}>
                         <ProviderBadge label={status.label} />
-                        <small style={{ color: status.state === 'success' ? '#86efac' : status.state === 'warning' ? '#fde68a' : '#94a3b8', textTransform: 'uppercase', fontWeight: 'bold' }}>{status.state}</small>
+                        <small style={{ color: status.state === 'success' ? 'var(--color-green-300)' : status.state === 'warning' ? 'var(--color-yellow-300)' : 'var(--color-slate-400)', textTransform: 'uppercase', fontWeight: 'bold' }}>{status.state}</small>
                       </div>
-                      <p style={{ margin: '8px 0 0', color: '#cbd5e1' }}>{status.detail}</p>
+                      <p style={{ margin: '8px 0 0', color: 'var(--color-slate-300)' }}>{status.detail}</p>
                     </article>
                   ))}
                 </div>
@@ -5709,22 +5709,22 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
             ) : null}
             {itineraryDebug?.dataFreshnessExplanation?.length ? (
               <details style={{ marginTop: 12 }}>
-                <summary style={{ color: '#38bdf8', cursor: 'pointer', fontWeight: 'bold' }}>Data freshness explanation</summary>
-                <ul style={{ color: '#cbd5e1', marginBottom: 0, paddingLeft: 20 }}>
+                <summary style={{ color: 'var(--color-sky-400)', cursor: 'pointer', fontWeight: 'bold' }}>Data freshness explanation</summary>
+                <ul style={{ color: 'var(--color-slate-300)', marginBottom: 0, paddingLeft: 20 }}>
                   {itineraryDebug.dataFreshnessExplanation.map((message) => <li key={message}>{message}</li>)}
                 </ul>
               </details>
             ) : null}
             {itineraryDebug?.providerExplanation?.length ? (
               <details style={{ marginTop: 12 }}>
-                <summary style={{ color: '#facc15', cursor: 'pointer', fontWeight: 'bold' }}>Provider explanation</summary>
-                <ol style={{ color: '#cbd5e1', marginBottom: 0, paddingLeft: 20 }}>
+                <summary style={{ color: 'var(--color-yellow-400)', cursor: 'pointer', fontWeight: 'bold' }}>Provider explanation</summary>
+                <ol style={{ color: 'var(--color-slate-300)', marginBottom: 0, paddingLeft: 20 }}>
                   {itineraryDebug.providerExplanation.map((message) => <li key={message}>{message.replace(/^\d+\.\s*/, '')}</li>)}
                 </ol>
               </details>
             ) : null}
             {itineraryDebug?.safeErrors?.length ? (
-              <div style={{ border: '1px solid #854d0e', borderRadius: 12, padding: 10, background: '#1c1917', color: '#fde68a', marginTop: 12 }}>
+              <div style={{ border: '1px solid #854d0e', borderRadius: 12, padding: 10, background: '#1c1917', color: 'var(--color-yellow-300)', marginTop: 12 }}>
                 <strong>Safe API messages</strong>
                 <ul style={{ marginBottom: 0 }}>
                   {itineraryDebug.safeErrors.map((message) => <li key={message}>{message}</li>)}
@@ -5733,11 +5733,11 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
             ) : null}
           </details>
           {liveItineraries.length > 0 ? (
-            <details className="nonrevy-premium-details" style={{ border: '1px solid #334155', borderRadius: 18, padding: 14, background: '#020617', marginTop: 16 }}>
-              <summary style={{ color: '#67e8f9', cursor: 'pointer', fontWeight: 'bold' }}>Developer Diagnostics: flight details, airport details, aircraft, duration, connection notes, and provider data</summary>
+            <details className="nonrevy-premium-details" style={{ border: '1px solid var(--color-slate-700)', borderRadius: 18, padding: 14, background: 'var(--color-slate-950)', marginTop: 16 }}>
+              <summary style={{ color: 'var(--color-sky-300)', cursor: 'pointer', fontWeight: 'bold' }}>Developer Diagnostics: flight details, airport details, aircraft, duration, connection notes, and provider data</summary>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))', gap: 16, marginTop: 14 }}>
               {liveItineraries.map((itinerary) => (
-                <article key={itinerary.id} style={{ border: '1px solid #334155', borderRadius: 20, padding: 18, background: '#0f172a' }}>
+                <article key={itinerary.id} style={{ border: '1px solid var(--color-slate-700)', borderRadius: 20, padding: 18, background: 'var(--color-slate-850)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
                     <h3 style={{ margin: 0 }}>{itinerary.flightNumber}</h3>
                     <span style={{ color: riskColor(itinerary.risk), fontWeight: 'bold' }}>{itinerary.risk}</span>
@@ -5754,16 +5754,16 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
                     <WeatherRiskBadge weatherRisk={getRouteWeatherRisk(itinerary.route)} />
                   </div>
                   {itinerary.dataFreshnessDetail ? (
-                    <p style={{ color: '#fde68a', margin: '8px 0 0' }}>{itinerary.dataFreshnessDetail}</p>
+                    <p style={{ color: 'var(--color-yellow-300)', margin: '8px 0 0' }}>{itinerary.dataFreshnessDetail}</p>
                   ) : null}
                   {itineraryDateWarning(itinerary) ? (
-                    <div style={{ border: '1px solid #facc15', borderRadius: 12, padding: 10, background: '#1c1917', color: '#fde68a', marginTop: 10 }}>
+                    <div style={{ border: '1px solid var(--color-yellow-400)', borderRadius: 12, padding: 10, background: '#1c1917', color: 'var(--color-yellow-300)', marginTop: 10 }}>
                       <strong>Freshness warning</strong>
                       <p style={{ margin: '4px 0 0' }}>{itineraryDateWarning(itinerary)}</p>
                     </div>
                   ) : null}
-                  <p style={{ color: '#38bdf8', fontSize: 18, fontWeight: 'bold' }}>{displayField(itinerary.route)}</p>
-                  <p style={{ color: '#facc15', fontWeight: 'bold' }}>Provider score: {itinerary.score}/100</p>
+                  <p style={{ color: 'var(--color-sky-400)', fontSize: 18, fontWeight: 'bold' }}>{displayField(itinerary.route)}</p>
+                  <p style={{ color: 'var(--color-yellow-400)', fontWeight: 'bold' }}>Provider score: {itinerary.score}/100</p>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 150px), 1fr))', gap: 10, margin: '12px 0' }}>
                     {[
                       ['Airline/carrier', itinerary.carrier],
@@ -5778,13 +5778,13 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
                       ['Source provider', itinerary.sourceProvider || itinerary.source],
                       ['Source checked', itinerary.sourceCheckedAt]
                     ].map(([label, value]) => (
-                      <div key={`${itinerary.id}-${label}`} style={{ border: '1px solid #334155', borderRadius: 12, padding: 10, background: '#020617' }}>
-                        <small style={{ color: '#94a3b8' }}>{label}</small>
-                        <p style={{ margin: '4px 0 0', color: '#f8fafc', overflowWrap: 'anywhere' }}>{displayField(value)}</p>
+                      <div key={`${itinerary.id}-${label}`} style={{ border: '1px solid var(--color-slate-700)', borderRadius: 12, padding: 10, background: 'var(--color-slate-950)' }}>
+                        <small style={{ color: 'var(--color-slate-400)' }}>{label}</small>
+                        <p style={{ margin: '4px 0 0', color: 'var(--color-slate-50)', overflowWrap: 'anywhere' }}>{displayField(value)}</p>
                       </div>
                     ))}
                   </div>
-                  <p style={{ color: '#94a3b8' }}>
+                  <p style={{ color: 'var(--color-slate-400)' }}>
                     Gate: {displayField(itinerary.gate)} · Terminal: {displayField(itinerary.terminal)}
                   </p>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 210px), 1fr))', gap: 10, margin: '12px 0' }}>
@@ -5795,10 +5795,10 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
                   <RouteAirportDetails route={itinerary.route} />
                   <div style={{ display: 'grid', gap: 10, marginTop: 12 }}>
                     {itinerary.legs.map((leg, index) => (
-                      <div key={`${itinerary.id}-${leg.flightNumber}-${index}`} style={{ border: '1px solid #334155', borderRadius: 14, padding: 12, background: '#020617' }}>
-                        <strong style={{ color: '#f8fafc' }}>Leg {index + 1}: {displayField(leg.flightNumber)}</strong>
-                        <p style={{ color: '#38bdf8', margin: '6px 0' }}>{displayField(leg.origin)} → {displayField(leg.destination)}</p>
-                        <p style={{ color: '#cbd5e1', margin: 0 }}>
+                      <div key={`${itinerary.id}-${leg.flightNumber}-${index}`} style={{ border: '1px solid var(--color-slate-700)', borderRadius: 14, padding: 12, background: 'var(--color-slate-950)' }}>
+                        <strong style={{ color: 'var(--color-slate-50)' }}>Leg {index + 1}: {displayField(leg.flightNumber)}</strong>
+                        <p style={{ color: 'var(--color-sky-400)', margin: '6px 0' }}>{displayField(leg.origin)} → {displayField(leg.destination)}</p>
+                        <p style={{ color: 'var(--color-slate-300)', margin: 0 }}>
                           {displayField(leg.departureTime)} → {displayField(leg.arrivalTime)} · Duration {displayField(leg.duration)} · Aircraft {displayField(leg.aircraft)} · Status {displayField(leg.status)} · Source {displayField(leg.sourceProvider || leg.source)} · Checked {displayField(leg.sourceCheckedAt)} · Score {leg.score}
                         </p>
                       </div>
@@ -5815,9 +5815,9 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
               </div>
             </details>
           ) : (
-            <div style={{ border: '1px solid #facc15', borderRadius: 18, padding: 18, background: '#1c1917', color: '#fde68a' }}>
+            <div style={{ border: '1px solid var(--color-yellow-400)', borderRadius: 18, padding: 18, background: '#1c1917', color: 'var(--color-yellow-300)' }}>
               <h3 style={{ marginTop: 0 }}>No current live itinerary data</h3>
-              <p style={{ color: '#fef3c7', marginBottom: 0 }}>
+              <p style={{ color: 'var(--color-yellow-100)', marginBottom: 0 }}>
                 Production-safe mode is active, so nearest-date testing matches and demo fallback itinerary cards are hidden. Try an exact date with available live provider data, or enable NONREVY_TEST_DATA_MODE=true only for personal testing.
               </p>
             </div>
@@ -5826,92 +5826,92 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
           </>
         ) : null}
 
-        <details className="nonrevy-premium-details" style={{ border: '1px solid #334155', borderRadius: 18, padding: 16, background: '#0f172a', color: '#cbd5e1', marginTop: 18 }}>
-          <summary style={{ color: '#38bdf8', cursor: 'pointer', fontWeight: 'bold' }}>Advanced Details: scoring engine, route intelligence, and profile signals</summary>
-          <strong style={{ color: '#38bdf8', display: 'block', marginTop: 14 }}>Scoring engine scaffold</strong>
-          <p style={{ color: '#94a3b8' }}>
+        <details className="nonrevy-premium-details" style={{ border: '1px solid var(--color-slate-700)', borderRadius: 18, padding: 16, background: 'var(--color-slate-850)', color: 'var(--color-slate-300)', marginTop: 18 }}>
+          <summary style={{ color: 'var(--color-sky-400)', cursor: 'pointer', fontWeight: 'bold' }}>Advanced Details: scoring engine, route intelligence, and profile signals</summary>
+          <strong style={{ color: 'var(--color-sky-400)', display: 'block', marginTop: 14 }}>Scoring engine scaffold</strong>
+          <p style={{ color: 'var(--color-slate-400)' }}>
             Placeholder airline-aware scoring model for {scoringScaffold.familyLabel}. Alaska Group is treated as one supported carrier family covering Alaska Airlines and Hawaiian Airlines. No live load integration yet.
           </p>
-          <p style={{ color: '#cbd5e1' }}>
+          <p style={{ color: 'var(--color-slate-300)' }}>
             Selected carrier profile: {scoringScaffold.selectedCarrier} · Active family: {scoringScaffold.familyLabel} · Members: {scoringScaffold.members.join(', ')}
           </p>
-          <p style={{ color: '#cbd5e1' }}>
+          <p style={{ color: 'var(--color-slate-300)' }}>
             Placeholder weights: Hub Strength {scoringScaffold.weights['Hub Strength']} · Route Complexity {scoringScaffold.weights['Route Complexity']} · Seasonal Demand {scoringScaffold.weights['Seasonal Demand']} · Historical Performance {scoringScaffold.weights['Historical Performance']}
           </p>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 180px), 1fr))', gap: 12 }}>
             {scoringScaffold.breakdown.map((item) => (
-              <article key={item.label} style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#020617' }}>
-                <small style={{ color: '#94a3b8' }}>{item.label}</small>
-                <h3 style={{ color: '#f8fafc', margin: '6px 0' }}>{item.value}</h3>
-                <p style={{ margin: 0, color: '#cbd5e1' }}>{item.note}</p>
+              <article key={item.label} style={{ border: '1px solid var(--color-slate-700)', borderRadius: 14, padding: 14, background: 'var(--color-slate-950)' }}>
+                <small style={{ color: 'var(--color-slate-400)' }}>{item.label}</small>
+                <h3 style={{ color: 'var(--color-slate-50)', margin: '6px 0' }}>{item.value}</h3>
+                <p style={{ margin: 0, color: 'var(--color-slate-300)' }}>{item.note}</p>
               </article>
             ))}
           </div>
-          <section style={{ border: '1px solid #334155', borderRadius: 16, padding: 14, background: '#020617', marginTop: 14 }}>
-            <strong style={{ color: '#38bdf8' }}>Community-weighted Success Probability</strong>
-            <p style={{ color: '#94a3b8' }}>
+          <section style={{ border: '1px solid var(--color-slate-700)', borderRadius: 16, padding: 14, background: 'var(--color-slate-950)', marginTop: 14 }}>
+            <strong style={{ color: 'var(--color-sky-400)' }}>Community-weighted Success Probability</strong>
+            <p style={{ color: 'var(--color-slate-400)' }}>
               Prediction engine scaffold blended from Outcome History, Community Load Reports, Historical Route Database, Route Confidence Scores, Reputation/Trust Scores, and Traveler Profile for {scoringScaffold.recommendationScope}.
             </p>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 180px), 1fr))', gap: 12 }}>
-              <article style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#0f172a' }}>
-                <small style={{ color: '#94a3b8' }}>Probability %</small>
-                <h3 style={{ color: '#f8fafc', margin: '6px 0 0' }}>{predictionEngine.successProbability}%</h3>
+              <article style={{ border: '1px solid var(--color-slate-700)', borderRadius: 14, padding: 14, background: 'var(--color-slate-850)' }}>
+                <small style={{ color: 'var(--color-slate-400)' }}>Probability %</small>
+                <h3 style={{ color: 'var(--color-slate-50)', margin: '6px 0 0' }}>{predictionEngine.successProbability}%</h3>
               </article>
-              <article style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#0f172a' }}>
-                <small style={{ color: '#94a3b8' }}>Confidence %</small>
-                <h3 style={{ color: '#f8fafc', margin: '6px 0 0' }}>{predictionEngine.confidencePercent}%</h3>
-                <p style={{ color: '#94a3b8', margin: '4px 0 0' }}>{predictionEngine.confidenceLevel}</p>
+              <article style={{ border: '1px solid var(--color-slate-700)', borderRadius: 14, padding: 14, background: 'var(--color-slate-850)' }}>
+                <small style={{ color: 'var(--color-slate-400)' }}>Confidence %</small>
+                <h3 style={{ color: 'var(--color-slate-50)', margin: '6px 0 0' }}>{predictionEngine.confidencePercent}%</h3>
+                <p style={{ color: 'var(--color-slate-400)', margin: '4px 0 0' }}>{predictionEngine.confidenceLevel}</p>
               </article>
-              <article style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#0f172a' }}>
-                <small style={{ color: '#94a3b8' }}>Risk category</small>
-                <h3 style={{ color: '#f8fafc', margin: '6px 0 0' }}>{predictionEngine.riskCategory}</h3>
+              <article style={{ border: '1px solid var(--color-slate-700)', borderRadius: 14, padding: 14, background: 'var(--color-slate-850)' }}>
+                <small style={{ color: 'var(--color-slate-400)' }}>Risk category</small>
+                <h3 style={{ color: 'var(--color-slate-50)', margin: '6px 0 0' }}>{predictionEngine.riskCategory}</h3>
               </article>
-              <article style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#0f172a' }}>
-                <small style={{ color: '#94a3b8' }}>Sample Size</small>
-                <h3 style={{ color: '#f8fafc', margin: '6px 0 0' }}>{predictionEngine.sampleSize.total}</h3>
-                <p style={{ color: '#94a3b8', margin: '4px 0 0' }}>{predictionEngine.sampleSize.weightedCommunitySample} weighted community units</p>
+              <article style={{ border: '1px solid var(--color-slate-700)', borderRadius: 14, padding: 14, background: 'var(--color-slate-850)' }}>
+                <small style={{ color: 'var(--color-slate-400)' }}>Sample Size</small>
+                <h3 style={{ color: 'var(--color-slate-50)', margin: '6px 0 0' }}>{predictionEngine.sampleSize.total}</h3>
+                <p style={{ color: 'var(--color-slate-400)', margin: '4px 0 0' }}>{predictionEngine.sampleSize.weightedCommunitySample} weighted community units</p>
               </article>
-              <article style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#0f172a' }}>
-                <small style={{ color: '#94a3b8' }}>Route Confidence Input</small>
-                <h3 style={{ color: '#f8fafc', margin: '6px 0 0' }}>{predictionEngine.inputSummary.routeConfidenceAverage}/100</h3>
-                <p style={{ color: '#94a3b8', margin: '4px 0 0' }}>{predictionEngine.sampleSize.routeConfidenceSnapshots} saved snapshot(s)</p>
+              <article style={{ border: '1px solid var(--color-slate-700)', borderRadius: 14, padding: 14, background: 'var(--color-slate-850)' }}>
+                <small style={{ color: 'var(--color-slate-400)' }}>Route Confidence Input</small>
+                <h3 style={{ color: 'var(--color-slate-50)', margin: '6px 0 0' }}>{predictionEngine.inputSummary.routeConfidenceAverage}/100</h3>
+                <p style={{ color: 'var(--color-slate-400)', margin: '4px 0 0' }}>{predictionEngine.sampleSize.routeConfidenceSnapshots} saved snapshot(s)</p>
               </article>
             </div>
-            <div style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#0f172a', marginTop: 14 }}>
-              <strong style={{ color: '#f472b6' }}>Why we believe this</strong>
-              <ul style={{ color: '#cbd5e1', marginBottom: 0, paddingLeft: 20 }}>
+            <div style={{ border: '1px solid var(--color-slate-700)', borderRadius: 14, padding: 14, background: 'var(--color-slate-850)', marginTop: 14 }}>
+              <strong style={{ color: 'var(--color-pink-400)' }}>Why we believe this</strong>
+              <ul style={{ color: 'var(--color-slate-300)', marginBottom: 0, paddingLeft: 20 }}>
                 {predictionEngine.whyWeBelieveThis.map((reason) => (
                   <li key={reason}>{reason}</li>
                 ))}
               </ul>
             </div>
-            <div style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#0f172a', marginTop: 14 }}>
-              <strong style={{ color: '#c084fc' }}>Data Sources Used</strong>
+            <div style={{ border: '1px solid var(--color-slate-700)', borderRadius: 14, padding: 14, background: 'var(--color-slate-850)', marginTop: 14 }}>
+              <strong style={{ color: 'var(--color-purple-400)' }}>Data Sources Used</strong>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))', gap: 12, marginTop: 12 }}>
                 {predictionEngine.dataSourcesUsed.map((source) => (
-                  <article key={source.label} style={{ border: `1px solid ${source.used ? '#22c55e' : '#334155'}`, borderRadius: 14, padding: 14, background: '#020617' }}>
-                    <small style={{ color: source.used ? '#86efac' : '#94a3b8' }}>{source.used ? 'Used' : 'Pending'}</small>
-                    <h3 style={{ color: '#f8fafc', margin: '6px 0' }}>{source.label}</h3>
-                    <p style={{ color: '#94a3b8', margin: '0 0 6px' }}>Sample size: {source.sampleSize}</p>
-                    <p style={{ color: '#cbd5e1', margin: 0 }}>{source.impact}</p>
+                  <article key={source.label} style={{ border: `1px solid ${source.used ? 'var(--color-green-500)' : 'var(--color-slate-700)'}`, borderRadius: 14, padding: 14, background: 'var(--color-slate-950)' }}>
+                    <small style={{ color: source.used ? 'var(--color-green-300)' : 'var(--color-slate-400)' }}>{source.used ? 'Used' : 'Pending'}</small>
+                    <h3 style={{ color: 'var(--color-slate-50)', margin: '6px 0' }}>{source.label}</h3>
+                    <p style={{ color: 'var(--color-slate-400)', margin: '0 0 6px' }}>Sample size: {source.sampleSize}</p>
+                    <p style={{ color: 'var(--color-slate-300)', margin: 0 }}>{source.impact}</p>
                   </article>
                 ))}
               </div>
             </div>
-            <div style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#0f172a', marginTop: 14 }}>
-              <strong style={{ color: '#facc15' }}>Placeholder weighting formula</strong>
+            <div style={{ border: '1px solid var(--color-slate-700)', borderRadius: 14, padding: 14, background: 'var(--color-slate-850)', marginTop: 14 }}>
+              <strong style={{ color: 'var(--color-yellow-400)' }}>Placeholder weighting formula</strong>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 160px), 1fr))', gap: 10, marginTop: 12 }}>
                 {predictionEngine.placeholderWeights.map((weight) => (
-                  <article key={weight.label} style={{ border: '1px solid #334155', borderRadius: 12, padding: 12, background: '#020617' }}>
-                    <small style={{ color: '#94a3b8' }}>{weight.label}</small>
-                    <h3 style={{ color: '#f8fafc', margin: '6px 0 0' }}>{weight.value}</h3>
+                  <article key={weight.label} style={{ border: '1px solid var(--color-slate-700)', borderRadius: 12, padding: 12, background: 'var(--color-slate-950)' }}>
+                    <small style={{ color: 'var(--color-slate-400)' }}>{weight.label}</small>
+                    <h3 style={{ color: 'var(--color-slate-50)', margin: '6px 0 0' }}>{weight.value}</h3>
                   </article>
                 ))}
               </div>
             </div>
-            <div style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#0f172a', marginTop: 14 }}>
-              <strong style={{ color: '#34d399' }}>Community contribution impact</strong>
-              <p style={{ color: '#cbd5e1' }}>{predictionEngine.communityContributionImpact.summary}</p>
+            <div style={{ border: '1px solid var(--color-slate-700)', borderRadius: 14, padding: 14, background: 'var(--color-slate-850)', marginTop: 14 }}>
+              <strong style={{ color: 'var(--color-green-400)' }}>Community contribution impact</strong>
+              <p style={{ color: 'var(--color-slate-300)' }}>{predictionEngine.communityContributionImpact.summary}</p>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 150px), 1fr))', gap: 10 }}>
                 {[
                   ['New contributors', predictionEngine.communityContributionImpact.newContributorReports],
@@ -5921,19 +5921,19 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
                   ['Weighted report signal', predictionEngine.communityContributionImpact.weightedReportSignal],
                   ['Your trust score', `${predictionEngine.communityContributionImpact.currentUserTrustScore}/100`]
                 ].map(([label, value]) => (
-                  <article key={label} style={{ border: '1px solid #334155', borderRadius: 12, padding: 12, background: '#020617' }}>
-                    <small style={{ color: '#94a3b8' }}>{label}</small>
-                    <h3 style={{ color: '#f8fafc', margin: '6px 0 0' }}>{value}</h3>
+                  <article key={label} style={{ border: '1px solid var(--color-slate-700)', borderRadius: 12, padding: 12, background: 'var(--color-slate-950)' }}>
+                    <small style={{ color: 'var(--color-slate-400)' }}>{label}</small>
+                    <h3 style={{ color: 'var(--color-slate-50)', margin: '6px 0 0' }}>{value}</h3>
                   </article>
                 ))}
               </div>
-              <p style={{ color: '#94a3b8', marginBottom: 0 }}>
+              <p style={{ color: 'var(--color-slate-400)', marginBottom: 0 }}>
                 Current contributor level: {predictionEngine.communityContributionImpact.currentUserContributionLevel}. Trusted reports intentionally move the probability more than new-contributor reports in this scaffold.
               </p>
             </div>
-            <div style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#0f172a', marginTop: 14 }}>
-              <strong style={{ color: '#facc15' }}>Calculation explanation</strong>
-              <ul style={{ color: '#cbd5e1', marginBottom: 0, paddingLeft: 20 }}>
+            <div style={{ border: '1px solid var(--color-slate-700)', borderRadius: 14, padding: 14, background: 'var(--color-slate-850)', marginTop: 14 }}>
+              <strong style={{ color: 'var(--color-yellow-400)' }}>Calculation explanation</strong>
+              <ul style={{ color: 'var(--color-slate-300)', marginBottom: 0, paddingLeft: 20 }}>
                 {predictionEngine.explanationBullets.map((bullet) => (
                   <li key={bullet}>{bullet}</li>
                 ))}
@@ -5948,30 +5948,30 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
                 ['Trust score', `${predictionEngine.inputSummary.trustScore}/100`],
                 ['Route confidence', `${predictionEngine.inputSummary.routeConfidenceAverage}/100`]
               ].map(([label, value]) => (
-                <article key={label} style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#0f172a' }}>
-                  <small style={{ color: '#94a3b8' }}>{label}</small>
-                  <h3 style={{ color: '#f8fafc', margin: '6px 0 0' }}>{value}</h3>
+                <article key={label} style={{ border: '1px solid var(--color-slate-700)', borderRadius: 14, padding: 14, background: 'var(--color-slate-850)' }}>
+                  <small style={{ color: 'var(--color-slate-400)' }}>{label}</small>
+                  <h3 style={{ color: 'var(--color-slate-50)', margin: '6px 0 0' }}>{value}</h3>
                 </article>
               ))}
             </div>
           </section>
-          <section style={{ border: '1px solid #334155', borderRadius: 16, padding: 14, background: '#020617', marginTop: 14 }}>
-            <strong style={{ color: '#facc15' }}>Historical route intelligence scaffold</strong>
-            <p style={{ color: '#94a3b8' }}>
+          <section style={{ border: '1px solid var(--color-slate-700)', borderRadius: 16, padding: 14, background: 'var(--color-slate-950)', marginTop: 14 }}>
+            <strong style={{ color: 'var(--color-yellow-400)' }}>Historical route intelligence scaffold</strong>
+            <p style={{ color: 'var(--color-slate-400)' }}>
               Placeholder route guidance tied to the selected carrier profile. No backend APIs yet.
             </p>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 180px), 1fr))', gap: 12 }}>
               {Object.entries(scoringScaffold.routeIntelligence).map(([label, value]) => (
-                <article key={label} style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#0f172a' }}>
-                  <small style={{ color: '#94a3b8' }}>{label}</small>
-                  <h3 style={{ color: '#f8fafc', margin: '6px 0 0' }}>{value}</h3>
+                <article key={label} style={{ border: '1px solid var(--color-slate-700)', borderRadius: 14, padding: 14, background: 'var(--color-slate-850)' }}>
+                  <small style={{ color: 'var(--color-slate-400)' }}>{label}</small>
+                  <h3 style={{ color: 'var(--color-slate-50)', margin: '6px 0 0' }}>{value}</h3>
                 </article>
               ))}
             </div>
           </section>
-          <section style={{ border: '1px solid #334155', borderRadius: 16, padding: 14, background: '#020617', marginTop: 14 }}>
-            <strong style={{ color: '#facc15' }}>Historical route score explanation</strong>
-            <p style={{ color: '#94a3b8' }}>
+          <section style={{ border: '1px solid var(--color-slate-700)', borderRadius: 16, padding: 14, background: 'var(--color-slate-950)', marginTop: 14 }}>
+            <strong style={{ color: 'var(--color-yellow-400)' }}>Historical route score explanation</strong>
+            <p style={{ color: 'var(--color-slate-400)' }}>
               {historicalStats.explanation}
             </p>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 160px), 1fr))', gap: 12 }}>
@@ -5981,28 +5981,28 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
                 ['Report count', historicalStats.reportCount],
                 ['Top sample', historicalStats.topRoute?.route || 'Pending']
               ].map(([label, value]) => (
-                <article key={label} style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#0f172a' }}>
-                  <small style={{ color: '#94a3b8' }}>{label}</small>
-                  <h3 style={{ color: '#f8fafc', margin: '6px 0 0' }}>{value}</h3>
+                <article key={label} style={{ border: '1px solid var(--color-slate-700)', borderRadius: 14, padding: 14, background: 'var(--color-slate-850)' }}>
+                  <small style={{ color: 'var(--color-slate-400)' }}>{label}</small>
+                  <h3 style={{ color: 'var(--color-slate-50)', margin: '6px 0 0' }}>{value}</h3>
                 </article>
               ))}
             </div>
-            <a href="/historical-routes" style={{ display: 'inline-block', color: '#38bdf8', marginTop: 12 }}>
+            <a href="/historical-routes" style={{ display: 'inline-block', color: 'var(--color-sky-400)', marginTop: 12 }}>
               View historical route database scaffold
             </a>
           </section>
-            <div style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#0f172a', marginTop: 14 }}>
-              <strong style={{ color: '#34d399' }}>Profile assumptions</strong>
-              <ul style={{ color: '#cbd5e1', marginBottom: 0, paddingLeft: 20 }}>
+            <div style={{ border: '1px solid var(--color-slate-700)', borderRadius: 14, padding: 14, background: 'var(--color-slate-850)', marginTop: 14 }}>
+              <strong style={{ color: 'var(--color-green-400)' }}>Profile assumptions</strong>
+              <ul style={{ color: 'var(--color-slate-300)', marginBottom: 0, paddingLeft: 20 }}>
                 {predictionEngine.inputSummary.travelerProfileSignals.map((assumption) => (
                   <li key={assumption}>{assumption}</li>
                 ))}
               </ul>
-              <a href="/profile" style={{ display: 'inline-block', color: '#38bdf8', marginTop: 12 }}>Edit profile scaffold</a>
+              <a href="/profile" style={{ display: 'inline-block', color: 'var(--color-sky-400)', marginTop: 12 }}>Edit profile scaffold</a>
             </div>
-          <section style={{ border: '1px solid #334155', borderRadius: 16, padding: 14, background: '#020617', marginTop: 14 }}>
-            <strong style={{ color: '#34d399' }}>Traveler profile summary</strong>
-            <p style={{ color: '#94a3b8' }}>
+          <section style={{ border: '1px solid var(--color-slate-700)', borderRadius: 16, padding: 14, background: 'var(--color-slate-950)', marginTop: 14 }}>
+            <strong style={{ color: 'var(--color-green-400)' }}>Traveler profile summary</strong>
+            <p style={{ color: 'var(--color-slate-400)' }}>
               Local profile values currently feeding route scoring assumptions.
             </p>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 160px), 1fr))', gap: 12 }}>
@@ -6013,23 +6013,23 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
                 ['Home airport', travelerProfile.homeAirport],
                 ['Preferred airports', travelerProfile.preferredAirports.join(', ')]
               ].map(([label, value]) => (
-                <article key={label} style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#0f172a' }}>
-                  <small style={{ color: '#94a3b8' }}>{label}</small>
-                  <h3 style={{ color: '#f8fafc', margin: '6px 0 0' }}>{value}</h3>
+                <article key={label} style={{ border: '1px solid var(--color-slate-700)', borderRadius: 14, padding: 14, background: 'var(--color-slate-850)' }}>
+                  <small style={{ color: 'var(--color-slate-400)' }}>{label}</small>
+                  <h3 style={{ color: 'var(--color-slate-50)', margin: '6px 0 0' }}>{value}</h3>
                 </article>
               ))}
             </div>
-            <a href="/profile" style={{ display: 'inline-block', color: '#38bdf8', marginTop: 12 }}>Update local profile</a>
+            <a href="/profile" style={{ display: 'inline-block', color: 'var(--color-sky-400)', marginTop: 12 }}>Update local profile</a>
           </section>
-          <section style={{ border: '1px solid #334155', borderRadius: 16, padding: 14, background: '#020617', marginTop: 14 }}>
-            <strong style={{ color: '#22c55e' }}>Top 3 route recommendations</strong>
-            <p style={{ color: '#94a3b8' }}>
+          <section style={{ border: '1px solid var(--color-slate-700)', borderRadius: 16, padding: 14, background: 'var(--color-slate-950)', marginTop: 14 }}>
+            <strong style={{ color: 'var(--color-green-500)' }}>Top 3 route recommendations</strong>
+            <p style={{ color: 'var(--color-slate-400)' }}>
               Placeholder ranking tied to the score card and route intelligence for {scoringScaffold.recommendationScope}.
             </p>
             <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', color: '#cbd5e1' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', color: 'var(--color-slate-300)' }}>
                 <thead>
-                  <tr style={{ borderBottom: '1px solid #334155', color: '#94a3b8', textAlign: 'left' }}>
+                  <tr style={{ borderBottom: '1px solid var(--color-slate-700)', color: 'var(--color-slate-400)', textAlign: 'left' }}>
                     <th style={{ padding: '10px 8px' }}>Rank</th>
                     <th style={{ padding: '10px 8px' }}>Route</th>
                     <th style={{ padding: '10px 8px' }}>Score</th>
@@ -6038,12 +6038,12 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
                 </thead>
                 <tbody>
                   {scoringScaffold.routeRecommendations.map((recommendation) => (
-                    <tr key={`${recommendation.rank}-${recommendation.route}`} style={{ borderBottom: '1px solid #1e293b' }}>
-                      <td style={{ padding: '12px 8px', color: '#22c55e', fontWeight: 'bold' }}>{recommendation.rank}</td>
+                    <tr key={`${recommendation.rank}-${recommendation.route}`} style={{ borderBottom: '1px solid var(--color-slate-800)' }}>
+                      <td style={{ padding: '12px 8px', color: 'var(--color-green-500)', fontWeight: 'bold' }}>{recommendation.rank}</td>
                       <td style={{ padding: '12px 8px' }}>
-                        <strong style={{ color: '#f8fafc' }}>{recommendation.route}</strong>
+                        <strong style={{ color: 'var(--color-slate-50)' }}>{recommendation.route}</strong>
                         <br />
-                        <small style={{ color: '#94a3b8' }}>{recommendation.carrier}</small>
+                        <small style={{ color: 'var(--color-slate-400)' }}>{recommendation.carrier}</small>
                       </td>
                       <td style={{ padding: '12px 8px' }}>{recommendation.score}</td>
                       <td style={{ padding: '12px 8px' }}>{recommendation.risk}</td>
@@ -6052,7 +6052,7 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
                 </tbody>
               </table>
             </div>
-            <a href="/load-reports" style={{ display: 'inline-block', color: '#38bdf8', marginTop: 12 }}>
+            <a href="/load-reports" style={{ display: 'inline-block', color: 'var(--color-sky-400)', marginTop: 12 }}>
               Verify a load for these recommendations
             </a>
             <div style={{ display: 'grid', gap: 12, marginTop: 14 }}>
@@ -6069,17 +6069,17 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
           </section>
         </details>
 
-        <details className="nonrevy-premium-details" style={{ marginTop: 30, border: '1px solid #334155', borderRadius: 18, padding: 16, background: '#020617' }}>
-          <summary style={{ color: '#67e8f9', cursor: 'pointer', fontWeight: 'bold' }}>Developer Diagnostics: flight results and raw flight data</summary>
-          <p style={{ color: '#94a3b8', marginTop: 12 }}>
+        <details className="nonrevy-premium-details" style={{ marginTop: 30, border: '1px solid var(--color-slate-700)', borderRadius: 18, padding: 16, background: 'var(--color-slate-950)' }}>
+          <summary style={{ color: 'var(--color-sky-300)', cursor: 'pointer', fontWeight: 'bold' }}>Developer Diagnostics: flight results and raw flight data</summary>
+          <p style={{ color: 'var(--color-slate-400)', marginTop: 12 }}>
             {flightResultsLabel} · Last refresh {lastUpdated || 'pending'}
           </p>
           {(visibleFlights).map((flight) => {
             const risk = delayRiskScore(flight)
             return (
-              <article key={flight.id} className="flight-card" style={{ border: '1px solid #334155', borderRadius: 18, padding: 18, marginBottom: 14, background: '#0f172a' }}>
+              <article key={flight.id} className="flight-card" style={{ border: '1px solid var(--color-slate-700)', borderRadius: 18, padding: 18, marginBottom: 14, background: 'var(--color-slate-850)' }}>
                 <h3 style={{ marginTop: 0 }}>{flight.flight_number}</h3>
-                <p style={{ color: '#38bdf8' }}>{flight.origin} → {flight.destination}</p>
+                <p style={{ color: 'var(--color-sky-400)' }}>{flight.origin} → {flight.destination}</p>
                 <p>Aircraft: {flight.aircraft || 'Unknown'} · Status: {flight.status || 'Unknown'} · Score: {flight.score ?? 'Not scored'}</p>
                 <p>Delay risk: {risk.label} ({risk.score}/100)</p>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))', gap: 12, marginTop: 12 }}>
@@ -6088,27 +6088,27 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 180px), 1fr))', gap: 10, marginTop: 12 }}>
                   {richFlightFieldLabels.map((field) => (
-                    <div key={field.key} style={{ border: '1px solid #334155', borderRadius: 12, padding: 10, background: '#020617' }}>
-                      <small style={{ color: '#94a3b8' }}>{field.label}</small>
+                    <div key={field.key} style={{ border: '1px solid var(--color-slate-700)', borderRadius: 12, padding: 10, background: 'var(--color-slate-950)' }}>
+                      <small style={{ color: 'var(--color-slate-400)' }}>{field.label}</small>
                       <p style={{ margin: '4px 0 0' }}>{fieldValue(flight, field.key)}</p>
                     </div>
                   ))}
                 </div>
                 <details style={{ marginTop: 12 }}>
-                  <summary style={{ color: '#38bdf8', cursor: 'pointer' }}>Show all DB fields</summary>
+                  <summary style={{ color: 'var(--color-sky-400)', cursor: 'pointer' }}>Show all DB fields</summary>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 180px), 1fr))', gap: 8, marginTop: 10 }}>
                     {allFlightFields(flight).map(([key, value]) => (
-                      <div key={key} style={{ border: '1px solid #334155', borderRadius: 10, padding: 8, background: '#020617' }}>
-                        <small style={{ color: '#94a3b8' }}>{key}</small>
+                      <div key={key} style={{ border: '1px solid var(--color-slate-700)', borderRadius: 10, padding: 8, background: 'var(--color-slate-950)' }}>
+                        <small style={{ color: 'var(--color-slate-400)' }}>{key}</small>
                         <p style={{ margin: '4px 0 0', overflowWrap: 'anywhere' }}>{value === null || value === undefined || value === '' ? 'Not available yet' : String(value)}</p>
                       </div>
                     ))}
                   </div>
                 </details>
                 {String(flight.id || '').startsWith('demo-') ? (
-                  <p style={{ color: '#facc15', fontWeight: 'bold', marginBottom: 0 }}>Demo fallback row — no live flight-detail page available.</p>
+                  <p style={{ color: 'var(--color-yellow-400)', fontWeight: 'bold', marginBottom: 0 }}>Demo fallback row — no live flight-detail page available.</p>
                 ) : (
-                  <a href={`/flights/${flight.id}`} style={{ color: '#38bdf8' }}>View flight detail</a>
+                  <a href={`/flights/${flight.id}`} style={{ color: 'var(--color-sky-400)' }}>View flight detail</a>
                 )}
               </article>
             )

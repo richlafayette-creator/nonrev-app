@@ -14,10 +14,10 @@ export default function MapboxAirportMap({ airportCode, title, compact = false }
   const imageUrl = airport ? mapboxStaticImageUrl(airport, token) : ''
 
   return (
-    <article className="mapbox-card" style={{ border: '1px solid #334155', borderRadius: 16, padding: compact ? 12 : 16, background: '#020617' }}>
+    <article className="mapbox-card" style={{ border: '1px solid var(--color-slate-700)', borderRadius: 16, padding: compact ? 12 : 16, background: 'var(--color-slate-950)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'baseline', flexWrap: 'wrap' }}>
         <h4 style={{ margin: 0 }}>{title || `${airportCode || 'Airport'} map`}</h4>
-        <span style={{ color: airport ? '#38bdf8' : '#facc15', fontWeight: 'bold' }}>{airport?.code || 'Pending data'}</span>
+        <span style={{ color: airport ? 'var(--color-sky-400)' : 'var(--color-yellow-400)', fontWeight: 'bold' }}>{airport?.code || 'Pending data'}</span>
       </div>
 
       {airport && imageUrl ? (
@@ -30,16 +30,16 @@ export default function MapboxAirportMap({ airportCode, title, compact = false }
             backgroundImage: `linear-gradient(rgba(2, 6, 23, 0.1), rgba(2, 6, 23, 0.35)), url(${imageUrl})`,
             backgroundSize: 'cover',
             backgroundPosition: 'center',
-            border: '1px solid #334155'
+            border: '1px solid var(--color-slate-700)'
           }}
         />
       ) : (
-        <div style={{ minHeight: compact ? 100 : 160, marginTop: 12, borderRadius: 12, border: '1px dashed #475569', display: 'grid', placeItems: 'center', color: '#94a3b8', textAlign: 'center', padding: 12 }}>
+        <div style={{ minHeight: compact ? 100 : 160, marginTop: 12, borderRadius: 12, border: '1px dashed var(--color-slate-600)', display: 'grid', placeItems: 'center', color: 'var(--color-slate-400)', textAlign: 'center', padding: 12 }}>
           {airport ? 'Mapbox token unavailable; showing map placeholder.' : 'Airport map data unavailable; showing graceful placeholder.'}
         </div>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 8, marginTop: 12, color: '#cbd5e1' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 8, marginTop: 12, color: 'var(--color-slate-300)' }}>
         <p style={{ margin: 0 }}><strong>Terminal:</strong> {airport?.terminalPlaceholder || 'Terminal unavailable'}</p>
         <p style={{ margin: 0 }}><strong>Gate:</strong> {airport?.gatePlaceholder || 'Gate unavailable'}</p>
         <p style={{ margin: 0 }}><strong>Lounges:</strong> {airport?.loungePlaceholder || 'Lounges unavailable'}</p>

@@ -30,18 +30,18 @@ export default function TrustScoreSection() {
   const trust = useMemo(() => calculateTrustScore(outcomes, verifiedLoadReports), [outcomes, verifiedLoadReports])
 
   return (
-    <section style={{ border: '1px solid #334155', borderRadius: 22, padding: 22, background: '#0f172a', marginTop: 24 }}>
-      <p style={{ color: '#34d399', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1, marginTop: 0 }}>
+    <section style={{ border: '1px solid var(--color-slate-700)', borderRadius: 22, padding: 22, background: 'var(--color-slate-850)', marginTop: 24 }}>
+      <p style={{ color: 'var(--color-green-400)', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1, marginTop: 0 }}>
         Reputation scaffold
       </p>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 18, flexWrap: 'wrap', alignItems: 'flex-start' }}>
         <div>
           <h2 style={{ margin: '4px 0' }}>Trust Score</h2>
-          <p style={{ color: '#94a3b8', marginBottom: 0 }}>
+          <p style={{ color: 'var(--color-slate-400)', marginBottom: 0 }}>
             Local-only placeholder score based on verified outcomes and future load-report signals.
           </p>
         </div>
-        <strong style={{ color: '#34d399', fontSize: 44 }}>{trust.trustScore}/100</strong>
+        <strong style={{ color: 'var(--color-green-400)', fontSize: 44 }}>{trust.trustScore}/100</strong>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginTop: 16 }}>
@@ -51,25 +51,25 @@ export default function TrustScoreSection() {
           ['Verified Load Reports', trust.verifiedLoadReports],
           ['Community Contribution Level', trust.communityContributionLevel]
         ].map(([label, value]) => (
-          <article key={label} style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#020617' }}>
-            <small style={{ color: '#94a3b8' }}>{label}</small>
-            <h3 style={{ color: '#f8fafc', margin: '6px 0 0' }}>{value}</h3>
+          <article key={label} style={{ border: '1px solid var(--color-slate-700)', borderRadius: 14, padding: 14, background: 'var(--color-slate-950)' }}>
+            <small style={{ color: 'var(--color-slate-400)' }}>{label}</small>
+            <h3 style={{ color: 'var(--color-slate-50)', margin: '6px 0 0' }}>{value}</h3>
           </article>
         ))}
       </div>
 
-      <section style={{ border: '1px solid #334155', borderRadius: 16, padding: 14, background: '#020617', marginTop: 14 }}>
-        <strong style={{ color: '#38bdf8' }}>Badges</strong>
+      <section style={{ border: '1px solid var(--color-slate-700)', borderRadius: 16, padding: 14, background: 'var(--color-slate-950)', marginTop: 14 }}>
+        <strong style={{ color: 'var(--color-sky-400)' }}>Badges</strong>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 10, marginTop: 12 }}>
           {trust.badges.map((badge) => (
             <article
               key={badge.label}
               style={{
-                border: `1px solid ${badge.active ? '#34d399' : '#334155'}`,
+                border: `1px solid ${badge.active ? 'var(--color-green-400)' : 'var(--color-slate-700)'}`,
                 borderRadius: 14,
                 padding: 14,
-                background: badge.active ? 'rgba(20, 83, 45, 0.35)' : '#0f172a',
-                color: badge.active ? '#dcfce7' : '#94a3b8'
+                background: badge.active ? 'rgba(20, 83, 45, 0.35)' : 'var(--color-slate-850)',
+                color: badge.active ? '#dcfce7' : 'var(--color-slate-400)'
               }}
             >
               <h3 style={{ margin: 0 }}>{badge.label}</h3>
@@ -79,9 +79,9 @@ export default function TrustScoreSection() {
         </div>
       </section>
 
-      <section style={{ border: '1px solid #334155', borderRadius: 16, padding: 14, background: '#020617', marginTop: 14 }}>
-        <strong style={{ color: '#facc15' }}>Future Prediction Impact</strong>
-        <ul style={{ color: '#cbd5e1', marginBottom: 0, paddingLeft: 20 }}>
+      <section style={{ border: '1px solid var(--color-slate-700)', borderRadius: 16, padding: 14, background: 'var(--color-slate-950)', marginTop: 14 }}>
+        <strong style={{ color: 'var(--color-yellow-400)' }}>Future Prediction Impact</strong>
+        <ul style={{ color: 'var(--color-slate-300)', marginBottom: 0, paddingLeft: 20 }}>
           {trust.predictionImpact.map((item) => (
             <li key={item}>{item}</li>
           ))}

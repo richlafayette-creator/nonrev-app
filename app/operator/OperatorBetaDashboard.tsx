@@ -92,9 +92,9 @@ function arrayCount(value: unknown[] | undefined, fallback?: number) {
 
 function statusTone(status = '') {
   const normalized = status.toLowerCase()
-  if (['ready', 'connected', 'present', 'supabase'].some((value) => normalized.includes(value))) return '#86efac'
+  if (['ready', 'connected', 'present', 'supabase'].some((value) => normalized.includes(value))) return 'var(--color-green-300)'
   if (['missing', 'blocked', 'error', 'unreachable'].some((value) => normalized.includes(value))) return '#fca5a5'
-  return '#facc15'
+  return 'var(--color-yellow-400)'
 }
 
 function formatCheckedAt(value?: string) {
@@ -122,16 +122,16 @@ function countDetail(response: CountResponse | null) {
 
 function quietCardStyle() {
   return {
-    border: '1px solid #1e293b',
+    border: '1px solid var(--color-slate-800)',
     borderRadius: 18,
-    background: '#0f172a',
+    background: 'var(--color-slate-850)',
     padding: 16
   }
 }
 
 function rowStyle() {
   return {
-    borderTop: '1px solid #1e293b',
+    borderTop: '1px solid var(--color-slate-800)',
     padding: '12px 0'
   }
 }
@@ -212,37 +212,37 @@ export default function OperatorBetaDashboard({ buildVersion, commitHash }: { bu
   const liveStatus = snapshot.health?.liveItineraryReadiness
 
   return (
-    <main style={{ minHeight: '100vh', background: '#020617', color: '#e2e8f0', padding: 16, fontFamily: 'Arial, sans-serif' }}>
+    <main style={{ minHeight: '100vh', background: 'var(--color-slate-950)', color: 'var(--color-slate-200)', padding: 16, fontFamily: 'Arial, sans-serif' }}>
       <section style={{ maxWidth: 1040, margin: '0 auto', display: 'grid', gap: 16 }}>
         <header style={{ display: 'grid', gap: 8, padding: '14px 0 4px' }}>
-          <p style={{ margin: 0, color: '#94a3b8', fontSize: 12, fontWeight: 700, letterSpacing: 1.2, textTransform: 'uppercase' }}>Private beta operator dashboard</p>
+          <p style={{ margin: 0, color: 'var(--color-slate-400)', fontSize: 12, fontWeight: 700, letterSpacing: 1.2, textTransform: 'uppercase' }}>Private beta operator dashboard</p>
           <h1 style={{ margin: 0, fontSize: 'clamp(28px, 9vw, 44px)', lineHeight: 1.05 }}>Beta readiness snapshot</h1>
-          <p style={{ margin: 0, color: '#94a3b8', maxWidth: 720 }}>Read-only view of provider health, beta learning counts, data freshness, and build identity. No edits or operational actions are available here.</p>
+          <p style={{ margin: 0, color: 'var(--color-slate-400)', maxWidth: 720 }}>Read-only view of provider health, beta learning counts, data freshness, and build identity. No edits or operational actions are available here.</p>
         </header>
 
         <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>
           <article style={quietCardStyle()}>
-            <p style={{ margin: 0, color: '#94a3b8', fontSize: 13 }}>Snapshot</p>
-            <strong style={{ display: 'block', marginTop: 8, color: loadState === 'ready' ? '#86efac' : loadState === 'error' ? '#fca5a5' : '#facc15' }}>{loadState}</strong>
-            <small style={{ color: '#64748b' }}>{error || formatCheckedAt(snapshot.health?.checkedAt)}</small>
+            <p style={{ margin: 0, color: 'var(--color-slate-400)', fontSize: 13 }}>Snapshot</p>
+            <strong style={{ display: 'block', marginTop: 8, color: loadState === 'ready' ? 'var(--color-green-300)' : loadState === 'error' ? '#fca5a5' : 'var(--color-yellow-400)' }}>{loadState}</strong>
+            <small style={{ color: 'var(--color-slate-500)' }}>{error || formatCheckedAt(snapshot.health?.checkedAt)}</small>
           </article>
           <article style={quietCardStyle()}>
-            <p style={{ margin: 0, color: '#94a3b8', fontSize: 13 }}>Build version</p>
+            <p style={{ margin: 0, color: 'var(--color-slate-400)', fontSize: 13 }}>Build version</p>
             <strong style={{ display: 'block', marginTop: 8 }}>v{buildVersion}</strong>
-            <small style={{ color: '#64748b' }}>package.json</small>
+            <small style={{ color: 'var(--color-slate-500)' }}>package.json</small>
           </article>
           <article style={quietCardStyle()}>
-            <p style={{ margin: 0, color: '#94a3b8', fontSize: 13 }}>Commit hash</p>
+            <p style={{ margin: 0, color: 'var(--color-slate-400)', fontSize: 13 }}>Commit hash</p>
             <strong style={{ display: 'block', marginTop: 8 }}>{commitHash}</strong>
-            <small style={{ color: '#64748b' }}>runtime/build source</small>
+            <small style={{ color: 'var(--color-slate-500)' }}>runtime/build source</small>
           </article>
         </section>
 
         <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(145px, 1fr))', gap: 12 }}>
           {counts.map((card) => (
             <article key={card.label} style={quietCardStyle()}>
-              <p style={{ margin: 0, color: '#94a3b8', fontSize: 13 }}>{card.label}</p>
-              <strong style={{ display: 'block', marginTop: 8, fontSize: 32, color: '#f8fafc' }}>{card.value}</strong>
+              <p style={{ margin: 0, color: 'var(--color-slate-400)', fontSize: 13 }}>{card.label}</p>
+              <strong style={{ display: 'block', marginTop: 8, fontSize: 32, color: 'var(--color-slate-50)' }}>{card.value}</strong>
               <small style={{ color: statusTone(card.status) }}>{card.status}</small>
             </article>
           ))}
@@ -257,10 +257,10 @@ export default function OperatorBetaDashboard({ buildVersion, commitHash }: { bu
                   <strong>{provider.provider || 'Provider'}</strong>
                   <span style={{ color: statusTone(provider.status), fontWeight: 700 }}>{provider.status || 'Unknown'}</span>
                 </div>
-                <p style={{ margin: '6px 0 0', color: '#94a3b8', fontSize: 13 }}>{provider.rateLimits || provider.fallbackBehavior || 'No detail reported.'}</p>
+                <p style={{ margin: '6px 0 0', color: 'var(--color-slate-400)', fontSize: 13 }}>{provider.rateLimits || provider.fallbackBehavior || 'No detail reported.'}</p>
               </div>
             ))}
-            {!providerRows.length && <p style={{ color: '#94a3b8' }}>Provider health has not loaded yet.</p>}
+            {!providerRows.length && <p style={{ color: 'var(--color-slate-400)' }}>Provider health has not loaded yet.</p>}
           </article>
 
           <article style={quietCardStyle()}>
@@ -270,14 +270,14 @@ export default function OperatorBetaDashboard({ buildVersion, commitHash }: { bu
                 <strong>Flight freshness schema</strong>
                 <span style={{ color: statusTone(dataFreshness?.status), fontWeight: 700 }}>{dataFreshness?.status || 'Unknown'}</span>
               </div>
-              <p style={{ margin: '6px 0 0', color: '#94a3b8', fontSize: 13 }}>{dataFreshness?.detail || 'No freshness detail reported.'}</p>
-              <p style={{ margin: '8px 0 0', color: '#64748b', fontSize: 12 }}>Fallback mode: {dataFreshness?.fallbackMode || 'unknown'}</p>
+              <p style={{ margin: '6px 0 0', color: 'var(--color-slate-400)', fontSize: 13 }}>{dataFreshness?.detail || 'No freshness detail reported.'}</p>
+              <p style={{ margin: '8px 0 0', color: 'var(--color-slate-500)', fontSize: 12 }}>Fallback mode: {dataFreshness?.fallbackMode || 'unknown'}</p>
             </div>
             {(dataFreshness?.columns || []).map((column) => (
               <div key={column.column} style={rowStyle()}>
                 <strong>{column.column}</strong>
                 <span style={{ float: 'right', color: statusTone(column.status), fontWeight: 700 }}>{column.status || 'Unknown'}</span>
-                <p style={{ clear: 'both', margin: '6px 0 0', color: '#94a3b8', fontSize: 13 }}>{column.detail || 'No detail reported.'}</p>
+                <p style={{ clear: 'both', margin: '6px 0 0', color: 'var(--color-slate-400)', fontSize: 13 }}>{column.detail || 'No detail reported.'}</p>
               </div>
             ))}
             <div style={rowStyle()}>
@@ -285,8 +285,8 @@ export default function OperatorBetaDashboard({ buildVersion, commitHash }: { bu
                 <strong>Live itinerary readiness</strong>
                 <span style={{ color: statusTone(liveStatus?.status), fontWeight: 700 }}>{liveStatus?.status || 'Unknown'}</span>
               </div>
-              <p style={{ margin: '6px 0 0', color: '#94a3b8', fontSize: 13 }}>{liveStatus?.trueLiveAvailabilityMessage || 'Live itinerary detail has not loaded yet.'}</p>
-              <p style={{ margin: '8px 0 0', color: '#64748b', fontSize: 12 }}>Mode: {liveStatus?.activeDataMode || 'unknown'}</p>
+              <p style={{ margin: '6px 0 0', color: 'var(--color-slate-400)', fontSize: 13 }}>{liveStatus?.trueLiveAvailabilityMessage || 'Live itinerary detail has not loaded yet.'}</p>
+              <p style={{ margin: '8px 0 0', color: 'var(--color-slate-500)', fontSize: 12 }}>Mode: {liveStatus?.activeDataMode || 'unknown'}</p>
             </div>
           </article>
         </section>
@@ -299,7 +299,7 @@ export default function OperatorBetaDashboard({ buildVersion, commitHash }: { bu
                 <strong>{card.label}</strong>
                 <span>{card.value}</span>
               </div>
-              <p style={{ margin: '6px 0 0', color: '#94a3b8', fontSize: 13 }}>{card.detail}</p>
+              <p style={{ margin: '6px 0 0', color: 'var(--color-slate-400)', fontSize: 13 }}>{card.detail}</p>
             </div>
           ))}
         </section>

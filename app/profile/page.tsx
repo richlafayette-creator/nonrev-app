@@ -64,26 +64,26 @@ export default function ProfilePage() {
   }
 
   return (
-    <main className="app-shell" style={{ minHeight: '100vh', background: '#020617', color: 'white', padding: 32, fontFamily: 'Arial' }}>
+    <main className="app-shell" style={{ minHeight: '100vh', background: 'var(--color-slate-950)', color: 'white', padding: 32, fontFamily: 'Arial' }}>
       <nav className="top-nav" style={{ marginBottom: 24 }}>
-        <a href="/" style={{ marginRight: 16, color: '#38bdf8' }}>Home</a>
-        <a href="/plan" style={{ marginRight: 16, color: '#fb7185' }}>Plan</a>
-        <a href="/onboarding" style={{ marginRight: 16, color: '#38bdf8' }}>Onboarding</a>
-        <a href="/profile" style={{ marginRight: 16, color: '#22c55e' }}>Profile</a>
-        <a href="/account" style={{ marginRight: 16, color: '#fbbf24' }}>Account</a>
-        <a href="/referrals" style={{ marginRight: 16, color: '#38bdf8' }}>Referrals</a>
-        <a href="/load-reports" style={{ marginRight: 16, color: '#facc15' }}>Load Reports</a>
-        <a href="/requests" style={{ color: '#c084fc' }}>Open Requests</a>
+        <a href="/" style={{ marginRight: 16, color: 'var(--color-sky-400)' }}>Home</a>
+        <a href="/plan" style={{ marginRight: 16, color: 'var(--color-rose-400)' }}>Plan</a>
+        <a href="/onboarding" style={{ marginRight: 16, color: 'var(--color-sky-400)' }}>Onboarding</a>
+        <a href="/profile" style={{ marginRight: 16, color: 'var(--color-green-500)' }}>Profile</a>
+        <a href="/account" style={{ marginRight: 16, color: 'var(--color-amber-400)' }}>Account</a>
+        <a href="/referrals" style={{ marginRight: 16, color: 'var(--color-sky-400)' }}>Referrals</a>
+        <a href="/load-reports" style={{ marginRight: 16, color: 'var(--color-yellow-400)' }}>Load Reports</a>
+        <a href="/requests" style={{ color: 'var(--color-purple-400)' }}>Open Requests</a>
       </nav>
 
       <section style={{ maxWidth: 1120, margin: '0 auto' }}>
-        <p style={{ color: '#22c55e', fontWeight: 'bold', letterSpacing: 1, textTransform: 'uppercase' }}>
+        <p style={{ color: 'var(--color-green-500)', fontWeight: 'bold', letterSpacing: 1, textTransform: 'uppercase' }}>
           Traveler profile engine
         </p>
         <h1 style={{ fontSize: 44, lineHeight: 1.05, margin: '8px 0 12px' }}>
           Profile assumptions
         </h1>
-        <p style={{ color: '#94a3b8', maxWidth: 760, fontSize: 18 }}>
+        <p style={{ color: 'var(--color-slate-400)', maxWidth: 760, fontSize: 18 }}>
           Local profile settings that feed the planner success probability placeholder. Account sync can plug in later.
         </p>
 
@@ -100,79 +100,79 @@ export default function ProfilePage() {
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 18, marginTop: 28 }}>
-          <form onSubmit={saveProfile} style={{ border: '1px solid #334155', borderRadius: 22, padding: 22, background: '#0f172a' }}>
+          <form onSubmit={saveProfile} style={{ border: '1px solid var(--color-slate-700)', borderRadius: 22, padding: 22, background: 'var(--color-slate-850)' }}>
             <h2 style={{ marginTop: 0 }}>Traveler fields</h2>
-            <label style={{ display: 'block', color: '#cbd5e1', marginBottom: 12 }}>
+            <label style={{ display: 'block', color: 'var(--color-slate-300)', marginBottom: 12 }}>
               Employee airline
               <select
                 value={employeeAirline}
                 onChange={(event) => setEmployeeAirline(event.target.value)}
-                style={{ boxSizing: 'border-box', width: '100%', marginTop: 6, padding: 12, borderRadius: 12, border: '1px solid #475569', background: '#020617', color: 'white' }}
+                style={{ boxSizing: 'border-box', width: '100%', marginTop: 6, padding: 12, borderRadius: 12, border: '1px solid var(--color-slate-600)', background: 'var(--color-slate-950)', color: 'white' }}
               >
                 <option>United</option>
                 <option>Delta</option>
                 <option>Alaska Group</option>
               </select>
             </label>
-            <label style={{ display: 'block', color: '#cbd5e1', marginBottom: 12 }}>
+            <label style={{ display: 'block', color: 'var(--color-slate-300)', marginBottom: 12 }}>
               Traveler type
               <select
                 value={travelerType}
                 onChange={(event) => setTravelerType(event.target.value as TravelerType)}
-                style={{ boxSizing: 'border-box', width: '100%', marginTop: 6, padding: 12, borderRadius: 12, border: '1px solid #475569', background: '#020617', color: 'white' }}
+                style={{ boxSizing: 'border-box', width: '100%', marginTop: 6, padding: 12, borderRadius: 12, border: '1px solid var(--color-slate-600)', background: 'var(--color-slate-950)', color: 'white' }}
               >
                 {travelerTypes.map((type) => (
                   <option key={type}>{type}</option>
                 ))}
               </select>
             </label>
-            <label style={{ display: 'block', color: '#cbd5e1', marginBottom: 12 }}>
+            <label style={{ display: 'block', color: 'var(--color-slate-300)', marginBottom: 12 }}>
               Pass priority
               <input
                 value={passPriority}
                 onChange={(event) => setPassPriority(event.target.value.toUpperCase())}
                 placeholder="SA2"
-                style={{ boxSizing: 'border-box', width: '100%', marginTop: 6, padding: 12, borderRadius: 12, border: '1px solid #475569', background: '#020617', color: 'white' }}
+                style={{ boxSizing: 'border-box', width: '100%', marginTop: 6, padding: 12, borderRadius: 12, border: '1px solid var(--color-slate-600)', background: 'var(--color-slate-950)', color: 'white' }}
               />
             </label>
-            <label style={{ display: 'block', color: '#cbd5e1', marginBottom: 12 }}>
+            <label style={{ display: 'block', color: 'var(--color-slate-300)', marginBottom: 12 }}>
               Home airport
               <input
                 value={homeAirport}
                 onChange={(event) => setHomeAirport(event.target.value.toUpperCase())}
                 placeholder="LAX"
                 maxLength={3}
-                style={{ boxSizing: 'border-box', width: '100%', marginTop: 6, padding: 12, borderRadius: 12, border: '1px solid #475569', background: '#020617', color: 'white' }}
+                style={{ boxSizing: 'border-box', width: '100%', marginTop: 6, padding: 12, borderRadius: 12, border: '1px solid var(--color-slate-600)', background: 'var(--color-slate-950)', color: 'white' }}
               />
             </label>
-            <label style={{ display: 'block', color: '#cbd5e1', marginBottom: 12 }}>
+            <label style={{ display: 'block', color: 'var(--color-slate-300)', marginBottom: 12 }}>
               Preferred airports
               <input
                 value={preferredAirports}
                 onChange={(event) => setPreferredAirports(event.target.value)}
                 placeholder="LAX, SFO, DEN"
-                style={{ boxSizing: 'border-box', width: '100%', marginTop: 6, padding: 12, borderRadius: 12, border: '1px solid #475569', background: '#020617', color: 'white' }}
+                style={{ boxSizing: 'border-box', width: '100%', marginTop: 6, padding: 12, borderRadius: 12, border: '1px solid var(--color-slate-600)', background: 'var(--color-slate-950)', color: 'white' }}
               />
             </label>
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
               <button
                 type="submit"
-                style={{ padding: 12, borderRadius: 10, border: 'none', background: '#38bdf8', color: '#020617', fontWeight: 'bold' }}
+                style={{ padding: 12, borderRadius: 10, border: 'none', background: 'var(--color-sky-400)', color: 'var(--color-slate-950)', fontWeight: 'bold' }}
               >
                 Save local profile
               </button>
               <button
                 type="button"
                 onClick={resetProfile}
-                style={{ padding: 12, borderRadius: 10, border: '1px solid #475569', background: '#020617', color: '#cbd5e1', fontWeight: 'bold' }}
+                style={{ padding: 12, borderRadius: 10, border: '1px solid var(--color-slate-600)', background: 'var(--color-slate-950)', color: 'var(--color-slate-300)', fontWeight: 'bold' }}
               >
                 Reset defaults
               </button>
             </div>
-            <p style={{ color: '#94a3b8', marginBottom: 0 }}>{saveStatus}</p>
+            <p style={{ color: 'var(--color-slate-400)', marginBottom: 0 }}>{saveStatus}</p>
           </form>
 
-          <aside style={{ border: '1px solid #334155', borderRadius: 22, padding: 22, background: '#0f172a' }}>
+          <aside style={{ border: '1px solid var(--color-slate-700)', borderRadius: 22, padding: 22, background: 'var(--color-slate-850)' }}>
             <h2 style={{ marginTop: 0 }}>Profile summary</h2>
             <div style={{ display: 'grid', gap: 12 }}>
               {[
@@ -182,25 +182,25 @@ export default function ProfilePage() {
                 ['Home airport', profilePreview.homeAirport],
                 ['Preferred airports', profilePreview.preferredAirports.join(', ')]
               ].map(([label, value]) => (
-                <article key={label} style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#020617' }}>
-                  <small style={{ color: '#94a3b8' }}>{label}</small>
-                  <h3 style={{ color: '#f8fafc', margin: '6px 0 0' }}>{value}</h3>
+                <article key={label} style={{ border: '1px solid var(--color-slate-700)', borderRadius: 14, padding: 14, background: 'var(--color-slate-950)' }}>
+                  <small style={{ color: 'var(--color-slate-400)' }}>{label}</small>
+                  <h3 style={{ color: 'var(--color-slate-50)', margin: '6px 0 0' }}>{value}</h3>
                 </article>
               ))}
             </div>
-            <section style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#020617', marginTop: 14 }}>
-              <strong style={{ color: '#38bdf8' }}>Supported carrier eligibility</strong>
+            <section style={{ border: '1px solid var(--color-slate-700)', borderRadius: 14, padding: 14, background: 'var(--color-slate-950)', marginTop: 14 }}>
+              <strong style={{ color: 'var(--color-sky-400)' }}>Supported carrier eligibility</strong>
               {Object.entries(profilePreview.supportedCarrierEligibility).map(([carrier, eligibility]) => (
-                <p key={carrier} style={{ color: '#cbd5e1', margin: '8px 0 0' }}>
+                <p key={carrier} style={{ color: 'var(--color-slate-300)', margin: '8px 0 0' }}>
                   {carrier.replace('-', ' ')}: {eligibility}
                 </p>
               ))}
             </section>
-            <a href="/plan" style={{ display: 'inline-block', color: '#38bdf8', marginTop: 16 }}>
+            <a href="/plan" style={{ display: 'inline-block', color: 'var(--color-sky-400)', marginTop: 16 }}>
               View planner probability assumptions
             </a>
             <br />
-            <a href="/load-reports" style={{ display: 'inline-block', color: '#facc15', marginTop: 10 }}>
+            <a href="/load-reports" style={{ display: 'inline-block', color: 'var(--color-yellow-400)', marginTop: 10 }}>
               Verify community load report
             </a>
           </aside>

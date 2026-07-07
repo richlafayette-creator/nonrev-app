@@ -56,80 +56,80 @@ export default function DashboardPage() {
   const latestLoads = communityLoads.slice().sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt)).slice(0, 5)
 
   return (
-    <main className="app-shell" style={{ minHeight: '100vh', background: '#020617', color: 'white', padding: 24, fontFamily: 'Arial' }}>
+    <main className="app-shell" style={{ minHeight: '100vh', background: 'var(--color-slate-950)', color: 'white', padding: 24, fontFamily: 'Arial' }}>
       <nav className="top-nav" style={{ marginBottom: 24, display: 'flex', gap: 14, flexWrap: 'wrap' }}>
-        <a href="/plan" style={{ color: '#fb7185' }}>Plan</a>
-        <a href="/watchlist" style={{ color: '#facc15' }}>Watchlist</a>
-        <a href="/alerts" style={{ color: '#22c55e' }}>Alerts</a>
-        <a href="/saved-searches" style={{ color: '#67e8f9' }}>Saved Searches</a>
-        <a href="/dashboard" style={{ color: '#f472b6' }}>Dashboard</a>
+        <a href="/plan" style={{ color: 'var(--color-rose-400)' }}>Plan</a>
+        <a href="/watchlist" style={{ color: 'var(--color-yellow-400)' }}>Watchlist</a>
+        <a href="/alerts" style={{ color: 'var(--color-green-500)' }}>Alerts</a>
+        <a href="/saved-searches" style={{ color: 'var(--color-sky-300)' }}>Saved Searches</a>
+        <a href="/dashboard" style={{ color: 'var(--color-pink-400)' }}>Dashboard</a>
       </nav>
 
       <section style={{ maxWidth: 1120, margin: '0 auto' }}>
-        <p style={{ color: '#f472b6', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1 }}>User Dashboard</p>
+        <p style={{ color: 'var(--color-pink-400)', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1 }}>User Dashboard</p>
         <h1 style={{ fontSize: 42, margin: '8px 0 12px' }}>Your NONREVY command center</h1>
-        <p style={{ color: '#94a3b8', fontSize: 18, maxWidth: 820 }}>{status}</p>
+        <p style={{ color: 'var(--color-slate-400)', fontSize: 18, maxWidth: 820 }}>{status}</p>
 
         <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, margin: '22px 0' }}>
           {[
-            ['Watched routes', watches.length, '#facc15'],
-            ['Saved searches', savedSearches.length, '#67e8f9'],
-            ['Unread alerts', unreadAlerts, '#f472b6'],
-            ['Community loads', communityLoads.length, '#22c55e']
+            ['Watched routes', watches.length, 'var(--color-yellow-400)'],
+            ['Saved searches', savedSearches.length, 'var(--color-sky-300)'],
+            ['Unread alerts', unreadAlerts, 'var(--color-pink-400)'],
+            ['Community loads', communityLoads.length, 'var(--color-green-500)']
           ].map(([label, value, color]) => (
-            <article key={label} style={{ border: '1px solid #334155', borderRadius: 18, padding: 16, background: '#0f172a' }}>
+            <article key={label} style={{ border: '1px solid var(--color-slate-700)', borderRadius: 18, padding: 16, background: 'var(--color-slate-850)' }}>
               <strong style={{ color: String(color), fontSize: 30 }}>{value}</strong>
-              <p style={{ margin: '6px 0 0', color: '#cbd5e1', fontWeight: 'bold' }}>{label}</p>
+              <p style={{ margin: '6px 0 0', color: 'var(--color-slate-300)', fontWeight: 'bold' }}>{label}</p>
             </article>
           ))}
         </section>
 
         <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
-          <article style={{ border: '1px solid #334155', borderRadius: 20, padding: 16, background: '#0f172a' }}>
-            <h2 style={{ color: '#facc15', marginTop: 0 }}>Watched routes</h2>
+          <article style={{ border: '1px solid var(--color-slate-700)', borderRadius: 20, padding: 16, background: 'var(--color-slate-850)' }}>
+            <h2 style={{ color: 'var(--color-yellow-400)', marginTop: 0 }}>Watched routes</h2>
             {watches.slice(0, 5).map((watch) => (
-              <p key={watch.id} style={{ color: '#cbd5e1' }}><strong>{watch.watchLabel || watch.selectedItinerary}</strong><br /><small style={{ color: '#94a3b8' }}>{watch.watchType || 'route'} · {watch.carrier} · {watch.travelDate}</small></p>
+              <p key={watch.id} style={{ color: 'var(--color-slate-300)' }}><strong>{watch.watchLabel || watch.selectedItinerary}</strong><br /><small style={{ color: 'var(--color-slate-400)' }}>{watch.watchType || 'route'} · {watch.carrier} · {watch.travelDate}</small></p>
             ))}
-            {!watches.length && <p style={{ color: '#94a3b8' }}>No watches yet. Add UA39, LAX-HND, Any Japan route, an airport, a destination, or a Polaris opportunity.</p>}
-            <a href="/watchlist" style={{ color: '#facc15', fontWeight: 'bold' }}>Open Watchlist Center</a>
+            {!watches.length && <p style={{ color: 'var(--color-slate-400)' }}>No watches yet. Add UA39, LAX-HND, Any Japan route, an airport, a destination, or a Polaris opportunity.</p>}
+            <a href="/watchlist" style={{ color: 'var(--color-yellow-400)', fontWeight: 'bold' }}>Open Watchlist Center</a>
           </article>
 
-          <article style={{ border: '1px solid #334155', borderRadius: 20, padding: 16, background: '#0f172a' }}>
-            <h2 style={{ color: '#67e8f9', marginTop: 0 }}>Saved searches</h2>
+          <article style={{ border: '1px solid var(--color-slate-700)', borderRadius: 20, padding: 16, background: 'var(--color-slate-850)' }}>
+            <h2 style={{ color: 'var(--color-sky-300)', marginTop: 0 }}>Saved searches</h2>
             {savedSearches.slice(0, 5).map((search) => (
-              <p key={search.id} style={{ color: '#cbd5e1' }}><a href={savedSearchRunUrl(search)} style={{ color: '#67e8f9', fontWeight: 'bold' }}>{search.label}</a><br /><small style={{ color: '#94a3b8' }}>Run {search.runCount} time{search.runCount === 1 ? '' : 's'}</small></p>
+              <p key={search.id} style={{ color: 'var(--color-slate-300)' }}><a href={savedSearchRunUrl(search)} style={{ color: 'var(--color-sky-300)', fontWeight: 'bold' }}>{search.label}</a><br /><small style={{ color: 'var(--color-slate-400)' }}>Run {search.runCount} time{search.runCount === 1 ? '' : 's'}</small></p>
             ))}
-            {!savedSearches.length && <p style={{ color: '#94a3b8' }}>No saved searches yet.</p>}
+            {!savedSearches.length && <p style={{ color: 'var(--color-slate-400)' }}>No saved searches yet.</p>}
           </article>
 
-          <article style={{ border: '1px solid #334155', borderRadius: 20, padding: 16, background: '#0f172a' }}>
-            <h2 style={{ color: '#22c55e', marginTop: 0 }}>Recent alerts</h2>
+          <article style={{ border: '1px solid var(--color-slate-700)', borderRadius: 20, padding: 16, background: 'var(--color-slate-850)' }}>
+            <h2 style={{ color: 'var(--color-green-500)', marginTop: 0 }}>Recent alerts</h2>
             {alerts.slice(0, 5).map((alert) => (
-              <p key={alert.id} style={{ color: '#cbd5e1' }}><strong>{alert.title}</strong><br /><small style={{ color: '#94a3b8' }}>{alert.type} · {timeLabel(alert.generatedAt)}</small></p>
+              <p key={alert.id} style={{ color: 'var(--color-slate-300)' }}><strong>{alert.title}</strong><br /><small style={{ color: 'var(--color-slate-400)' }}>{alert.type} · {timeLabel(alert.generatedAt)}</small></p>
             ))}
-            {!alerts.length && <p style={{ color: '#94a3b8' }}>No alerts yet.</p>}
-            <a href="/alerts" style={{ color: '#22c55e', fontWeight: 'bold' }}>Open Alert Center</a>
+            {!alerts.length && <p style={{ color: 'var(--color-slate-400)' }}>No alerts yet.</p>}
+            <a href="/alerts" style={{ color: 'var(--color-green-500)', fontWeight: 'bold' }}>Open Alert Center</a>
           </article>
 
-          <article style={{ border: '1px solid #334155', borderRadius: 20, padding: 16, background: '#0f172a' }}>
+          <article style={{ border: '1px solid var(--color-slate-700)', borderRadius: 20, padding: 16, background: 'var(--color-slate-850)' }}>
             <h2 style={{ color: '#a7f3d0', marginTop: 0 }}>Community activity</h2>
             {latestLoads.map((report) => (
-              <p key={report.id} style={{ color: '#cbd5e1' }}><strong>{report.flightNumber} · {report.route}</strong><br /><small style={{ color: '#94a3b8' }}>{report.availableSeats} open · {report.standbyCount} standby · {relativeCommunityLoadTime(report.createdAt)}</small></p>
+              <p key={report.id} style={{ color: 'var(--color-slate-300)' }}><strong>{report.flightNumber} · {report.route}</strong><br /><small style={{ color: 'var(--color-slate-400)' }}>{report.availableSeats} open · {report.standbyCount} standby · {relativeCommunityLoadTime(report.createdAt)}</small></p>
             ))}
-            {!latestLoads.length && <p style={{ color: '#94a3b8' }}>Community load updates will appear here.</p>}
+            {!latestLoads.length && <p style={{ color: 'var(--color-slate-400)' }}>Community load updates will appear here.</p>}
           </article>
         </section>
 
-        <section style={{ border: '1px solid #334155', borderRadius: 20, padding: 16, background: '#0f172a', marginTop: 16 }}>
-          <h2 style={{ color: '#38bdf8', marginTop: 0 }}>Route Activity Feed</h2>
+        <section style={{ border: '1px solid var(--color-slate-700)', borderRadius: 20, padding: 16, background: 'var(--color-slate-850)', marginTop: 16 }}>
+          <h2 style={{ color: 'var(--color-sky-400)', marginTop: 0 }}>Route Activity Feed</h2>
           <div style={{ display: 'grid', gap: 10 }}>
             {activity.map((item) => (
-              <article key={item.id} style={{ border: '1px solid #1e293b', borderRadius: 14, padding: 12, background: '#020617' }}>
-                <strong style={{ color: item.tone === 'green' ? '#22c55e' : item.tone === 'yellow' ? '#facc15' : item.tone === 'pink' ? '#f472b6' : '#38bdf8' }}>{item.title}</strong>
-                <p style={{ color: '#cbd5e1', margin: '6px 0 0' }}>{item.route} · {item.body}</p>
+              <article key={item.id} style={{ border: '1px solid var(--color-slate-800)', borderRadius: 14, padding: 12, background: 'var(--color-slate-950)' }}>
+                <strong style={{ color: item.tone === 'green' ? 'var(--color-green-500)' : item.tone === 'yellow' ? 'var(--color-yellow-400)' : item.tone === 'pink' ? 'var(--color-pink-400)' : 'var(--color-sky-400)' }}>{item.title}</strong>
+                <p style={{ color: 'var(--color-slate-300)', margin: '6px 0 0' }}>{item.route} · {item.body}</p>
               </article>
             ))}
-            {!activity.length && <p style={{ color: '#94a3b8' }}>No route activity yet.</p>}
+            {!activity.length && <p style={{ color: 'var(--color-slate-400)' }}>No route activity yet.</p>}
           </div>
         </section>
       </section>

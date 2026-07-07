@@ -54,16 +54,16 @@ function normalizeRoute(route: string) {
 }
 
 function carrierColor(carrier: string) {
-  if (carrier === 'United') return '#38bdf8'
-  if (carrier === 'Delta') return '#fb7185'
-  return '#34d399'
+  if (carrier === 'United') return 'var(--color-sky-400)'
+  if (carrier === 'Delta') return 'var(--color-rose-400)'
+  return 'var(--color-green-400)'
 }
 
 function probabilityColor(probability: number) {
-  if (probability >= 80) return '#22c55e'
-  if (probability >= 72) return '#38bdf8'
-  if (probability >= 62) return '#facc15'
-  return '#f87171'
+  if (probability >= 80) return 'var(--color-green-500)'
+  if (probability >= 72) return 'var(--color-sky-400)'
+  if (probability >= 62) return 'var(--color-yellow-400)'
+  return 'var(--color-red-400)'
 }
 
 function trendLabel(score: number): IntelligenceRoute['trendLabel'] {
@@ -211,29 +211,29 @@ function aggregateIntelligence(
 
 function DashboardCard({ title, routes, metric }: { title: string; routes: IntelligenceRoute[]; metric: (route: IntelligenceRoute) => string | number }) {
   return (
-    <section className="flight-card" style={{ border: '1px solid #334155', borderRadius: 22, padding: 20, background: '#0f172a' }}>
+    <section className="flight-card" style={{ border: '1px solid var(--color-slate-700)', borderRadius: 22, padding: 20, background: 'var(--color-slate-850)' }}>
       <h2 style={{ marginTop: 0, fontSize: 24 }}>{title}</h2>
       <div style={{ display: 'grid', gap: 12 }}>
         {routes.map((route, index) => (
-          <article key={`${title}-${route.id}`} style={{ border: '1px solid #334155', borderRadius: 16, padding: 14, background: '#020617' }}>
+          <article key={`${title}-${route.id}`} style={{ border: '1px solid var(--color-slate-700)', borderRadius: 16, padding: 14, background: 'var(--color-slate-950)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start' }}>
               <div>
                 <small style={{ color: carrierColor(route.carrier), textTransform: 'uppercase', fontWeight: 800, letterSpacing: 1 }}>
                   #{index + 1} · {route.carrier}
                 </small>
-                <h3 style={{ margin: '6px 0', color: '#f8fafc' }}>{route.route}</h3>
+                <h3 style={{ margin: '6px 0', color: 'var(--color-slate-50)' }}>{route.route}</h3>
               </div>
               <strong style={{ color: probabilityColor(route.successProbability), fontSize: 24 }}>{metric(route)}</strong>
             </div>
-            <p style={{ color: '#94a3b8', margin: '6px 0 0' }}>{route.signalSummary.join(' · ')}</p>
-            <p style={{ color: '#94a3b8', margin: '6px 0 0' }}>
+            <p style={{ color: 'var(--color-slate-400)', margin: '6px 0 0' }}>{route.signalSummary.join(' · ')}</p>
+            <p style={{ color: 'var(--color-slate-400)', margin: '6px 0 0' }}>
               Last confidence update: {new Date(route.routeConfidence.lastUpdated).toLocaleString()} · {confidenceUpdateTriggerLabel(route.routeConfidence.updateTrigger)}
             </p>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
-              <span style={{ border: '1px solid #334155', borderRadius: 999, padding: '4px 8px', color: confidenceBadgeColor(route.confidenceLabel), background: '#0f172a' }}>
+              <span style={{ border: '1px solid var(--color-slate-700)', borderRadius: 999, padding: '4px 8px', color: confidenceBadgeColor(route.confidenceLabel), background: 'var(--color-slate-850)' }}>
                 Route Confidence {route.confidenceScore}/100 · {route.confidenceLabel}
               </span>
-              <span style={{ border: '1px solid #334155', borderRadius: 999, padding: '4px 8px', color: confidenceTrendColor(route.trendLabel), background: '#0f172a' }}>
+              <span style={{ border: '1px solid var(--color-slate-700)', borderRadius: 999, padding: '4px 8px', color: confidenceTrendColor(route.trendLabel), background: 'var(--color-slate-850)' }}>
                 Confidence Trend {route.trendLabel}
               </span>
             </div>
@@ -292,32 +292,32 @@ export default function IntelligencePage() {
     : 0
 
   return (
-    <main className="app-shell" style={{ minHeight: '100vh', background: '#020617', color: 'white', padding: 40, fontFamily: 'Arial' }}>
+    <main className="app-shell" style={{ minHeight: '100vh', background: 'var(--color-slate-950)', color: 'white', padding: 40, fontFamily: 'Arial' }}>
       <nav className="top-nav" style={{ marginBottom: 24 }}>
-        <a href="/" style={{ marginRight: 16, color: '#38bdf8' }}>Flights</a>
-        <a href="/plan" style={{ marginRight: 16, color: '#fb7185' }}>Plan</a>
-        <a href="/historical-routes" style={{ marginRight: 16, color: '#facc15' }}>Historical Routes</a>
-        <a href="/load-reports" style={{ marginRight: 16, color: '#facc15' }}>Load Reports</a>
-        <a href="/outcomes" style={{ marginRight: 16, color: '#22c55e' }}>Outcomes</a>
-        <a href="/intelligence" style={{ color: '#c084fc' }}>Intelligence</a>
+        <a href="/" style={{ marginRight: 16, color: 'var(--color-sky-400)' }}>Flights</a>
+        <a href="/plan" style={{ marginRight: 16, color: 'var(--color-rose-400)' }}>Plan</a>
+        <a href="/historical-routes" style={{ marginRight: 16, color: 'var(--color-yellow-400)' }}>Historical Routes</a>
+        <a href="/load-reports" style={{ marginRight: 16, color: 'var(--color-yellow-400)' }}>Load Reports</a>
+        <a href="/outcomes" style={{ marginRight: 16, color: 'var(--color-green-500)' }}>Outcomes</a>
+        <a href="/intelligence" style={{ color: 'var(--color-purple-400)' }}>Intelligence</a>
       </nav>
 
       <section style={{ maxWidth: 1180, margin: '0 auto' }}>
-        <p style={{ color: '#c084fc', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1 }}>
+        <p style={{ color: 'var(--color-purple-400)', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1 }}>
           Route outcome intelligence dashboard
         </p>
         <h1 style={{ fontSize: 44, lineHeight: 1.05, margin: '8px 0 12px' }}>Intelligence</h1>
-        <p style={{ color: '#94a3b8', maxWidth: 820, fontSize: 18 }}>
+        <p style={{ color: 'var(--color-slate-400)', maxWidth: 820, fontSize: 18 }}>
           Local-only MVP dashboard blending historical route data, saved trip outcomes, community load reports, traveler profile, disruption intelligence, weather impact, airport intelligence, and route confidence. No live airline inventory or production data is queried here.
         </p>
 
-        <section className="filter-panel" style={{ border: '1px solid #334155', borderRadius: 22, padding: 20, background: '#0f172a', margin: '24px 0' }}>
-          <label style={{ display: 'block', color: '#cbd5e1', maxWidth: 430 }}>
+        <section className="filter-panel" style={{ border: '1px solid var(--color-slate-700)', borderRadius: 22, padding: 20, background: 'var(--color-slate-850)', margin: '24px 0' }}>
+          <label style={{ display: 'block', color: 'var(--color-slate-300)', maxWidth: 430 }}>
             Carrier filter
             <select
               value={carrier}
               onChange={(event) => setCarrier(event.target.value as SupportedCarrierValue)}
-              style={{ boxSizing: 'border-box', width: '100%', marginTop: 6, padding: 12, borderRadius: 12, border: '1px solid #475569', background: '#020617', color: 'white' }}
+              style={{ boxSizing: 'border-box', width: '100%', marginTop: 6, padding: 12, borderRadius: 12, border: '1px solid var(--color-slate-600)', background: 'var(--color-slate-950)', color: 'white' }}
             >
               {intelligenceCarrierOptions.map((option) => (
                 <option key={option.value} value={option.value}>{option.label}</option>
@@ -328,43 +328,43 @@ export default function IntelligencePage() {
 
         <section className="stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14, margin: '24px 0' }}>
           {[
-            ['Routes Analyzed', routeIntelligence.length, '#38bdf8'],
-            ['Avg Success Probability', `${averageProbability}%`, '#22c55e'],
-            ['Reports Blended', totalReports, '#facc15'],
-            ['Tracked Outcomes', totalOutcomes, '#fb7185'],
-            ['Good+ Confidence Routes', highConfidenceCount, '#c084fc'],
+            ['Routes Analyzed', routeIntelligence.length, 'var(--color-sky-400)'],
+            ['Avg Success Probability', `${averageProbability}%`, 'var(--color-green-500)'],
+            ['Reports Blended', totalReports, 'var(--color-yellow-400)'],
+            ['Tracked Outcomes', totalOutcomes, 'var(--color-rose-400)'],
+            ['Good+ Confidence Routes', highConfidenceCount, 'var(--color-purple-400)'],
             ['Avg Connection Risk', `${averageConnectionRisk}/100`, connectionRiskColor(averageConnectionRisk)]
           ].map(([label, value, color]) => (
-            <article key={label} className="mini-card" style={{ border: '1px solid #334155', borderRadius: 18, padding: 18, background: '#0f172a' }}>
+            <article key={label} className="mini-card" style={{ border: '1px solid var(--color-slate-700)', borderRadius: 18, padding: 18, background: 'var(--color-slate-850)' }}>
               <strong style={{ color: String(color), fontSize: 32 }}>{value}</strong>
               <h2 style={{ fontSize: 18, marginBottom: 0 }}>{label}</h2>
             </article>
           ))}
         </section>
 
-        <section style={{ border: '1px solid #334155', borderRadius: 22, padding: 20, background: '#0f172a', marginBottom: 24 }}>
-          <strong style={{ color: '#34d399' }}>Signal blend</strong>
-          <p style={{ color: '#94a3b8' }}>
+        <section style={{ border: '1px solid var(--color-slate-700)', borderRadius: 22, padding: 20, background: 'var(--color-slate-850)', marginBottom: 24 }}>
+          <strong style={{ color: 'var(--color-green-400)' }}>Signal blend</strong>
+          <p style={{ color: 'var(--color-slate-400)' }}>
             {scoringScaffold.recommendationScope} uses carrier scoring defaults, {historicalRoutes.length} bundled historical route examples, browser-local trip outcomes, and verified community load reports saved on this device.
           </p>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
             {Object.entries(scoringScaffold.routeIntelligence).map(([label, value]) => (
-              <article key={label} style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#020617' }}>
-                <small style={{ color: '#94a3b8' }}>{label}</small>
-                <h3 style={{ color: '#f8fafc', margin: '6px 0 0' }}>{value}</h3>
+              <article key={label} style={{ border: '1px solid var(--color-slate-700)', borderRadius: 14, padding: 14, background: 'var(--color-slate-950)' }}>
+                <small style={{ color: 'var(--color-slate-400)' }}>{label}</small>
+                <h3 style={{ color: 'var(--color-slate-50)', margin: '6px 0 0' }}>{value}</h3>
               </article>
             ))}
           </div>
         </section>
 
-        <section style={{ border: '1px solid #334155', borderRadius: 22, padding: 20, background: '#0f172a', marginBottom: 24 }}>
-          <strong style={{ color: '#facc15' }}>Traveler profile assumptions</strong>
-          <p style={{ color: '#94a3b8' }}>
+        <section style={{ border: '1px solid var(--color-slate-700)', borderRadius: 22, padding: 20, background: 'var(--color-slate-850)', marginBottom: 24 }}>
+          <strong style={{ color: 'var(--color-yellow-400)' }}>Traveler profile assumptions</strong>
+          <p style={{ color: 'var(--color-slate-400)' }}>
             These local assumptions are included in the confidence and probability narrative until account-backed profile intelligence is connected.
           </p>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10 }}>
             {profileAssumptions.map((assumption) => (
-              <article key={assumption} style={{ border: '1px solid #334155', borderRadius: 14, padding: 12, background: '#020617', color: '#cbd5e1' }}>
+              <article key={assumption} style={{ border: '1px solid var(--color-slate-700)', borderRadius: 14, padding: 12, background: 'var(--color-slate-950)', color: 'var(--color-slate-300)' }}>
                 {assumption}
               </article>
             ))}
@@ -382,50 +382,50 @@ export default function IntelligencePage() {
         <section style={{ marginTop: 30 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', alignItems: 'center' }}>
             <h2 style={{ fontSize: 30, margin: 0 }}>Route intelligence detail</h2>
-            <a href="/plan" style={{ color: '#38bdf8' }}>Use these signals in planner</a>
+            <a href="/plan" style={{ color: 'var(--color-sky-400)' }}>Use these signals in planner</a>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(290px, 1fr))', gap: 14, marginTop: 16 }}>
             {routeIntelligence.map((route) => (
-              <article key={route.id} className="flight-card" style={{ border: '1px solid #334155', borderRadius: 18, padding: 18, background: '#0f172a' }}>
+              <article key={route.id} className="flight-card" style={{ border: '1px solid var(--color-slate-700)', borderRadius: 18, padding: 18, background: 'var(--color-slate-850)' }}>
                 <strong style={{ color: carrierColor(route.carrier), textTransform: 'uppercase', letterSpacing: 1 }}>{route.carrier}</strong>
-                <h3 style={{ fontSize: 24, margin: '8px 0', color: '#f8fafc' }}>{route.route}</h3>
+                <h3 style={{ fontSize: 24, margin: '8px 0', color: 'var(--color-slate-50)' }}>{route.route}</h3>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 10 }}>
                   {[
                     ['Success Probability', `${route.successProbability}%`, probabilityColor(route.successProbability)],
-                    ['Historical Score', route.historicalScore, '#facc15'],
-                    ['Outcomes', `${route.successfulOutcomes}/${route.outcomeCount}`, '#22c55e'],
+                    ['Historical Score', route.historicalScore, 'var(--color-yellow-400)'],
+                    ['Outcomes', `${route.successfulOutcomes}/${route.outcomeCount}`, 'var(--color-green-500)'],
                     ['Route Confidence', `${route.confidenceScore}/100 · ${route.confidenceLabel}`, confidenceBadgeColor(route.confidenceLabel)],
                     ['Confidence Trend', route.trendLabel, confidenceTrendColor(route.trendLabel)],
-                    ['Last Confidence Update', new Date(route.routeConfidence.lastUpdated).toLocaleString(), '#94a3b8'],
+                    ['Last Confidence Update', new Date(route.routeConfidence.lastUpdated).toLocaleString(), 'var(--color-slate-400)'],
                     ['Connection Risk', `${route.airportIntelligence.connectionRiskScore}/100`, connectionRiskColor(route.airportIntelligence.connectionRiskScore)],
-                    ['Airport Backup', route.airportIntelligence.backupFlightAvailability, '#38bdf8'],
-                    ['Weather Impact', route.routeConfidence.weatherImpact.label, route.routeConfidence.weatherImpact.scoreImpact >= 15 ? '#facc15' : '#22c55e'],
-                    ['Best This Week', route.weekScore, '#38bdf8'],
-                    ['Momentum', `${route.trendingScore}/100`, '#fb7185']
+                    ['Airport Backup', route.airportIntelligence.backupFlightAvailability, 'var(--color-sky-400)'],
+                    ['Weather Impact', route.routeConfidence.weatherImpact.label, route.routeConfidence.weatherImpact.scoreImpact >= 15 ? 'var(--color-yellow-400)' : 'var(--color-green-500)'],
+                    ['Best This Week', route.weekScore, 'var(--color-sky-400)'],
+                    ['Momentum', `${route.trendingScore}/100`, 'var(--color-rose-400)']
                   ].map(([label, value, color]) => (
-                    <div key={`${route.id}-${label}`} style={{ border: '1px solid #334155', borderRadius: 12, padding: 10, background: '#020617' }}>
-                      <small style={{ color: '#94a3b8' }}>{label}</small>
+                    <div key={`${route.id}-${label}`} style={{ border: '1px solid var(--color-slate-700)', borderRadius: 12, padding: 10, background: 'var(--color-slate-950)' }}>
+                      <small style={{ color: 'var(--color-slate-400)' }}>{label}</small>
                       <p style={{ margin: '4px 0 0', color: String(color), fontWeight: 'bold' }}>{value}</p>
                     </div>
                   ))}
                 </div>
-                <p style={{ color: '#cbd5e1' }}>{route.notes}</p>
-                <p style={{ color: '#cbd5e1', marginBottom: 0 }}>{route.routeConfidence.updateExplanation}</p>
-                <p style={{ color: '#94a3b8', marginBottom: 0 }}>{route.signalSummary.join(' · ')}</p>
+                <p style={{ color: 'var(--color-slate-300)' }}>{route.notes}</p>
+                <p style={{ color: 'var(--color-slate-300)', marginBottom: 0 }}>{route.routeConfidence.updateExplanation}</p>
+                <p style={{ color: 'var(--color-slate-400)', marginBottom: 0 }}>{route.signalSummary.join(' · ')}</p>
                 <details style={{ marginTop: 12 }}>
-                  <summary style={{ color: '#38bdf8', cursor: 'pointer', fontWeight: 'bold' }}>Confidence explanation</summary>
-                  <ul style={{ color: '#cbd5e1', paddingLeft: 20, marginBottom: 0 }}>
+                  <summary style={{ color: 'var(--color-sky-400)', cursor: 'pointer', fontWeight: 'bold' }}>Confidence explanation</summary>
+                  <ul style={{ color: 'var(--color-slate-300)', paddingLeft: 20, marginBottom: 0 }}>
                     {route.routeConfidence.explanation.map((reason) => <li key={reason}>{reason}</li>)}
                   </ul>
                 </details>
                 <details style={{ marginTop: 12 }}>
-                  <summary style={{ color: '#facc15', cursor: 'pointer', fontWeight: 'bold' }}>Airport intelligence</summary>
+                  <summary style={{ color: 'var(--color-yellow-400)', cursor: 'pointer', fontWeight: 'bold' }}>Airport intelligence</summary>
                   <div style={{ display: 'grid', gap: 8, marginTop: 10 }}>
                     {route.airportIntelligence.airports.map((airport) => (
-                      <article key={`${route.id}-${airport.code}`} style={{ border: '1px solid #334155', borderRadius: 12, padding: 10, background: '#020617' }}>
+                      <article key={`${route.id}-${airport.code}`} style={{ border: '1px solid var(--color-slate-700)', borderRadius: 12, padding: 10, background: 'var(--color-slate-950)' }}>
                         <strong style={{ color: connectionRiskColor(airport.connectionRiskScore) }}>{airport.code} · Risk {airport.connectionRiskScore}/100</strong>
-                        <p style={{ color: '#94a3b8', margin: '6px 0' }}>{airport.terminalInformation}</p>
-                        <small style={{ color: '#cbd5e1' }}>Connections: {airport.typicalConnectionTerminals} · Walking {airport.walkingDistanceCategory} · Hub {airport.hubStrength} · Backup {airport.backupFlightAvailability}</small>
+                        <p style={{ color: 'var(--color-slate-400)', margin: '6px 0' }}>{airport.terminalInformation}</p>
+                        <small style={{ color: 'var(--color-slate-300)' }}>Connections: {airport.typicalConnectionTerminals} · Walking {airport.walkingDistanceCategory} · Hub {airport.hubStrength} · Backup {airport.backupFlightAvailability}</small>
                       </article>
                     ))}
                   </div>

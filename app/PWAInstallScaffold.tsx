@@ -71,28 +71,28 @@ export default function PWAInstallScaffold() {
         bottom: 'calc(18px + env(safe-area-inset-bottom))',
         zIndex: 30,
         width: 'min(340px, calc(100vw - 36px))',
-        border: '1px solid #38bdf8',
+        border: '1px solid var(--color-sky-400)',
         borderRadius: 18,
         padding: 14,
         background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.96), rgba(49, 46, 129, 0.94))',
-        color: '#f8fafc',
+        color: 'var(--color-slate-50)',
         boxShadow: '0 18px 45px rgba(2, 6, 23, 0.38)'
       }}
     >
-      <strong style={{ color: '#38bdf8' }}>Install nonrevy</strong>
-      <p style={{ color: '#cbd5e1', margin: '6px 0 12px' }}>{status}</p>
+      <strong style={{ color: 'var(--color-sky-400)' }}>Install nonrevy</strong>
+      <p style={{ color: 'var(--color-slate-300)', margin: '6px 0 12px' }}>{status}</p>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         <button
           type="button"
           onClick={installApp}
-          style={{ border: 'none', borderRadius: 999, padding: '10px 13px', background: '#38bdf8', color: '#020617', fontWeight: 'bold' }}
+          style={{ border: 'none', borderRadius: 999, padding: '10px 13px', background: 'var(--color-sky-400)', color: 'var(--color-slate-950)', fontWeight: 'bold' }}
         >
           Install app
         </button>
         <button
           type="button"
           onClick={() => setVisible(false)}
-          style={{ border: '1px solid #475569', borderRadius: 999, padding: '10px 13px', background: '#020617', color: '#cbd5e1', fontWeight: 'bold' }}
+          style={{ border: '1px solid var(--color-slate-600)', borderRadius: 999, padding: '10px 13px', background: 'var(--color-slate-950)', color: 'var(--color-slate-300)', fontWeight: 'bold' }}
         >
           Not now
         </button>

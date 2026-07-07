@@ -26,9 +26,9 @@ function timeLabel(value: string) {
 }
 
 function sentimentColor(sentiment: BetaFeedbackSentiment) {
-  if (sentiment === 'Positive') return '#22c55e'
-  if (sentiment === 'Blocked') return '#fb7185'
-  return '#38bdf8'
+  if (sentiment === 'Positive') return 'var(--color-green-500)'
+  if (sentiment === 'Blocked') return 'var(--color-rose-400)'
+  return 'var(--color-sky-400)'
 }
 
 function feedbackMailto(records: BetaFeedbackRecord[]) {
@@ -100,13 +100,13 @@ export default function BetaFeedbackPage() {
   }
 
   return (
-    <main className="app-shell" style={{ minHeight: '100vh', background: '#020617', color: 'white', padding: 40, fontFamily: 'Arial' }}>
+    <main className="app-shell" style={{ minHeight: '100vh', background: 'var(--color-slate-950)', color: 'white', padding: 40, fontFamily: 'Arial' }}>
       <nav className="top-nav" style={{ marginBottom: 24 }}>
-        <a href="/" style={{ marginRight: 16, color: '#38bdf8' }}>Home</a>
-        <a href="/plan" style={{ marginRight: 16, color: '#fb7185' }}>Plan</a>
-        <a href="/watchlist" style={{ marginRight: 16, color: '#facc15' }}>Watchlist</a>
-        <a href="/alerts" style={{ marginRight: 16, color: '#22c55e' }}>Alerts</a>
-        <a href="/data-health" style={{ color: '#c084fc' }}>Data Health</a>
+        <a href="/" style={{ marginRight: 16, color: 'var(--color-sky-400)' }}>Home</a>
+        <a href="/plan" style={{ marginRight: 16, color: 'var(--color-rose-400)' }}>Plan</a>
+        <a href="/watchlist" style={{ marginRight: 16, color: 'var(--color-yellow-400)' }}>Watchlist</a>
+        <a href="/alerts" style={{ marginRight: 16, color: 'var(--color-green-500)' }}>Alerts</a>
+        <a href="/data-health" style={{ color: 'var(--color-purple-400)' }}>Data Health</a>
       </nav>
 
       <section className="nonrevy-beta-feedback__hero">
@@ -120,10 +120,10 @@ export default function BetaFeedbackPage() {
         </div>
         <div className="nonrevy-beta-feedback__summary" aria-label="Feedback summary">
           {[
-            ['Total', summary.total, '#38bdf8'],
-            ['Open', summary.open, '#facc15'],
-            ['Blocked', summary.blocked, '#fb7185'],
-            ['Newest', timeLabel(summary.newest), '#94a3b8']
+            ['Total', summary.total, 'var(--color-sky-400)'],
+            ['Open', summary.open, 'var(--color-yellow-400)'],
+            ['Blocked', summary.blocked, 'var(--color-rose-400)'],
+            ['Newest', timeLabel(summary.newest), 'var(--color-slate-400)']
           ].map(([label, value, color]) => (
             <article key={label}>
               <small>{label}</small>

@@ -198,6 +198,87 @@ describe('server-side weather refresh orchestration', () => {
     assert.equal(result.unknownWeatherNeutral, true)
   })
 
+  it('uses a fresh cache hit without calling AviationWeather.gov again', async () => {
+    const store = new InMemoryWeatherCacheStore()
+    const initial = await populateWeatherCacheFromAviationWeather({
+      store,
+      airportCodes: ['SFO'],
+      now: new Date('2026-07-04T12:00:00Z'),
+      env: { NONREV_AVIATION_WEATHER_CACHE_POPULATION_ENABLED: 'true' },
+      policy: { freshForMinutes: 30, diagnosticStaleForMinutes: 120 },
+      fetchImpl: async () => new Response(JSON.stringify([
+        {
+          icaoId: 'KSFO',
+          obsTime: '2026-07-04T11:50:00Z',
+          rawOb: 'KSFO 041150Z 28012KT 10SM FEW012',
+          flightCategory: 'VFR',
+          wspd: 12,
+          visib: 10,
+          ceil: 5000
+        }
+      ]), { status: 200 })
+    })
+    assert.equal(initial.status, 'populated')
+
+    let fetchCalls = 0
+    const result = await refreshRouteWeatherCacheServerSide({
+      store,
+      airportCodes: ['SFO'],
+      now: new Date('2026-07-04T12:10:00Z'),
+      env: {
+        NONREV_SERVER_WEATHER_REFRESH_ENABLED: 'true',
+        NONREV_AVIATION_WEATHER_CACHE_POPULATION_ENABLED: 'true'
+      },
+      policy: { freshForMinutes: 30, diagnosticStaleForMinutes: 120 },
+      fetchImpl: async () => {
+        fetchCalls += 1
+        return new Response('[]')
+      }
+    })
+
+    assert.equal(result.status, 'fresh')
+    assert.equal(result.before.status, 'fresh')
+    assert.equal(result.after.status, 'fresh')
+    assert.equal(result.liveCallsAttempted, false)
+    assert.equal(result.cacheUpdated, false)
+    assert.equal(fetchCalls, 0)
+    assert.equal(result.appliesToScoring, false)
+  })
+
+  it('refreshes a cache miss server-side when both refresh and population flags are enabled', async () => {
+    const store = new InMemoryWeatherCacheStore()
+    const result = await refreshRouteWeatherCacheServerSide({
+      store,
+      airportCodes: ['SFO'],
+      now: new Date('2026-07-04T12:00:00Z'),
+      env: {
+        NONREV_SERVER_WEATHER_REFRESH_ENABLED: 'true',
+        NONREV_AVIATION_WEATHER_CACHE_POPULATION_ENABLED: 'true'
+      },
+      policy: { freshForMinutes: 30, diagnosticStaleForMinutes: 120 },
+      fetchImpl: async () => new Response(JSON.stringify([
+        {
+          icaoId: 'KSFO',
+          obsTime: '2026-07-04T11:55:00Z',
+          rawOb: 'KSFO 041155Z 28012KT 10SM FEW012',
+          flightCategory: 'VFR',
+          wspd: 12,
+          visib: 10,
+          ceil: 5000
+        }
+      ]), { status: 200 })
+    })
+
+    assert.equal(result.before.status, 'missing')
+    assert.equal(result.status, 'refreshed')
+    assert.equal(result.after.status, 'fresh')
+    assert.equal(result.liveCallsAttempted, true)
+    assert.equal(result.cacheUpdated, true)
+    assert.equal(result.after.usableSignals.length, 1)
+    assert.equal(result.appliesToScoring, false)
+    assert.equal(result.unknownWeatherNeutral, true)
+  })
+
   it('refreshes stale cache server-side when both refresh and population flags are enabled', async () => {
     const store = new InMemoryWeatherCacheStore()
     const initial = await populateWeatherCacheFromAviationWeather({

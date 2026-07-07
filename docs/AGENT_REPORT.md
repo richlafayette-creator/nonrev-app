@@ -1,79 +1,51 @@
-# Agent Report — 2026-07-06 05:02 UTC i18n Foundation Sprint
+# Agent Report — 2026-07-07 03:47 UTC Live Weather Integration Sprint 1
 
 ## Selected task
 
-Add internationalization foundation for Nonrevy without translating the whole app, changing routing, changing provider integrations, or redesigning UI.
+Live Weather Integration Sprint 1 on `agent-dev`: continue the existing weather provider framework and wire AviationWeather.gov METAR retrieval behind the existing feature flags.
 
 ## Scope completed
 
-- Added a lightweight internal i18n architecture with English as the default locale.
-- Added starter locale files for:
-  - English (`en`)
-  - Spanish (`es`)
-  - Japanese (`ja`)
-- Moved the requested shared/common UI labels into translation files only:
-  - Search
-  - Request Load
-  - Save
-  - Share
-  - Route Confidence
-  - Recovery
-  - Weather
-  - Commercial Availability
-  - Community Signal
-  - Door-to-door plan
-  - Framework only
-  - Live details unavailable
-  - Top Routes
-  - More Routes
-  - Why this route
-  - Best Overall
-  - Earliest Arrival
-  - Strong backup options
-  - Unknown
-  - Good
-  - Fair
-  - Poor
-- Added `I18nProvider` and `useI18n()` for translated shared labels and locale-aware date/time formatting.
-- Wrapped the app with the provider using the default English locale, preserving current routes and UI behavior.
-- Applied translations to shared navigation and itinerary-card/common planner labels without broad app translation.
-- Made compact itinerary time formatting locale-aware where practical while keeping the default English output.
-- Added `docs/I18N.md` with steps for adding a new locale and shared strings.
+- Continued the existing AviationWeather.gov METAR adapter and server weather cache framework.
+- Kept retrieval server-side through the existing cache population/refresh path.
+- Preserved existing feature gates:
+  - `NONREV_AVIATION_WEATHER_CACHE_POPULATION_ENABLED`
+  - `NONREV_SERVER_WEATHER_REFRESH_ENABLED`
+  - `NONREV_ROUTE_LIVE_WEATHER_ENABLED` for cache reads only
+- Tightened malformed METAR payload handling so bad JSON/non-array provider responses fail closed with sanitized diagnostics.
+- Confirmed cache-hit refreshes skip provider calls, respecting rate limits through existing cache freshness gates.
+- Confirmed cache-miss refreshes populate the existing server-side cache with advisory-only weather signals.
+- Added targeted unit coverage for successful fetch, timeout, malformed response, unavailable airport, cache hit, and cache miss.
 
 ## Safety decisions
 
-- No locale-prefixed routes were added.
-- No routing logic was changed.
-- No provider integrations were changed.
-- No itinerary generation, scoring, live-availability logic, or route-framework behavior was changed.
-- No UI redesign was performed.
-- Translations were intentionally limited to the requested shared strings.
+- Server-side only; client runtime checks still skip provider requests.
+- No itinerary generation changes.
+- No itinerary scoring changes.
+- Weather remains advisory-only.
+- Unavailable, missing, stale, malformed, timed-out, or rate-limited weather remains neutral for scoring/ranking.
+- Raw provider/network errors are not exposed in diagnostics.
+- Existing cache entries are not overwritten on provider failure.
 
 ## Files changed
 
-- `app/AppNavigation.tsx`
-- `app/I18nProvider.tsx`
-- `app/layout.tsx`
-- `app/plan/PlanPage.tsx`
-- `lib/i18n/messages.ts`
-- `messages/en.json`
-- `messages/es.json`
-- `messages/ja.json`
-- `docs/I18N.md`
+- `lib/aviationWeatherMetarAdapter.ts`
+- `lib/aviationWeatherMetarAdapter.test.ts`
+- `lib/weatherCacheServer.test.ts`
 - `docs/NEXT_TASKS.md`
 - `docs/AGENT_REPORT.md`
 
 ## Validation
 
+- `node --test lib/aviationWeatherMetarAdapter.test.ts lib/weatherCacheServer.test.ts`
 - `git diff --check`
-- `npx tsx --test lib/privateBetaSmoke.test.ts`
 - `npx tsc --noEmit`
 
 ## Known blockers / not done
 
 - No blocker.
-- Full-app translation, locale selection UI, persisted user locale preferences, and locale-based routing remain intentionally out of scope.
+- This sprint does not add TAF, weather alerts, persistence beyond the existing in-memory cache abstraction, or any client-visible live provider call path.
 
 ## Recommended next sprint
 
-Add a user-selectable locale preference behind the existing no-routing architecture: store the selected locale locally/account-side where available, hydrate `I18nProvider` from that preference, and add a small settings control without translating feature-specific copy yet.
+Add a small server-side provider freshness/observability layer for weather refreshes: record sanitized refresh outcome metadata, provider status, cache age, and rate-limit skip reasons for diagnostics without exposing raw provider errors or changing itinerary scoring.

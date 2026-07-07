@@ -67,6 +67,52 @@ describe('AviationWeather.gov METAR adapter', () => {
     assert.ok(result.limitations.every((item) => !/confirmed standby availability/i.test(item)))
   })
 
+  it('fails closed on provider timeout without exposing raw errors', async () => {
+    const result = await fetchAviationWeatherMetarSignals(['SFO'], {
+      liveCallsEnabled: true,
+      timeoutMs: 5,
+      fetchImpl: async (_url, init) => new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => {
+          const error = new Error('socket hung waiting for provider')
+          error.name = 'AbortError'
+          reject(error)
+        })
+      })
+    })
+
+    assert.equal(result.liveCallsAttempted, true)
+    assert.deepEqual(result.airports, [])
+    assert.ok(result.diagnostics.some((item) => /timed out; skipped live weather safely/i.test(item)))
+    assert.ok(result.diagnostics.every((item) => !/socket hung/i.test(item)))
+  })
+
+  it('fails closed on malformed provider responses', async () => {
+    const result = await fetchAviationWeatherMetarSignals(['SFO'], {
+      liveCallsEnabled: true,
+      fetchImpl: async () => new Response('{not json', { status: 200 })
+    })
+
+    assert.equal(result.liveCallsAttempted, true)
+    assert.deepEqual(result.airports, [])
+    assert.ok(result.diagnostics.some((item) => /malformed METAR payload/i.test(item)))
+  })
+
+  it('skips unavailable airports before attempting provider fetches', async () => {
+    let called = false
+    const result = await fetchAviationWeatherMetarSignals(['ZZZ'], {
+      liveCallsEnabled: true,
+      fetchImpl: async () => {
+        called = true
+        return new Response('[]')
+      }
+    })
+
+    assert.equal(called, false)
+    assert.equal(result.liveCallsAttempted, false)
+    assert.deepEqual(result.airports, [])
+    assert.ok(result.diagnostics.some((item) => /No supported ICAO weather stations/i.test(item)))
+  })
+
   it('fails closed on provider errors', async () => {
     const result = await fetchAviationWeatherMetarSignals(['SFO'], {
       liveCallsEnabled: true,

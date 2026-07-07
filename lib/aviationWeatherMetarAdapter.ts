@@ -171,13 +171,14 @@ export function airportWeatherSignalFromAviationWeatherMetar(record: AviationWea
   }
 }
 
-async function readJsonSafely(response: Response) {
+async function readMetarJsonSafely(response: Response): Promise<{ records: unknown[]; malformed: boolean }> {
   const text = await response.text()
-  if (!text) return null
+  if (!text) return { records: [], malformed: false }
   try {
-    return JSON.parse(text)
+    const parsed = JSON.parse(text)
+    return Array.isArray(parsed) ? { records: parsed, malformed: false } : { records: [], malformed: true }
   } catch {
-    return null
+    return { records: [], malformed: true }
   }
 }
 
@@ -234,8 +235,7 @@ export async function fetchAviationWeatherMetarSignals(airportCodes: string[], o
     if (!response.ok) {
       return { ...baseResult, liveCallsAttempted: true, diagnostics: [failureDiagnostics(response.status)] }
     }
-    const json = await readJsonSafely(response)
-    const records = Array.isArray(json) ? json : []
+    const { records, malformed } = await readMetarJsonSafely(response)
     const airports = records
       .map((record) => airportWeatherSignalFromAviationWeatherMetar(record as AviationWeatherMetarRecord, now))
       .filter((signal) => Boolean(signal.airportCode))
@@ -246,7 +246,11 @@ export async function fetchAviationWeatherMetarSignals(airportCodes: string[], o
       airports,
       diagnostics: [
         `Requested AviationWeather.gov METAR stations: ${stations.join(', ')}.`,
-        airports.length ? `Received ${airports.length} advisory METAR observation${airports.length === 1 ? '' : 's'}.` : 'No parseable advisory METAR observations were returned.'
+        malformed
+          ? 'AviationWeather.gov returned a malformed METAR payload; skipped live weather safely.'
+          : airports.length
+            ? `Received ${airports.length} advisory METAR observation${airports.length === 1 ? '' : 's'}.`
+            : 'No parseable advisory METAR observations were returned.'
       ]
     }
   } catch (error) {

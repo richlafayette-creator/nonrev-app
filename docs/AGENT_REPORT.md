@@ -1,51 +1,57 @@
-# Agent Report — 2026-07-07 03:47 UTC Live Weather Integration Sprint 1
+# Agent Report — 2026-07-07 04:13 UTC Commercial Availability Integration Sprint 1
 
 ## Selected task
 
-Live Weather Integration Sprint 1 on `agent-dev`: continue the existing weather provider framework and wire AviationWeather.gov METAR retrieval behind the existing feature flags.
+Commercial Availability Integration Sprint 1 on `agent-dev`: continue the existing sellable seat/commercial availability framework with provider adapter structure, demo provider flags, cache support, and safe labels.
 
 ## Scope completed
 
-- Continued the existing AviationWeather.gov METAR adapter and server weather cache framework.
-- Kept retrieval server-side through the existing cache population/refresh path.
-- Preserved existing feature gates:
-  - `NONREV_AVIATION_WEATHER_CACHE_POPULATION_ENABLED`
-  - `NONREV_SERVER_WEATHER_REFRESH_ENABLED`
-  - `NONREV_ROUTE_LIVE_WEATHER_ENABLED` for cache reads only
-- Tightened malformed METAR payload handling so bad JSON/non-array provider responses fail closed with sanitized diagnostics.
-- Confirmed cache-hit refreshes skip provider calls, respecting rate limits through existing cache freshness gates.
-- Confirmed cache-miss refreshes populate the existing server-side cache with advisory-only weather signals.
-- Added targeted unit coverage for successful fetch, timeout, malformed response, unavailable airport, cache hit, and cache miss.
+- Extended the existing `sellableSeatAvailabilityProvider` framework.
+- Added safe commercial availability labels:
+  - `favorable`
+  - `limited`
+  - `unavailable`
+  - `unknown`
+- Added a demo-only `MockCommercialAvailabilityProvider` behind feature flags:
+  - `NONREV_COMMERCIAL_AVAILABILITY_PROVIDER_ENABLED`
+  - `NONREV_COMMERCIAL_AVAILABILITY_MOCK_PROVIDER_ENABLED`
+  - `NONREV_COMMERCIAL_AVAILABILITY_MOCK_SCENARIO`
+- Added reusable commercial availability cache support following the existing in-memory cache pattern:
+  - normalized flight/query cache keys
+  - freshness/stale/expired/missing/disabled states
+  - cache-hit provider skip to respect freshness/rate-limit posture
+  - stale cache remains diagnostic-only and neutral
+- Added fetch orchestration that returns unknown-neutral results when disabled, unavailable, unknown, stale, or failed.
+- Added targeted unit coverage for disabled feature flag, mock favorable response, mock limited response, provider unavailable, stale cache, and unknown neutrality.
 
 ## Safety decisions
 
-- Server-side only; client runtime checks still skip provider requests.
+- No airline website scraping.
+- No confirmed standby availability claims.
+- No UI changes.
 - No itinerary generation changes.
-- No itinerary scoring changes.
-- Weather remains advisory-only.
-- Unavailable, missing, stale, malformed, timed-out, or rate-limited weather remains neutral for scoring/ranking.
-- Raw provider/network errors are not exposed in diagnostics.
-- Existing cache entries are not overwritten on provider failure.
+- No scoring changes.
+- `unknown` remains neutral and `appliesToScoring` remains `false` throughout the new cache/orchestration path.
+- Demo/mock output is explicitly proxy-only and does not call external APIs.
 
 ## Files changed
 
-- `lib/aviationWeatherMetarAdapter.ts`
-- `lib/aviationWeatherMetarAdapter.test.ts`
-- `lib/weatherCacheServer.test.ts`
+- `lib/sellableSeatAvailabilityProvider.ts`
+- `lib/sellableSeatAvailabilityProvider.test.ts`
 - `docs/NEXT_TASKS.md`
 - `docs/AGENT_REPORT.md`
 
 ## Validation
 
-- `node --test lib/aviationWeatherMetarAdapter.test.ts lib/weatherCacheServer.test.ts`
+- `node --test lib/sellableSeatAvailabilityProvider.test.ts lib/sellableSeatSignal.test.ts`
 - `git diff --check`
 - `npx tsc --noEmit`
 
 ## Known blockers / not done
 
 - No blocker.
-- This sprint does not add TAF, weather alerts, persistence beyond the existing in-memory cache abstraction, or any client-visible live provider call path.
+- Real commercial availability API adapters remain placeholders pending credentials, endpoint/licensing review, timeout/rate-limit policy, and proxy-only display review.
 
 ## Recommended next sprint
 
-Add a small server-side provider freshness/observability layer for weather refreshes: record sanitized refresh outcome metadata, provider status, cache age, and rate-limit skip reasons for diagnostics without exposing raw provider errors or changing itinerary scoring.
+Add sanitized commercial availability provider observability/readiness metadata: provider status, cache age, stale/expired reason, and disabled/unavailable summaries for diagnostics, while keeping UI, scoring, itinerary generation, and live API calls unchanged.

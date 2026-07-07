@@ -1,53 +1,47 @@
-# Agent Report — 2026-07-06 19:32 UTC Product/UX Design System Audit
+# Agent Report — 2026-07-07 02:58 UTC Browser Smoke Tests
 
 ## Selected task
 
-Product/UX Agent Sprint 1: Design system token audit on `agent/frontend`, starting from latest `agent-dev`.
+Frontend Agent sprint on `agent/frontend`: create reusable browser smoke tests for the planner.
 
 ## Scope completed
 
-- Audited current UI colors, token aliases, spacing values, radius patterns, shadows, glass effects, card styles, badges, typography, and mobile layout patterns.
-- Added `docs/DESIGN_SYSTEM.md` as the reusable design-system plan for future Product/UX and frontend polish.
-- Documented current premium Nonrevy visual direction: midnight blue surfaces, aqua/sky-blue actions, glassy cards, conservative warning states, dense mobile itinerary scanning, and trust-first visual hierarchy.
-- Documented future token candidates for spacing and radius without applying them yet.
-- Documented safe future phases for token naming, component-level consolidation, badge variants, and premium redesign exploration.
-- Updated `docs/NEXT_TASKS.md` to mark the design system audit complete and set mobile itinerary card polish as the recommended next Product/UX sprint.
+- Extended the existing Playwright browser smoke setup instead of adding a second framework.
+- Added deterministic planner fixture data for:
+  - live-provider itinerary cards (`SFO → HNL`)
+  - insufficient origin coverage (`MRY → OGG`)
+  - empty no-current-live state (`SBP → NRT`)
+- Expanded reusable smoke harness coverage for homepage load, planner page load, search form rendering, fixture-backed itinerary cards, origin coverage notice wording, empty state copy, feedback links, onboarding first-time/completed behavior, onboarding skip, and mobile overflow.
+- Updated Playwright web-server readiness to probe `/favicon.ico` so startup does not depend on compiling `/` before tests begin.
 
 ## Safety decisions
 
-- No app logic was changed.
-- No itinerary generation was changed.
-- No scoring was changed.
-- No provider integrations were touched.
-- No app redesign was performed.
-- No CSS/UI centralization was performed in this sprint because existing root `--nonrevy-*` tokens already centralize the main theme, while repeated values are intertwined with responsive overrides and `!important` specificity.
-- Current appearance was preserved.
-- Legal/conservative wording around standby availability was preserved.
+- No itinerary generation changes.
+- No scoring changes.
+- No provider changes.
+- No API behavior changes.
+- Fixture routing is test-only via Playwright `page.route` and does not alter app runtime behavior.
 
 ## Files changed
 
-- `docs/DESIGN_SYSTEM.md`
+- `playwright.config.ts`
+- `tests/browser/plannerFixtures.ts`
+- `tests/browser/smokeHarness.ts`
 - `docs/NEXT_TASKS.md`
 - `docs/AGENT_REPORT.md`
 
 ## Validation
 
-- `git diff --check`
-- Attempted `npx tsc --noEmit`; the process was killed with exit 137 before producing diagnostics.
-- Retried with `NODE_OPTIONS=--max-old-space-size=4096 npx tsc --noEmit --pretty false`; the process was also killed with exit 137.
+- `npx playwright install chromium` — completed.
+- `npx playwright install-deps chromium` — completed to satisfy missing Chromium native libraries.
+- `npm run smoke:browser` — attempted; Playwright launches, but app-route serving is blocked because `next dev --webpack -p 3100` hangs at `○ Compiling / ...` and exits without serving `/`. A direct `curl /` reproduces the same server-side blocker outside Playwright.
+- `git diff --check` — passed.
+- `npx tsc --noEmit` — passed.
 
 ## Known blockers / not done
 
-- TypeScript validation could not complete in this environment because `tsc` was killed with exit 137. This sprint is documentation-only and did not touch app logic.
-- CSS token/class centralization was intentionally deferred until a focused UI sprint can verify visual parity, ideally with browser/screenshot coverage.
+- Browser smoke assertions could not complete in this environment because the Next dev server cannot serve app routes; it hangs compiling `/` and then exits. Static readiness (`/favicon.ico`) works, so this is not a Playwright startup issue.
 
 ## Recommended next sprint
 
-Mobile itinerary card polish.
-
-Recommended guardrails:
-
-- Use `docs/DESIGN_SYSTEM.md` as the source of truth.
-- Improve scan hierarchy only within `app/plan` UI and shared UI components.
-- Preserve complete route/leg display, source/freshness labels, standby legal wording, and confidence semantics.
-- Do not touch provider integrations, itinerary generation, or scoring.
+Debug and restore local Next app-route serving for browser smoke validation, then rerun `npm run smoke:browser`. After the smoke harness is green, continue with itinerary-card intelligence section polish without changing API shape, scoring, provider integrations, or itinerary generation.

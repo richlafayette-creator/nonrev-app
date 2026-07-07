@@ -26,7 +26,7 @@ Parallel development now uses `docs/MULTI_AGENT_WORKFLOW.md` as the branch and m
 Initial parallel assignments:
 
 - Data Agent next: Historical Reliability aggregation service.
-- Frontend Agent next: Improve intelligence sections on itinerary cards without changing API shape.
+- Frontend Agent next: Debug local Next app-route serving so browser smoke validation can run green, then improve intelligence sections on itinerary cards without changing API shape.
 - QA Agent next: Add route matrix smoke tests.
 - Docs Agent next: Maintain beta readiness and known limitations.
 - Release Agent next: Prepare private beta deployment checklist.
@@ -59,7 +59,7 @@ Product/UX Agent tasks are docs/UI polish tracks only unless a future sprint exp
 
 Remaining P0 work:
 
-- Blocked 2026-07-04: Add browser-level card/details screenshot coverage for rendered itinerary integrity when the local UI harness is available. The repo currently has no browser test harness or Playwright dependency; use the display-integrity unit coverage until a UI harness is added.
+- Completed 2026-07-07: Added reusable Playwright browser smoke tests for planner homepage loading, planner/results loading, search form rendering, fixture-backed itinerary cards, origin coverage notice copy, empty states, feedback links, onboarding first-run behavior, onboarding skip, and mobile overflow checks. Local execution is currently blocked by the Next dev server hanging while compiling `/` in this environment.
 
 ### P1 — Beta readiness
 
@@ -71,6 +71,7 @@ Remaining P0 work:
 6. Completed 2026-07-06: Added insufficient-origin provider coverage diagnostics so searches do not fail when the requested origin has limited provider data; the UI now explains the coverage gap and recommends nearest supported alternate origins without fabricating flights or claiming standby availability.
 7. Completed 2026-07-06: Added API-level `/api/itinerary/search` fallback regression tests for insufficient origin coverage, provider rate-limit fallback, empty-provider fallback, no fabricated itineraries, and no standby availability claims.
 8. Completed 2026-07-06: Added a compact planner origin-coverage UI smoke test that renders deterministic insufficient-origin fallback guidance, verifies nearby supported airport recommendations, confirms no fabricated itineraries are returned, and checks advisory-only wording.
+9. Completed 2026-07-07: Added reusable Playwright browser smoke tests for the planner flow with deterministic route fixtures covering itinerary cards, limited-origin coverage, empty state, feedback entry points, onboarding first-run/skip behavior, and mobile overflow. No itinerary generation, scoring, provider, or API behavior changes were made.
 
 ### P2 — Data and provider depth
 
@@ -217,9 +218,10 @@ When no more specific task is provided, work in this order:
 
 1. Run `git status --short --branch` and inspect the current branch.
 2. Read this file and `AGENTS.md`.
-3. Choose the highest-priority incomplete P0/P1 task that can be completed safely in one focused commit.
-4. Make the smallest safe change.
-5. Validate according to this file.
-6. Commit with a clear message.
-7. Push only when requested or when the operating context explicitly expects autonomous push behavior.
-8. Report succinctly with evidence.
+3. Recommended next Frontend sprint: debug/restore local Next app-route serving for browser smoke validation, then rerun `npm run smoke:browser`; after that, improve intelligence sections on itinerary cards without changing API shape.
+4. Choose the highest-priority incomplete P0/P1 task that can be completed safely in one focused commit.
+5. Make the smallest safe change.
+6. Validate according to this file.
+7. Commit with a clear message.
+8. Push only when requested or when the operating context explicitly expects autonomous push behavior.
+9. Report succinctly with evidence.

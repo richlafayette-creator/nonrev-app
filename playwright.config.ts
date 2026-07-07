@@ -15,8 +15,8 @@ export default defineConfig({
     screenshot: 'only-on-failure'
   },
   webServer: process.env.NONREVY_SMOKE_BASE_URL ? undefined : {
-    command: `npm run dev -- -p ${port}`,
-    url: baseURL,
+    command: `npm run dev -- --webpack -p ${port}`,
+    url: `${baseURL}/favicon.ico`,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
     env: {

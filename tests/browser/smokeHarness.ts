@@ -8,18 +8,26 @@ import {
   type PlaywrightWorkerOptions,
   type TestType
 } from '@playwright/test'
+import {
+  emptyStateFixture,
+  originCoverageFixture,
+  plannerItineraryFixture,
+  plannerSmokeFixtureDate,
+  plannerSmokeSearches
+} from './plannerFixtures'
 
 type BrowserSmokeTest = TestType<PlaywrightTestArgs & PlaywrightTestOptions, PlaywrightWorkerArgs & PlaywrightWorkerOptions>
 
-const smokeSearches = {
-  itineraryCards: 'SFO to HNL',
-  originCoverage: 'MRY to OGG'
-} as const
+type ItineraryFixtureKind = 'itineraryCards' | 'originCoverage' | 'emptyState'
 
-function futureDate(daysFromNow: number) {
-  const date = new Date()
-  date.setUTCDate(date.getUTCDate() + daysFromNow)
-  return date.toISOString().slice(0, 10)
+const completedOnboardingState = {
+  employeeAirline: 'United',
+  travelerType: 'Employee',
+  passPriority: 'SA2',
+  homeAirport: 'SFO',
+  preferredDestinations: ['HNL', 'NRT'],
+  completedAt: '2026-07-07T00:00:00.000Z',
+  updatedAt: '2026-07-07T00:00:00.000Z'
 }
 
 export class NonrevyBrowserSmokeHarness {
@@ -32,9 +40,27 @@ export class NonrevyBrowserSmokeHarness {
     })
   }
 
+  async markOnboardingComplete() {
+    await this.page.addInitScript((state) => {
+      window.localStorage.clear()
+      window.sessionStorage.clear()
+      window.localStorage.setItem('nonrevy.onboarding', JSON.stringify(state))
+    }, completedOnboardingState)
+  }
+
+  async installPlannerFixture(kind: ItineraryFixtureKind) {
+    await this.page.route('**/api/itinerary/search?**', async (route) => {
+      const fixture = kind === 'itineraryCards'
+        ? plannerItineraryFixture()
+        : kind === 'originCoverage'
+          ? originCoverageFixture()
+          : emptyStateFixture()
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(fixture) })
+    })
+  }
+
   async goto(path: string) {
-    await this.page.goto(path)
-    await this.page.waitForLoadState('domcontentloaded')
+    await this.page.goto(path, { waitUntil: 'domcontentloaded' })
   }
 
   async expectHomepageLoads() {
@@ -43,24 +69,66 @@ export class NonrevyBrowserSmokeHarness {
     await expect(this.page.getByLabel(/search actions/i)).toBeVisible()
   }
 
-  async expectPlannerRenders() {
+  async expectPlannerPageLoads() {
     await this.goto('/plan')
     await expect(this.page.getByText(/search and itinerary planner/i)).toBeVisible()
     await expect(this.page.getByRole('heading', { name: /plan your nonrevy route/i })).toBeVisible()
     await expect(this.page.locator('.nonrevy-planner-card')).toBeVisible()
   }
 
-  async expectItineraryCardsRender() {
-    await this.goto(`/results?q=${encodeURIComponent(smokeSearches.itineraryCards)}&date=${futureDate(35)}`)
+  async expectSearchFormRenders() {
+    await this.goto('/results')
+    await expect(this.page.getByRole('form', { name: /edit itinerary search/i })).toBeVisible()
+    await expect(this.page.getByLabel(/search itinerary/i)).toBeVisible()
+    await expect(this.page.getByRole('button', { name: /^search$/i })).toBeVisible()
+  }
+
+  async expectItineraryCardsRenderFromFixture() {
+    await this.installPlannerFixture('itineraryCards')
+    await this.goto(`/results?q=${encodeURIComponent(plannerSmokeSearches.itineraryCards)}&date=${plannerSmokeFixtureDate}`)
     await this.waitForSearchToSettle()
     await expect(this.itineraryCards().first()).toBeVisible()
+    await expect(this.page.getByText(/SFO → HNL/).first()).toBeVisible()
+    await expect(this.page.getByText(/Live provider API data/).first()).toBeVisible()
   }
 
   async expectOriginCoverageNoticeRenders() {
-    await this.goto(`/results?q=${encodeURIComponent(smokeSearches.originCoverage)}&date=${futureDate(35)}`)
+    await this.installPlannerFixture('originCoverage')
+    await this.goto(`/results?q=${encodeURIComponent(plannerSmokeSearches.originCoverage)}&date=${plannerSmokeFixtureDate}`)
     await this.waitForSearchToSettle()
     await expect(this.page.getByText(/origin coverage/i).first()).toBeVisible()
-    await expect(this.page.getByText(/provider coverage is limited from MRY/i)).toBeVisible()
+    await expect(this.page.getByRole('heading', { name: /provider coverage is limited from MRY/i })).toBeVisible()
+    await expect(this.page.getByText(/nearest supported airports to try/i)).toBeVisible()
+    await expect(this.page.getByRole('link', { name: /SJC · 54 mi/i })).toBeVisible()
+    await expect(this.page.getByText(/not fabricating flights from MRY/i)).toBeVisible()
+    await expect(this.page.getByText(/not claiming standby availability/i)).toBeVisible()
+  }
+
+  async expectEmptyStateRenders() {
+    await this.installPlannerFixture('emptyState')
+    await this.goto(`/results?q=${encodeURIComponent(plannerSmokeSearches.emptyState)}&date=${plannerSmokeFixtureDate}`)
+    await this.waitForSearchToSettle()
+    await expect(this.page.getByText(/search results/i).first()).toBeVisible()
+    await expect(this.page.getByRole('heading', { name: /no current live rows for SBP → NRT yet/i })).toBeVisible()
+    await expect(this.page.getByText(/will not relabel stale, demo, historical, or positioning guidance as live availability/i)).toBeVisible()
+  }
+
+  async expectFeedbackButtonsRender() {
+    await this.goto('/')
+    await expect(this.page.getByRole('link', { name: /report issue/i })).toBeVisible()
+    await expect(this.page.getByRole('link', { name: /send feedback/i })).toBeVisible()
+  }
+
+  async expectOnboardingAppearsOnlyForFirstTimeUsers() {
+    await this.resetFirstRunState()
+    await this.goto('/profile')
+    await expect(this.page.getByRole('link', { name: /start onboarding/i })).toBeVisible()
+    await expect(this.page.getByRole('link', { name: /review onboarding/i })).toHaveCount(0)
+
+    await this.markOnboardingComplete()
+    await this.goto('/profile')
+    await expect(this.page.getByRole('link', { name: /review onboarding/i })).toBeVisible()
+    await expect(this.page.getByRole('link', { name: /start onboarding/i })).toHaveCount(0)
   }
 
   async expectFirstRunOnboardingAppears() {
@@ -72,10 +140,23 @@ export class NonrevyBrowserSmokeHarness {
     await expect(this.page.getByRole('button', { name: /^skip$/i }).first()).toBeVisible()
   }
 
-  async expectFeedbackButtonsRender() {
-    await this.goto('/')
-    await expect(this.page.getByRole('link', { name: /report issue/i })).toBeVisible()
-    await expect(this.page.getByRole('link', { name: /send feedback/i })).toBeVisible()
+  async expectOnboardingSkipWorks() {
+    await this.resetFirstRunState()
+    await this.goto('/onboarding')
+    await this.page.getByRole('button', { name: /^skip$/i }).first().click()
+    await expect(this.page).toHaveURL(/\/plan$/)
+    await expect(this.page.getByRole('heading', { name: /plan your nonrevy route/i })).toBeVisible()
+    await expect.poll(async () => this.page.evaluate(() => Boolean(window.localStorage.getItem('nonrevy.onboardingSkippedAt')))).toBe(true)
+  }
+
+  async expectMobileViewportRendersWithoutOverflow() {
+    await this.installPlannerFixture('itineraryCards')
+    await this.page.setViewportSize({ width: 390, height: 844 })
+    await this.goto(`/results?q=${encodeURIComponent(plannerSmokeSearches.itineraryCards)}&date=${plannerSmokeFixtureDate}`)
+    await this.waitForSearchToSettle()
+    await expect(this.itineraryCards().first()).toBeVisible()
+    const overflow = await this.page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
+    expect(overflow).toBeLessThanOrEqual(1)
   }
 
   itineraryCards(): Locator {
@@ -92,29 +173,45 @@ export function createNonrevyBrowserSmokeHarness(page: Page) {
 }
 
 export function defineNonrevyBrowserSmokeTests(test: BrowserSmokeTest) {
-  test.describe('NONREVY browser smoke harness', () => {
-    test('homepage loads', async ({ page }) => {
+  test.describe('NONREVY reusable browser smoke tests', () => {
+    test('homepage loads successfully', async ({ page }) => {
       await createNonrevyBrowserSmokeHarness(page).expectHomepageLoads()
     })
 
-    test('planner renders', async ({ page }) => {
-      await createNonrevyBrowserSmokeHarness(page).expectPlannerRenders()
+    test('planner page loads', async ({ page }) => {
+      await createNonrevyBrowserSmokeHarness(page).expectPlannerPageLoads()
     })
 
-    test('itinerary cards render', async ({ page }) => {
-      await createNonrevyBrowserSmokeHarness(page).expectItineraryCardsRender()
+    test('search form renders', async ({ page }) => {
+      await createNonrevyBrowserSmokeHarness(page).expectSearchFormRenders()
     })
 
-    test('origin coverage notice renders', async ({ page }) => {
+    test('itinerary cards render when supplied fixture data', async ({ page }) => {
+      await createNonrevyBrowserSmokeHarness(page).expectItineraryCardsRenderFromFixture()
+    })
+
+    test('origin coverage notice displays correctly', async ({ page }) => {
       await createNonrevyBrowserSmokeHarness(page).expectOriginCoverageNoticeRenders()
     })
 
-    test('onboarding appears for first-time users', async ({ page }) => {
-      await createNonrevyBrowserSmokeHarness(page).expectFirstRunOnboardingAppears()
+    test('empty state renders correctly', async ({ page }) => {
+      await createNonrevyBrowserSmokeHarness(page).expectEmptyStateRenders()
     })
 
-    test('feedback buttons render', async ({ page }) => {
+    test('feedback button renders', async ({ page }) => {
       await createNonrevyBrowserSmokeHarness(page).expectFeedbackButtonsRender()
+    })
+
+    test('onboarding appears only for first-time users', async ({ page }) => {
+      await createNonrevyBrowserSmokeHarness(page).expectOnboardingAppearsOnlyForFirstTimeUsers()
+    })
+
+    test('onboarding skip works', async ({ page }) => {
+      await createNonrevyBrowserSmokeHarness(page).expectOnboardingSkipWorks()
+    })
+
+    test('mobile viewport renders without overflow', async ({ page }) => {
+      await createNonrevyBrowserSmokeHarness(page).expectMobileViewportRendersWithoutOverflow()
     })
   })
 }

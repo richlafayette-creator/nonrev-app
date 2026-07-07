@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server'
-import { persistentUserId } from '../../../lib/apiIdentity'
-import { clearAccountBetaRecords, listAccountBetaRecords, upsertAccountBetaRecords } from '../../../lib/accountBetaStore'
 import type { BetaFeedbackRecord } from '../../../lib/betaFeedback'
 
 export const dynamic = 'force-dynamic'
+
+const stubDetail = 'Beta feedback backend stub is active. Feedback remains local in this beta build.'
 
 type BetaFeedbackBody = {
   record?: BetaFeedbackRecord
@@ -14,9 +14,17 @@ function validFeedback(value: unknown): value is BetaFeedbackRecord {
   return Boolean(value && typeof value === 'object' && 'id' in value && 'message' in value && 'createdAt' in value)
 }
 
-export async function GET(request: Request) {
-  const result = await listAccountBetaRecords('beta-feedback', persistentUserId(request), 200)
-  return NextResponse.json({ records: result.data, storageMode: result.storageMode, status: result.status, detail: result.detail })
+function stubResponse(records: BetaFeedbackRecord[] = []) {
+  return NextResponse.json({
+    records,
+    storageMode: 'stub',
+    status: 'stubbed',
+    detail: stubDetail
+  })
+}
+
+export async function GET() {
+  return stubResponse()
 }
 
 export async function POST(request: Request) {
@@ -31,12 +39,20 @@ export async function POST(request: Request) {
     ? [body.record]
     : Array.isArray(body.records) ? body.records.filter(validFeedback) : []
 
-  if (records.length) await upsertAccountBetaRecords('beta-feedback', persistentUserId(request), records)
-  const result = await listAccountBetaRecords('beta-feedback', persistentUserId(request), 200)
-  return NextResponse.json({ record: records[0] || null, records: result.data, storageMode: result.storageMode, status: result.status, detail: result.detail })
+  return NextResponse.json({
+    record: records[0] || null,
+    records,
+    storageMode: 'stub',
+    status: 'stubbed',
+    detail: stubDetail
+  })
 }
 
-export async function DELETE(request: Request) {
-  const result = await clearAccountBetaRecords('beta-feedback', persistentUserId(request))
-  return NextResponse.json({ cleared: result.data, storageMode: result.storageMode, status: result.status, detail: result.detail })
+export async function DELETE() {
+  return NextResponse.json({
+    cleared: true,
+    storageMode: 'stub',
+    status: 'stubbed',
+    detail: stubDetail
+  })
 }

@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { type FormEvent, useState } from 'react'
 import { markActivationStep } from '../lib/onboardingActivation'
 
@@ -58,6 +59,18 @@ export default function Home() {
 
             {message ? <p className="nonrevy-home__message">{message}</p> : null}
           </form>
+
+          <section className="nonrevy-home__beta-feedback" aria-label="Beta feedback">
+            <div>
+              <p className="nonrevy-home__beta-feedback-eyebrow">Private beta</p>
+              <h2>Help us tighten the experience</h2>
+              <p>Use these quick entry points when a result looks wrong, a screen feels confusing, or you have a beta note worth saving.</p>
+            </div>
+            <div className="nonrevy-home__beta-feedback-actions">
+              <Link href="/beta-feedback?entry=issue" className="nonrevy-home__beta-feedback-action nonrevy-home__beta-feedback-action--issue">Report Issue</Link>
+              <Link href="/beta-feedback?entry=feedback" className="nonrevy-home__beta-feedback-action">Send Feedback</Link>
+            </div>
+          </section>
         </div>
       </section>
     </main>

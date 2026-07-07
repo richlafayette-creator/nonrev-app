@@ -6668,3 +6668,69 @@ button:focus-visible,
     white-space: normal !important;
   }
 }
+
+/* Private beta feedback entry points */
+.nonrevy-home__beta-feedback {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto !important;
+  gap: 14px !important;
+  align-items: center !important;
+  padding: 16px !important;
+}
+
+.nonrevy-home__beta-feedback-eyebrow {
+  margin: 0 0 6px !important;
+  padding: 0 !important;
+  color: var(--color-pink-300) !important;
+  font-size: 0.72rem !important;
+  font-weight: 950 !important;
+  letter-spacing: 0.12em !important;
+  text-transform: uppercase !important;
+}
+
+.nonrevy-home__beta-feedback h2 {
+  margin: 0 0 6px !important;
+  color: var(--color-slate-50) !important;
+  font-size: 1rem !important;
+}
+
+.nonrevy-home__beta-feedback p:not(.nonrevy-home__beta-feedback-eyebrow) {
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.nonrevy-home__beta-feedback-actions {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 8px !important;
+  justify-content: flex-end !important;
+}
+
+.nonrevy-home__beta-feedback a.nonrevy-home__beta-feedback-action {
+  margin: 0 !important;
+  border-color: var(--color-sky-400) !important;
+  color: var(--color-sky-100) !important;
+  background: rgba(14, 165, 233, 0.12) !important;
+  white-space: nowrap !important;
+}
+
+.nonrevy-home__beta-feedback a.nonrevy-home__beta-feedback-action--issue {
+  border-color: var(--color-pink-400) !important;
+  color: var(--color-pink-100) !important;
+  background: rgba(244, 114, 182, 0.14) !important;
+}
+
+@media (max-width: 640px) {
+  .nonrevy-home__beta-feedback {
+    grid-template-columns: 1fr !important;
+  }
+
+  .nonrevy-home__beta-feedback-actions {
+    justify-content: stretch !important;
+  }
+
+  .nonrevy-home__beta-feedback a.nonrevy-home__beta-feedback-action {
+    flex: 1 1 150px !important;
+    text-align: center !important;
+  }
+}

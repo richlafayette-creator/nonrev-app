@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { type FormEvent, useEffect, useMemo, useState } from 'react'
 import {
   betaFeedbackCategories,
@@ -44,18 +45,27 @@ export default function BetaFeedbackPage() {
   const [message, setMessage] = useState('')
   const [contact, setContact] = useState('')
   const [pageUrl, setPageUrl] = useState('')
-  const [status, setStatus] = useState('Private beta feedback syncs to your beta account when available, with local fallback.')
+  const [status, setStatus] = useState('Beta feedback is saved locally. The backend endpoint is stubbed for this beta entry point.')
 
   function refreshFeedback() {
     setRecords(loadBetaFeedback())
   }
 
   useEffect(() => {
-    refreshFeedback()
-    setPageUrl(window.location.href)
+    void Promise.resolve().then(() => {
+      setPageUrl(window.location.href)
+      const entry = new URLSearchParams(window.location.search).get('entry')
+      if (entry === 'issue') {
+        setCategory('Bug')
+        setSentiment('Blocked')
+      } else if (entry === 'feedback') {
+        setCategory('Other')
+        setSentiment('Neutral')
+      }
+    })
     void syncBetaFeedback().then((result) => {
       setRecords(result.records)
-      setStatus(result.storageMode === 'supabase' ? 'Feedback synced to beta account.' : result.detail)
+      setStatus(result.detail)
     })
     window.addEventListener('nonrevy-beta-feedback-updated', refreshFeedback)
     window.addEventListener('storage', refreshFeedback)
@@ -102,11 +112,11 @@ export default function BetaFeedbackPage() {
   return (
     <main className="app-shell" style={{ minHeight: '100vh', background: 'var(--color-slate-950)', color: 'white', padding: 40, fontFamily: 'Arial' }}>
       <nav className="top-nav" style={{ marginBottom: 24 }}>
-        <a href="/" style={{ marginRight: 16, color: 'var(--color-sky-400)' }}>Home</a>
-        <a href="/plan" style={{ marginRight: 16, color: 'var(--color-rose-400)' }}>Plan</a>
-        <a href="/watchlist" style={{ marginRight: 16, color: 'var(--color-yellow-400)' }}>Watchlist</a>
-        <a href="/alerts" style={{ marginRight: 16, color: 'var(--color-green-500)' }}>Alerts</a>
-        <a href="/data-health" style={{ color: 'var(--color-purple-400)' }}>Data Health</a>
+        <Link href="/" style={{ marginRight: 16, color: 'var(--color-sky-400)' }}>Home</Link>
+        <Link href="/plan" style={{ marginRight: 16, color: 'var(--color-rose-400)' }}>Plan</Link>
+        <Link href="/watchlist" style={{ marginRight: 16, color: 'var(--color-yellow-400)' }}>Watchlist</Link>
+        <Link href="/alerts" style={{ marginRight: 16, color: 'var(--color-green-500)' }}>Alerts</Link>
+        <Link href="/data-health" style={{ color: 'var(--color-purple-400)' }}>Data Health</Link>
       </nav>
 
       <section className="nonrevy-beta-feedback__hero">
@@ -114,7 +124,7 @@ export default function BetaFeedbackPage() {
           <p className="nonrevy-beta-feedback__eyebrow">Private beta</p>
           <h1>Feedback capture</h1>
           <p>
-            Capture wrong results, confusing UI, missing features, bugs, and wins without adding noise to the planner. Nothing is sent automatically.
+            Report issues, confusing UI, missing features, bugs, and wins without adding noise to the planner. Feedback is kept local while the backend remains stubbed.
           </p>
           <p className="nonrevy-beta-feedback__status">{status}</p>
         </div>
@@ -162,7 +172,7 @@ export default function BetaFeedbackPage() {
             Contact optional
             <input value={contact} onChange={(event) => setContact(event.target.value)} placeholder="Email, handle, or blank" />
           </label>
-          <button type="submit" disabled={!formReady}>Capture feedback</button>
+          <button type="submit" disabled={!formReady}>Send feedback</button>
         </form>
 
         <aside className="nonrevy-beta-feedback__card">

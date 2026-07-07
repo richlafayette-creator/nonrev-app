@@ -1,12 +1,12 @@
 # Nonrevy Design System Audit
 
-_Last updated: 2026-07-06 19:32 UTC_
+_Last updated: 2026-07-07 00:00 UTC_
 
 This audit documents the current Nonrevy visual system so Product/UX polish can move safely without changing itinerary generation, scoring, provider integrations, or standby-availability legal wording.
 
 ## Sprint scope
 
-- Audited existing colors, spacing, card styles, badges, typography, and mobile layout patterns.
+- Audited existing colors, typography, spacing, badges, buttons, cards, icons, shadows, border radius, and mobile layout patterns.
 - Created a reusable design-system plan for future frontend polish.
 - Preserved current appearance.
 - Made no UI, app-logic, provider, itinerary-generation, or scoring changes.
@@ -60,6 +60,36 @@ Additional aliases appear later in `app/globals.css`:
 - Some local hard-coded Tailwind-like colors remain in component-specific CSS blocks, especially older navigation, beta feedback, compact rows, and mobile itinerary sections.
 - Future cleanup should convert repeated hard-coded values to existing tokens only when visual parity can be verified.
 
+## Duplicated style inventory
+
+The current UI has a solid global theme layer, but many older page scaffolds still repeat inline styles and local hard-coded values. These are good candidates for future tokenization once visual parity can be checked.
+
+Most repeated values observed across `app/**/*.tsx` and `app/globals.css`:
+
+| Repeated value/pattern | Approximate count | Current role | Recommended token/use |
+| --- | ---: | --- | --- |
+| `#94a3b8` | 300+ | muted secondary text | `--color-text-muted` / existing `--nonrevy-text-muted` |
+| `#334155` | 270+ | slate border | `--color-border-muted` / existing border token alias |
+| `#cbd5e1` | 270+ | supporting text | `--color-text-secondary` |
+| `#020617` | 260+ | deepest panel/control background | `--color-surface-deep` |
+| `#38bdf8` | 200+ | bright cyan links/actions | `--color-accent-cyan` or alias to existing aqua |
+| `#facc15` | 170+ | warning/gold status | `--color-warning` |
+| `#0f172a` | 170+ | slate panel background | `--color-surface-raised` |
+| `#22c55e` / `#34d399` | 180+ combined | success/positive status | `--color-success` |
+| `#f472b6` / `#fb7185` / `#f87171` | 140+ combined | pink/danger/disruption accents | semantic danger/attention tokens |
+| `borderRadius: 12`, `14`, `18`, `22`, `999` | 290+ combined | fields, cards, pills | radius scale tokens |
+| `padding: 12`, `14`, `18`, `20`, `22` | 290+ combined | controls and cards | spacing scale tokens |
+| `fontWeight: 'bold'` / numeric `800`–`1000` | 280+ combined | labels, actions, data hierarchy | typography weight tokens |
+
+Duplication hotspots:
+
+- Inline scaffold pages such as `offline`, `membership`, `notifications`, `outcomes`, and `watchlist`.
+- Shared cards that use both a class name and inline style overrides.
+- Component-specific CSS blocks inside `app/globals.css` with hard-coded Tailwind-like colors.
+- Badge/link/action styles repeated as border-radius `999px`, compact padding, bold weight, and cyan/yellow/pink color variants.
+
+Do not mass-replace these values yet. Inline styles may be carrying feature-specific layout assumptions, and the global CSS uses high specificity plus `!important` overrides.
+
 ## Spacing patterns
 
 Current spacing is mostly direct CSS values plus responsive `clamp()` values:
@@ -109,6 +139,27 @@ Observed radius values:
 | `--radius-2xl` | `24px` | itinerary cards / large mobile cards |
 | `--radius-pill` | `999px` | badges, chips, primary pill actions |
 
+## Shadow and elevation patterns
+
+Current elevation language:
+
+- global premium shadow: `--nonrevy-shadow` (`0 20px 70px rgba(0, 8, 22, 0.36)`)
+- navigation shadow: `0 16px 50px rgba(0, 8, 22, 0.24)`
+- flight-board shadow: `0 18px 56px rgba(0, 8, 22, 0.3)`
+- row shadow: `0 10px 30px rgba(0, 8, 22, 0.24)`
+- homepage search-card shadow: `0 18px 54px rgba(2, 6, 23, 0.52)`
+- opportunity/card experiments: `0 20px 50px rgba(0,0,0,0.25)`
+- inset highlights: `inset 0 1px 0 rgba(255,255,255,0.055)` and nearby variants
+
+Recommended elevation tokens:
+
+| Token candidate | Value | Use |
+| --- | --- | --- |
+| `--shadow-card` | `0 10px 30px rgba(0, 8, 22, 0.24)` | standard itinerary/card rows |
+| `--shadow-panel` | `0 18px 56px rgba(0, 8, 22, 0.30)` | major panels and boards |
+| `--shadow-premium` | existing `--nonrevy-shadow` | hero/search/premium surfaces |
+| `--shadow-inset-highlight` | `inset 0 1px 0 rgba(255, 255, 255, 0.055)` | glassy top edge |
+
 ## Card and panel styles
 
 Current card system:
@@ -141,6 +192,28 @@ Important current card classes:
 - Avoid flattening itinerary cards until trust labels and route details have browser screenshot coverage.
 - Keep selected/expanded states visually stronger but not visually equivalent to confirmed availability.
 
+## Button and action patterns
+
+Current button system:
+
+- Primary actions use aqua-to-blue gradients, dark text, heavy font weight, and medium/tight pill radius.
+- Secondary actions use translucent dark surfaces, blue-gray borders, light text, and inset highlights.
+- Compact row actions and metadata pills use `999px` radius, `8px`–`14px` horizontal padding, and strong font weights.
+- Several older scaffold pages still use inline button/link styles with hard-coded colors and radii.
+
+Recommended button tokens/classes for future implementation:
+
+| Pattern | Recommended reusable form | Notes |
+| --- | --- | --- |
+| Primary CTA | `.button-primary` / `--button-primary-bg` | aqua/blue gradient, dark text, prominent shadow |
+| Secondary CTA | `.button-secondary` / `--button-secondary-bg` | translucent surface, blue border, light text |
+| Ghost/link button | `.button-ghost` | low-emphasis navigation and details links |
+| Destructive/warning | `.button-warning`, `.button-danger` | must preserve conservative standby/legal wording |
+| Compact row action | `.button-row` | small tap-safe pill for itinerary rows |
+| Disabled/unavailable | `.button-disabled` | visual opacity plus semantic disabled state |
+
+Tokenization should keep touch targets at least roughly `34px` for dense row controls and preferably `42px+` for primary actions.
+
 ## Badge, chip, and status patterns
 
 Current patterns:
@@ -167,6 +240,26 @@ Important badge/action classes:
 - Confidence badges should communicate evidence quality, not trip success certainty.
 - Availability badges must preserve legal/conservative wording around standby availability.
 - Framework, stored, cached, demo, historical, or advisory states must not look like current live availability.
+
+## Icon and illustration patterns
+
+Current iconography is lightweight and mixed:
+
+- Browser/PWA icons are defined in `app/layout.tsx` and `app/manifest.ts` using `/icons/nonrevy-icon.svg`, `/icons/nonrevy-maskable-icon.svg`, and Apple touch icon assets.
+- UI-level icons are mostly text symbols, emoji-like route affordances, arrows such as `→`, map/flight metaphors, and compact status labels rather than a dedicated icon component set.
+- The visual language depends more on badges, route maps, chips, and color-coded labels than on standalone icons.
+
+Recommended icon tokens/guidelines:
+
+| Token candidate | Value | Use |
+| --- | --- | --- |
+| `--icon-size-xs` | `12px` | metadata/status glyphs |
+| `--icon-size-sm` | `16px` | inline labels and form hints |
+| `--icon-size-md` | `20px` | buttons and nav affordances |
+| `--icon-size-lg` | `24px` | empty states and feature cards |
+| `--icon-stroke` | `1.75` | future SVG stroke consistency |
+
+Future icon support should prefer accessible inline SVG or a tiny shared icon component over ad hoc emoji. Decorative icons should use `aria-hidden`, while meaningful icons need text labels or `aria-label`. Route arrows must remain textual enough for route integrity and i18n review.
 
 ## Typography patterns
 
@@ -227,7 +320,7 @@ Future checks:
 
 Status: complete for this sprint.
 
-- Inventory root color tokens, aliases, card patterns, spacing, radius, typography, badges, and mobile patterns.
+- Inventory root color tokens, aliases, card patterns, spacing, radius, typography, badges, buttons, icons, shadows, duplicated values, and mobile patterns.
 - Document Product/UX guardrails.
 - Avoid UI changes until visual verification is available.
 
@@ -247,6 +340,23 @@ Future sprint.
 - Consolidate repeated card/panel classes into shared utility classes only where class reuse does not alter specificity.
 - Standardize badge variants for neutral, advisory, warning, danger, and unavailable states.
 - Keep current legal wording and source/freshness labels unchanged.
+
+### Future theming support
+
+Future theming should be implemented through semantic tokens, not component rewrites. Recommended token layers:
+
+1. **Core primitives** — raw palette, spacing, radius, typography, shadows, and icon sizes.
+2. **Semantic tokens** — `background`, `surface`, `surface-raised`, `text-primary`, `text-muted`, `border-muted`, `accent`, `success`, `warning`, `danger`, `advisory`, `focus`.
+3. **Component tokens** — card background/border/shadow, button variants, badge variants, form fields, itinerary row states, route-map markers.
+4. **Theme scopes** — default dark theme first; future high-contrast, reduced-transparency, and light theme can override semantic tokens under a `[data-theme]` or class scope.
+
+Guardrails for theming:
+
+- Default theme must remain visually equivalent until a redesign sprint explicitly changes it.
+- High-contrast mode should improve readability without implying greater data certainty.
+- Reduced-transparency mode should replace glass blur with opaque surfaces for accessibility/performance.
+- Light theme should not ship until itinerary-card warning, confidence, and source/freshness hierarchy have screenshot coverage.
+- Any theme must preserve full route-leg visibility and conservative availability wording.
 
 ### Phase 4 — Premium redesign exploration
 

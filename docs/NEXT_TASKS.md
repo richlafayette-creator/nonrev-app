@@ -1,6 +1,6 @@
 # Nonrevy Autonomous Development Task Queue
 
-_Last updated: 2026-07-06 05:02 UTC_
+_Last updated: 2026-07-07 00:00 UTC_
 
 This file is the operating guide for autonomous development agents working on Nonrevy. It defines the next task queue, safety boundaries, validation gates, and priorities for moving the beta toward trustworthy private-beta readiness.
 
@@ -36,7 +36,7 @@ Initial parallel assignments:
 
 Product/UX Agent tasks are docs/UI polish tracks only unless a future sprint explicitly assigns app changes. Product/UX work must not touch provider integrations, itinerary generation, or scoring, and must preserve legal wording around standby availability.
 
-- Completed 2026-07-06: Design system token audit.
+- Completed 2026-07-07: Design system token audit.
 - Mobile itinerary card polish.
 - i18n foundation.
 - Onboarding/beta intro screen.
@@ -116,7 +116,7 @@ Remaining P0 work:
 4. Completed 2026-07-04: Clarified saved-comparison affordances so they preserve exact displayed route paths, leg counts, and source labels instead of obscuring route integrity.
 5. Completed 2026-07-04: Added keyboard-accessible itinerary-card expansion and visible focus styling while preserving the existing responsive card layout and trust labels.
 6. Completed 2026-07-06: Added the i18n foundation with English default locale, Spanish and Japanese starter locale files, shared common UI translations, a lightweight provider/hook that preserves existing routing, locale-aware date/time formatting helpers where practical, and documentation for adding locales.
-7. Completed 2026-07-06: Added the Product/UX design-system audit documenting current colors, spacing, card styles, badges, typography, mobile layout patterns, safe tokenization strategy, accessibility notes, and future redesign guardrails without changing UI, itinerary generation, scoring, or provider integrations.
+7. Completed 2026-07-07: Added the Product/UX design-system audit documenting current colors, typography, spacing, badges, buttons, cards, icons, shadows, border radius, duplicated style hotspots, recommended reusable tokens, future theming support, accessibility notes, and redesign guardrails without changing UI, itinerary generation, scoring, routing, or provider integrations.
 
 ## Autonomous agent safety rules
 

@@ -1,10 +1,13 @@
 'use client'
 
-import { createContext, useContext, useMemo, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { DEFAULT_LOCALE, isLocale, translateCommon, type CommonTranslationKey, type Locale } from '../lib/i18n/messages'
+
+const LOCALE_STORAGE_KEY = 'nonrevyLocale'
 
 type I18nContextValue = {
   locale: Locale
+  setLocale: (locale: Locale) => void
   t: (key: CommonTranslationKey) => string
   formatDateTime: (value: string | number | Date, options?: Intl.DateTimeFormatOptions) => string
 }
@@ -12,10 +15,22 @@ type I18nContextValue = {
 const I18nContext = createContext<I18nContextValue | null>(null)
 
 export function I18nProvider({ children, locale = DEFAULT_LOCALE }: { children: ReactNode; locale?: string }) {
-  const selectedLocale = isLocale(locale) ? locale : DEFAULT_LOCALE
+  const initialLocale = isLocale(locale) ? locale : DEFAULT_LOCALE
+  const [selectedLocale, setSelectedLocale] = useState<Locale>(initialLocale)
+
+  useEffect(() => {
+    const storedLocale = window.localStorage.getItem(LOCALE_STORAGE_KEY)
+    if (isLocale(storedLocale)) setSelectedLocale(storedLocale)
+  }, [])
+
+  useEffect(() => {
+    document.documentElement.lang = selectedLocale
+    window.localStorage.setItem(LOCALE_STORAGE_KEY, selectedLocale)
+  }, [selectedLocale])
 
   const value = useMemo<I18nContextValue>(() => ({
     locale: selectedLocale,
+    setLocale: setSelectedLocale,
     t: (key) => translateCommon(selectedLocale, key),
     formatDateTime: (input, options = { dateStyle: 'medium', timeStyle: 'short' }) => {
       const date = input instanceof Date ? input : new Date(input)
@@ -33,6 +48,7 @@ export function useI18n() {
 
   return {
     locale: DEFAULT_LOCALE,
+    setLocale: () => undefined,
     t: (key: CommonTranslationKey) => translateCommon(DEFAULT_LOCALE, key),
     formatDateTime: (input: string | number | Date, options?: Intl.DateTimeFormatOptions) => {
       const date = input instanceof Date ? input : new Date(input)

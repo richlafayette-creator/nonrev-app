@@ -3,27 +3,34 @@
 import { useEffect, useRef, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import { supabase } from '../lib/supabase'
+import { locales, type CommonTranslationKey, type Locale } from '../lib/i18n/messages'
 import { useI18n } from './I18nProvider'
 
 const menuItems = [
-  ['Home', '/'],
-  ['search', '/results'],
-  ['Plan', '/plan']
-]
+  { labelKey: 'home', href: '/' },
+  { labelKey: 'search', href: '/results' },
+  { labelKey: 'plan', href: '/plan' }
+] satisfies { labelKey: CommonTranslationKey; href: string }[]
 
 const drawerItems = [
-  ['Watchlist', '/watchlist'],
-  ['Alerts', '/alerts'],
-  ['Trips', '/outcomes'],
-  ['Community', '/load-reports'],
-  ['Route Intelligence', '/intelligence'],
-  ['Settings', '/notification-preferences'],
-  ['AI Search', '/agent'],
-  ['Beta Feedback', '/beta-feedback'],
-  ['Saved Searches', '/saved-searches'],
-  ['Profile', '/profile'],
-  ['Account', '/account']
-]
+  { labelKey: 'watchlist', href: '/watchlist' },
+  { labelKey: 'alerts', href: '/alerts' },
+  { labelKey: 'trips', href: '/outcomes' },
+  { labelKey: 'community', href: '/load-reports' },
+  { labelKey: 'routeIntelligence', href: '/intelligence' },
+  { labelKey: 'settings', href: '/notification-preferences' },
+  { labelKey: 'aiSearch', href: '/agent' },
+  { labelKey: 'betaFeedback', href: '/beta-feedback' },
+  { labelKey: 'savedSearches', href: '/saved-searches' },
+  { labelKey: 'profile', href: '/profile' },
+  { labelKey: 'account', href: '/account' }
+] satisfies { labelKey: CommonTranslationKey; href: string }[]
+
+const localeLabelKeys: Record<Locale, CommonTranslationKey> = {
+  en: 'english',
+  es: 'spanish',
+  ja: 'japanese'
+}
 
 export default function AppNavigation() {
   const [open, setOpen] = useState(false)
@@ -31,7 +38,7 @@ export default function AppNavigation() {
   const [message, setMessage] = useState('')
   const pathname = usePathname()
   const drawerRef = useRef<HTMLElement | null>(null)
-  const { t } = useI18n()
+  const { locale, setLocale, t } = useI18n()
 
   useEffect(() => {
     async function loadUser() {
@@ -79,23 +86,22 @@ export default function AppNavigation() {
   async function logout() {
     await supabase.auth.signOut()
     setUserEmail('')
-    setMessage('Logged out.')
+    setMessage(t('loggedOut'))
   }
 
-  function renderLink([label, href]: string[]) {
+  function renderLink({ labelKey, href }: { labelKey: CommonTranslationKey; href: string }) {
     const active = href === '/' ? pathname === href : pathname?.startsWith(href)
-    const displayLabel = label === 'search' ? t('search') : label
     return (
-      <a key={href} href={href} aria-current={active ? 'page' : undefined}>{displayLabel}</a>
+      <a key={href} href={href} aria-current={active ? 'page' : undefined}>{t(labelKey)}</a>
     )
   }
 
   return (
-    <aside ref={drawerRef} className={`app-menu ${open ? 'app-menu--open' : ''}`} aria-label="NONREVY navigation">
+    <aside ref={drawerRef} className={`app-menu ${open ? 'app-menu--open' : ''}`} aria-label={t('navigation')}>
       <button
         className="app-menu__summary"
         type="button"
-        aria-label={open ? 'Close NONREVY drawer' : 'Open NONREVY drawer'}
+        aria-label={open ? t('closeDrawer') : t('openDrawer')}
         aria-expanded={open}
         aria-controls="app-menu-drawer"
         onClick={() => setOpen((value) => !value)}
@@ -104,24 +110,33 @@ export default function AppNavigation() {
         <span className="app-menu__brand">NONREVY</span>
       </button>
       {open ? (
-        <div id="app-menu-drawer" className="app-menu__drawer" role="dialog" aria-modal="false" aria-label="NONREVY menu">
+        <div id="app-menu-drawer" className="app-menu__drawer" role="dialog" aria-modal="false" aria-label={t('nonrevyMenu')}>
           <div className="app-menu__section app-menu__section--account">
-            <span className="app-menu__eyebrow">Account</span>
-            <strong>{userEmail || 'Guest'}</strong>
+            <span className="app-menu__eyebrow">{t('account')}</span>
+            <strong>{userEmail || t('guest')}</strong>
             <div className="app-menu__account-actions">
-              {!userEmail ? <a href="/login">Login</a> : <button type="button" onClick={logout}>Logout</button>}
-              <a href="/account">Account</a>
+              {!userEmail ? <a href="/login">{t('login')}</a> : <button type="button" onClick={logout}>{t('logout')}</button>}
+              <a href="/account">{t('account')}</a>
             </div>
             {message ? <small>{message}</small> : null}
           </div>
 
-          <nav className="app-menu__links" aria-label="Menu links">
-            <span className="app-menu__eyebrow">Menu</span>
+          <label className="app-menu__section app-menu__section--locale">
+            <span className="app-menu__eyebrow">{t('language')}</span>
+            <select value={locale} aria-label={t('language')} onChange={(event) => setLocale(event.target.value as Locale)}>
+              {locales.map((supportedLocale) => (
+                <option key={supportedLocale} value={supportedLocale}>{t(localeLabelKeys[supportedLocale])}</option>
+              ))}
+            </select>
+          </label>
+
+          <nav className="app-menu__links" aria-label={t('menuLinks')}>
+            <span className="app-menu__eyebrow">{t('menu')}</span>
             {menuItems.map(renderLink)}
           </nav>
 
-          <nav className="app-menu__links" aria-label="Account and settings links">
-            <span className="app-menu__eyebrow">Tools</span>
+          <nav className="app-menu__links" aria-label={t('accountSettingsLinks')}>
+            <span className="app-menu__eyebrow">{t('tools')}</span>
             {drawerItems.map(renderLink)}
           </nav>
         </div>

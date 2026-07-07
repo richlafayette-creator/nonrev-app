@@ -4632,7 +4632,7 @@ function renderFlightBoardRow(comparison: ItineraryComparison, showPlanB = false
 }
 
 export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: boolean } = {}) {
-  const { t } = useI18n()
+  const { formatDateTime, t } = useI18n()
   const [tripGoal, setTripGoal] = useState('')
   const [homeAirport, setHomeAirport] = useState('')
   const [travelWindow, setTravelWindow] = useState('')
@@ -4741,12 +4741,13 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
 
   useEffect(() => {
     async function loadFlights() {
+      const formatLastUpdated = () => formatDateTime(new Date(), { timeStyle: 'short' })
       const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
       const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
       if (!supabaseUrl || !supabaseKey) {
         setFlights([])
-        setLastUpdated(`${new Date().toLocaleTimeString()} · no live provider rows`)
+        setLastUpdated(`${formatLastUpdated()} · ${t('noLiveProviderRows')}`)
         return
       }
 
@@ -4757,17 +4758,17 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
         )
         const data = await res.json()
         setFlights(Array.isArray(data) && data.length ? data.filter((flight) => !String(flight.id || '').startsWith('demo-') && !String(flight.source_provider || flight.sourceProvider || '').toLowerCase().includes('demo')) : [])
-        setLastUpdated(`${new Date().toLocaleTimeString()}${Array.isArray(data) && data.length ? '' : ' · no live provider rows'}`)
+        setLastUpdated(`${formatLastUpdated()}${Array.isArray(data) && data.length ? '' : ` · ${t('noLiveProviderRows')}`}`)
       } catch {
         setFlights([])
-        setLastUpdated(`${new Date().toLocaleTimeString()} · no live provider rows`)
+        setLastUpdated(`${formatLastUpdated()} · ${t('noLiveProviderRows')}`)
       }
     }
 
     loadFlights()
     const refresh = window.setInterval(loadFlights, 30000)
     return () => window.clearInterval(refresh)
-  }, [])
+  }, [formatDateTime, t])
 
   async function runItinerarySearch(searchText: string, overrides: ItinerarySearchOverrides = {}) {
     const trimmedSearch = searchText.trim()

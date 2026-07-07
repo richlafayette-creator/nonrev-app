@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 // @ts-expect-error Node's experimental TypeScript test runner resolves the .ts extension directly.
-import { airportIntelligenceProviderConfiguration, airportIntelligenceProviderFeatureFlag, createAirportIntelligenceProvider, createAirportIntelligenceProviderRegistry, enabledDynamicAirportIntelligenceProviderNames, getAirportIntelligenceProviderReadiness, NullAirportIntelligenceProvider, type AirportIntelligenceProvider, type AirportIntelligenceProviderResult } from './airportIntelligenceProvider.ts'
+import { airportIntelligenceProviderConfiguration, airportIntelligenceProviderFeatureFlag, createAirportIntelligenceProvider, createAirportIntelligenceProviderRegistry, enabledDynamicAirportIntelligenceProviderNames, getAirportIntelligenceProviderHealthSummaries, getAirportIntelligenceProviderReadiness, NullAirportIntelligenceProvider, redactAirportIntelligenceDiagnostics, type AirportIntelligenceProvider, type AirportIntelligenceProviderDiagnostic, type AirportIntelligenceProviderResult } from './airportIntelligenceProvider.ts'
 
 class TestAirportIntelligenceProvider implements AirportIntelligenceProvider {
   readonly providerName = 'TestAirportIntelligenceProvider'
@@ -82,6 +82,87 @@ describe('airport intelligence provider readiness', () => {
     assert.doesNotMatch(joined, /scrape airline|airline website|standby\s+(is\s+)?(available|confirmed|open|cleared|guaranteed)/)
     assert.equal(readiness.every((source) => source.liveCallsEnabled === false), true)
     assert.equal(readiness.every((source) => source.advisoryOnly === true), true)
+  })
+})
+
+describe('airport intelligence provider observability', () => {
+  it('summarizes provider health with disabled and unavailable summaries without live calls', () => {
+    const summaries = getAirportIntelligenceProviderHealthSummaries({
+      env: { NONREV_AIRPORT_INTELLIGENCE_PROVIDER_ENABLED: '1' },
+      now: new Date('2026-07-07T04:40:00.000Z')
+    })
+    const byProvider = Object.fromEntries(summaries.map((summary) => [summary.provider, summary]))
+
+    assert.equal(byProvider['Local static airport scaffold'].health, 'ready')
+    assert.equal(byProvider.OurAirports.health, 'ready')
+    assert.equal(byProvider['FAA airport facilities'].health, 'ready')
+    assert.equal(byProvider['FlightAware airport endpoints'].health, 'unavailable')
+    assert.equal(byProvider['FlightAware airport endpoints'].unavailableReason, 'credential missing')
+    assert.equal(byProvider['Mapbox airport context'].health, 'unavailable')
+    assert.equal(summaries.every((summary) => summary.liveCallsEnabled === false), true)
+    assert.equal(summaries.every((summary) => summary.advisoryOnly === true), true)
+    assertNoStandbyClaims(summaries.flatMap((summary) => [summary.summary, summary.disabledSummary || '', summary.unavailableReason || '']).join(' '))
+
+    const disabled = getAirportIntelligenceProviderHealthSummaries({ env: {}, now: new Date('2026-07-07T04:40:00.000Z') })
+    const disabledDynamic = disabled.filter((summary) => summary.provider !== 'Local static airport scaffold')
+    assert.equal(disabledDynamic.every((summary) => summary.health === 'disabled'), true)
+    assert.equal(disabledDynamic.every((summary) => summary.disabledSummary?.includes(airportIntelligenceProviderFeatureFlag)), true)
+    assert.equal(disabledDynamic.every((summary) => summary.cache.status === 'disabled'), true)
+  })
+
+  it('adds cache age metadata and stale/expired reason codes', () => {
+    const env = {
+      NONREV_AIRPORT_INTELLIGENCE_PROVIDER_ENABLED: '1',
+      NONREV_AIRPORT_INTELLIGENCE_CACHE_FRESH_MINUTES: '60',
+      NONREV_AIRPORT_INTELLIGENCE_CACHE_EXPIRE_MINUTES: '180'
+    }
+    const summaries = getAirportIntelligenceProviderHealthSummaries({
+      env,
+      now: new Date('2026-07-07T04:40:00.000Z'),
+      cacheObservations: [
+        { provider: 'OurAirports', fetchedAt: '2026-07-07T04:10:00.000Z' },
+        { provider: 'FAA airport facilities', fetchedAt: '2026-07-07T02:40:00.000Z' },
+        { provider: 'FlightAware airport endpoints', fetchedAt: '2026-07-07T00:00:00.000Z' },
+        { provider: 'Mapbox airport context', fetchedAt: 'not-a-date' }
+      ]
+    })
+    const byProvider = Object.fromEntries(summaries.map((summary) => [summary.provider, summary]))
+
+    assert.equal(byProvider.OurAirports.cache.status, 'fresh')
+    assert.equal(byProvider.OurAirports.cache.reasonCode, 'cache-fresh')
+    assert.equal(byProvider.OurAirports.cache.ageMinutes, 30)
+    assert.equal(byProvider.OurAirports.cache.staleAt, '2026-07-07T05:10:00.000Z')
+    assert.equal(byProvider['FAA airport facilities'].cache.status, 'stale')
+    assert.equal(byProvider['FAA airport facilities'].cache.reasonCode, 'cache-stale-age-exceeded')
+    assert.equal(byProvider['FlightAware airport endpoints'].cache.status, 'expired')
+    assert.equal(byProvider['FlightAware airport endpoints'].cache.reasonCode, 'cache-expired-age-exceeded')
+    assert.equal(byProvider['Mapbox airport context'].cache.status, 'expired')
+    assert.equal(byProvider['Mapbox airport context'].cache.reasonCode, 'cache-invalid-timestamp')
+  })
+
+  it('redacts provider diagnostics before returning observability metadata', () => {
+    const env = {
+      NONREV_AIRPORT_INTELLIGENCE_PROVIDER_ENABLED: '1',
+      FLIGHTAWARE_API_KEY: 'flightaware-secret-123',
+      NEXT_PUBLIC_MAPBOX_TOKEN: 'pk_secretmapbox123'
+    }
+    const diagnostics: AirportIntelligenceProviderDiagnostic[] = [
+      {
+        provider: 'FlightAware airport endpoints',
+        severity: 'warning',
+        code: 'provider_debug_payload',
+        message: 'Request failed with bearer flightaware-secret-123 and token=pk_secretmapbox123; url=https://example.test?api_key=flightaware-secret-123'
+      }
+    ]
+
+    const redacted = redactAirportIntelligenceDiagnostics(diagnostics, env)
+    const summaries = getAirportIntelligenceProviderHealthSummaries({ env, diagnostics, now: new Date('2026-07-07T04:40:00.000Z') })
+    const joined = JSON.stringify({ redacted, summaries })
+
+    assert.doesNotMatch(joined, /flightaware-secret-123/)
+    assert.doesNotMatch(joined, /pk_secretmapbox123/)
+    assert.match(joined, /\[redacted\]/)
+    assert.ok(summaries.find((summary) => summary.provider === 'FlightAware airport endpoints')?.diagnostics.some((item) => item.code === 'provider_debug_payload'))
   })
 })
 

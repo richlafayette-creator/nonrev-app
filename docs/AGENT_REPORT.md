@@ -1,47 +1,53 @@
-# Agent Report — 2026-07-07 04:20 UTC Historical Reliability Integration Sprint 1
+# Agent Report — 2026-07-07 04:40 UTC Airport Intelligence Provider Observability Sprint
 
 ## Selected task
 
-Data Agent sprint on `agent-dev`: continue the Historical Reliability framework with one provider adapter, cache support, freshness metadata, registry integration, and structured diagnostics.
+Data Agent sprint on `agent-dev`: continue the Airport Intelligence provider framework by adding observability/readiness metadata only.
 
 ## Scope completed
 
-- Extended the existing `historicalReliabilityProviderFramework`.
-- Added `HistoricalReliabilityProviderAdapter` behind feature flags:
-  - `NONREV_HISTORICAL_RELIABILITY_ENGINE_ENABLED`
-  - `NONREV_HISTORICAL_RELIABILITY_PROVIDER_ADAPTER_ENABLED`
-  - `NONREV_HISTORICAL_RELIABILITY_PROVIDER_SCENARIO`
-- Added provider registry/factory integration for the adapter while preserving unknown-provider null fallback.
-- Added in-memory cache support following the existing cache pattern:
-  - normalized route/carrier/flight/date cache keys
-  - freshness/stale/expired/missing/disabled states
-  - cache-hit provider skip
-  - cache-miss provider fetch
-  - stale/expired cache remains diagnostic-only and neutral
-- Added data freshness metadata on cached provider results.
-- Added structured provider diagnostics with sanitized messages.
-- Added fetch orchestration that safely handles disabled flags, provider success, provider timeout, provider unavailable/unknown metrics, cache hit, cache miss, and null-provider fallback.
+- Extended `airportIntelligenceProvider` with observability-only metadata types and helpers.
+- Added provider health summaries for airport intelligence sources:
+  - ready
+  - disabled
+  - unavailable
+  - not implemented
+- Added disabled/unavailable summaries for dynamic provider sources.
+- Added cache age metadata for observability:
+  - observed time
+  - fetched time
+  - age in minutes
+  - fresh/stale/expired/missing/disabled cache status
+  - stale and expiration timestamps
+- Added stale/expired reason codes:
+  - `feature-disabled`
+  - `cache-fresh`
+  - `cache-missing`
+  - `cache-stale-age-exceeded`
+  - `cache-expired-age-exceeded`
+  - `cache-invalid-timestamp`
+- Added diagnostics redaction helpers and tests so provider diagnostics do not leak configured credential values, bearer tokens, or API-key query parameters.
 
 ## Safety decisions
 
-- No live commercial API integration.
 - No UI changes.
-- No itinerary generation changes.
 - No planner behavior changes.
-- No itinerary scoring changes; new adapter/cache outputs explicitly report `appliesToScoring: false`.
-- Historical reliability remains advisory-only and unknown-neutral.
-- Provider timeout/failure diagnostics do not surface raw provider errors or secrets.
+- No itinerary generation changes.
+- No scoring changes.
+- No live provider calls.
+- All observability output remains advisory-only with `liveCallsEnabled: false`.
+- Diagnostics are sanitized before being returned through observability summaries.
 
 ## Files changed
 
-- `lib/historicalReliabilityProviderFramework.ts`
-- `lib/historicalReliabilityProviderFramework.test.ts`
+- `lib/airportIntelligenceProvider.ts`
+- `lib/airportIntelligenceProvider.test.ts`
 - `docs/NEXT_TASKS.md`
 - `docs/AGENT_REPORT.md`
 
 ## Validation
 
-- `node --test lib/historicalReliabilityProviderFramework.test.ts`
+- `node --test lib/airportIntelligenceProvider.test.ts`
 - `git diff --check`
 - `npx tsc --noEmit`
 
@@ -49,8 +55,8 @@ Data Agent sprint on `agent-dev`: continue the Historical Reliability framework 
 
 - No blocker.
 - Existing unrelated untracked file remains: `tatus`.
-- Real historical reliability provider integrations remain deferred pending endpoint/licensing review, credentials, rate limits, cache policy review, and product wording review.
+- This sprint intentionally did not add a live airport provider, cache persistence, UI wiring, planner wiring, or scoring behavior.
 
 ## Recommended next sprint
 
-Add Historical Reliability provider observability/readiness metadata across the aggregation path: provider health summaries, cache age, stale/expired reason codes, disabled/unavailable summaries, and diagnostics redaction tests, while keeping UI, scoring, planner behavior, and live provider calls unchanged.
+Add Airport Intelligence provider cache orchestration tests around future cache persistence interfaces: cache write/read contracts, cache-miss neutral fallback, stale cache preservation on provider failure, and readiness diagnostics — still with no UI, planner, scoring, itinerary-generation, or live-provider-call changes.

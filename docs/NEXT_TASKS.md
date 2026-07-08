@@ -1,6 +1,6 @@
 # Nonrevy Autonomous Development Task Queue
 
-_Last updated: 2026-07-06 05:02 UTC_
+_Last updated: 2026-07-08 03:32 UTC_
 
 This file is the operating guide for autonomous development agents working on Nonrevy. It defines the next task queue, safety boundaries, validation gates, and priorities for moving the beta toward trustworthy private-beta readiness.
 
@@ -71,6 +71,7 @@ Remaining P0 work:
 6. Completed 2026-07-06: Added insufficient-origin provider coverage diagnostics so searches do not fail when the requested origin has limited provider data; the UI now explains the coverage gap and recommends nearest supported alternate origins without fabricating flights or claiming standby availability.
 7. Completed 2026-07-06: Added API-level `/api/itinerary/search` fallback regression tests for insufficient origin coverage, provider rate-limit fallback, empty-provider fallback, no fabricated itineraries, and no standby availability claims.
 8. Completed 2026-07-06: Added a compact planner origin-coverage UI smoke test that renders deterministic insufficient-origin fallback guidance, verifies nearby supported airport recommendations, confirms no fabricated itineraries are returned, and checks advisory-only wording.
+9. Completed 2026-07-08: Added a diagnostics-only Beta Readiness Dashboard service behind `NONREV_BETA_READINESS_DASHBOARD_ENABLED`. It aggregates Provider Health, Historical Reliability, Airport Intelligence, Commercial Availability, Weather, Recovery Engine v2, Standby Confidence, Planner Signal Attribution, Smoke Tests, and i18n foundation into one sanitized readiness object with overall status, ready/warning/unavailable buckets, missing components, provider summaries, cache summaries, and diagnostics summaries. No UI, API contract, itinerary generation, ranking, scoring, planner behavior, or advisory wording changes were added.
 
 ### P2 — Data and provider depth
 

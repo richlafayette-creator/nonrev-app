@@ -19,6 +19,7 @@ import { providerFailureMessageFromStatus } from '../../../../lib/providerFailur
 import { buildProviderDiagnostics, type StructuredProviderDiagnostic } from '../../../../lib/providerDiagnostics'
 import { internalWeatherPrefetchStore } from '../../../../lib/weatherCacheStore'
 import { buildOriginCoverageDiagnostic, type OriginCoverageDiagnostic } from '../../../../lib/originCoverage'
+import { buildRecoveryV2ServerDiagnostics, type RecoveryV2ServerDiagnostics } from '../../../../lib/recoveryV2DiagnosticsIntegration'
 
 export const dynamic = 'force-dynamic'
 
@@ -137,6 +138,7 @@ type ItineraryDebugMetadata = {
   deduplicatedRowsRemoved: number
   routeCoverageSuggestions: RouteCoverageSuggestion[]
   recoveryIntelligence?: RecoveryIntelligence
+  recoveryV2Diagnostics?: RecoveryV2ServerDiagnostics
   historicalIntelligence?: HistoricalRouteIntelligence
   normalizedFlightAwareItinerarySample?: SafeNormalizedItinerarySample
   noResultsExplanation?: string[]
@@ -1526,6 +1528,7 @@ function buildDebugMetadata({
   deduplicationNotes = [],
   deduplicatedRowsRemoved = 0,
   routeCoverageSuggestions = [],
+  itinerariesForRecoveryV2Diagnostics = [],
   recoveryIntelligence,
   historicalIntelligence,
   normalizedFlightAwareItinerarySample,
@@ -1558,6 +1561,7 @@ function buildDebugMetadata({
   deduplicationNotes?: string[]
   deduplicatedRowsRemoved?: number
   routeCoverageSuggestions?: RouteCoverageSuggestion[]
+  itinerariesForRecoveryV2Diagnostics?: ItineraryResult[]
   recoveryIntelligence?: RecoveryIntelligence
   historicalIntelligence?: HistoricalRouteIntelligence
   normalizedFlightAwareItinerarySample?: SafeNormalizedItinerarySample
@@ -1566,6 +1570,12 @@ function buildDebugMetadata({
   originCoverage?: OriginCoverageDiagnostic
 }): ItineraryDebugMetadata {
   const mergedProviderStatuses = mergeProviderStatuses(providerStatuses)
+  const recoveryV2Diagnostics = buildRecoveryV2ServerDiagnostics({
+    itineraries: itinerariesForRecoveryV2Diagnostics,
+    providerFailures: mergedProviderStatuses,
+    safeErrors,
+    env: process.env
+  })
   return {
     parsedOrigin: parsedRequest.origin,
     parsedDestination: parsedRequest.destination,
@@ -1610,6 +1620,7 @@ function buildDebugMetadata({
     deduplicationNotes,
     deduplicatedRowsRemoved,
     routeCoverageSuggestions,
+    ...(recoveryV2Diagnostics ? { recoveryV2Diagnostics } : {}),
     recoveryIntelligence,
     historicalIntelligence,
     normalizedFlightAwareItinerarySample,
@@ -1700,6 +1711,7 @@ export async function GET(request: Request) {
       aviationstackFallbackStatus: 'skipped; parser route incomplete',
       flightAwareEnrichmentStatus: 'skipped; no known live flight numbers available to enrich',
       finalItineraryCount: 0,
+      itinerariesForRecoveryV2Diagnostics: [],
       apiResponseCounts: counts,
       routeMatching: summarizeRouteMatching([], effectiveRequest),
       supabaseQueryPath,
@@ -1781,6 +1793,7 @@ export async function GET(request: Request) {
         : 'not needed; FlightAware/cache segment search supplied complete scheduled itineraries',
       flightAwareEnrichmentStatus: `${expandedScheduleSearch.counts.flightAwareFetched} normalized FlightAware leg${expandedScheduleSearch.counts.flightAwareFetched === 1 ? '' : 's'} found across ${expandedScheduleSearch.counts.flightAwareRequests} expanded segment request${expandedScheduleSearch.counts.flightAwareRequests === 1 ? '' : 's'}`,
       finalItineraryCount: expandedScheduleSearch.topItineraries.length,
+      itinerariesForRecoveryV2Diagnostics: expandedScheduleSearch.topItineraries,
       apiResponseCounts: counts,
       routeMatching,
       supabaseQueryPath,
@@ -1909,6 +1922,7 @@ export async function GET(request: Request) {
       aviationstackFallbackStatus: 'skipped; FlightAware live schedules returned itinerary results',
       flightAwareEnrichmentStatus: flightAwareScheduleDetail || `${flightAwareItineraries.length} FlightAware live itinerary result${flightAwareItineraries.length === 1 ? '' : 's'} returned`,
       finalItineraryCount: itineraries.length,
+      itinerariesForRecoveryV2Diagnostics: itineraries,
       apiResponseCounts: counts,
       routeMatching: flightAwareRouteMatching,
       supabaseQueryPath: skippedSupabaseQueryPath,
@@ -2007,6 +2021,7 @@ export async function GET(request: Request) {
       aviationstackFallbackStatus: 'skipped; recent provider cache returned itinerary results after FlightAware returned no usable schedules',
       flightAwareEnrichmentStatus: flightAwareScheduleDetail || 'FlightAware returned no usable schedules before provider cache fallback',
       finalItineraryCount: itineraries.length,
+      itinerariesForRecoveryV2Diagnostics: itineraries,
       apiResponseCounts: counts,
       routeMatching: providerCacheRouteMatching,
       supabaseQueryPath: skippedSupabaseQueryPath,
@@ -2178,6 +2193,7 @@ export async function GET(request: Request) {
       aviationstackFallbackStatus: 'not needed; Supabase returned matching flights',
       flightAwareEnrichmentStatus: flightAwareStatus,
       finalItineraryCount: itineraries.length,
+      itinerariesForRecoveryV2Diagnostics: itineraries,
       apiResponseCounts: counts,
       routeMatching,
       supabaseQueryPath,
@@ -2298,6 +2314,7 @@ export async function GET(request: Request) {
       aviationstackFallbackStatus,
       flightAwareEnrichmentStatus: flightAwareStatus,
       finalItineraryCount: itineraries.length,
+      itinerariesForRecoveryV2Diagnostics: itineraries,
       apiResponseCounts: counts,
       routeMatching,
       supabaseQueryPath,
@@ -2395,6 +2412,7 @@ export async function GET(request: Request) {
       aviationstackFallbackStatus,
       flightAwareEnrichmentStatus: flightAwareScheduleDetail || 'Complete search finished without early provider exit.',
       finalItineraryCount: itineraries.length,
+      itinerariesForRecoveryV2Diagnostics: itineraries,
       apiResponseCounts: counts,
       routeMatching,
       supabaseQueryPath,
@@ -2496,6 +2514,7 @@ export async function GET(request: Request) {
       aviationstackFallbackStatus,
       flightAwareEnrichmentStatus: 'skipped; no live provider schedule rows available before estimated schedule fallback',
       finalItineraryCount: itineraries.length,
+      itinerariesForRecoveryV2Diagnostics: itineraries,
       apiResponseCounts: counts,
       routeMatching: seedRouteMatching,
       supabaseQueryPath,
@@ -2616,6 +2635,7 @@ export async function GET(request: Request) {
     aviationstackFallbackStatus,
     flightAwareEnrichmentStatus: 'skipped; no known live flight numbers available to enrich',
     finalItineraryCount: routeFrameworkItineraries.length,
+    itinerariesForRecoveryV2Diagnostics: routeFrameworkItineraries,
     apiResponseCounts: counts,
     routeMatching,
     supabaseQueryPath,

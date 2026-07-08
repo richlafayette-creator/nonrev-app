@@ -41,15 +41,22 @@ export type StandbyConfidenceInput = {
 type StandbyWeatherSignal = {
   source?: string
   observedAt?: string | null
+  category?: string
+  status?: string
   level?: string
   routeRisk?: {
     level?: string
     confidence?: string
   }
+  [key: string]: unknown
 }
 
 type StandbyHistoricalReliabilitySignal = {
   confidenceScore?: number
+  onTimePercentage?: number
+  cancellationPercentage?: number
+  averageDepartureDelay?: number
+  averageArrivalDelay?: number
   lastUpdated?: string | null
   providerName?: string
   providerStatus?: {
@@ -59,15 +66,23 @@ type StandbyHistoricalReliabilitySignal = {
   dataFreshness?: {
     latestUpdated?: string | null
   }
+  [key: string]: unknown
 }
 
 type StandbyAirportIntelligenceSignal = {
+  airportCode?: string
   providerName?: string
   confidence?: number
   lastUpdated?: string | null
+  [key: string]: unknown
 }
 
 type StandbyCommercialAvailabilitySignal = {
+  carrier?: string
+  flightNumber?: string
+  origin?: string
+  destination?: string
+  departureDate?: string
   providerName?: string
   safeLabel?: string
   proxyOnly?: boolean
@@ -77,6 +92,7 @@ type StandbyCommercialAvailabilitySignal = {
   result?: {
     lastUpdated?: string | null
   } | null
+  [key: string]: unknown
 }
 
 export type StandbyConfidenceAggregationInput = StandbyConfidenceInput & {

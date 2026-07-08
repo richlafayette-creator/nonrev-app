@@ -1,4 +1,5 @@
 import type { ItineraryResult } from './itinerarySearch'
+import type { CommercialAvailabilitySafeLabel } from './sellableSeatAvailabilityProvider'
 // @ts-ignore Node's experimental TypeScript test runner requires explicit .ts runtime imports; Next/tsc noEmit accept this suppressed import.
 import { buildRecoveryV2Candidates, type RecoveryV2CandidatePipelineResult } from './recoveryV2CandidatePipeline.ts'
 // @ts-ignore Node's experimental TypeScript test runner requires explicit .ts runtime imports; Next/tsc noEmit accept this suppressed import.
@@ -120,7 +121,7 @@ function sanitizeList(values: string[], env: Record<string, string | undefined>)
 function commercialAvailabilityFromItinerary(itinerary: ItineraryResult) {
   const signal = itinerary.sellableSeatSignal
   if (!signal) return null
-  const safeLabel = signal.sellableStatus === 'available'
+  const safeLabel: CommercialAvailabilitySafeLabel = signal.sellableStatus === 'available'
     ? 'favorable'
     : signal.sellableStatus === 'limited'
       ? 'limited'

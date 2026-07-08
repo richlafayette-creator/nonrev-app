@@ -1,61 +1,70 @@
-# Agent Report — 2026-07-08 02:24 UTC Recovery Engine v2 Diagnostics Integration
+# Agent Report — 2026-07-08 02:58 UTC Planner Signal Attribution Engine
 
 ## Selected task
 
-Recovery Engine v2 Diagnostics Integration on `agent-dev`: connect Recovery Engine v2 candidate output into server-side itinerary diagnostics behind the existing Recovery v2 feature flag only.
+Planner Signal Attribution Engine on `agent-dev`.
+
+The user provided two sprint requests in one message, each with “Stop after one completed sprint.” I completed the first listed sprint only: Planner Signal Attribution Engine. Provider Health & Readiness Monitoring is left as the recommended next sprint.
 
 ## Scope completed
 
-- Added `buildRecoveryV2ServerDiagnostics` as a feature-flagged diagnostics-only integration layer.
-- Wired itinerary API debug metadata to include Recovery Engine v2 diagnostics only when `NONREV_RECOVERY_ENGINE_V2_ENABLED` is enabled.
-- Exposed required diagnostic fields:
-  - candidate reasoning
-  - rejected candidate summaries
-  - advisory recovery confidence
-  - fallback reason
-  - recovery stage metadata
-- Connected existing itinerary-attached provider outputs into the unified Recovery v2 candidate pipeline where available:
-  - existing recovery analysis
-  - weather intelligence
-  - historical reliability
-  - commercial/sellable-seat proxy signal
-- Added neutral provider-failure diagnostics for skipped/warning/error provider states and safe server warnings.
-- Added redaction across candidate reasoning, fallback messages, provider failures, safe errors, and limitations.
+- Added a diagnostics-only planner signal attribution service behind `NONREV_PLANNER_SIGNAL_ATTRIBUTION_ENABLED`.
+- The service records which internal signals were available for each itinerary recommendation:
+  - Weather
+  - Historical Reliability
+  - Airport Intelligence
+  - Commercial Availability
+  - Recovery Engine v2
+  - Standby Confidence
+- Attribution records include:
+  - source
+  - status
+  - provider name when safe
+  - last-updated timestamp when supplied
+  - contribution type
+  - evidence summaries
+  - zero-impact guardrails for ranking, scoring, confidence scoring, itinerary generation, and planner behavior
+- Missing, disabled, failed, neutral, and unknown providers remain neutral.
+- Unknown provider shapes are handled defensively and do not throw.
+- Provider failures are summarized as diagnostics-only neutral fallbacks.
+- Redaction covers provider secrets, credential-like tokens, API-key query parameters, bearer tokens, cloud-style access keys, repo paths, file/line implementation paths, and stack-frame details.
 
 ## Safety decisions
 
-- Feature flag disabled: no Recovery v2 diagnostics field is emitted.
+- No API contract changes.
+- No API route wiring.
 - No UI changes.
 - No itinerary generation changes.
 - No ranking changes.
 - No scoring changes.
+- No confidence scoring changes.
 - No planner behavior changes.
-- No provider behavior changes.
+- No advisory wording changes.
+- No provider calls.
 - No scraping.
 - No booking.
-- No fabricated flights.
-- Advisory-only wording preserved; diagnostics never claim confirmed standby, seat, flight, hotel, vehicle, ride, boarding, or reaccommodation availability.
+- No fabricated flights or availability claims.
 
 ## Files changed
 
-- `app/api/itinerary/search/route.ts`
-- `lib/recoveryV2DiagnosticsIntegration.ts`
-- `lib/recoveryV2DiagnosticsIntegration.test.ts`
+- `lib/plannerSignalAttribution.ts`
+- `lib/plannerSignalAttribution.attribution.test.ts`
+- `lib/recoveryV2DiagnosticsIntegration.ts` (narrow type annotation fix required by `tsc`; no behavior change)
 - `docs/NEXT_TASKS.md`
 - `docs/AGENT_REPORT.md`
 
 ## Validation
 
-- `node --test lib/recoveryV2*.test.ts`
+- `node --test lib/*attribution*.test.ts`
 - `git diff --check`
-- `npx tsc --noEmit` attempted twice; environment killed the process (`SIGTERM`, then exit `137`).
+- `npx tsc --noEmit`
 
 ## Known blockers / not done
 
-- Full TypeScript validation is environmentally blocked: `npx tsc --noEmit` was killed twice (`SIGTERM`, then exit `137`).
+- No blocker.
 - Existing unrelated untracked file remains: `tatus`.
-- This sprint intentionally did not surface Recovery v2 diagnostics in UI, alter API itinerary arrays, alter provider fetch behavior, or modify ranking/scoring/planner behavior.
+- Provider Health & Readiness Monitoring was not started because the instruction was to stop after one completed sprint.
 
 ## Recommended next sprint
 
-Add API-level regression coverage proving `debug.recoveryV2Diagnostics` is absent when `NONREV_RECOVERY_ENGINE_V2_ENABLED` is disabled and present only in debug metadata when enabled, using existing safe route fixtures and still preserving itinerary generation, ranking, scoring, planner behavior, UI, provider behavior, and advisory-only wording.
+Provider Health & Readiness Monitoring: build feature-flagged diagnostics-only provider health/readiness aggregation for enabled/disabled, reachable/unreachable, last successful refresh, cache age, stale status, refresh failures, timeout counts, and neutral fallback reasons, without changing planner behavior, itinerary generation, ranking, scoring, advisory wording, UI, or API responses.

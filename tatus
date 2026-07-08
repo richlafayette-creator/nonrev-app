@@ -1,0 +1,22 @@
+[33mb97360f[m [32mMon Jul 6 05:09:42 2026[m Add i18n foundation
+[33m58f5d88[m [32mMon Jul 6 04:42:26 2026[m Add parallel multi-agent workflow
+[33m320d9fc[m [32mMon Jul 6 04:34:47 2026[m Add parallel multi-agent workflow
+[33m3364fa6[m [32mMon Jul 6 04:17:42 2026[m Add historical reliability aggregation service
+[33mef3dae4[m [32mMon Jul 6 04:04:55 2026[m Begin sellable seat availability provider framework
+[33m9a945aa[m [32mMon Jul 6 04:00:57 2026[m Begin airport intelligence provider framework
+[33m1de9ee8[m [32mMon Jul 6 03:49:43 2026[m chore: recover itinerary trace artifacts
+[33m1bb90c7[m [32mMon Jul 6 03:46:02 2026[m Begin historical reliability provider framework
+[33mf9ed4d6[m [32mMon Jul 6 03:33:25 2026[m Restore route framework label regression coverage
+[33md29278f[m [32mMon Jul 6 03:32:27 2026[m Centralize route framework certainty labels
+[33m870b51c[m [32mMon Jul 6 03:30:22 2026[m Add route airport parsing cache
+[33m42c0f4d[m [32mMon Jul 6 03:28:11 2026[m Add ground transport readiness guardrails
+[33m1d76cc4[m [32mMon Jul 6 03:26:47 2026[m Add hotel provider readiness guardrails
+[33me79b1ca[m [32mMon Jul 6 03:25:17 2026[m Add recovery v2 readiness guardrails
+[33m59ba09a[m [32mMon Jul 6 03:23:16 2026[m Add standby confidence guardrail engine
+[33m517406f[m [32mMon Jul 6 03:21:48 2026[m Add weather integration readiness guardrails
+[33me953e8a[m [32mMon Jul 6 03:20:10 2026[m Add commercial availability provider readiness
+[33m23a6fd2[m [32mMon Jul 6 03:18:24 2026[m Add airport intelligence provider readiness
+[33m3c2d339[m [32mMon Jul 6 03:17:03 2026[m Add historical reliability provider readiness
+[33me0358c2[m [32mMon Jul 6 03:10:40 2026[m Add planner origin coverage smoke test
+[33m7371abf[m [32mMon Jul 6 03:02:44 2026[m Add itinerary search fallback regression tests
+[33mda0d5d9[m [32mMon Jul 6 02:54:18 2026[m Handle limited origin provider coverage

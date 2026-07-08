@@ -218,6 +218,25 @@ describe('provider health diagnostics', () => {
     assert.equal(diagnostics, undefined)
   })
 
+  it('omits undefined detail from provider metadata', () => {
+    const diagnostics = buildProviderHealthDiagnostics({
+      now,
+      env: env(),
+      providers: [{
+        provider: 'Weather cache',
+        enabled: true,
+        available: true,
+        detail: undefined,
+        metadata: { optional: undefined }
+      }]
+    })
+
+    assert.ok(diagnostics)
+    assert.equal(Object.hasOwn(diagnostics.providers[0].metadata, 'detail'), false)
+    assert.equal(diagnostics.providers[0].metadata.optional, null)
+    assert.doesNotMatch(JSON.stringify(diagnostics.providers[0].metadata), /undefined/)
+  })
+
   it('redacts secrets, credential-like values, query params, and internal implementation details', () => {
     const diagnostics = buildProviderHealthDiagnostics({
       now,

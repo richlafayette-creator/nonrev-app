@@ -241,8 +241,8 @@ function diagnosticFor(provider: ProviderHealthInput, now: Date, env: Record<str
   const failureCount = counter(provider.failureCount)
   const reason = sanitizeText(fallbackReason(provider, enabled, providerAvailability, stale, timeoutCount, failureCount), env)
   const status = overallStatus(enabled, providerAvailability, stale, timeoutCount, failureCount)
-  const baseMetadata = sanitizeMetadata(provider.metadata, env)
-  const detailMetadata = provider.detail ? { detail: sanitizeText(provider.detail, env) } : {}
+  const metadata: ProviderHealthDiagnostic['metadata'] = { ...sanitizeMetadata(provider.metadata, env) }
+  if (provider.detail) metadata.detail = sanitizeText(provider.detail, env)
   return {
     provider: sanitizeText(name, env),
     category: provider.category ? sanitizeText(provider.category, env) : null,
@@ -266,7 +266,7 @@ function diagnosticFor(provider: ProviderHealthInput, now: Date, env: Record<str
     noAdvisoryWordingChange: true,
     noUiChange: true,
     noApiContractChange: true,
-    metadata: { ...baseMetadata, ...detailMetadata }
+    metadata
   }
 }
 

@@ -6,6 +6,7 @@ import {
   loadSavedSearches,
   markSavedSearchRun,
   removeSavedSearch,
+  renameSavedSearch,
   saveSavedSearch,
   savedSearchRunUrl,
   syncSavedSearches,
@@ -31,6 +32,8 @@ export default function SavedSearchesPage() {
   const [label, setLabel] = useState('')
   const [carrier, setCarrier] = useState('all')
   const [status, setStatus] = useState('Saved searches sync to your beta account when available, with local fallback.')
+  const [editingId, setEditingId] = useState('')
+  const [editingLabel, setEditingLabel] = useState('')
 
   function refreshSavedSearches() {
     setSavedSearches(loadSavedSearches())
@@ -82,6 +85,19 @@ export default function SavedSearchesPage() {
   function deleteSearch(search: SavedSearch) {
     setSavedSearches(removeSavedSearch(search.id))
     setStatus(`Removed “${search.label}”.`)
+  }
+
+  function startRename(search: SavedSearch) {
+    setEditingId(search.id)
+    setEditingLabel(search.label)
+  }
+
+  function saveRename(search: SavedSearch) {
+    const searches = renameSavedSearch(search.id, editingLabel)
+    setSavedSearches(searches)
+    setStatus(`Renamed saved search to “${editingLabel.trim() || search.label}”.`)
+    setEditingId('')
+    setEditingLabel('')
   }
 
   return (
@@ -164,7 +180,16 @@ export default function SavedSearchesPage() {
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start' }}>
                 <div>
                   <small style={{ color: search.kind === 'ai-trip' ? '#c084fc' : '#67e8f9', fontWeight: 'bold' }}>{kindLabel(search.kind)}</small>
-                  <h2 style={{ margin: '6px 0', color: '#f8fafc', fontSize: 22 }}>{search.label}</h2>
+                  {editingId === search.id ? (
+                    <input
+                      value={editingLabel}
+                      onChange={(event) => setEditingLabel(event.target.value)}
+                      aria-label={`Rename ${search.label}`}
+                      style={{ display: 'block', boxSizing: 'border-box', width: '100%', marginTop: 6, padding: 10, borderRadius: 12, border: '1px solid #334155', background: '#020617', color: 'white', fontWeight: 'bold' }}
+                    />
+                  ) : (
+                    <h2 style={{ margin: '6px 0', color: '#f8fafc', fontSize: 22 }}>{search.label}</h2>
+                  )}
                 </div>
                 <span style={{ border: '1px solid #334155', borderRadius: 999, padding: '5px 10px', color: '#cbd5e1', whiteSpace: 'nowrap' }}>{search.runCount} run{search.runCount === 1 ? '' : 's'}</span>
               </div>
@@ -185,6 +210,20 @@ export default function SavedSearchesPage() {
                 <button type="button" onClick={() => runSearch(search)} style={{ padding: '10px 14px', borderRadius: 999, border: 'none', background: '#38bdf8', color: '#020617', fontWeight: 'bold' }}>
                   Run search
                 </button>
+                {editingId === search.id ? (
+                  <>
+                    <button type="button" onClick={() => saveRename(search)} style={{ padding: '10px 14px', borderRadius: 999, border: 'none', background: '#22c55e', color: '#052e16', fontWeight: 'bold' }}>
+                      Save rename
+                    </button>
+                    <button type="button" onClick={() => setEditingId('')} style={{ padding: '10px 14px', borderRadius: 999, border: '1px solid #475569', background: '#020617', color: '#cbd5e1', fontWeight: 'bold' }}>
+                      Cancel
+                    </button>
+                  </>
+                ) : (
+                  <button type="button" onClick={() => startRename(search)} style={{ padding: '10px 14px', borderRadius: 999, border: '1px solid #67e8f9', background: '#020617', color: '#67e8f9', fontWeight: 'bold' }}>
+                    Rename
+                  </button>
+                )}
                 <button type="button" onClick={() => deleteSearch(search)} style={{ padding: '10px 14px', borderRadius: 999, border: '1px solid #fb7185', background: '#020617', color: '#fda4af', fontWeight: 'bold' }}>
                   Remove
                 </button>

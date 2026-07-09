@@ -112,6 +112,21 @@ export function removeSavedSearch(id: string) {
   return searches
 }
 
+export function renameSavedSearch(id: string, label: string) {
+  if (!storageAvailable()) return []
+  const nextLabel = label.trim()
+  if (!nextLabel) return loadSavedSearches()
+  let renamed: SavedSearch | null = null
+  const searches = loadSavedSearches().map((item) => {
+    if (item.id !== id) return item
+    renamed = { ...item, label: nextLabel, updatedAt: new Date().toISOString() }
+    return renamed
+  })
+  const persisted = persistSavedSearches(searches)
+  if (renamed) void syncSavedSearch(renamed)
+  return persisted
+}
+
 export function markSavedSearchRun(id: string) {
   if (!storageAvailable()) return null
   const now = new Date().toISOString()

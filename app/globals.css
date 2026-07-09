@@ -6848,8 +6848,8 @@ main.nonrevy-results-page.nonrevy-plan-shell {
     border-radius: 16px !important;
   }
 
-  .nonrevy-results-page .nonrevy-ranked-result-card__confidence strong {
-    font-size: clamp(1.7rem, 8vw, 2.55rem) !important;
+.nonrevy-results-page .nonrevy-ranked-result-card__confidence strong {
+  font-size: clamp(1.7rem, 8vw, 2.55rem) !important;
   }
 
   .nonrevy-route-details {
@@ -6880,6 +6880,62 @@ main.nonrevy-results-page.nonrevy-plan-shell {
   .nonrevy-route-details__signal-card small {
     font-size: 0.92rem !important;
     line-height: 1.55 !important;
+  }
+}
+
+/* Sprint 2: route card readability — let dense labels breathe instead of colliding */
+.nonrevy-results-page .nonrevy-ranked-result-card {
+  align-items: stretch !important;
+  overflow: visible !important;
+}
+
+.nonrevy-results-page .nonrevy-ranked-result-card__field {
+  align-content: center !important;
+  min-width: 0 !important;
+}
+
+.nonrevy-results-page .nonrevy-ranked-result-card__field strong {
+  overflow: visible !important;
+  text-overflow: clip !important;
+  white-space: normal !important;
+  overflow-wrap: anywhere !important;
+  line-height: 1.22 !important;
+}
+
+.nonrevy-results-page .nonrevy-ranked-result-card__field span,
+.nonrevy-results-page .nonrevy-ranked-result-card__confidence span {
+  line-height: 1.12 !important;
+}
+
+@media (min-width: 981px) {
+  .nonrevy-results-page .nonrevy-ranked-result-card {
+    grid-template-columns: 52px minmax(150px, 1.35fr) minmax(126px, 1fr) repeat(7, minmax(92px, 0.85fr)) 88px !important;
+  }
+}
+
+@media (max-width: 1180px) and (min-width: 641px) {
+  .nonrevy-results-page .nonrevy-ranked-result-card {
+    grid-template-columns: 48px repeat(3, minmax(118px, 1fr)) 82px !important;
+    row-gap: 14px !important;
+  }
+
+  .nonrevy-results-page .nonrevy-ranked-result-card__confidence {
+    min-height: 56px !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .nonrevy-results-page .nonrevy-ranked-result-card__field:not(.nonrevy-ranked-result-card__airline) strong {
+    max-width: 64% !important;
+    white-space: normal !important;
+    overflow-wrap: anywhere !important;
+  }
+
+  .nonrevy-results-page .nonrevy-ranked-result-card__airline strong {
+    display: -webkit-box !important;
+    -webkit-box-orient: vertical !important;
+    -webkit-line-clamp: 2 !important;
+    overflow: hidden !important;
   }
 }
 

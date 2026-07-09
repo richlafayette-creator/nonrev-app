@@ -166,9 +166,32 @@ export type CanonicalItineraryGraph = {
   }>
   alliances: Record<string, string[]>
   codeshares: Array<{ operatingFlightNumber: string; marketingFlightNumbers: string[] }>
+  minimumConnectionTimes: { domesticMinutes: number; internationalMinutes: number }
   maxConnectionWindows: { domesticMinutes: number; internationalMinutes: number }
   discoveryLog: string[]
   exclusionLog: string[]
+}
+
+export type DiscardedRoutingItem = {
+  route: string
+  reason: string
+}
+
+export type RoutingValidationReport = {
+  flightsExamined: number
+  legalConnectionsFound: number
+  discardedConnections: string[]
+  discardedItineraries: DiscardedRoutingItem[]
+  expectedItineraries: string[]
+  discoveredItineraries: string[]
+  missingItineraries: string[]
+  duplicateItineraries: string[]
+  routingCoveragePercentage: number
+  graph: CanonicalItineraryGraph
+}
+
+export type RoutingValidationOptions = {
+  expectedItineraries?: string[]
 }
 
 export type FlightRouteNormalization = {
@@ -297,6 +320,8 @@ const alliancePartners: Record<string, string[]> = {
 }
 
 const supportedScheduleProviders = ['flightaware', 'aviationstack', 'provider-cache', 'supabase']
+const minimumConnectionTimes = { domesticMinutes: 35, internationalMinutes: 60 }
+const maxConnectionWindows = { domesticMinutes: 12 * 60, internationalMinutes: 24 * 60 }
 
 const airportAliases: Record<string, string> = {
   honolulu: 'HNL',
@@ -1174,13 +1199,17 @@ function isLikelyInternationalConnection(firstLeg: ItineraryLeg, secondLeg: Itin
 }
 
 function maxConnectionMinutesFor(firstLeg: ItineraryLeg, secondLeg: ItineraryLeg) {
-  return isLikelyInternationalConnection(firstLeg, secondLeg) ? 24 * 60 : 12 * 60
+  return isLikelyInternationalConnection(firstLeg, secondLeg) ? maxConnectionWindows.internationalMinutes : maxConnectionWindows.domesticMinutes
+}
+
+function minimumConnectionMinutesFor(firstLeg: ItineraryLeg, secondLeg: ItineraryLeg) {
+  return isLikelyInternationalConnection(firstLeg, secondLeg) ? minimumConnectionTimes.internationalMinutes : minimumConnectionTimes.domesticMinutes
 }
 
 function isFeasibleConnection(firstLeg: ItineraryLeg, secondLeg: ItineraryLeg) {
   const connectionMinutes = minutesUntilConnection(firstLeg, secondLeg)
   if (connectionMinutes === null) return false
-  return connectionMinutes >= 35 && connectionMinutes <= maxConnectionMinutesFor(firstLeg, secondLeg)
+  return connectionMinutes >= minimumConnectionMinutesFor(firstLeg, secondLeg) && connectionMinutes <= maxConnectionMinutesFor(firstLeg, secondLeg)
 }
 
 function dedupeItineraries(itineraries: ItineraryResult[]) {
@@ -1292,13 +1321,14 @@ export function buildCanonicalItineraryGraph(flights: Record<string, unknown>[],
     if (firstLeg.destination !== secondLeg.origin) return []
     if (firstLeg.origin === secondLeg.destination) return []
     const minutes = minutesUntilConnection(firstLeg, secondLeg)
+    const minimumConnectionMinutes = minimumConnectionMinutesFor(firstLeg, secondLeg)
     const maxConnectionMinutes = maxConnectionMinutesFor(firstLeg, secondLeg)
     if (minutes === null) {
       exclusionLog.push(`Excluded connection ${firstLeg.flightNumber} → ${secondLeg.flightNumber}: missing comparable schedule times.`)
       return []
     }
-    if (minutes < 35 || minutes > maxConnectionMinutes) {
-      exclusionLog.push(`Excluded connection ${firstLeg.flightNumber} → ${secondLeg.flightNumber}: ${minutes}m layover outside legal window 35-${maxConnectionMinutes}m.`)
+    if (minutes < minimumConnectionMinutes || minutes > maxConnectionMinutes) {
+      exclusionLog.push(`Excluded connection ${firstLeg.flightNumber} → ${secondLeg.flightNumber}: ${minutes}m layover outside legal window ${minimumConnectionMinutes}-${maxConnectionMinutes}m.`)
       return []
     }
     const alliancePartner = legsShareAlliance(firstLeg, secondLeg)
@@ -1324,9 +1354,107 @@ export function buildCanonicalItineraryGraph(flights: Record<string, unknown>[],
     legalConnections,
     alliances: alliancePartners,
     codeshares,
-    maxConnectionWindows: { domesticMinutes: 12 * 60, internationalMinutes: 24 * 60 },
+    minimumConnectionTimes,
+    maxConnectionWindows,
     discoveryLog,
     exclusionLog
+  }
+}
+
+function itineraryRouteForLegs(legs: ItineraryLeg[]) {
+  return [legs[0].origin, ...legs.map((leg) => leg.destination)].join(' → ')
+}
+
+function dedupeItinerariesWithReasons(itineraries: ItineraryResult[]) {
+  const seen = new Map<string, ItineraryResult>()
+  const discarded: DiscardedRoutingItem[] = []
+  itineraries.forEach((itinerary) => {
+    const key = itinerary.legs.map((leg) => `${leg.operatingFlightNumber || leg.flightNumber}:${leg.origin}-${leg.destination}:${leg.departureTime}`).join('|')
+    if (seen.has(key)) {
+      discarded.push({ route: itinerary.route, reason: `Duplicate itinerary key ${key} already discovered.` })
+      return
+    }
+    seen.set(key, itinerary)
+  })
+  return { itineraries: [...seen.values()], discarded }
+}
+
+function generatedItinerariesWithReasons(itineraries: ItineraryResult[]) {
+  const deduped = dedupeItinerariesWithReasons(itineraries)
+  const discarded = [...deduped.discarded]
+  const kept = deduped.itineraries.filter((itinerary) => {
+    const reasonable = hasReasonableTotalTravelTime(itinerary)
+    if (!reasonable) discarded.push({ route: itinerary.route, reason: `Total travel time ${itinerary.totalDurationMinutes || 0}m exceeds the routing validation ceiling.` })
+    return reasonable
+  })
+  return { itineraries: kept, discarded }
+}
+
+function buildAllItinerariesFromGraph(graph: CanonicalItineraryGraph, request: ParsedItineraryRequest) {
+  const matchesRequestedDepartureDate = (leg: ItineraryLeg) => !request.date || localDateForAirport(leg.departureTime, leg.origin) === request.date
+  if (!request.origin || !request.destination) return generatedItinerariesWithReasons([])
+
+  const maxLegs = Math.max(1, request.maxLegs || 3)
+  const legalConnectionKeys = new Set(graph.legalConnections.map((connection) => `${connection.fromFlightNumber}|${connection.toFlightNumber}`))
+  const nextLegsFor = (leg: ItineraryLeg) => graph.flightLegs.filter((candidate) =>
+    candidate.origin === leg.destination &&
+    candidate.destination !== leg.origin &&
+    legalConnectionKeys.has(`${leg.operatingFlightNumber || leg.flightNumber}|${candidate.operatingFlightNumber || candidate.flightNumber}`)
+  )
+  const discovered: ItineraryResult[] = []
+  const discarded: DiscardedRoutingItem[] = []
+
+  const visit = (legs: ItineraryLeg[], visitedAirports: Set<string>) => {
+    const lastLeg = legs[legs.length - 1]
+    if (lastLeg.destination === request.destination) {
+      discovered.push(annotateDiscoveredItinerary(itineraryFromLegs(legs), graph, request, legs.length === 1 ? 'direct itinerary matched requested origin and destination' : `legal ${legs.length - 1}-stop itinerary via ${legs.slice(0, -1).map((leg) => leg.destination).join(' and ')}`))
+      return
+    }
+    if (legs.length >= maxLegs) {
+      discarded.push({ route: itineraryRouteForLegs(legs), reason: `Reached max legs ${maxLegs} before destination ${request.destination}.` })
+      return
+    }
+    const candidates = nextLegsFor(lastLeg)
+    if (!candidates.length) discarded.push({ route: itineraryRouteForLegs(legs), reason: `No legal onward connection from ${lastLeg.destination}.` })
+    candidates.forEach((candidate) => {
+      if (visitedAirports.has(candidate.destination) && candidate.destination !== request.destination) {
+        discarded.push({ route: `${itineraryRouteForLegs(legs)} → ${candidate.destination}`, reason: `Cycle prevented at ${candidate.destination}.` })
+        return
+      }
+      visit([...legs, candidate], new Set([...visitedAirports, candidate.destination]))
+    })
+  }
+
+  graph.flightLegs
+    .filter((leg) => leg.origin === request.origin && matchesRequestedDepartureDate(leg))
+    .forEach((leg) => visit([leg], new Set([leg.origin, leg.destination])))
+
+  const generated = generatedItinerariesWithReasons(discovered)
+  return { itineraries: generated.itineraries, discarded: [...discarded, ...generated.discarded] }
+}
+
+export function validateRoutingEngineCoverage(flights: Record<string, unknown>[], request: ParsedItineraryRequest, options: RoutingValidationOptions = {}, enrichments: Record<string, Record<string, unknown>> = {}): RoutingValidationReport {
+  const graph = buildCanonicalItineraryGraph(flights, request, enrichments)
+  const generated = buildAllItinerariesFromGraph(graph, request)
+  const discoveredItineraries = generated.itineraries.map((itinerary) => itinerary.route).sort()
+  const expectedItineraries = [...new Set(options.expectedItineraries || [])].sort()
+  const discoveredSet = new Set(discoveredItineraries)
+  const missingItineraries = expectedItineraries.filter((route) => !discoveredSet.has(route))
+  const duplicateItineraries = discoveredItineraries.filter((route, index) => discoveredItineraries.indexOf(route) !== index)
+  const routingCoveragePercentage = expectedItineraries.length
+    ? Math.round(((expectedItineraries.length - missingItineraries.length) / expectedItineraries.length) * 10000) / 100
+    : 100
+  return {
+    flightsExamined: flights.length,
+    legalConnectionsFound: graph.legalConnections.length,
+    discardedConnections: graph.exclusionLog.filter((entry) => entry.startsWith('Excluded connection')),
+    discardedItineraries: generated.discarded,
+    expectedItineraries,
+    discoveredItineraries,
+    missingItineraries,
+    duplicateItineraries,
+    routingCoveragePercentage,
+    graph
   }
 }
 
@@ -1336,56 +1464,15 @@ function enrichmentKey(flight: Record<string, unknown>) {
 
 export function buildAllItinerariesFromFlights(flights: Record<string, unknown>[], request: ParsedItineraryRequest, enrichments: Record<string, Record<string, unknown>> = {}) {
   const graph = buildCanonicalItineraryGraph(flights, request, enrichments)
-  const candidateLegs = graph.flightLegs
-  const matchesRequestedDepartureDate = (leg: ItineraryLeg) => !request.date || localDateForAirport(leg.departureTime, leg.origin) === request.date
-
-  const directItineraries = candidateLegs
-    .filter((leg) => leg.origin === request.origin && leg.destination === request.destination && matchesRequestedDepartureDate(leg))
-    .map((leg) => annotateDiscoveredItinerary(itineraryFromLegs([leg]), graph, request, 'direct itinerary matched requested origin and destination'))
-
-  if (!request.origin || !request.destination) {
-    return generatedItineraries(directItineraries)
-  }
-
-  const firstLegs = candidateLegs.filter((leg) => leg.origin === request.origin && leg.destination !== request.destination && matchesRequestedDepartureDate(leg))
-  const finalLegs = candidateLegs.filter((leg) => leg.destination === request.destination && leg.origin !== request.origin)
-
-  const oneStopItineraries = request.maxLegs < 2 ? [] : firstLegs
-    .flatMap((firstLeg) => finalLegs
-      .filter((secondLeg) =>
-        secondLeg.origin === firstLeg.destination &&
-        isFeasibleConnection(firstLeg, secondLeg)
-      )
-      .map((secondLeg) => annotateDiscoveredItinerary(itineraryFromLegs([firstLeg, secondLeg]), graph, request, `legal one-stop itinerary via ${firstLeg.destination}`))
-    )
-
-  const twoStopItineraries = request.maxLegs < 3 ? [] : firstLegs
-    .flatMap((firstLeg) => candidateLegs
-      .filter((middleLeg) =>
-        middleLeg.origin === firstLeg.destination &&
-        middleLeg.destination !== request.destination &&
-        middleLeg.destination !== request.origin &&
-        middleLeg.destination !== firstLeg.origin &&
-        isFeasibleConnection(firstLeg, middleLeg)
-      )
-      .flatMap((middleLeg) => finalLegs
-        .filter((finalLeg) =>
-          finalLeg.origin === middleLeg.destination &&
-          isFeasibleConnection(middleLeg, finalLeg)
-        )
-        .map((finalLeg) => annotateDiscoveredItinerary(itineraryFromLegs([firstLeg, middleLeg, finalLeg]), graph, request, `legal two-stop itinerary via ${firstLeg.destination} and ${middleLeg.destination}`))
-      )
-    )
-
-  return generatedItineraries([...directItineraries, ...oneStopItineraries, ...twoStopItineraries])
+  return buildAllItinerariesFromGraph(graph, request).itineraries
 }
 
 export function buildItinerariesFromFlights(flights: Record<string, unknown>[], request: ParsedItineraryRequest, enrichments: Record<string, Record<string, unknown>> = {}) {
-  return buildAllItinerariesFromFlights(flights, request, enrichments).slice(0, 5)
+  return buildAllItinerariesFromFlights(flights, request, enrichments)
 }
 
 function generatedItineraries(itineraries: ItineraryResult[]) {
-  return dedupeItineraries(itineraries).filter(hasReasonableTotalTravelTime)
+  return generatedItinerariesWithReasons(itineraries).itineraries
 }
 
 function providerKey(value?: string) {

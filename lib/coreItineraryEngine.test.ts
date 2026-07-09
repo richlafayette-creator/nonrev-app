@@ -1,13 +1,14 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 // @ts-expect-error Node's experimental TypeScript test runner resolves the .ts extension directly.
-import { buildAllItinerariesFromFlights, buildCanonicalItineraryGraph, normalizeItineraryRequest } from './itinerarySearch.ts'
+import { buildAllItinerariesFromFlights, buildCanonicalItineraryGraph, normalizeItineraryRequest, validateRoutingEngineCoverage } from './itinerarySearch.ts'
 
 function request(params: Record<string, string>) {
   return normalizeItineraryRequest(new URLSearchParams({ carrier: 'all', maxLegs: '3', date: '2026-07-10', ...params }))
 }
 
 const flights = [
+  { id: 'sbp-phx-dead-end', flight_number: 'AA700', origin: 'SBP', destination: 'PHX', departure_time: '2026-07-10T11:00:00Z', arrival_time: '2026-07-10T12:30:00Z', carrier: 'American', source_provider: 'flightaware' },
   { id: 'sbp-lax', flight_number: 'UA501', origin: 'SBP', destination: 'LAX', departure_time: '2026-07-10T13:00:00Z', arrival_time: '2026-07-10T14:05:00Z', carrier: 'United', source_provider: 'flightaware' },
   { id: 'lax-nrt', flight_number: 'NH5', origin: 'LAX', destination: 'NRT', departure_time: '2026-07-10T16:00:00Z', arrival_time: '2026-07-11T03:30:00Z', carrier: 'ANA', operating_carrier: 'NH', marketing_flight_numbers: ['UA7945'], source_provider: 'flightaware' },
   { id: 'nrt-hnd-bad', flight_number: 'JL900', origin: 'NRT', destination: 'HND', departure_time: '2026-07-11T03:45:00Z', arrival_time: '2026-07-11T04:30:00Z', carrier: 'Japan Airlines', source_provider: 'aviationstack' },
@@ -25,6 +26,8 @@ describe('core itinerary engine exhaustive discovery', () => {
     assert.ok(graph.airports.includes('SBP'))
     assert.ok(graph.airports.includes('HND'))
     assert.ok(graph.codeshares.some((codeshare) => codeshare.marketingFlightNumbers.includes('UA7945')))
+    assert.equal(graph.minimumConnectionTimes.domesticMinutes, 35)
+    assert.equal(graph.minimumConnectionTimes.internationalMinutes, 60)
     assert.ok(graph.legalConnections.some((connection) => connection.fromFlightNumber === 'UA501' && connection.toFlightNumber === 'NH5' && connection.alliancePartner))
     assert.ok(graph.exclusionLog.some((entry) => entry.includes('JL900') && entry.includes('outside legal window')))
   })
@@ -50,5 +53,41 @@ describe('core itinerary engine exhaustive discovery', () => {
     assert.ok(itineraries.some((itinerary) => itinerary.route === 'SBP → SEA → HND'))
     assert.ok(itineraries.some((itinerary) => itinerary.route === 'SBP → SFO → HND'))
     assert.ok(itineraries.some((itinerary) => itinerary.route === 'SBP → LAX → NRT → HND'))
+  })
+
+  it('reports expected, discovered, missing, duplicate, and excluded routes for validation mode', () => {
+    const expectedItineraries = [
+      'SBP → LAX → NRT → HND',
+      'SBP → SEA → HND',
+      'SBP → SFO → HND'
+    ]
+    const report = validateRoutingEngineCoverage(flights, request({ origin: 'SBP', destination: 'HND' }), { expectedItineraries })
+
+    assert.equal(report.routingCoveragePercentage, 100)
+    assert.deepEqual(report.expectedItineraries, expectedItineraries.sort())
+    assert.deepEqual(report.missingItineraries, [])
+    assert.deepEqual(report.duplicateItineraries, [])
+    assert.ok(report.flightsExamined >= flights.length)
+    assert.ok(report.legalConnectionsFound >= 3)
+    assert.ok(report.discardedConnections.some((entry) => entry.includes('JL900')))
+    assert.ok(report.discardedItineraries.some((item) => item.route === 'SBP → PHX' && item.reason.includes('No legal onward connection')))
+  })
+
+  it('covers simple domestic, domestic plus international hub, 2-stop international, alliance, codeshare, secondary-airport, and multiple-routing searches', () => {
+    const cases = [
+      { name: 'simple domestic', origin: 'SBP', destination: 'LAX', expected: ['SBP → LAX'] },
+      { name: 'domestic plus international hub', origin: 'SBP', destination: 'NRT', expected: ['SBP → LAX → NRT'] },
+      { name: '2-stop international', origin: 'SBP', destination: 'HND', expected: ['SBP → LAX → NRT → HND', 'SBP → SEA → HND', 'SBP → SFO → HND'] },
+      { name: 'alliance connections', origin: 'SBP', destination: 'NRT', expected: ['SBP → LAX → NRT'] },
+      { name: 'codeshares', origin: 'LAX', destination: 'HND', expected: ['LAX → NRT → HND'] },
+      { name: 'secondary airports', origin: 'SBP', destination: 'HND', expected: ['SBP → LAX → NRT → HND', 'SBP → SEA → HND', 'SBP → SFO → HND'] },
+      { name: 'multiple valid routings', origin: 'SBP', destination: 'HND', expected: ['SBP → LAX → NRT → HND', 'SBP → SEA → HND', 'SBP → SFO → HND'] }
+    ]
+
+    for (const item of cases) {
+      const report = validateRoutingEngineCoverage(flights, request({ origin: item.origin, destination: item.destination }), { expectedItineraries: item.expected })
+      assert.equal(report.routingCoveragePercentage, 100, `${item.name} missing ${report.missingItineraries.join(', ')}`)
+      assert.deepEqual(report.missingItineraries, [], item.name)
+    }
   })
 })

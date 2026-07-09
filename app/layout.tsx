@@ -4,6 +4,7 @@ import AppNavigation from "./AppNavigation";
 import { I18nProvider } from "./I18nProvider";
 import PWAInstallScaffold from "./PWAInstallScaffold";
 import "./globals.css";
+import "./home.css";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",

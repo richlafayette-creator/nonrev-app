@@ -1759,12 +1759,47 @@ function compactCarrierCode(carrier: string, flightNumber = '') {
   return words.map((word) => word[0]).join('').slice(0, 3).toUpperCase()
 }
 
+function airlineLogoUrlForCode(carrierCode: string) {
+  const normalized = carrierCode.replace(/[^A-Z0-9]/g, '').toUpperCase()
+  if (!/^[A-Z0-9]{2}$/.test(normalized)) return ''
+  return `https://images.kiwi.com/airlines/64/${normalized}.png`
+}
 
 function compactFlightNumberLabel(flightNumber: string, carrierCode: string) {
   const normalized = flightNumber.replace(/\s+/g, '').toUpperCase()
   const carrier = carrierCode.toUpperCase()
   if (normalized.startsWith(carrier)) return normalized.slice(carrier.length) || normalized
   return normalized
+}
+
+function compactFlightNumbersForCard(comparison: ItineraryComparison, carrierCode: string) {
+  const legNumbers = (comparison.legs || [])
+    .map((leg) => leg.operatingFlightNumber || leg.flightNumber)
+    .filter((flight): flight is string => Boolean(flight && !isMissingLiveLegDetail(flight)))
+  const candidates = [
+    ...legNumbers,
+    ...(comparison.marketingFlightNumbers || []),
+    comparison.flightNumber
+  ]
+    .map((flight) => flight.replace(/\s+/g, '').toUpperCase())
+    .filter((flight) => flight && !isMissingLiveLegDetail(flight) && !/multiple options/i.test(flight))
+
+  const uniqueFlights = [...new Set(candidates)]
+  if (!uniqueFlights.length) return '—'
+
+  return uniqueFlights
+    .map((flight) => {
+      const numeric = compactFlightNumberLabel(flight, carrierCode)
+      return flight.startsWith(carrierCode.toUpperCase()) ? `${carrierCode}${numeric}` : flight
+    })
+    .join(' / ')
+}
+
+function compactConnectionAirportForCard(comparison: ItineraryComparison) {
+  const routeConnections = airportCodesFromComparisonRoute(comparison.route).slice(1, -1)
+  const legConnections = (comparison.legs || []).slice(0, -1).map((leg) => leg.destination).filter(Boolean)
+  const connections = [...new Set(routeConnections.length ? routeConnections : legConnections)]
+  return connections.length ? connections.join(' / ') : 'Nonstop'
 }
 
 function isMissingLiveLegDetail(value?: string | number | null) {
@@ -4192,9 +4227,8 @@ function ItineraryComparisonPanel({ comparisons, travelDate, communityLoads, onC
   const compactItineraries = sortCompactItineraries(comparisons)
     .map(comparisonWithDisplayRouteIntegrity)
     .map(ensureRouteFrameworkLabels)
-  const topRouteItineraries = compactItineraries.slice(0, 5)
-  const moreRouteItineraries = sortMoreRouteItineraries(compactItineraries.slice(5))
-  const routeInsights = buildRouteIntelligenceInsights(compactItineraries)
+  const topRouteItineraries = compactItineraries.slice(0, 10)
+  const visibleRouteCount = topRouteItineraries.length
 
 function searchTrustReceiptTone(dataMode: string, debug: ItineraryDebugMetadata | null) {
   const normalizedMode = dataMode.toLowerCase()
@@ -4271,263 +4305,66 @@ function SearchTrustReceipt({ dataMode, source, status, warnings, debug }: Searc
   )
 }
 
-function renderFlightBoardRow(comparison: ItineraryComparison, showPlanB = false) {
+function renderFlightBoardRow(comparison: ItineraryComparison) {
     const index = compactItineraries.findIndex((item) => item.id === comparison.id)
     const rankIndex = index >= 0 ? index : 0
-    const nextBackup = compactItineraries[index + 1] || compactItineraries.find((item) => item.id !== comparison.id)
     const scoreColor = trafficLightScoreColor(comparison.successPrediction.confidenceScore)
     const routeAirports = airportCodesFromComparisonRoute(comparison.route)
-    const legCount = comparison.connections + 1
-    const isSelected = selectedComparisonId === comparison.id
-    const isExpanded = expandedDetailIds.includes(comparison.id)
     const carrierCode = compactCarrierCode(comparison.carrier, comparison.flightNumber)
     const airlineName = airlineNameForCarrier(comparison.carrier, carrierCode)
-    const flightNumber = compactFlightNumberLabel(comparison.flightNumber, carrierCode)
     const depTime = compactFlightBoardTime(comparison.departureDateTime, routeAirports[0], locale)
     const arrTime = compactFlightBoardTime(comparison.arrivalDateTime, routeAirports[routeAirports.length - 1], locale)
     const arrivalOffset = flightBoardDayOffset(comparison.arrivalDateTime, comparison.departureDateTime)
     const arrivalDisplay = arrTime.replace(/ \+\d+$/, '')
     const confidenceScore = comparison.successPrediction.confidenceScore
-    const legDisplays = itineraryCardLegDisplays(comparison, locale, t)
-    const hasPrimaryFlightId = comparison.dataFreshnessRule !== 'route-framework' && !isMissingLiveLegDetail(comparison.carrier) && !isMissingLiveLegDetail(comparison.flightNumber)
     const durationLabel = isMissingLiveLegDetail(comparison.totalTravelTime) ? t('liveDetailsUnavailable') : compactDurationLabel(comparison.totalTravelTime)
-    const communityLoad = communityLoadSummaryForItinerary(communityLoads, { flightNumber: comparison.flightNumber, route: comparison.route, date: travelDate.trim() || undefined })
-    const communityIntelligence = comparison.communityIntelligence || communityLoadIntelligenceForItinerary(communityLoads, { flightNumber: comparison.flightNumber, route: comparison.route, date: itineraryLoadDate(comparison, travelDate) || undefined })
-    const communityLoadRowText = communityLoadCompactRowText(communityIntelligence)
-    const latestCommunityLoad = communityIntelligence?.latestReport || communityLoad.latestReport
-    const submitLoadOpen = activeCommunityLoadId === comparison.id
-    const requestLoadOpen = activeLoadRequestId === comparison.id
-    const contributor = loadCommunityContributorReputation()
-    const scoreLabel = trafficLightScoreLabel(confidenceScore)
-    const routeRecommendation = routeRecommendationTitle(comparison, compactItineraries)
-    const whyRouteReasons = routeExplanationReasons(comparison, compactItineraries)
+    const scoreLabel = `${confidenceScore}`
+    const flightNumbers = compactFlightNumbersForCard(comparison, carrierCode)
+    const connectionAirport = compactConnectionAirportForCard(comparison)
+    const logoUrl = airlineLogoUrlForCode(carrierCode)
 
     return (
       <article
         key={`row-${comparison.id}`}
-        className={`nonrevy-flight-board-row ${isSelected ? 'nonrevy-flight-board-row--selected' : ''}`}
+        className="nonrevy-ranked-result-card"
         style={{ '--score-color': scoreColor, '--confidence-color': scoreColor } as CSSProperties}
-        onClick={() => openDetails(comparison)}
-        onKeyDown={(event) => {
-          if (event.target !== event.currentTarget) return
-          if (event.key === 'Enter' || event.key === ' ') {
-            event.preventDefault()
-            setDetailsOpen(comparison.id, !isExpanded)
-          }
-        }}
-        tabIndex={0}
-        aria-expanded={isExpanded}
-        aria-controls={`itinerary-details-${comparison.id}`}
-        aria-label={`${comparison.route} itinerary card. Press Enter to ${isExpanded ? 'collapse' : 'expand'} details.`}
+        aria-label={`Rank ${rankIndex + 1}: ${airlineName}, flights ${flightNumbers}, depart ${depTime}, arrive ${arrivalDisplay}, connection ${connectionAirport}, duration ${durationLabel}, ${compactStopsLabel(comparison.connections)}, confidence ${confidenceScore}`}
       >
-        <div className="nonrevy-flight-board-row__main">
-          <div className="nonrevy-flight-board-row__content" aria-label={`${comparison.route} ${legDisplays.map((leg) => `${leg.route}: ${leg.detail}`).join(' ')} ${depTime} to ${arrTime} ${compactStopsLabel(comparison.connections)} ${comparison.totalTravelTime} ${scoreLabel}`}>
-            <div className="nonrevy-flight-board-row__flight-data">
-              <div className="nonrevy-flight-board-row__primary-line">
-                <span className="nonrevy-flight-board-row__route">{comparison.route}</span>
-                <span className="nonrevy-flight-board-row__score" title={`${scoreLabel} itinerary signal`}>{scoreLabel}</span>
-              </div>
-              {hasPrimaryFlightId ? (
-                <div className="nonrevy-flight-board-row__airline-line" title={`${airlineName} ${carrierCode}${flightNumber}`} aria-label={`${airlineName} ${carrierCode}${flightNumber}`}>
-                  <span className="nonrevy-flight-board-row__airline-name">{airlineName}</span>
-                  <strong className="nonrevy-flight-board-row__flight-number">{carrierCode}{flightNumber}</strong>
-                </div>
-              ) : <div className="nonrevy-flight-board-row__airline-line nonrevy-flight-board-row__availability">{t('liveDetailsUnavailable')}.</div>}
-              <div className="nonrevy-flight-board-row__time-line" aria-label={`Depart ${depTime}, arrive ${arrivalDisplay}`}>
-                <strong className="nonrevy-flight-board-row__time-value">{depTime}</strong>
-                <span className="nonrevy-flight-board-row__time-arrow" aria-hidden="true">→</span>
-                <strong className="nonrevy-flight-board-row__time-value">{arrivalDisplay}{arrivalOffset > 0 ? <span className="nonrevy-flight-board-row__overnight">+{arrivalOffset}</span> : null}</strong>
-              </div>
-              <div className="nonrevy-flight-board-row__secondary-line">
-                <span className="nonrevy-flight-board-row__stops">{compactStopsLabel(comparison.connections)}</span>
-                <span className="nonrevy-flight-board-row__duration">{durationLabel}</span>
-                {comparison.dataFreshnessRule === 'route-framework'
-                  ? <span className="nonrevy-flight-board-row__availability">Live time unavailable</span>
-                  : null}
-              </div>
-            </div>
-
-          </div>
+        <div className="nonrevy-ranked-result-card__logo" aria-label={`${airlineName} logo`}>
+          {logoUrl ? <img src={logoUrl} alt="" loading="lazy" /> : null}
+          <span>{carrierCode}</span>
         </div>
-
-        <ItineraryIntelligenceSummary comparison={comparison} recommendation={routeRecommendation} reasons={whyRouteReasons} />
-
-        {showPlanB ? <PlanBItinerarySection comparison={comparison} comparisons={compactItineraries} /> : null}
-
-        <details id={`itinerary-details-${comparison.id}`} open={isExpanded} onToggle={(event) => setDetailsOpen(comparison.id, event.currentTarget.open)} className="nonrevy-flight-board-row__details" onClick={(event) => event.stopPropagation()}>
-          <summary>Details</summary>
-          <div className="nonrevy-flight-row__detail-grid">
-            <section className="nonrevy-flight-board-row__detail-actions">
-              <strong>Actions</strong>
-              <div className="nonrevy-flight-board-row__actions nonrevy-flight-board-row__actions--details">
-                <button type="button" onClick={() => openCommunityLoadForm(comparison)} title="Submit Load" aria-label="Submit community load">＋</button>
-                <button type="button" onClick={() => openLoadRequestForm(comparison)} title={t('requestLoad')} aria-label={t('requestLoad')}>Load</button>
-                <button type="button" onClick={() => saveForComparison(comparison)} title={t('save')} aria-label="Save exact itinerary route for comparison">☆</button>
-                </div>
-            </section>
-            <section>
-              <strong>{compactRankingLabel(rankIndex, comparison)}</strong>
-              <p>{comparison.whyThisRoute || plainEnglishRationale(comparison, rankIndex)}</p>
-              {comparison.topRouteWhy?.length ? (
-                <ul>
-                  {comparison.topRouteWhy.map((reason) => <li key={`${comparison.id}-top-route-${reason}`}>{reason}</li>)}
-                </ul>
-              ) : null}
-              <CompactRouteConfidenceLine confidence={comparison.routeConfidence} />
-              <CommunitySignalLine signal={comparison.communitySignal} />
-              <HistoricalReliabilityLine reliability={comparison.historicalReliability} />
-              <CommercialAvailabilitySection signal={comparison.sellableSeatSignal} />
-              <RecoverySummarySection recovery={comparison.recovery} />
-              <DoorToDoorPlanSection plan={comparison.endToEnd} />
-              <ItineraryIntelligenceDetailPanel comparison={comparison} backup={nextBackup} />
-            </section>
-            <section className="nonrevy-community-loads">
-              <strong>Community Loads</strong>
-              {communityIntelligence ? (
-                <div className="nonrevy-community-loads__card nonrevy-community-loads__card--intelligence">
-                  <div className="nonrevy-community-loads__card-head">
-                    <strong>Community Intelligence</strong>
-                    <span className={communityFreshnessClass(communityIntelligence.freshness)}>{communityIntelligence.freshness}</span>
-                  </div>
-                  <p className="nonrevy-community-loads__counts">{communityIntelligence.averageAvailableSeats ?? '—'} Open • {communityIntelligence.averageStandbyCount ?? '—'} Listed</p>
-                  {communityLoadRowText ? <p className="nonrevy-community-loads__compact-confidence">{communityLoadRowText}</p> : null}
-                  <p className="nonrevy-community-loads__compact-confidence">{communityIntelligence.reportCount} Report{communityIntelligence.reportCount === 1 ? '' : 's'} · {communityIntelligence.communityConfidence} Confidence · {Math.round(communityIntelligence.scoringWeight * 100)}% scoring weight</p>
-                  <p>Confidence {communityIntelligence.confidenceScore}/100 · Agreement {communityIntelligence.agreementScore}/100 · Freshness {communityIntelligence.freshnessScore}/100</p>
-                  <div className="nonrevy-community-loads__why">
-                    <strong>Load Impact</strong>
-                    <ul>
-                      {communityIntelligence.loadImpactExplanation.map((reason) => <li key={`${comparison.id}-load-impact-${reason}`}>{reason}</li>)}
-                    </ul>
-                  </div>
-                  {communityIntelligence.outlierReportIds.length ? <p>{communityIntelligence.outlierReportIds.length} outlier report{communityIntelligence.outlierReportIds.length === 1 ? '' : 's'} down-weighted.</p> : null}
-                  <div className="nonrevy-community-loads__why">
-                    <strong>Why community confidence</strong>
-                    <ul>
-                      {communityIntelligence.explanation.map((reason) => <li key={`${comparison.id}-community-intelligence-${reason}`}>{reason}</li>)}
-                    </ul>
-                  </div>
-                  {latestCommunityLoad?.validationStatus ? <p>Latest validation: {latestCommunityLoad.validationStatus}</p> : null}
-                  {latestCommunityLoad ? (
-                    <div className="nonrevy-community-loads__validation" aria-label="Validate community load report">
-                      {(['Confirmed', 'Outdated', 'Inaccurate'] as CommunityLoadValidationStatus[]).map((status) => (
-                        <button key={`${latestCommunityLoad.id}-${status}`} type="button" onClick={() => markCommunityLoad(latestCommunityLoad, status)}>{status}</button>
-                      ))}
-                    </div>
-                  ) : null}
-                  {communityIntelligence.cabin && communityIntelligence.cabin !== 'ANY' ? <p>Cabin: {communityIntelligence.cabin}</p> : null}
-                  {latestCommunityLoad?.notes ? <p>Latest notes: {latestCommunityLoad.notes}</p> : null}
-                </div>
-              ) : latestCommunityLoad ? (
-                <div className="nonrevy-community-loads__card">
-                  <p><strong>Community Load</strong> {latestCommunityLoad.availableSeats} Open • {latestCommunityLoad.standbyCount} Listed</p>
-                  <p>{relativeCommunityLoadTime(latestCommunityLoad.createdAt)} · Trust {communityLoad.averageTrustScore || latestCommunityLoad.sourceTrustScore} · {communityLoad.reportCount} Report{communityLoad.reportCount === 1 ? '' : 's'}</p>
-                </div>
-              ) : (
-                <p>No community load reports yet for this itinerary.</p>
-              )}
-              <div className="nonrevy-community-loads__quick-actions">
-                <button type="button" className="nonrevy-community-loads__submit-toggle" onClick={() => openLoadRequestForm(comparison)}>{requestLoadOpen ? 'Close Request' : t('requestLoad')}</button>
-                <button type="button" className="nonrevy-community-loads__submit-toggle nonrevy-secondary-action" onClick={() => openCommunityLoadForm(comparison)}>{submitLoadOpen ? 'Close Submit' : 'Community reports'}</button>
-              </div>
-              {requestLoadOpen ? (
-                <div className="nonrevy-community-loads__request">
-                  <strong>{t('requestLoad')}</strong>
-                  <p>{communityLoadForm.flightNumber || comparison.flightNumber} · {communityLoadForm.date || itineraryLoadDate(comparison, travelDate) || 'Date needed'} · {comparison.route}</p>
-                  <button type="button" onClick={() => submitLoadRequest(comparison)}>Submit Request</button>
-                </div>
-              ) : null}
-              {submitLoadOpen ? (
-                <form className="nonrevy-community-loads__form" onSubmit={(event) => submitCommunityLoad(event, comparison)}>
-                  <label>
-                    Flight number
-                    <input value={communityLoadForm.flightNumber} onChange={(event) => updateCommunityLoadForm('flightNumber', event.target.value.toUpperCase())} required />
-                  </label>
-                  <label>
-                    Date
-                    <input type="date" value={communityLoadForm.date} onChange={(event) => updateCommunityLoadForm('date', event.target.value)} required />
-                  </label>
-                  <label>
-                    Available seats
-                    <input type="number" min="0" value={communityLoadForm.availableSeats} onChange={(event) => updateCommunityLoadForm('availableSeats', event.target.value)} required />
-                  </label>
-                  <label>
-                    Standby count
-                    <input type="number" min="0" value={communityLoadForm.standbyCount} onChange={(event) => updateCommunityLoadForm('standbyCount', event.target.value)} required />
-                  </label>
-                  <label>
-                    Cabin optional
-                    <input value={communityLoadForm.cabin} onChange={(event) => updateCommunityLoadForm('cabin', event.target.value)} placeholder="Economy, Premium, Polaris…" />
-                  </label>
-                  <label>
-                    Notes optional
-                    <textarea value={communityLoadForm.notes} onChange={(event) => updateCommunityLoadForm('notes', event.target.value)} rows={2} placeholder="Gate note, timing, upgrade context…" />
-                  </label>
-                  <button type="submit">Save Community Load</button>
-                </form>
-              ) : null}
-              <div className="nonrevy-community-loads__profile">
-                <strong>Contributor Profile</strong>
-                <span>{contributor.totalReports} Reports Submitted</span>
-                <span>Trust Score {contributor.trustScore}/100 · {contributor.trustLevel}</span>
-                <span>{contributor.confirmedValidations} Confirmed · {contributor.outdatedValidations} Outdated · {contributor.inaccurateValidations} Inaccurate</span>
-                <span>{communityContributorTrustBreakdown(contributor).explanation[0]}</span>
-              </div>
-              <p className="nonrevy-community-loads__status">{communityLoadStatus}</p>
-            </section>
-            <section>
-              <strong>Trust-first score details</strong>
-              <p><strong>Overall score:</strong> {comparison.nextGenSuccess.score}/100 · <strong>Success:</strong> {comparison.successPrediction.displayValue} · <strong>Confidence:</strong> {comparison.successPrediction.confidenceBadge} ({comparison.successPrediction.confidenceScore}/100)</p>
-              <p><strong>Top positives:</strong> {comparison.nextGenSuccess.topPositiveFactors.map((factor) => factor.detail).join(' · ')}</p>
-              <p><strong>Top risk:</strong> {comparison.nextGenSuccess.topRiskFactor.detail}</p>
-              <p><strong>Load:</strong> {rowLoadIntelligenceLabel(comparison)}</p>
-              <details className="nonrevy-premium-details" style={{ border: '1px solid #334155', borderRadius: 12, padding: 10, background: '#020617', marginTop: 10 }}>
-                <summary style={{ color: '#38bdf8', cursor: 'pointer', fontWeight: 'bold' }}>Personal Success Predictor</summary>
-                <p><strong>Estimated Success:</strong> {comparison.personalSuccessPrediction.probability}% · <strong>Confidence:</strong> {comparison.personalSuccessPrediction.confidence}</p>
-                <strong>Why:</strong>
-                <ul>
-                  {comparison.personalSuccessPrediction.why.map((reason) => <li key={`${comparison.id}-personal-${reason}`}>{reason}</li>)}
-                </ul>
-              </details>
-              {comparison.nextGenSuccess.communityIntelligenceImpact ? <p><strong>Community scoring:</strong> {comparison.nextGenSuccess.communityIntelligenceImpact.reportCount} report{comparison.nextGenSuccess.communityIntelligenceImpact.reportCount === 1 ? '' : 's'} blended at up to {comparison.nextGenSuccess.communityIntelligenceImpact.maxWeight}% of score · base {comparison.nextGenSuccess.communityIntelligenceImpact.baseScore}/100 → community-adjusted {comparison.nextGenSuccess.communityIntelligenceImpact.blendedScore}/100.{comparison.nextGenSuccess.communityIntelligenceImpact.scoreCap ? ` Score capped at ${comparison.nextGenSuccess.communityIntelligenceImpact.scoreCap} by load margin guardrails.` : ''}</p> : null}
-              {communityIntelligence ? <p>{communityLoadImpactSummary(communityIntelligence)}</p> : null}
-              <p>{comparison.successPrediction.loadExplanation}</p>
-              <p>{comparison.successPrediction.confidenceExplanation}</p>
-              {comparison.loadSupport.source ? <p>Load source: {comparison.loadSupport.source}</p> : null}
-              <div className="nonrevy-flight-board-row__confidence-factors">
-                <strong>Confidence Factors:</strong>
-                <ul>
-                  {compactConfidenceFactors(comparison).map((reason) => <li key={`${comparison.id}-confidence-${reason}`}>{reason}</li>)}
-                </ul>
-              </div>
-              <ScoringExplanationDetails comparison={comparison} backup={nextBackup} />
-            </section>
-
-            <section>
-              <strong>Aircraft/details</strong>
-              <p>{comparison.aircraftDetails}</p>
-              <p>Duration {comparison.totalTravelTime} · {legCount} leg{comparison.connections === 0 ? '' : 's'} · {comparison.airportIntelligence.connectionRiskScore}/100 connection risk</p>
-              <ItineraryRouteMap route={comparison.route} />
-              <RouteAirportDetails route={comparison.route} />
-            </section>
-
-            <section>
-              <strong>Source/data freshness</strong>
-              <p>{comparison.sourceDetails}</p>
-              {comparison.marketingFlightNumbers?.length ? <p><strong>Marketing/codeshare numbers:</strong> {comparison.marketingFlightNumbers.join(', ')}</p> : null}
-              <div className="nonrevy-flight-row__badges">
-                {comparison.providerBadges.slice(0, 4).map((badge) => <ProviderBadge key={`${comparison.id}-${badge}`} label={badge} />)}
-                <WeatherRiskBadge weatherRisk={comparison.weatherRisk} />
-              </div>
-              <p>{comparison.communityReportSummary}</p>
-              <OutcomeCapture subjectType="route-recommendation" subjectId={`comparison-${comparison.id}`} title={`Planner recommendation ${comparison.route}`} route={comparison.route} />
-            </section>
-          </div>
-        </details>
-
-        <div className="nonrevy-flight-board-row__actions nonrevy-primary-actions" onClick={(event) => event.stopPropagation()} aria-label="Itinerary actions">
-          <button className="nonrevy-primary-action nonrevy-primary-action--request-loads" type="button" onClick={() => openLoadRequestForm(comparison)} title={t('requestLoad')} aria-label={t('requestLoad')}>{t('requestLoad')}</button>
-          <button className="nonrevy-row-action-pill" type="button" onClick={() => saveForComparison(comparison)} title={t('save')} aria-label="Save exact itinerary route for comparison">{t('save')}</button>
-          <button className="nonrevy-row-action-pill" type="button" onClick={() => void shareItinerary(comparison)} title={t('share')} aria-label="Share itinerary">{t('share')}</button>
+        <div className="nonrevy-ranked-result-card__field nonrevy-ranked-result-card__airline">
+          <span>Airline</span>
+          <strong>{airlineName}</strong>
+        </div>
+        <div className="nonrevy-ranked-result-card__field">
+          <span>Flights</span>
+          <strong>{flightNumbers}</strong>
+        </div>
+        <div className="nonrevy-ranked-result-card__field">
+          <span>Dep</span>
+          <strong>{depTime}</strong>
+        </div>
+        <div className="nonrevy-ranked-result-card__field">
+          <span>Arr</span>
+          <strong>{arrivalDisplay}{arrivalOffset > 0 ? <em>+{arrivalOffset}</em> : null}</strong>
+        </div>
+        <div className="nonrevy-ranked-result-card__field">
+          <span>Connect</span>
+          <strong>{connectionAirport}</strong>
+        </div>
+        <div className="nonrevy-ranked-result-card__field">
+          <span>Duration</span>
+          <strong>{durationLabel}</strong>
+        </div>
+        <div className="nonrevy-ranked-result-card__field">
+          <span>Stops</span>
+          <strong>{compactStopsLabel(comparison.connections)}</strong>
+        </div>
+        <div className="nonrevy-ranked-result-card__confidence" title={`Confidence score ${confidenceScore} out of 100`}>
+          <span>Confidence</span>
+          <strong>{scoreLabel}</strong>
         </div>
       </article>
     )
@@ -4537,96 +4374,12 @@ function renderFlightBoardRow(comparison: ItineraryComparison, showPlanB = false
     <section className="nonrevy-results-shell nonrevy-compact-results nonrevy-flight-board" style={{ border: '1px solid rgba(56, 189, 248, 0.35)', borderRadius: 14, padding: 'clamp(6px, 2vw, 10px)', background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.96), rgba(30, 41, 59, 0.86))', marginBottom: 16 }}>
       <div className="nonrevy-flight-board__header">
         <strong>{displayTitle}</strong>
-        {moreRouteItineraries.length ? <span>{moreRouteItineraries.length} more route{moreRouteItineraries.length === 1 ? '' : 's'}</span> : null}
+        <span>{visibleRouteCount} route{visibleRouteCount === 1 ? '' : 's'}</span>
       </div>
 
-      {compareStatus && <p className="nonrevy-compact-results__status nonrevy-compact-results__status--save">{compareStatus}</p>}
-
-      <div className="nonrevy-flight-board__list" aria-label="Top 5 route options">
-        {topRouteItineraries.map((comparison) => renderFlightBoardRow(comparison, true))}
+      <div className="nonrevy-flight-board__list" aria-label="Top 10 route options">
+        {topRouteItineraries.map((comparison) => renderFlightBoardRow(comparison))}
       </div>
-
-      {moreRouteItineraries.length ? (
-        <details className="nonrevy-more-routes" style={{ marginTop: 8, border: '1px solid #334155', borderRadius: 10, padding: 8, background: '#020617' }}>
-          <summary style={{ color: '#67e8f9', cursor: 'pointer', fontWeight: 'bold' }}>{displayMoreTitle} ▼</summary>
-          <p style={{ color: '#94a3b8', margin: '8px 0' }}>Routes 6+ stay sorted by earliest available arrival time. Route frameworks without live times are labeled “Live time unavailable.”</p>
-          <div className="nonrevy-flight-board__list" aria-label="More route options">
-            {moreRouteItineraries.map((comparison) => renderFlightBoardRow(comparison))}
-          </div>
-        </details>
-      ) : null}
-
-      <details className="nonrevy-premium-details" style={{ marginTop: 8, border: '1px solid #334155', borderRadius: 10, padding: 8, background: '#020617' }}>
-        <summary style={{ color: '#c084fc', cursor: 'pointer', fontWeight: 'bold' }}>Advanced sections</summary>
-        <details className="nonrevy-premium-details" style={{ marginTop: 8 }}>
-          <summary style={{ color: '#67e8f9', cursor: 'pointer', fontWeight: 'bold' }}>Diagnostics</summary>
-          <SearchTrustReceipt {...trustReceipt} />
-        </details>
-        <details className="nonrevy-premium-details" style={{ marginTop: 8 }}>
-          <summary style={{ color: '#67e8f9', cursor: 'pointer', fontWeight: 'bold' }}>Provider details</summary>
-          <p style={{ color: '#cbd5e1' }}>Source: {trustReceipt.source}</p>
-          <p style={{ color: '#cbd5e1' }}>Status: {trustReceipt.status}</p>
-        </details>
-        <details className="nonrevy-premium-details" style={{ marginTop: 8 }}>
-          <summary className="nonrevy-secondary-action" style={{ color: '#67e8f9', cursor: 'pointer', fontWeight: 'bold' }}>Route intelligence</summary>
-          <RouteIntelligenceSection insights={routeInsights} />
-        </details>
-        <details className="nonrevy-premium-details" style={{ marginTop: 8 }}>
-          <summary className="nonrevy-secondary-action" style={{ color: '#67e8f9', cursor: 'pointer', fontWeight: 'bold' }}>Recovery guidance</summary>
-          <p style={{ color: '#cbd5e1' }}>Recovery guidance is separated from {t('topRoutes')} so positioning and recovery moves are not presented as ranked itineraries.</p>
-          {topRouteItineraries.slice(0, 3).map((comparison) => (
-            <section key={`${comparison.id}-recovery-guidance`} style={{ marginTop: 8 }}>
-              <strong>{comparison.route}</strong>
-              <p style={{ color: '#cbd5e1' }}>{keyRiskNote(comparison)}</p>
-              <RecoveryStrategySection comparison={comparison} comparisons={compactItineraries} />
-            </section>
-          ))}
-        </details>
-        <details className="nonrevy-premium-details" style={{ marginTop: 8 }}>
-          <summary className="nonrevy-secondary-action" style={{ color: '#67e8f9', cursor: 'pointer', fontWeight: 'bold' }}>Nearby airports</summary>
-          <AirportIntelligenceSection comparisons={compactItineraries} />
-        </details>
-        <details className="nonrevy-premium-details" style={{ marginTop: 8 }}>
-          <summary className="nonrevy-secondary-action" style={{ color: '#67e8f9', cursor: 'pointer', fontWeight: 'bold' }}>Historical trends</summary>
-          {trustReceipt.debug?.historicalIntelligence ? (
-            <p style={{ color: '#cbd5e1' }}>Historical success {trustReceipt.debug.historicalIntelligence.historicalSuccess.score}/100 · confidence {trustReceipt.debug.historicalIntelligence.historicalSuccess.confidence}/100 · sample size {trustReceipt.debug.historicalIntelligence.historicalSuccess.sampleSize}.</p>
-          ) : (
-            <p style={{ color: '#cbd5e1' }}>Historical data is not available for this search.</p>
-          )}
-        </details>
-        <details className="nonrevy-premium-details" style={{ marginTop: 8 }}>
-          <summary style={{ color: '#67e8f9', cursor: 'pointer', fontWeight: 'bold' }}>Copilot settings</summary>
-          <p style={{ color: '#cbd5e1' }}>Copilot and operator controls stay hidden unless operator tools are enabled.</p>
-        </details>
-        <details className="nonrevy-premium-details" style={{ marginTop: 8 }}>
-          <summary style={{ color: '#67e8f9', cursor: 'pointer', fontWeight: 'bold' }}>Confidence factors</summary>
-          <RouteConfidenceSection comparisons={compactItineraries} />
-          <WeatherIntelligenceSection comparisons={compactItineraries} />
-          <DisruptionIntelligenceSection comparisons={compactItineraries} />
-        </details>
-      </details>
-
-      <details className="nonrevy-premium-details" style={{ border: '1px solid #334155', borderRadius: 10, padding: 8, background: '#020617', marginTop: 8 }}>
-        <summary style={{ color: '#c084fc', cursor: 'pointer', fontWeight: 'bold' }}>Saved itinerary comparison</summary>
-        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'center', marginTop: 10 }}>
-          <p style={{ color: '#94a3b8', margin: 0 }}>Saved locally in this browser for side-by-side planning. Exact displayed route paths and source labels are preserved.</p>
-          {savedComparisons.length > 0 && <button type="button" onClick={clearComparisons} style={{ padding: '7px 9px', borderRadius: 9, border: '1px solid #475569', background: '#0f172a', color: '#f8fafc', fontWeight: 'bold' }}>Clear saved comparisons</button>}
-        </div>
-        {savedComparisons.length === 0 ? (
-          <p style={{ color: '#cbd5e1' }}>No saved itinerary options yet. Use Save on any row.</p>
-        ) : (
-          <div style={{ display: 'grid', gap: 8, marginTop: 10 }}>
-            {savedComparisons.map((item) => (
-              <article key={item.id} style={{ border: '1px solid #334155', borderRadius: 10, padding: 8, background: '#0f172a' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center' }}>
-                  <p style={{ color: '#cbd5e1', margin: 0 }}><strong>Exact path:</strong> {item.route} · {item.carrier} · {item.connections + 1} leg{item.connections === 0 ? '' : 's'} · Saved score {item.successProbability}% · {item.totalTravelTime}<br /><small style={{ color: '#94a3b8' }}>Source: {item.sourceLabel}</small></p>
-                  <button type="button" onClick={() => removeComparison(item.id)} style={{ padding: '6px 8px', borderRadius: 9, border: '1px solid #f87171', background: '#1f2937', color: '#fecaca', fontWeight: 'bold' }}>Remove</button>
-                </div>
-              </article>
-            ))}
-          </div>
-        )}
-      </details>
     </section>
   )
 }

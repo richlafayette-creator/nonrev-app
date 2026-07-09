@@ -291,9 +291,16 @@ type ScheduleProviderReadiness = {
 }
 
 type ApiResponseCounts = {
+  providerCacheFetched?: number
+  providerCacheItineraries?: number
   flightAwareScheduleRequests?: number
   flightAwareScheduleFetched?: number
   flightAwareScheduleItineraries?: number
+  expandedScheduleSegments?: number
+  expandedScheduledFlightLegs?: number
+  expandedDirectItineraries?: number
+  expandedOneStopItineraries?: number
+  expandedTwoStopItineraries?: number
   supabaseFetched: number
   supabaseMatchedFlights: number
   supabaseItineraries: number
@@ -5214,6 +5221,67 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
     travelDateError,
     hasRequestedDate: Boolean(travelWindow.trim())
   })
+  const providerLimitations = [
+    ...(itineraryWarnings || []),
+    ...(itineraryDebug?.dataFreshnessExplanation || []),
+    ...(itineraryDebug?.providerStatuses || []).filter((status) => status.state !== 'success').map((status) => `${status.label}: ${status.detail}`)
+  ].filter((message, index, values) => Boolean(message) && values.indexOf(message) === index)
+  const backupRoutePossibilities = itineraryDebug?.routeCoverageSuggestions || []
+  const reliabilityPanel = (
+    <section aria-label="Itinerary completeness and data status" style={{ border: '1px solid #dbe4f0', borderRadius: 18, padding: 16, background: '#ffffff', marginTop: 16, boxShadow: '0 10px 24px rgba(15, 23, 42, 0.06)' }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start' }}>
+        <div>
+          <p style={{ margin: 0, color: '#64748b', fontSize: 13, fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 0.5 }}>Core itinerary search</p>
+          <h2 style={{ margin: '4px 0 0', fontSize: 22 }}>All complete itineraries currently available from searched data</h2>
+          <p style={{ margin: '8px 0 0', color: '#475569' }}>{itineraryStatus}</p>
+        </div>
+        <span style={{ border: `1px solid ${itineraryDataMode === 'Live provider API data' ? '#16a34a' : '#ca8a04'}`, borderRadius: 999, padding: '6px 10px', color: itineraryDataMode === 'Live provider API data' ? '#166534' : '#854d0e', background: itineraryDataMode === 'Live provider API data' ? '#dcfce7' : '#fef9c3', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
+          {itineraryDataMode}
+        </span>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 160px), 1fr))', gap: 10, marginTop: 14 }}>
+        {[
+          ['Search query', query || tripGoal || 'Not provided'],
+          ['Resolved origin', itineraryDebug?.parsedOrigin || 'Missing'],
+          ['Resolved destination', itineraryDebug?.parsedDestination || 'Missing'],
+          ['Resolved date', itineraryDebug?.parsedDate || travelWindow || 'Missing'],
+          ['Data source', itinerarySource || 'Pending'],
+          ['Itineraries found', String(itineraryComparisons.length)],
+          ['Framework backups', String(frameworkRouteComparisons.length || backupRoutePossibilities.length)],
+          ['Provider rows', String((itineraryDebug?.apiResponseCounts?.expandedScheduledFlightLegs ?? itineraryDebug?.apiResponseCounts?.flightAwareScheduleFetched ?? 0) || 0)]
+        ].map(([label, value]) => (
+          <article key={label} style={{ border: '1px solid #e2e8f0', borderRadius: 12, padding: 10, background: '#f8fafc' }}>
+            <small style={{ color: '#64748b' }}>{label}</small>
+            <p style={{ margin: '4px 0 0', color: '#0f172a', fontWeight: 'bold' }}>{value}</p>
+          </article>
+        ))}
+      </div>
+      {itineraryWarnings.length ? (
+        <div style={{ border: '1px solid #fde68a', borderRadius: 12, padding: 12, background: '#fffbeb', color: '#78350f', marginTop: 12 }}>
+          <strong>Missing data / warnings</strong>
+          <ul style={{ margin: '8px 0 0', paddingLeft: 18 }}>
+            {itineraryWarnings.slice(0, 6).map((warning) => <li key={warning}>{warning}</li>)}
+          </ul>
+        </div>
+      ) : null}
+      {backupRoutePossibilities.length ? (
+        <div style={{ marginTop: 12 }}>
+          <strong>Backup route possibilities</strong>
+          <ul style={{ margin: '8px 0 0', paddingLeft: 18, color: '#334155' }}>
+            {backupRoutePossibilities.slice(0, 6).map((suggestion) => <li key={suggestion.id}>{suggestion.label}: {suggestion.searchQuery} · {suggestion.providerDetail || suggestion.basis}</li>)}
+          </ul>
+        </div>
+      ) : null}
+      {providerLimitations.length ? (
+        <details style={{ marginTop: 12 }}>
+          <summary style={{ cursor: 'pointer', fontWeight: 'bold', color: '#475569' }}>Provider limitations and diagnostics</summary>
+          <ul style={{ margin: '8px 0 0', paddingLeft: 18, color: '#475569' }}>
+            {providerLimitations.slice(0, 10).map((limitation) => <li key={limitation}>{limitation}</li>)}
+          </ul>
+        </details>
+      ) : null}
+    </section>
+  )
 
   if (compactResultsMode) {
     return (
@@ -5249,6 +5317,7 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
           {travelDateError ? <p className="nonrevy-results-page__warning">{travelDateError}</p> : null}
 
           {itineraryLoading ? <PlannerSkeletonLoaders /> : null}
+          {!itineraryLoading ? reliabilityPanel : null}
           {!itineraryLoading ? <OriginCoverageNotice coverage={itineraryDebug?.originCoverage} /> : null}
           {showProductionEmptyState ? <ProductionEmptyState reasons={productionEmptyReasons} origin={itineraryDebug?.parsedOrigin} destination={itineraryDebug?.parsedDestination} suggestions={itineraryDebug?.routeCoverageSuggestions} recovery={itineraryDebug?.recoveryIntelligence} /> : null}
           {itineraryComparisons.length > 0 ? <ItineraryComparisonPanel comparisons={itineraryComparisons} travelDate={travelWindow} communityLoads={communityLoads} onCommunityLoadsUpdated={() => setCommunityLoads(loadCommunityLoads())} trustReceipt={{ dataMode: itineraryDataMode, source: itinerarySource, status: itineraryStatus, warnings: itineraryWarnings, debug: itineraryDebug }} /> : null}
@@ -5377,6 +5446,7 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
             <p style={{ color: '#facc15' }}>{itineraryStatus}</p>
           ) : null}
           {itineraryLoading ? <PlannerSkeletonLoaders /> : null}
+          {!itineraryLoading ? reliabilityPanel : null}
           {!itineraryLoading ? <OriginCoverageNotice coverage={itineraryDebug?.originCoverage} /> : null}
           {showProductionEmptyState ? <ProductionEmptyState reasons={productionEmptyReasons} origin={itineraryDebug?.parsedOrigin} destination={itineraryDebug?.parsedDestination} suggestions={itineraryDebug?.routeCoverageSuggestions} recovery={itineraryDebug?.recoveryIntelligence} /> : null}
           {itineraryComparisons.length > 0 ? <ItineraryComparisonPanel comparisons={itineraryComparisons} travelDate={travelWindow} communityLoads={communityLoads} onCommunityLoadsUpdated={() => setCommunityLoads(loadCommunityLoads())} trustReceipt={{ dataMode: itineraryDataMode, source: itinerarySource, status: itineraryStatus, warnings: itineraryWarnings, debug: itineraryDebug }} /> : null}

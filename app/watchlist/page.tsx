@@ -46,6 +46,14 @@ function routeMatchesRoute(reportOrOutcomeRoute: string, selectedRoute: string) 
   return normalizedSource === normalizedSelected || normalizedSelected.includes(normalizedSource) || normalizedSource.includes(normalizedSelected)
 }
 
+const watchlistStarterExamples: { label: string; value: string; type: WatchTargetType }[] = [
+  { label: 'UA39', value: 'UA39', type: 'flight' },
+  { label: 'LAX-HND', value: 'LAX-HND', type: 'route' },
+  { label: 'Any Japan route', value: 'Any Japan route', type: 'region' },
+  { label: 'HND airport', value: 'HND airport', type: 'airport' },
+  { label: 'Any Polaris opportunity', value: 'Any Polaris opportunity', type: 'opportunity' }
+]
+
 function outcomeSuccessRate(outcomes: TripOutcome[], fallback: number) {
   if (!outcomes.length) return fallback
   const successful = outcomes.filter((outcome) => outcome.status === 'Yes, got on').length
@@ -167,7 +175,10 @@ export default function WatchlistPage() {
   function addRoute(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const selectedItinerary = watchType === 'route' ? normalizeRoute(routeText) : routeText.trim().toUpperCase().replace(/\s+/g, ' ')
-    if (!selectedItinerary) return
+    if (!selectedItinerary) {
+      setSaveStatus('Add a route, flight number, airport, destination, or opportunity before saving a watch.')
+      return
+    }
 
     if (watchType !== 'route') {
       const saved = saveGenericWatch({ watchType, query: selectedItinerary, travelDate: travelDate || 'Flexible', carrier })
@@ -249,6 +260,12 @@ export default function WatchlistPage() {
       setAlertPreferences(loadTripAlertPreferences())
       setSaveStatus(`Updated alert preferences for ${targetLabel}.`)
     }
+  }
+
+  function useStarterExample(example: { value: string; type: WatchTargetType }) {
+    setWatchType(example.type)
+    setRouteText(example.value)
+    setSaveStatus(`Ready to save ${example.value}. Add a date if needed, then tap Add watch.`)
   }
 
   return (
@@ -336,17 +353,25 @@ export default function WatchlistPage() {
           <section style={{ border: '1px solid #334155', borderRadius: 18, padding: 16, background: '#020617' }}>
             <strong style={{ color: '#38bdf8' }}>Watchlist Center examples</strong>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
-              {['UA39', 'LAX-HND', 'Any Japan route', 'HND airport', 'Any Polaris opportunity'].map((example) => (
-                <button key={example} type="button" onClick={() => setRouteText(example)} style={{ border: '1px solid #334155', borderRadius: 999, padding: '8px 10px', background: '#0f172a', color: '#cbd5e1', fontWeight: 'bold' }}>{example}</button>
+              {watchlistStarterExamples.map((example) => (
+                <button key={example.label} type="button" onClick={() => useStarterExample(example)} style={{ border: '1px solid #334155', borderRadius: 999, padding: '8px 10px', background: '#0f172a', color: '#cbd5e1', fontWeight: 'bold' }}>{example.label}</button>
               ))}
             </div>
           </section>
           {watchlist.length === 0 && (
-            <article className="flight-card" style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: 18, padding: 18 }}>
-              <h2 style={{ marginTop: 0 }}>No watched routes yet</h2>
-              <p style={{ color: '#cbd5e1', marginBottom: 0 }}>
-                Add one here or use the Watch button on the itinerary comparison cards in the planner.
+            <article className="flight-card nonrevy-watchlist-empty" style={{ background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: 22, padding: 20, boxShadow: '0 14px 32px rgba(15, 23, 42, 0.08)' }}>
+              <p style={{ color: '#4f46e5', fontWeight: 950, textTransform: 'uppercase', letterSpacing: 1, marginTop: 0 }}>Start monitoring</p>
+              <h2 style={{ margin: '6px 0 8px', color: '#111827' }}>No watched routes yet</h2>
+              <p style={{ color: '#4B5563', margin: '0 0 14px', maxWidth: 680, lineHeight: 1.55 }}>
+                Save a route, flight number, airport, destination, or premium-cabin opportunity. Nonrevy will keep the target ready for alert preferences and future refreshes without pretending it has live load data.
               </p>
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                {watchlistStarterExamples.slice(0, 3).map((example) => (
+                  <button key={`empty-${example.label}`} type="button" onClick={() => useStarterExample(example)} style={{ border: '1px solid #c7d2fe', borderRadius: 999, padding: '9px 12px', background: '#eef2ff', color: '#3730a3', fontWeight: 900 }}>
+                    Use {example.label}
+                  </button>
+                ))}
+              </div>
             </article>
           )}
           {watchlist.map((route) => {

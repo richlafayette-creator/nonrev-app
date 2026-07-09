@@ -1228,7 +1228,7 @@ async function fetchAviationstackFlights(request: ReturnType<typeof normalizeIti
     destination: request.destination,
     date: request.date,
     carrier: request.carrier,
-    maxResults: 50
+    maxResults: 250
   })
 
   return {
@@ -1304,13 +1304,13 @@ function expandedScheduleSegmentsForRequest(request: ReturnType<typeof normalize
     ...destinationHubs,
     ...destinationGroupAirports,
     ...productionBridgeHubs
-  ]).filter((code) => code !== origin && code !== destination).slice(0, 5)
+  ]).filter((code) => code !== origin && code !== destination)
   const finalStopCandidates = uniqueExpandedAirportCodes([
     ...destinationHubs,
     ...originHubs,
     ...destinationGroupAirports,
     ...productionBridgeHubs
-  ]).filter((code) => code !== origin && code !== destination).slice(0, 5)
+  ]).filter((code) => code !== origin && code !== destination)
 
   const segments: ScheduleSegment[] = [{ origin, destination }]
   firstStopCandidates.forEach((hub) => segments.push({ origin, destination: hub }))
@@ -1346,7 +1346,7 @@ async function fetchExpandedScheduleFlights(request: ReturnType<typeof normalize
       date: request.date,
       carrier: request.carrier,
       maxAgeHours: 72,
-      limit: 50
+      limit: 500
     })
     const cachedFlights = providerCacheRecordsToFlightRecords(cached.records)
     if (cachedFlights.length) {
@@ -1364,10 +1364,8 @@ async function fetchExpandedScheduleFlights(request: ReturnType<typeof normalize
     }
     if (flightAware.flights.length) {
       flights.push(...flightAware.flights)
-      continue
     }
-
-    emptyResults.push(`FlightAware returned no usable rows for ${segment.origin} → ${segment.destination}.`)
+    if (!flightAware.flights.length) emptyResults.push(`FlightAware returned no usable rows for ${segment.origin} → ${segment.destination}.`)
     const aviationstack = await fetchAviationstackFlights(segmentRequest)
     aviationstackRequests += aviationstack.requestCount
     aviationstackFetched += aviationstack.flights.length

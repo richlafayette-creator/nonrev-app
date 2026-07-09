@@ -222,6 +222,10 @@ const airportTimeZones: Record<string, string> = {
   IAH: 'America/Chicago',
   JFK: 'America/New_York',
   LAX: 'America/Los_Angeles',
+  CDG: 'Europe/Paris',
+  CAG: 'Europe/Rome',
+  OLB: 'Europe/Rome',
+  HND: 'Asia/Tokyo',
   NRT: 'Asia/Tokyo',
   OGG: 'Pacific/Honolulu',
   ORD: 'America/Chicago',
@@ -332,6 +336,11 @@ const airportAliases: Record<string, string> = {
   ciampino: 'CIA',
   fco: 'FCO',
   cia: 'CIA',
+  sardinia: 'OLB',
+  olbia: 'OLB',
+  olb: 'OLB',
+  cagliari: 'CAG',
+  cag: 'CAG',
   paris: 'CDG',
   charlesdegaulle: 'CDG',
   orly: 'ORY',
@@ -1180,18 +1189,19 @@ function enrichmentKey(flight: Record<string, unknown>) {
 
 export function buildAllItinerariesFromFlights(flights: Record<string, unknown>[], request: ParsedItineraryRequest, enrichments: Record<string, Record<string, unknown>> = {}) {
   const candidateLegs = flights
-    .filter((flight) => flightMatchesCarrier(flight, request.carrier) && flightMatchesDate(flight, request.date))
+    .filter((flight) => flightMatchesCarrier(flight, request.carrier))
     .map((flight) => normalizeFlightLeg(flight, enrichments[enrichmentKey(flight)]))
+  const matchesRequestedDepartureDate = (leg: ItineraryLeg) => !request.date || localDateForAirport(leg.departureTime, leg.origin) === request.date
 
   const directItineraries = candidateLegs
-    .filter((leg) => leg.origin === request.origin && leg.destination === request.destination)
+    .filter((leg) => leg.origin === request.origin && leg.destination === request.destination && matchesRequestedDepartureDate(leg))
     .map((leg) => itineraryFromLegs([leg]))
 
   if (!request.origin || !request.destination) {
     return generatedItineraries(directItineraries)
   }
 
-  const firstLegs = candidateLegs.filter((leg) => leg.origin === request.origin && leg.destination !== request.destination)
+  const firstLegs = candidateLegs.filter((leg) => leg.origin === request.origin && leg.destination !== request.destination && matchesRequestedDepartureDate(leg))
   const finalLegs = candidateLegs.filter((leg) => leg.destination === request.destination && leg.origin !== request.origin)
 
   const oneStopItineraries = request.maxLegs < 2 ? [] : firstLegs

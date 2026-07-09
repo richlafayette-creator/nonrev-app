@@ -25,6 +25,7 @@ export type ItineraryLeg = {
   origin: string
   destination: string
   carrier: string
+  operatingCarrier?: string
   flightNumber: string
   operatingFlightNumber?: string
   marketingFlightNumbers?: string[]
@@ -44,6 +45,9 @@ export type ItineraryLeg = {
   source: string
   sourceProvider?: string
   sourceCheckedAt?: string
+  dataSource?: string
+  dataFreshness?: 'live' | 'cached' | 'stored' | 'demo' | 'inferred' | 'unavailable'
+  dataTrust?: 'live' | 'cached' | 'stored' | 'demo' | 'inferred' | 'unavailable'
   duplicateCount?: number
 }
 
@@ -51,6 +55,13 @@ export type ItineraryResult = {
   id: string
   route: string
   legs: ItineraryLeg[]
+  origin?: string
+  destination?: string
+  date?: string
+  totalDurationMinutes?: number
+  stopCount?: number
+  connectionAirports?: string[]
+  layoverDurations?: Array<{ airport: string; minutes: number; label: string }>
   carrier: string
   flightNumber: string
   operatingFlightNumber?: string
@@ -67,6 +78,9 @@ export type ItineraryResult = {
   source: string
   sourceProvider?: string
   sourceCheckedAt?: string
+  dataSource?: string
+  dataFreshness?: 'live' | 'cached' | 'stored' | 'demo' | 'inferred' | 'unavailable'
+  dataTrust?: 'live' | 'cached' | 'stored' | 'demo' | 'inferred' | 'unavailable'
   providerBadges?: string[]
   dataFreshnessLabel?: string
   dataFreshnessDetail?: string
@@ -709,6 +723,21 @@ function durationLabel(minutes: number) {
   return hours ? `${hours}h ${remainingMinutes}m` : `${remainingMinutes}m`
 }
 
+function dataTrustForSource(sourceProvider: string, status = ''): NonNullable<ItineraryLeg['dataTrust']> {
+  const text = `${sourceProvider} ${status}`.toLowerCase()
+  if (text.includes('route-framework') || text.includes('framework')) return 'inferred'
+  if (text.includes('demo') || text.includes('seed') || text.includes('test data')) return 'demo'
+  if (text.includes('provider-cache') || text.includes('cache')) return 'cached'
+  if (text.includes('supabase') || text.includes('stored')) return 'stored'
+  if (text.includes('flightaware') || text.includes('aviationstack')) return 'live'
+  return 'unavailable'
+}
+
+function strongestDataTrust(values: Array<NonNullable<ItineraryLeg['dataTrust']> | undefined>): NonNullable<ItineraryResult['dataTrust']> {
+  const order: Array<NonNullable<ItineraryResult['dataTrust']>> = ['live', 'cached', 'stored', 'demo', 'inferred', 'unavailable']
+  return [...values].sort((a, b) => order.indexOf(a || 'unavailable') - order.indexOf(b || 'unavailable'))[0] || 'unavailable'
+}
+
 function fieldValue(value: string) {
   return value && value.trim() ? value : notProvidedLabel
 }
@@ -1104,6 +1133,8 @@ export function normalizeFlightLeg(flight: Record<string, unknown>, enrichment?:
     )
   )
   const loweredStatus = status.toLowerCase()
+  const operatingCarrier = fieldValue(valueFrom(flight, ['operating_carrier', 'operator_iata', 'operator_icao', 'operator']) || carrierFromFlight(flight))
+  const dataTrust = dataTrustForSource(sourceProvider, status)
 
   return {
     id: valueFrom(flight, ['id']) || undefined,
@@ -1111,6 +1142,7 @@ export function normalizeFlightLeg(flight: Record<string, unknown>, enrichment?:
     origin,
     destination,
     carrier: fieldValue(carrierFromFlight(flight)),
+    operatingCarrier,
     flightNumber: fieldValue(valueFrom(flight, ['operating_flight_number', 'flight_number', 'ident', 'fa_flight_id'])),
     operatingFlightNumber: fieldValue(valueFrom(flight, ['operating_flight_number', 'flight_number', 'ident', 'fa_flight_id'])),
     marketingFlightNumbers: stringArrayFrom(valueFrom(flight, ['marketing_flight_numbers'])),
@@ -1130,6 +1162,9 @@ export function normalizeFlightLeg(flight: Record<string, unknown>, enrichment?:
     source: enrichment ? `${sourceProvider}+flightaware` : sourceProvider,
     sourceProvider,
     sourceCheckedAt,
+    dataSource: sourceProvider,
+    dataFreshness: dataTrust,
+    dataTrust,
     duplicateCount: numberFrom(flight, ['duplicate_count'], 0)
   }
 }
@@ -1197,17 +1232,30 @@ function itineraryFromLegs(legs: ItineraryLeg[]): ItineraryResult {
   const route = legs.length === 1
     ? legs[0].route
     : [legs[0].origin, ...legs.map((leg) => leg.destination)].join(' → ')
+  const totalDurationMinutes = minutesBetween(legs[legs.length - 1].arrivalTime, legs[0].departureTime) || legs.reduce((total, leg) => total + (minutesBetween(leg.arrivalTime, leg.departureTime) || 0), 0)
+  const layoverDurations = legs.slice(0, -1).map((leg, index) => {
+    const minutes = minutesUntilConnection(leg, legs[index + 1]) || 0
+    return { airport: leg.destination, minutes, label: durationLabel(minutes) }
+  })
+  const dataTrust = strongestDataTrust(legs.map((leg) => leg.dataTrust))
   return {
     id: legs.map((leg) => leg.id || leg.flightNumber).join('-'),
     route,
     legs,
+    origin: legs[0].origin,
+    destination: legs[legs.length - 1].destination,
+    date: localDateForAirport(legs[0].departureTime, legs[0].origin),
+    totalDurationMinutes,
+    stopCount: Math.max(0, legs.length - 1),
+    connectionAirports: legs.slice(0, -1).map((leg) => leg.destination),
+    layoverDurations,
     carrier: [...new Set(legs.map((leg) => leg.carrier))].join(' + '),
     flightNumber: legs.map((leg) => leg.operatingFlightNumber || leg.flightNumber).join(' / '),
     operatingFlightNumber: legs.map((leg) => leg.operatingFlightNumber || leg.flightNumber).join(' / '),
     marketingFlightNumbers: [...new Set(legs.flatMap((leg) => leg.marketingFlightNumbers || []))],
     departureTime: legs[0].departureTime,
     arrivalTime: legs[legs.length - 1].arrivalTime,
-    duration: legs.map((leg) => leg.duration).filter(Boolean).join(' + ') || notProvidedLabel,
+    duration: totalDurationMinutes ? durationLabel(totalDurationMinutes) : legs.map((leg) => leg.duration).filter(Boolean).join(' + ') || notProvidedLabel,
     aircraft: [...new Set(legs.map((leg) => leg.aircraft))].join(' + '),
     status: legs.map((leg) => leg.status).every((status) => status === legs[0].status) ? legs[0].status : 'Mixed',
     gate: legs.map((leg) => leg.gate).filter(Boolean).join(' · ') || undefined,
@@ -1219,6 +1267,9 @@ function itineraryFromLegs(legs: ItineraryLeg[]): ItineraryResult {
       : legs[0].source,
     sourceProvider: legs[0].sourceProvider,
     sourceCheckedAt: legs.map((leg) => leg.sourceCheckedAt).filter(Boolean).sort().slice(-1)[0],
+    dataSource: [...new Set(legs.map((leg) => leg.dataSource || leg.sourceProvider || leg.source))].join(' + '),
+    dataFreshness: dataTrust,
+    dataTrust,
     duplicateCount: legs.reduce((total, leg) => total + (leg.duplicateCount || 0), 0)
   }
 }

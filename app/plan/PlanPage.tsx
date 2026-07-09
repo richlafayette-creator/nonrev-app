@@ -2062,6 +2062,25 @@ function compactRankingLabel(index: number, comparison?: ItineraryComparison) {
   return `#${index + 1} ${label}`
 }
 
+function routeResultLabels(comparison: ItineraryComparison, comparisons: ItineraryComparison[], rankIndex: number) {
+  const labels: string[] = []
+  if (rankIndex === 0) labels.push('Best overall')
+
+  const finiteDurations = comparisons
+    .map((item) => routeDurationMinutes(item.totalTravelTime))
+    .filter((minutes) => Number.isFinite(minutes))
+  const duration = routeDurationMinutes(comparison.totalTravelTime)
+  if (Number.isFinite(duration) && finiteDurations.length && duration === Math.min(...finiteDurations)) labels.push('Fastest')
+
+  const riskScores = comparisons.map(routeRiskRank)
+  if (riskScores.length && routeRiskRank(comparison) === Math.max(...riskScores)) labels.push('Lowest risk')
+
+  const backupScores = comparisons.map(backupAvailabilityScore)
+  if (backupScores.length && backupAvailabilityScore(comparison) === Math.max(...backupScores)) labels.push('Best backup')
+
+  return [...new Set(labels)]
+}
+
 function compactReasonText(reason: string) {
   return reason
     .replace(/^why:\s*/i, '')
@@ -4351,14 +4370,20 @@ function renderFlightBoardRow(comparison: ItineraryComparison) {
     const communityDetail = comparison.communitySignal?.summary || comparison.communityReportSummary
     const commercialDetail = comparison.sellableSeatSignal?.limitations[0]
     const historicalDetail = comparison.historicalReliability?.signal.summary
+    const routeLabels = routeResultLabels(comparison, compactItineraries, rankIndex)
 
     return (
       <div key={`row-${comparison.id}`} className="nonrevy-ranked-result">
         <article
           className="nonrevy-ranked-result-card"
           style={{ '--score-color': scoreColor, '--confidence-color': scoreColor } as CSSProperties}
-          aria-label={`Rank ${rankIndex + 1}: ${airlineName}, flights ${flightNumbers}, depart ${depTime} from ${originAirport}, connect ${connectionAirport}, arrive ${arrivalDisplay} at ${destinationAirport}, duration ${durationLabel}, ${compactStopsLabel(comparison.connections)}, score ${confidenceScore}`}
+          aria-label={`Rank ${rankIndex + 1}: ${airlineName}, ${routeLabels.join(', ') || 'route option'}, flights ${flightNumbers}, depart ${depTime} from ${originAirport}, connect ${connectionAirport}, arrive ${arrivalDisplay} at ${destinationAirport}, duration ${durationLabel}, ${compactStopsLabel(comparison.connections)}, score ${confidenceScore}`}
         >
+          {routeLabels.length ? (
+            <div className="nonrevy-ranked-result-card__labels" aria-label="Route labels">
+              {routeLabels.map((label) => <span key={label}>{label}</span>)}
+            </div>
+          ) : null}
           <div className="nonrevy-ranked-result-card__logo" aria-label={`${airlineName} logo`}>
             {logoUrl ? <img src={logoUrl} alt="" loading="lazy" /> : null}
             <span>{carrierCode}</span>

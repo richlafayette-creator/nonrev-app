@@ -4229,6 +4229,16 @@ function ItineraryComparisonPanel({ comparisons, travelDate, communityLoads, onC
     .map(ensureRouteFrameworkLabels)
   const topRouteItineraries = compactItineraries.slice(0, 10)
   const visibleRouteCount = topRouteItineraries.length
+  const summaryLeadRoute = topRouteItineraries[0]
+  const summaryBackupRoute = topRouteItineraries[1]
+  const aiRouteSummary = summaryLeadRoute ? {
+    title: cleanRecommendationTitle(routeRecommendationTitle(summaryLeadRoute, compactItineraries), t),
+    detail: conciseWhyRouteReasons(summaryLeadRoute, [plainEnglishRationale(summaryLeadRoute, 0)])[0] || keyRiskNote(summaryLeadRoute),
+    route: summaryLeadRoute.route,
+    score: summaryLeadRoute.successPrediction.confidenceScore,
+    backup: summaryBackupRoute ? summaryBackupRoute.route : '',
+    trust: summaryLeadRoute.routeConfidence.badge
+  } : null
 
 function searchTrustReceiptTone(dataMode: string, debug: ItineraryDebugMetadata | null) {
   const normalizedMode = dataMode.toLowerCase()
@@ -4412,6 +4422,33 @@ function renderFlightBoardRow(comparison: ItineraryComparison) {
 
   return (
     <section className="nonrevy-results-shell nonrevy-compact-results nonrevy-flight-board">
+      {aiRouteSummary ? (
+        <aside className="nonrevy-ai-route-summary" aria-label="Compact AI route summary">
+          <div>
+            <span>AI route summary</span>
+            <strong>{aiRouteSummary.title}</strong>
+            <p>{aiRouteSummary.detail}</p>
+          </div>
+          <dl>
+            <div>
+              <dt>Lead route</dt>
+              <dd>{aiRouteSummary.route}</dd>
+            </div>
+            <div>
+              <dt>Score</dt>
+              <dd>{aiRouteSummary.score}/100</dd>
+            </div>
+            <div>
+              <dt>Backup</dt>
+              <dd>{aiRouteSummary.backup || 'No second route yet'}</dd>
+            </div>
+            <div>
+              <dt>Trust</dt>
+              <dd>{aiRouteSummary.trust}</dd>
+            </div>
+          </dl>
+        </aside>
+      ) : null}
       <div className="nonrevy-flight-board__header">
         <strong>{displayTitle}</strong>
         <span>{visibleRouteCount} route{visibleRouteCount === 1 ? '' : 's'}</span>

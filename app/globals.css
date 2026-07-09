@@ -6584,6 +6584,65 @@ main.nonrevy-results-page.nonrevy-plan-shell {
   color: #4f46e5 !important;
 }
 
+.nonrevy-ai-route-summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(260px, 0.8fr);
+  gap: 16px;
+  margin-bottom: 16px;
+  padding: clamp(14px, 2.4vw, 18px);
+  border: 1px solid rgba(199, 210, 254, 0.9);
+  border-radius: 22px;
+  background: linear-gradient(135deg, #ffffff, #f8f7ff);
+  box-shadow: 0 14px 32px rgba(79, 70, 229, 0.10);
+  color: #111827;
+}
+
+.nonrevy-ai-route-summary span,
+.nonrevy-ai-route-summary dt {
+  color: #6d28d9;
+  font-size: 0.68rem;
+  font-weight: 950;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.nonrevy-ai-route-summary strong {
+  display: block;
+  margin-top: 5px;
+  color: #111827 !important;
+  font-size: clamp(1.05rem, 2.5vw, 1.3rem);
+  line-height: 1.18;
+}
+
+.nonrevy-ai-route-summary p {
+  margin: 8px 0 0;
+  color: #4B5563 !important;
+  line-height: 1.5;
+}
+
+.nonrevy-ai-route-summary dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+}
+
+.nonrevy-ai-route-summary dl div {
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  background: #ffffff;
+}
+
+.nonrevy-ai-route-summary dd {
+  margin: 4px 0 0;
+  overflow-wrap: anywhere;
+  color: #111827;
+  font-weight: 900;
+  line-height: 1.2;
+}
+
 .nonrevy-results-page .nonrevy-flight-board__list {
   display: grid !important;
   grid-template-columns: 1fr !important;
@@ -6787,6 +6846,17 @@ main.nonrevy-results-page.nonrevy-plan-shell {
   .nonrevy-results-page .nonrevy-flight-board {
     padding: 16px !important;
     border-radius: 24px !important;
+  }
+
+  .nonrevy-ai-route-summary {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+    margin-bottom: 14px !important;
+    border-radius: 20px !important;
+  }
+
+  .nonrevy-ai-route-summary dl {
+    grid-template-columns: 1fr !important;
   }
 
   .nonrevy-results-page .nonrevy-flight-board__list,

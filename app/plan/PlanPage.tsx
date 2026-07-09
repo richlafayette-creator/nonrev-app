@@ -3966,7 +3966,7 @@ function ProductionEmptyState({ reasons, origin, destination, suggestions = [], 
         {recovery ? `${recovery.explanation} Recovery strength: ${recovery.recoveryStrength}/100.` : 'If you are new here, this does not mean the trip is impossible — it means no current source passed the trust checks for a live itinerary card.'}
       </p>
       <div className="nonrevy-production-empty__grid">
-        <section>
+        <section className="nonrevy-production-empty__card">
           <strong>What to try next</strong>
           <ul>
             <li>Broaden carrier, date, or max-leg filters before assuming the route is unavailable.</li>
@@ -3974,7 +3974,7 @@ function ProductionEmptyState({ reasons, origin, destination, suggestions = [], 
             <li><a href="/load-reports">Request loads</a> or <a href="/watchlist">add a watchlist route</a> for a later refresh.</li>
           </ul>
         </section>
-        <section>
+        <section className="nonrevy-production-empty__card">
           <strong>{t('topRoutes')}</strong>
           {topRoutes.length ? (
             <ul className="nonrevy-production-empty__suggestions">
@@ -3989,7 +3989,7 @@ function ProductionEmptyState({ reasons, origin, destination, suggestions = [], 
             <p className="nonrevy-production-empty__muted">No complete {origin || 'origin'} → {destination || 'destination'} frameworks are available right now.</p>
           )}
         </section>
-        <section>
+        <section className="nonrevy-production-empty__card">
           <strong>Recovery Airports</strong>
           {recoveryAirports.length ? (
             <ul className="nonrevy-production-empty__suggestions">

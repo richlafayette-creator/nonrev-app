@@ -5754,7 +5754,6 @@ nav,
 .nonrevy-planner-card,
 .nonrevy-premium-details,
 .nonrevy-results-page__below,
-.nonrevy-production-empty,
 .nonrevy-route-intel,
 .nonrevy-intel-card,
 .nonrevy-copilot-panel,
@@ -7030,18 +7029,18 @@ main.app-shell:not(.nonrevy-home):not(.nonrevy-results-page) :not(button):not(a)
 .nonrevy-results-page .nonrevy-production-empty {
   border: 1px solid #e5e7eb !important;
   background: #ffffff !important;
-  color: #111827 !important;
+  color: #0b1120 !important;
   box-shadow: 0 18px 48px rgba(15, 23, 42, 0.08) !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
 }
 
 .nonrevy-results-page .nonrevy-production-empty__eyebrow {
-  color: #4f46e5 !important;
+  color: #4338ca !important;
 }
 
 .nonrevy-results-page .nonrevy-production-empty h2 {
-  color: #111827 !important;
+  color: #0b1120 !important;
 }
 
 .nonrevy-results-page .nonrevy-production-empty__subtext,
@@ -7050,7 +7049,7 @@ main.app-shell:not(.nonrevy-home):not(.nonrevy-results-page) :not(button):not(a)
 .nonrevy-results-page .nonrevy-production-empty__muted,
 .nonrevy-results-page .nonrevy-production-empty__suggestions span,
 .nonrevy-results-page .nonrevy-production-empty__details {
-  color: #4B5563 !important;
+  color: #374151 !important;
 }
 
 .nonrevy-results-page .nonrevy-production-empty__guidance-note,
@@ -7063,11 +7062,12 @@ main.app-shell:not(.nonrevy-home):not(.nonrevy-results-page) :not(button):not(a)
   box-shadow: none !important;
 }
 
+.nonrevy-results-page .nonrevy-production-empty__card,
 .nonrevy-results-page .nonrevy-production-empty__grid > section,
 .nonrevy-results-page .nonrevy-production-empty__details {
   border: 1px solid #e5e7eb !important;
   background: #ffffff !important;
-  color: #111827 !important;
+  color: #0b1120 !important;
   box-shadow: 0 12px 28px rgba(17, 24, 39, 0.07) !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
@@ -7075,9 +7075,9 @@ main.app-shell:not(.nonrevy-home):not(.nonrevy-results-page) :not(button):not(a)
 
 .nonrevy-results-page .nonrevy-production-empty strong,
 .nonrevy-results-page .nonrevy-production-empty__details summary {
-  color: #4f46e5 !important;
+  color: #3730a3 !important;
 }
 
 .nonrevy-results-page .nonrevy-production-empty a {
-  color: #2563eb !important;
+  color: #1d4ed8 !important;
 }

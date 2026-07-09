@@ -4585,7 +4585,7 @@ function renderFlightBoardRow(comparison: ItineraryComparison) {
         <article
           className="nonrevy-ranked-result-card"
           style={{ '--score-color': scoreColor, '--confidence-color': scoreColor } as CSSProperties}
-          aria-label={`Rank ${rankIndex + 1}: ${airlineName}, ${routeLabels.join(', ') || 'route option'}, flights ${flightNumbers}, depart ${depTime} from ${originAirport}, connect ${connectionAirport}, arrive ${arrivalDisplay} at ${destinationAirport}, duration ${durationLabel}, ${compactStopsLabel(comparison.connections)}, score ${confidenceScore}`}
+          aria-label={`Rank ${rankIndex + 1}: ${airlineName}, ${routeLabels.join(', ') || 'route option'}, flights ${flightNumbers}, depart ${depTime} from ${originAirport}, connect ${connectionAirport}, arrive ${arrivalDisplay} at ${destinationAirport}, duration ${durationLabel}, ${compactStopsLabel(comparison.connections)}, secondary score ${confidenceScore}`}
         >
           {routeLabels.length ? (
             <div className="nonrevy-ranked-result-card__labels" aria-label="Route labels">
@@ -4632,8 +4632,8 @@ function renderFlightBoardRow(comparison: ItineraryComparison) {
             <span>Stops</span>
             <strong>{compactStopsLabel(comparison.connections)}</strong>
           </div>
-          <div className="nonrevy-ranked-result-card__confidence" title={`Score ${confidenceScore} out of 100`}>
-            <span>Score</span>
+          <div className="nonrevy-ranked-result-card__confidence" title={`Secondary score ${confidenceScore} out of 100`}>
+            <span>Secondary score</span>
             <strong>{scoreLabel}</strong>
           </div>
         </article>

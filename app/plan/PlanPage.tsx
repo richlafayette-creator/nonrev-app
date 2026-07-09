@@ -28,6 +28,7 @@ import { defaultTravelerProfile, loadTravelerProfileFromStorage, travelerProfile
 import { useVoiceInput } from '../../lib/useVoiceInput'
 import { loadTripOutcomes, type TripOutcome } from '../../lib/tripOutcomes'
 import { loadSavedTripWatchlist } from '../../lib/watchlist'
+import { loadSearchHistory, saveSearchHistoryItem, type SearchHistoryItem } from '../../lib/searchHistory'
 import {
   clearSavedItineraryComparisons,
   loadSavedItineraryComparisons,
@@ -4196,6 +4197,26 @@ function initialCommunityLoadForm(comparison: ItineraryComparison, travelDate: s
   }
 }
 
+function SearchHistoryPanel({ history, onRun }: { history: SearchHistoryItem[]; onRun: (item: SearchHistoryItem) => void }) {
+  if (!history.length) return null
+  return (
+    <section className="nonrevy-search-history" aria-label="Recent searches">
+      <div>
+        <strong>Recent searches</strong>
+        <span>Last 10 stored locally</span>
+      </div>
+      <div className="nonrevy-search-history__items">
+        {history.slice(0, 10).map((item) => (
+          <button key={`${item.id}-${item.createdAt}`} type="button" onClick={() => onRun(item)}>
+            <strong>{item.query}</strong>
+            <span>{[item.origin, item.date, item.carrier && item.carrier !== 'all' ? item.carrier : 'all carriers'].filter(Boolean).join(' · ')}</span>
+          </button>
+        ))}
+      </div>
+    </section>
+  )
+}
+
 function ItineraryComparisonPanel({ comparisons, travelDate, communityLoads, onCommunityLoadsUpdated, trustReceipt, title, moreTitle }: { comparisons: ItineraryComparison[]; travelDate: string; communityLoads: CommunityLoadReport[]; onCommunityLoadsUpdated: () => void; trustReceipt: SearchTrustReceiptProps; title?: string; moreTitle?: string }) {
   const { locale, t } = useI18n()
   const displayTitle = title || t('topRoutes')
@@ -4465,6 +4486,26 @@ function SearchTrustReceipt({ dataMode, source, status, warnings, debug }: Searc
   )
 }
 
+function SearchHistoryPanel({ history, onRun }: { history: SearchHistoryItem[]; onRun: (item: SearchHistoryItem) => void }) {
+  if (!history.length) return null
+  return (
+    <section className="nonrevy-search-history" aria-label="Recent searches">
+      <div>
+        <strong>Recent searches</strong>
+        <span>Last 10 stored locally</span>
+      </div>
+      <div className="nonrevy-search-history__items">
+        {history.slice(0, 10).map((item) => (
+          <button key={`${item.id}-${item.createdAt}`} type="button" onClick={() => onRun(item)}>
+            <strong>{item.query}</strong>
+            <span>{[item.origin, item.date, item.carrier && item.carrier !== 'all' ? item.carrier : 'all carriers'].filter(Boolean).join(' · ')}</span>
+          </button>
+        ))}
+      </div>
+    </section>
+  )
+}
+
 function AdvancedSignalCard({ title, value, detail }: { title: string; value: string; detail?: string }) {
   return (
     <article className="nonrevy-route-details__signal-card">
@@ -4652,6 +4693,7 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
   const [itineraryDataMode, setItineraryDataMode] = useState('Awaiting live search')
   const [itineraryDebug, setItineraryDebug] = useState<ItineraryDebugMetadata | null>(null)
   const [query, setQuery] = useState('')
+  const [searchHistory, setSearchHistory] = useState<SearchHistoryItem[]>([])
   const [flights, setFlights] = useState<any[]>([])
   const [lastUpdated, setLastUpdated] = useState('')
   const [travelerProfile, setTravelerProfile] = useState(defaultTravelerProfile)
@@ -4695,6 +4737,20 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
       setCopilotPrompt(initialQuery)
       setCopilotStatus('Copilot loaded your search into the planner.')
       runItinerarySearch(initialQuery, { travelWindow: initialDate })
+    }
+  }, [])
+
+  useEffect(() => {
+    function refreshSearchHistory() {
+      setSearchHistory(loadSearchHistory())
+    }
+
+    refreshSearchHistory()
+    window.addEventListener('nonrevy-search-history-updated', refreshSearchHistory)
+    window.addEventListener('storage', refreshSearchHistory)
+    return () => {
+      window.removeEventListener('nonrevy-search-history-updated', refreshSearchHistory)
+      window.removeEventListener('storage', refreshSearchHistory)
     }
   }, [])
 
@@ -4816,6 +4872,13 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
       params.set('personalTestingMode', 'true')
       params.set('nearestDateToleranceDays', nearestDateToleranceDays || '45')
     }
+    setSearchHistory(saveSearchHistoryItem({
+      query: trimmedSearch,
+      origin: originAirport || undefined,
+      date: requestedTravelWindow || undefined,
+      carrier: requestedCarrier,
+      maxLegs: requestedMaxLegs
+    }))
 
     try {
       const response = await fetch(`/api/itinerary/search?${params.toString()}`)
@@ -4925,6 +4988,22 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
     setItineraryDataMode('Awaiting live search')
     setItinerarySource('Live itinerary search')
     setItineraryStatus('Max legs updated. Add a route to search live itinerary data.')
+  }
+
+  function runHistorySearch(item: SearchHistoryItem) {
+    setTripGoal(item.query)
+    setQuery(item.query)
+    if (item.origin) setHomeAirport(item.origin)
+    if (item.date) setTravelWindow(item.date)
+    if (item.carrier) setCarrier(item.carrier)
+    if (item.maxLegs) setMaxLegs(item.maxLegs)
+    setSubmitted(true)
+    void runItinerarySearch(item.query, {
+      homeAirport: item.origin,
+      travelWindow: item.date,
+      carrier: item.carrier,
+      maxLegs: item.maxLegs
+    })
   }
 
   function startVoiceScaffold() {
@@ -5125,6 +5204,8 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
             />
             <button className="nonrevy-primary-action nonrevy-primary-action--search" type="submit" disabled={itineraryLoading}>{itineraryLoading ? 'Searching…' : 'Search'}</button>
           </form>
+
+          <SearchHistoryPanel history={searchHistory} onRun={runHistorySearch} />
 
           {travelDateError ? <p className="nonrevy-results-page__warning">{travelDateError}</p> : null}
 
@@ -5405,6 +5486,8 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
               </p>
             )}
           </form>
+
+          <SearchHistoryPanel history={searchHistory} onRun={runHistorySearch} />
 
           <aside style={{ border: '1px solid #334155', borderRadius: 22, padding: 22, background: 'linear-gradient(135deg, #111827, #312e81)' }}>
             <h2 style={{ marginTop: 0 }}>Voice input</h2>

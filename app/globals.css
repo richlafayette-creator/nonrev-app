@@ -6873,3 +6873,155 @@ main.nonrevy-results-page.nonrevy-plan-shell {
     line-height: 1.55 !important;
   }
 }
+
+/* Shared light minimalist theme for remaining app pages */
+body:has(main.app-shell:not(.nonrevy-home):not(.nonrevy-results-page)) {
+  background:
+    radial-gradient(circle at 18% -8%, rgba(96, 165, 250, 0.18), transparent 32%),
+    radial-gradient(circle at 82% 0%, rgba(168, 85, 247, 0.13), transparent 28%),
+    linear-gradient(180deg, #fbfcff 0%, #f7f8ff 48%, #eef3ff 100%) !important;
+  color: #111827 !important;
+  color-scheme: light !important;
+}
+
+body:has(main.app-shell:not(.nonrevy-home):not(.nonrevy-results-page)) .app-menu {
+  border: 1px solid rgba(226, 232, 240, 0.95) !important;
+  background: rgba(255, 255, 255, 0.92) !important;
+  color: #111827 !important;
+  box-shadow: 0 16px 42px rgba(15, 23, 42, 0.10) !important;
+  backdrop-filter: blur(14px) saturate(135%) !important;
+  -webkit-backdrop-filter: blur(14px) saturate(135%) !important;
+}
+
+body:has(main.app-shell:not(.nonrevy-home):not(.nonrevy-results-page)) .app-menu .app-menu__summary,
+body:has(main.app-shell:not(.nonrevy-home):not(.nonrevy-results-page)) .app-menu__brand {
+  color: #111827 !important;
+}
+
+body:has(main.app-shell:not(.nonrevy-home):not(.nonrevy-results-page)) .app-menu__links a,
+body:has(main.app-shell:not(.nonrevy-home):not(.nonrevy-results-page)) .app-menu__account-actions a,
+body:has(main.app-shell:not(.nonrevy-home):not(.nonrevy-results-page)) .app-menu__account-actions button {
+  border-color: #e5e7eb !important;
+  background: #ffffff !important;
+  color: #111827 !important;
+}
+
+main.app-shell:not(.nonrevy-home):not(.nonrevy-results-page) {
+  background:
+    radial-gradient(circle at 18% -8%, rgba(96, 165, 250, 0.18), transparent 32%),
+    radial-gradient(circle at 82% 0%, rgba(168, 85, 247, 0.13), transparent 28%),
+    linear-gradient(180deg, #fbfcff 0%, #f7f8ff 48%, #eef3ff 100%) !important;
+  color: #111827 !important;
+  padding-top: calc(env(safe-area-inset-top, 0px) + clamp(84px, 9vw, 112px)) !important;
+}
+
+main.app-shell:not(.nonrevy-home):not(.nonrevy-results-page) > section,
+main.app-shell:not(.nonrevy-home):not(.nonrevy-results-page) .hero-grid,
+main.app-shell:not(.nonrevy-home):not(.nonrevy-results-page) .mini-card,
+main.app-shell:not(.nonrevy-home):not(.nonrevy-results-page) .flight-card,
+main.app-shell:not(.nonrevy-home):not(.nonrevy-results-page) .mapbox-card,
+main.app-shell:not(.nonrevy-home):not(.nonrevy-results-page) article,
+main.app-shell:not(.nonrevy-home):not(.nonrevy-results-page) aside,
+main.app-shell:not(.nonrevy-home):not(.nonrevy-results-page) details,
+main.app-shell:not(.nonrevy-home):not(.nonrevy-results-page) form[style*="background"],
+main.app-shell:not(.nonrevy-home):not(.nonrevy-results-page) section[style*="background"],
+main.app-shell:not(.nonrevy-home):not(.nonrevy-results-page) article[style*="background"],
+main.app-shell:not(.nonrevy-home):not(.nonrevy-results-page) div[style*="background: #020617"],
+main.app-shell:not(.nonrevy-home):not(.nonrevy-results-page) div[style*="background: #0f172a"],
+main.app-shell:not(.nonrevy-home):not(.nonrevy-results-page) div[style*="rgba(15, 23, 42"],
+main.app-shell:not(.nonrevy-home):not(.nonrevy-results-page) div[style*="rgba(2, 6, 23"],
+main.app-shell:not(.nonrevy-home):not(.nonrevy-results-page) label[style*="background"] {
+  border-color: #e5e7eb !important;
+  background: rgba(255, 255, 255, 0.90) !important;
+  color: #111827 !important;
+  box-shadow: 0 16px 42px rgba(15, 23, 42, 0.08) !important;
+  backdrop-filter: blur(12px) saturate(130%) !important;
+  -webkit-backdrop-filter: blur(12px) saturate(130%) !important;
+}
+
+main.app-shell:not(.nonrevy-home):not(.nonrevy-results-page) h1,
+main.app-shell:not(.nonrevy-home):not(.nonrevy-results-page) h2,
+main.app-shell:not(.nonrevy-home):not(.nonrevy-results-page) h3,
+main.app-shell:not(.nonrevy-home):not(.nonrevy-results-page) h4,
+main.app-shell:not(.nonrevy-home):not(.nonrevy-results-page) strong,
+main.app-shell:not(.nonrevy-home):not(.nonrevy-results-page) summary {
+  color: #111827 !important;
+}
+
+main.app-shell:not(.nonrevy-home):not(.nonrevy-results-page) p,
+main.app-shell:not(.nonrevy-home):not(.nonrevy-results-page) li,
+main.app-shell:not(.nonrevy-home):not(.nonrevy-results-page) small,
+main.app-shell:not(.nonrevy-home):not(.nonrevy-results-page) label,
+main.app-shell:not(.nonrevy-home):not(.nonrevy-results-page) td,
+main.app-shell:not(.nonrevy-home):not(.nonrevy-results-page) th,
+main.app-shell:not(.nonrevy-home):not(.nonrevy-results-page) [style*="color: #cbd5e1"],
+main.app-shell:not(.nonrevy-home):not(.nonrevy-results-page) [style*="color: #94a3b8"],
+main.app-shell:not(.nonrevy-home):not(.nonrevy-results-page) [style*="color: white"],
+main.app-shell:not(.nonrevy-home):not(.nonrevy-results-page) [style*="color: #f8fafc"] {
+  color: #4B5563 !important;
+}
+
+main.app-shell:not(.nonrevy-home):not(.nonrevy-results-page) input,
+main.app-shell:not(.nonrevy-home):not(.nonrevy-results-page) select,
+main.app-shell:not(.nonrevy-home):not(.nonrevy-results-page) textarea {
+  border: 1px solid #cbd5e1 !important;
+  background: #ffffff !important;
+  color: #111827 !important;
+  box-shadow: none !important;
+  color-scheme: light !important;
+}
+
+main.app-shell:not(.nonrevy-home):not(.nonrevy-results-page) input::placeholder,
+main.app-shell:not(.nonrevy-home):not(.nonrevy-results-page) textarea::placeholder {
+  color: #94a3b8 !important;
+}
+
+main.app-shell:not(.nonrevy-home):not(.nonrevy-results-page) button,
+main.app-shell:not(.nonrevy-home):not(.nonrevy-results-page) a[style*="background"] {
+  border-color: rgba(79, 70, 229, 0.26) !important;
+  background: linear-gradient(135deg, #2563eb, #7c3aed) !important;
+  color: #ffffff !important;
+  box-shadow: 0 12px 28px rgba(79, 70, 229, 0.22) !important;
+}
+
+main.app-shell:not(.nonrevy-home):not(.nonrevy-results-page) a:not([style*="background"]) {
+  color: #4f46e5 !important;
+}
+
+main.app-shell:not(.nonrevy-home):not(.nonrevy-results-page) [style*="background: #020617"],
+main.app-shell:not(.nonrevy-home):not(.nonrevy-results-page) [style*="background: #0f172a"],
+main.app-shell:not(.nonrevy-home):not(.nonrevy-results-page) [style*="background: #111827"],
+main.app-shell:not(.nonrevy-home):not(.nonrevy-results-page) [style*="background: rgba(15, 23, 42"],
+main.app-shell:not(.nonrevy-home):not(.nonrevy-results-page) [style*="background: rgba(2, 6, 23"],
+main.app-shell:not(.nonrevy-home):not(.nonrevy-results-page) [style*="background: linear-gradient"] {
+  background-color: #ffffff !important;
+}
+
+main.app-shell:not(.nonrevy-home):not(.nonrevy-results-page) :not(button):not(a)[style*="background: #020617"],
+main.app-shell:not(.nonrevy-home):not(.nonrevy-results-page) :not(button):not(a)[style*="background: #0f172a"],
+main.app-shell:not(.nonrevy-home):not(.nonrevy-results-page) :not(button):not(a)[style*="background: #111827"],
+main.app-shell:not(.nonrevy-home):not(.nonrevy-results-page) :not(button):not(a)[style*="background: rgba(15, 23, 42"],
+main.app-shell:not(.nonrevy-home):not(.nonrevy-results-page) :not(button):not(a)[style*="background: rgba(2, 6, 23"],
+main.app-shell:not(.nonrevy-home):not(.nonrevy-results-page) :not(button):not(a)[style*="background: linear-gradient"] {
+  background: #ffffff !important;
+}
+
+@media (max-width: 720px) {
+  body:has(main.app-shell:not(.nonrevy-home):not(.nonrevy-results-page)) .app-menu {
+    margin-top: calc(env(safe-area-inset-top, 0px) + 10px) !important;
+    margin-inline: 16px !important;
+  }
+
+  main.app-shell:not(.nonrevy-home):not(.nonrevy-results-page) {
+    padding: calc(env(safe-area-inset-top, 0px) + 24px) 18px 32px !important;
+  }
+
+  main.app-shell:not(.nonrevy-home):not(.nonrevy-results-page) > section,
+  main.app-shell:not(.nonrevy-home):not(.nonrevy-results-page) article,
+  main.app-shell:not(.nonrevy-home):not(.nonrevy-results-page) aside,
+  main.app-shell:not(.nonrevy-home):not(.nonrevy-results-page) details,
+  main.app-shell:not(.nonrevy-home):not(.nonrevy-results-page) form[style*="background"] {
+    border-radius: 22px !important;
+    padding: 18px !important;
+  }
+}

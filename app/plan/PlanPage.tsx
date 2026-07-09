@@ -2181,6 +2181,37 @@ function routeResultLabels(comparison: ItineraryComparison, comparisons: Itinera
   return [...new Set(labels)]
 }
 
+function routeDetailsSnapshot(comparison: ItineraryComparison) {
+  const legs = comparison.legs || []
+  const flightNumbers = legs.map((leg) => leg.operatingFlightNumber || leg.flightNumber).filter(Boolean)
+  const aircraft = legs.map((leg) => leg.aircraft).filter(Boolean)
+  const layovers = itineraryConnectionBuffersMinutes(comparison).map(formatConnectionBuffer)
+  const terminals = legs.map((leg, index) => {
+    const origin = leg.origin || airportCodesFromComparisonRoute(comparison.route)[index] || 'TBD'
+    const destination = leg.destination || airportCodesFromComparisonRoute(comparison.route)[index + 1] || 'TBD'
+    return `${origin} terminal pending → ${destination} terminal pending`
+  })
+  const travelBreakdown = legs.length
+    ? legs.map((leg) => {
+      const flight = leg.operatingFlightNumber || leg.flightNumber || 'Flight pending'
+      const duration = leg.duration || (() => {
+        const departure = parseScheduleTime(leg.departureTime)
+        const arrival = parseScheduleTime(leg.arrivalTime)
+        return departure && arrival && arrival > departure ? formatConnectionBuffer(Math.round((arrival - departure) / 60000)) : 'duration pending'
+      })()
+      return `${flight}: ${duration}`
+    })
+    : [comparison.totalTravelTime]
+
+  return [
+    ['All flights', flightNumbers.length ? flightNumbers.join(' · ') : comparison.flightNumber || 'Flight numbers pending'],
+    ['Aircraft', aircraft.length ? [...new Set(aircraft)].join(' · ') : comparison.aircraftDetails || 'Aircraft pending'],
+    ['Layovers', layovers.length ? layovers.join(' · ') : comparison.connections ? 'Layover duration pending' : 'Nonstop'],
+    ['Terminals', terminals.length ? terminals.join(' · ') : 'Terminal information pending provider data'],
+    ['Travel time breakdown', travelBreakdown.join(' · ')]
+  ]
+}
+
 function compactReasonText(reason: string) {
   return reason
     .replace(/^why:\s*/i, '')
@@ -4471,6 +4502,7 @@ function renderFlightBoardRow(comparison: ItineraryComparison) {
     const commercialDetail = comparison.sellableSeatSignal?.limitations[0]
     const historicalDetail = comparison.historicalReliability?.signal.summary
     const routeLabels = routeResultLabels(comparison, compactItineraries, rankIndex)
+    const detailsSnapshot = routeDetailsSnapshot(comparison)
 
     return (
       <div key={`row-${comparison.id}`} className="nonrevy-ranked-result">
@@ -4531,6 +4563,14 @@ function renderFlightBoardRow(comparison: ItineraryComparison) {
         </article>
         <details className="nonrevy-route-details">
           <summary>Route details</summary>
+          <div className="nonrevy-route-details__snapshot" aria-label="Route flight details">
+            {detailsSnapshot.map(([label, value]) => (
+              <div key={`${comparison.id}-${label}`}>
+                <span>{label}</span>
+                <strong>{value}</strong>
+              </div>
+            ))}
+          </div>
           <div className="nonrevy-route-details__grid" aria-label="Advanced route diagnostics">
             <AdvancedSignalCard title="AI route analysis" value={recommendation} detail={aiRouteAnalysis} />
             <AdvancedSignalCard title="Weather" value={weatherCardSummary(comparison.weatherRisk)} detail={weatherDetail} />

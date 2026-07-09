@@ -4305,6 +4305,16 @@ function SearchTrustReceipt({ dataMode, source, status, warnings, debug }: Searc
   )
 }
 
+function AdvancedSignalCard({ title, value, detail }: { title: string; value: string; detail?: string }) {
+  return (
+    <article className="nonrevy-route-details__signal-card">
+      <span>{title}</span>
+      <strong>{value}</strong>
+      {detail ? <small>{detail}</small> : null}
+    </article>
+  )
+}
+
 function renderFlightBoardRow(comparison: ItineraryComparison) {
     const index = compactItineraries.findIndex((item) => item.id === comparison.id)
     const rankIndex = index >= 0 ? index : 0
@@ -4321,57 +4331,87 @@ function renderFlightBoardRow(comparison: ItineraryComparison) {
     const scoreLabel = `${confidenceScore}`
     const flightNumbers = compactFlightNumbersForCard(comparison, carrierCode)
     const connectionAirport = compactConnectionAirportForCard(comparison)
+    const originAirport = routeAirports[0] || 'TBD'
+    const destinationAirport = routeAirports[routeAirports.length - 1] || 'TBD'
     const logoUrl = airlineLogoUrlForCode(carrierCode)
+    const recommendation = cleanRecommendationTitle(routeRecommendationTitle(comparison, compactItineraries), t)
+    const aiRouteAnalysis = conciseWhyRouteReasons(comparison, [plainEnglishRationale(comparison, rankIndex)])[0] || keyRiskNote(comparison)
+    const weatherDetail = [...comparison.weatherRisk.details, ...comparison.weatherRisk.diagnostics][0]
+    const recoveryDetail = comparison.recovery?.reasons[0] || comparison.recoveryExplanation || comparison.suggestedRecoveryPaths?.[0]?.note
+    const communityDetail = comparison.communitySignal?.summary || comparison.communityReportSummary
+    const commercialDetail = comparison.sellableSeatSignal?.limitations[0]
+    const historicalDetail = comparison.historicalReliability?.signal.summary
 
     return (
-      <article
-        key={`row-${comparison.id}`}
-        className="nonrevy-ranked-result-card"
-        style={{ '--score-color': scoreColor, '--confidence-color': scoreColor } as CSSProperties}
-        aria-label={`Rank ${rankIndex + 1}: ${airlineName}, flights ${flightNumbers}, depart ${depTime}, arrive ${arrivalDisplay}, connection ${connectionAirport}, duration ${durationLabel}, ${compactStopsLabel(comparison.connections)}, confidence ${confidenceScore}`}
-      >
-        <div className="nonrevy-ranked-result-card__logo" aria-label={`${airlineName} logo`}>
-          {logoUrl ? <img src={logoUrl} alt="" loading="lazy" /> : null}
-          <span>{carrierCode}</span>
-        </div>
-        <div className="nonrevy-ranked-result-card__field nonrevy-ranked-result-card__airline">
-          <span>Airline</span>
-          <strong>{airlineName}</strong>
-        </div>
-        <div className="nonrevy-ranked-result-card__field">
-          <span>Flights</span>
-          <strong>{flightNumbers}</strong>
-        </div>
-        <div className="nonrevy-ranked-result-card__field">
-          <span>Dep</span>
-          <strong>{depTime}</strong>
-        </div>
-        <div className="nonrevy-ranked-result-card__field">
-          <span>Arr</span>
-          <strong>{arrivalDisplay}{arrivalOffset > 0 ? <em>+{arrivalOffset}</em> : null}</strong>
-        </div>
-        <div className="nonrevy-ranked-result-card__field">
-          <span>Connect</span>
-          <strong>{connectionAirport}</strong>
-        </div>
-        <div className="nonrevy-ranked-result-card__field">
-          <span>Duration</span>
-          <strong>{durationLabel}</strong>
-        </div>
-        <div className="nonrevy-ranked-result-card__field">
-          <span>Stops</span>
-          <strong>{compactStopsLabel(comparison.connections)}</strong>
-        </div>
-        <div className="nonrevy-ranked-result-card__confidence" title={`Confidence score ${confidenceScore} out of 100`}>
-          <span>Confidence</span>
-          <strong>{scoreLabel}</strong>
-        </div>
-      </article>
+      <div key={`row-${comparison.id}`} className="nonrevy-ranked-result">
+        <article
+          className="nonrevy-ranked-result-card"
+          style={{ '--score-color': scoreColor, '--confidence-color': scoreColor } as CSSProperties}
+          aria-label={`Rank ${rankIndex + 1}: ${airlineName}, flights ${flightNumbers}, depart ${depTime} from ${originAirport}, connect ${connectionAirport}, arrive ${arrivalDisplay} at ${destinationAirport}, duration ${durationLabel}, ${compactStopsLabel(comparison.connections)}, score ${confidenceScore}`}
+        >
+          <div className="nonrevy-ranked-result-card__logo" aria-label={`${airlineName} logo`}>
+            {logoUrl ? <img src={logoUrl} alt="" loading="lazy" /> : null}
+            <span>{carrierCode}</span>
+          </div>
+          <div className="nonrevy-ranked-result-card__field nonrevy-ranked-result-card__airline">
+            <span>Airline</span>
+            <strong>{airlineName}</strong>
+          </div>
+          <div className="nonrevy-ranked-result-card__field">
+            <span>Flights</span>
+            <strong>{flightNumbers}</strong>
+          </div>
+          <div className="nonrevy-ranked-result-card__field">
+            <span>Departs</span>
+            <strong>{depTime}</strong>
+          </div>
+          <div className="nonrevy-ranked-result-card__field">
+            <span>Origin</span>
+            <strong>{originAirport}</strong>
+          </div>
+          <div className="nonrevy-ranked-result-card__field">
+            <span>Connect</span>
+            <strong>{connectionAirport}</strong>
+          </div>
+          <div className="nonrevy-ranked-result-card__field">
+            <span>Arrives</span>
+            <strong>{arrivalDisplay}{arrivalOffset > 0 ? <em>+{arrivalOffset}</em> : null}</strong>
+          </div>
+          <div className="nonrevy-ranked-result-card__field">
+            <span>Destination</span>
+            <strong>{destinationAirport}</strong>
+          </div>
+          <div className="nonrevy-ranked-result-card__field">
+            <span>Duration</span>
+            <strong>{durationLabel}</strong>
+          </div>
+          <div className="nonrevy-ranked-result-card__field">
+            <span>Stops</span>
+            <strong>{compactStopsLabel(comparison.connections)}</strong>
+          </div>
+          <div className="nonrevy-ranked-result-card__confidence" title={`Score ${confidenceScore} out of 100`}>
+            <span>Score</span>
+            <strong>{scoreLabel}</strong>
+          </div>
+        </article>
+        <details className="nonrevy-route-details">
+          <summary>Route details</summary>
+          <div className="nonrevy-route-details__grid" aria-label="Advanced route diagnostics">
+            <AdvancedSignalCard title="AI route analysis" value={recommendation} detail={aiRouteAnalysis} />
+            <AdvancedSignalCard title="Weather" value={weatherCardSummary(comparison.weatherRisk)} detail={weatherDetail} />
+            <AdvancedSignalCard title="Recovery" value={recoveryCardSummary(comparison.recovery)} detail={recoveryDetail} />
+            <AdvancedSignalCard title="Commercial availability" value={commercialCardSummary(comparison.sellableSeatSignal)} detail={commercialDetail} />
+            <AdvancedSignalCard title="Community signal" value={communityCardSummary(comparison.communitySignal)} detail={communityDetail} />
+            <AdvancedSignalCard title="Trust details" value={comparison.routeConfidence.badge} detail={comparison.routeConfidence.updateExplanation || comparison.sourceDetails} />
+            <AdvancedSignalCard title="Historical reliability" value={historicalReliabilityCardSummary(comparison.historicalReliability)} detail={historicalDetail} />
+          </div>
+        </details>
+      </div>
     )
   }
 
   return (
-    <section className="nonrevy-results-shell nonrevy-compact-results nonrevy-flight-board" style={{ border: '1px solid rgba(56, 189, 248, 0.35)', borderRadius: 14, padding: 'clamp(6px, 2vw, 10px)', background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.96), rgba(30, 41, 59, 0.86))', marginBottom: 16 }}>
+    <section className="nonrevy-results-shell nonrevy-compact-results nonrevy-flight-board">
       <div className="nonrevy-flight-board__header">
         <strong>{displayTitle}</strong>
         <span>{visibleRouteCount} route{visibleRouteCount === 1 ? '' : 's'}</span>
@@ -4380,6 +4420,10 @@ function renderFlightBoardRow(comparison: ItineraryComparison) {
       <div className="nonrevy-flight-board__list" aria-label="Top 10 route options">
         {topRouteItineraries.map((comparison) => renderFlightBoardRow(comparison))}
       </div>
+      <details className="nonrevy-results-trust-details">
+        <summary>Search trust details</summary>
+        <SearchTrustReceipt {...trustReceipt} />
+      </details>
     </section>
   )
 }
@@ -4853,10 +4897,13 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
 
   if (compactResultsMode) {
     return (
-      <main className="app-shell nonrevy-plan-shell nonrevy-results-page" style={{ minHeight: '100vh', background: '#020617', color: 'white', padding: 'clamp(8px, 2.4vw, 14px)', fontFamily: 'Arial', overflowX: 'hidden' }}>
+      <main className="app-shell nonrevy-plan-shell nonrevy-results-page" style={{ minHeight: '100vh', background: '#f7f8ff', color: '#0f172a', padding: 'clamp(14px, 3vw, 28px)', fontFamily: 'Arial', overflowX: 'hidden' }}>
         <section className="nonrevy-results-page__shell">
+          <header className="nonrevy-results-hero" aria-label="NONREVY results">
+            <a href="/" className="nonrevy-results-hero__brand nonrevy-logo">NONREVY</a>
+            <p>Fly Smarter</p>
+          </header>
           <form onSubmit={submitPlanRequest} className="nonrevy-results-search" aria-label="Edit itinerary search">
-            <a href="/" className="nonrevy-results-search__brand" aria-label="NONREVY home">NONREVY</a>
             <input
               value={tripGoal}
               onChange={(event) => setTripGoal(event.target.value)}

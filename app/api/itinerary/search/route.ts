@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { airportScaffoldFor } from '../../../../lib/airportMapScaffold'
-import { buildAllItinerariesFromFlights, closestAvailableFlightDates, flightMatchesRequest, normalizeFlightRouteForDiagnostics, normalizeItineraryRequest, summarizeRouteMatching, type ItineraryResult, type ParsedItineraryRequest, type RouteMatchingSummary } from '../../../../lib/itinerarySearch'
+import { buildAllItinerariesFromFlights, closestAvailableFlightDates, flightMatchesRequest, normalizeFlightRouteForDiagnostics, normalizeItineraryRequest, summarizeRouteMatching, validateRoutingEngineCoverage, type ItineraryResult, type ParsedItineraryRequest, type RouteMatchingSummary, type RoutingValidationReport } from '../../../../lib/itinerarySearch'
 import { mvpRouteSeedDate, mvpRouteSeedFlightsForRequest } from '../../../../lib/mvpRouteSeedData'
 import { createAviationstackScheduleProvider, createFlightAwareScheduleProvider, getLiveScheduleProviderReadiness, scheduleResultsToFlightRecords, type ScheduleProviderReadiness } from '../../../../lib/liveScheduleProviders'
 import { createProviderResultRepository, providerResultTableName, type ProviderCacheLookupResult, type ProviderResultRecord } from '../../../../lib/providerResultRepository'
@@ -192,6 +192,7 @@ type ItineraryDebugMetadata = {
   noResultsExplanation?: string[]
   itineraryCompletenessDiagnostics?: ItineraryCompletenessDiagnostics
   originCoverage?: OriginCoverageDiagnostic
+  routingValidation?: RoutingValidationReport
 }
 
 type AviationstackFlight = {
@@ -1587,7 +1588,8 @@ function buildDebugMetadata({
   normalizedFlightAwareItinerarySample,
   noResultsExplanation = [],
   itineraryCompletenessDiagnostics,
-  originCoverage
+  originCoverage,
+  routingValidation
 }: {
   parsedRequest: ReturnType<typeof normalizeItineraryRequest>
   supabaseResultCount: number
@@ -1621,6 +1623,7 @@ function buildDebugMetadata({
   noResultsExplanation?: string[]
   itineraryCompletenessDiagnostics?: ItineraryCompletenessDiagnostics
   originCoverage?: OriginCoverageDiagnostic
+  routingValidation?: RoutingValidationReport
 }): ItineraryDebugMetadata {
   const mergedProviderStatuses = mergeProviderStatuses(providerStatuses)
   const recoveryV2Diagnostics = buildRecoveryV2ServerDiagnostics({
@@ -1680,7 +1683,8 @@ function buildDebugMetadata({
     normalizedFlightAwareItinerarySample,
     noResultsExplanation,
     itineraryCompletenessDiagnostics,
-    originCoverage
+    originCoverage,
+    routingValidation
   }
 }
 
@@ -1718,6 +1722,7 @@ function exactNoResultsExplanation({ emptyResults, rateLimits, invalidAirportCod
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const parsedRequest = normalizeItineraryRequest(searchParams)
+  const routingValidationMode = booleanParam(searchParams, 'routingValidation') || booleanParam(searchParams, 'debugRouting')
   const envTestDataModeEnabled = testDataModeEnabled()
   const personalTestingMode = envTestDataModeEnabled && (booleanParam(searchParams, 'personalTestingMode') || booleanParam(searchParams, 'testingMode'))
   const activeProviderFallbackOrder = envTestDataModeEnabled ? providerFallbackOrder : productionSafeProviderFallbackOrder
@@ -1839,6 +1844,9 @@ export async function GET(request: Request) {
     if (deduplication.notes.length) warnings.push(...deduplication.notes)
     warnings.push(allItineraryProviderLimitation)
     const routeMatching = summarizeRouteMatching(expandedScheduleSearch.flights, effectiveRequest)
+    const routingValidation = routingValidationMode
+      ? validateRoutingEngineCoverage(expandedScheduleSearch.flights, effectiveRequest, { expectedItineraries: expandedScheduleSearch.allItineraries.map((itinerary) => itinerary.route) })
+      : undefined
     const supabaseQueryPath = skippedSupabaseDiagnostics('skipped direct Supabase flights table lookup; expanded provider schedule search returned complete itineraries')
     const debug = buildDebugMetadata({
       parsedRequest: effectiveRequest,
@@ -1869,7 +1877,8 @@ export async function GET(request: Request) {
       deduplicationNotes: deduplication.notes,
       deduplicatedRowsRemoved: deduplication.removed,
       normalizedFlightAwareItinerarySample: safeNormalizedItinerarySample(expandedScheduleSearch.topItineraries.find((itinerary) => itinerary.source.includes('flightaware')) || expandedScheduleSearch.topItineraries[0]),
-      itineraryCompletenessDiagnostics: expandedScheduleSearch.completeness
+      itineraryCompletenessDiagnostics: expandedScheduleSearch.completeness,
+      routingValidation
     })
 
     return NextResponse.json({

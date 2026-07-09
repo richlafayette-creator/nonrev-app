@@ -1068,6 +1068,11 @@ function itineraryDedupeKey(legs: ItineraryLeg[]) {
   }).join('||')
 }
 
+function hasReasonableTotalTravelTime(itinerary: ItineraryResult) {
+  if (!itinerary.totalDurationMinutes) return true
+  return itinerary.totalDurationMinutes <= 48 * 60
+}
+
 function minutesUntilConnection(firstLeg: ItineraryLeg, secondLeg: ItineraryLeg) {
   const firstArrival = scheduleInstantMs(firstLeg.arrivalTime)
   const secondDeparture = scheduleInstantMs(secondLeg.departureTime)
@@ -1224,7 +1229,7 @@ export function buildItinerariesFromFlights(flights: Record<string, unknown>[], 
 }
 
 function generatedItineraries(itineraries: ItineraryResult[]) {
-  return dedupeItineraries(itineraries)
+  return dedupeItineraries(itineraries).filter(hasReasonableTotalTravelTime)
 }
 
 function itineraryFromLegs(legs: ItineraryLeg[]): ItineraryResult {

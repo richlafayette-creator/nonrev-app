@@ -65,6 +65,8 @@ type ItineraryCompletenessDiagnostics = {
   reasonsRemoved: string[]
 }
 
+const allItineraryProviderLimitation = 'Provider limitation: current schedule providers expose route/segment schedule searches, not a guaranteed exhaustive origin-to-destination itinerary feed. Nonrevy returns every complete viable itinerary it can assemble from the searched direct, hub, and destination-airport-group segments without fabricating legs.'
+
 type SupabaseQueryDiagnostics = {
   attemptedPath: string
   usedPath: string
@@ -1339,7 +1341,7 @@ async function fetchExpandedScheduleFlights(request: ReturnType<typeof normalize
   const unique = uniqueFlights(flights)
   const allItineraries = buildAllItinerariesFromFlights(unique, request)
   const completeness = itineraryCompletenessDiagnostics(allItineraries)
-  const topItineraries = applyTopRouteRecommendations(request, allItineraries, 5)
+  const topItineraries = applyTopRouteRecommendations(request, allItineraries)
   const annotatedTopItineraries = addProviderBadges(topItineraries, 'flightaware', false, {
     dataFreshnessLabel: 'Live provider API data',
     dataFreshnessDetail: request.date ? `Expanded schedule search checked provider segments for requested date ${request.date}.` : 'Expanded schedule search checked provider segments for the current schedule window.',
@@ -1783,6 +1785,7 @@ export async function GET(request: Request) {
     counts.finalItineraries = expandedScheduleSearch.topItineraries.length
     const deduplication = deduplicationSummary(expandedScheduleSearch.allItineraries, 'expanded schedule search')
     if (deduplication.notes.length) warnings.push(...deduplication.notes)
+    warnings.push(allItineraryProviderLimitation)
     const routeMatching = summarizeRouteMatching(expandedScheduleSearch.flights, effectiveRequest)
     const supabaseQueryPath = skippedSupabaseDiagnostics('skipped direct Supabase flights table lookup; expanded provider schedule search returned complete itineraries')
     const debug = buildDebugMetadata({
@@ -1825,7 +1828,7 @@ export async function GET(request: Request) {
       dataMode: expandedScheduleSearch.topItineraries.some(isCurrentLiveAvailability) ? 'live' : 'provider-cache',
       source_provider: 'expanded-provider-schedule-search',
       source_checked_at: expandedScheduleSearch.topItineraries.map((itinerary) => itinerary.sourceCheckedAt).filter(Boolean).sort().slice(-1)[0],
-      statusMessage: `${expandedScheduleSearch.topItineraries.length} complete scheduled itinerary${expandedScheduleSearch.topItineraries.length === 1 ? '' : 's'} returned from ${expandedScheduleSearch.allItineraries.length} generated before ranking; ordered by earliest arrival.`,
+      statusMessage: `${expandedScheduleSearch.topItineraries.length} complete scheduled itinerary${expandedScheduleSearch.topItineraries.length === 1 ? '' : 's'} returned from ${expandedScheduleSearch.allItineraries.length} generated before ranking; ordered by earliest arrival. ${allItineraryProviderLimitation}`,
       enrichedWithFlightAware: expandedScheduleSearch.topItineraries.some((itinerary) => itinerary.source.includes('flightaware')),
       providerBadges: ['Expanded schedule search'],
       warnings: uniqueMessages(warnings),
@@ -2390,6 +2393,7 @@ export async function GET(request: Request) {
     counts.finalItineraries = itineraries.length
     const completeDeduplication = deduplicationSummary(itineraries, 'complete search')
     if (completeDeduplication.notes.length) warnings.push(...completeDeduplication.notes)
+    warnings.push(allItineraryProviderLimitation)
     const completenessDiagnostics = itineraryCompletenessDiagnostics(itineraries, completeDeduplication.removed, completeDeduplication.notes)
     if (itineraries.length === 1) {
       warnings.push(`Only one complete itinerary survived generation and integrity checks: ${completenessDiagnostics.directItinerariesFound} direct, ${completenessDiagnostics.oneStopItinerariesFound} one-stop, ${completenessDiagnostics.twoStopItinerariesFound} two-stop. No additional complete direct, one-stop, or two-stop itinerary could be assembled from fetched provider rows without fabricating legs.`)
@@ -2445,7 +2449,7 @@ export async function GET(request: Request) {
       dataMode: dataFreshnessMode === 'live-current-api' ? 'live' : dataFreshnessMode,
       source_provider: 'complete-provider-search',
       source_checked_at: itineraries.map((itinerary) => itinerary.sourceCheckedAt).filter(Boolean).sort().slice(-1)[0],
-      statusMessage: `${itineraries.length} complete ${itineraries.length === 1 ? 'itinerary' : 'itineraries'} generated before ranking; sorted by earliest arrival.`,
+      statusMessage: `${itineraries.length} complete ${itineraries.length === 1 ? 'itinerary' : 'itineraries'} generated before ranking; sorted by earliest arrival. ${allItineraryProviderLimitation}`,
       enrichedWithFlightAware: itineraries.some((itinerary) => itinerary.source.includes('flightaware')),
       providerBadges: ['Complete itinerary search'],
       warnings: uniqueMessages(warnings),

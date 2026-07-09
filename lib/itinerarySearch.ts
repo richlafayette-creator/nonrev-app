@@ -124,6 +124,51 @@ export type ItineraryResult = {
   sellableSeatSignal?: SellableSeatSignal
   historicalReliability?: HistoricalReliability
   weatherIntelligence?: WeatherIntelligence
+  completeness?: ItineraryCompleteness
+  providerCoverage?: ItineraryProviderCoverage
+  confidence?: ItineraryDiscoveryConfidence
+  missingProviders?: string[]
+  whyIncluded?: string[]
+  discoveryLog?: string[]
+  exclusionLog?: string[]
+}
+
+export type ItineraryCompleteness = {
+  status: 'complete' | 'incomplete-coverage'
+  hasAllScheduledLegs: boolean
+  reason: string
+}
+
+export type ItineraryProviderCoverage = {
+  providers: string[]
+  missingProviders: string[]
+  complete: boolean
+  warnings: string[]
+}
+
+export type ItineraryDiscoveryConfidence = {
+  score: number
+  label: 'high' | 'medium' | 'low'
+  reason: string
+}
+
+export type CanonicalItineraryGraph = {
+  airports: string[]
+  flightLegs: ItineraryLeg[]
+  legalConnections: Array<{
+    fromFlightNumber: string
+    toFlightNumber: string
+    airport: string
+    minutes: number
+    alliancePartner: boolean
+    maxConnectionMinutes: number
+    reason: string
+  }>
+  alliances: Record<string, string[]>
+  codeshares: Array<{ operatingFlightNumber: string; marketingFlightNumbers: string[] }>
+  maxConnectionWindows: { domesticMinutes: number; internationalMinutes: number }
+  discoveryLog: string[]
+  exclusionLog: string[]
 }
 
 export type FlightRouteNormalization = {
@@ -243,6 +288,15 @@ const carrierLabels: Record<string, string> = {
   'alaska-group': 'Alaska Group',
   all: 'All Supported Carriers'
 }
+
+const alliancePartners: Record<string, string[]> = {
+  star: ['UA', 'UAL', 'United', 'NH', 'ANA', 'LH', 'Lufthansa', 'AC', 'Air Canada', 'NZ', 'Air New Zealand'],
+  skyteam: ['DL', 'DAL', 'Delta', 'AF', 'Air France', 'KL', 'KLM', 'KE', 'Korean Air', 'VS', 'Virgin Atlantic'],
+  oneworld: ['AS', 'Alaska', 'AA', 'American', 'BA', 'British Airways', 'JL', 'Japan Airlines', 'QR', 'Qatar'],
+  alaskaGroup: ['AS', 'Alaska', 'HA', 'Hawaiian']
+}
+
+const supportedScheduleProviders = ['flightaware', 'aviationstack', 'provider-cache', 'supabase']
 
 const airportAliases: Record<string, string> = {
   honolulu: 'HNL',
@@ -1089,10 +1143,44 @@ function minutesUntilConnection(firstLeg: ItineraryLeg, secondLeg: ItineraryLeg)
   return Math.round((secondDeparture - firstArrival) / 60000)
 }
 
+function carrierTokens(leg: ItineraryLeg) {
+  return [
+    leg.carrier,
+    leg.operatingCarrier,
+    leg.flightNumber.match(/^[A-Z]{2}/)?.[0],
+    leg.operatingFlightNumber?.match(/^[A-Z]{2}/)?.[0],
+    ...(leg.marketingFlightNumbers || []).map((flightNumber) => flightNumber.match(/^[A-Z]{2}/)?.[0])
+  ].filter((value): value is string => Boolean(value)).map((value) => value.toLowerCase())
+}
+
+function alliancesForLeg(leg: ItineraryLeg) {
+  const tokens = carrierTokens(leg)
+  return Object.entries(alliancePartners)
+    .filter(([, partners]) => partners.some((partner) => tokens.includes(partner.toLowerCase())))
+    .map(([alliance]) => alliance)
+}
+
+function legsShareAlliance(firstLeg: ItineraryLeg, secondLeg: ItineraryLeg) {
+  const firstAlliances = alliancesForLeg(firstLeg)
+  const secondAlliances = alliancesForLeg(secondLeg)
+  return firstAlliances.some((alliance) => secondAlliances.includes(alliance))
+}
+
+function isLikelyInternationalConnection(firstLeg: ItineraryLeg, secondLeg: ItineraryLeg) {
+  return /[A-Z]{3}/.test(firstLeg.origin) && /[A-Z]{3}/.test(secondLeg.destination) && (
+    ['HND', 'NRT', 'CDG', 'LHR', 'FRA', 'AMS', 'ICN', 'YVR', 'YYZ'].includes(firstLeg.destination) ||
+    ['HND', 'NRT', 'CDG', 'LHR', 'FRA', 'AMS', 'ICN', 'YVR', 'YYZ'].includes(secondLeg.destination)
+  )
+}
+
+function maxConnectionMinutesFor(firstLeg: ItineraryLeg, secondLeg: ItineraryLeg) {
+  return isLikelyInternationalConnection(firstLeg, secondLeg) ? 24 * 60 : 12 * 60
+}
+
 function isFeasibleConnection(firstLeg: ItineraryLeg, secondLeg: ItineraryLeg) {
   const connectionMinutes = minutesUntilConnection(firstLeg, secondLeg)
   if (connectionMinutes === null) return false
-  return connectionMinutes >= 35 && connectionMinutes <= 8 * 60
+  return connectionMinutes >= 35 && connectionMinutes <= maxConnectionMinutesFor(firstLeg, secondLeg)
 }
 
 function dedupeItineraries(itineraries: ItineraryResult[]) {
@@ -1183,19 +1271,77 @@ export function normalizeFlightLeg(flight: Record<string, unknown>, enrichment?:
   }
 }
 
+export function buildCanonicalItineraryGraph(flights: Record<string, unknown>[], request: ParsedItineraryRequest, enrichments: Record<string, Record<string, unknown>> = {}): CanonicalItineraryGraph {
+  const discoveryLog: string[] = []
+  const exclusionLog: string[] = []
+  const flightLegs = flights.flatMap((flight) => {
+    if (!flightMatchesCarrier(flight, request.carrier)) {
+      exclusionLog.push(`Excluded ${valueFrom(flight, ['flight_number', 'ident', 'fa_flight_id']) || 'unknown flight'}: carrier did not match ${request.carrier || 'all'}.`)
+      return []
+    }
+    const leg = normalizeFlightLeg(flight, enrichments[enrichmentKey(flight)])
+    if (!leg.origin || !leg.destination || leg.origin === 'TBD' || leg.destination === 'TBD') {
+      exclusionLog.push(`Excluded ${leg.flightNumber}: missing normalized origin or destination.`)
+      return []
+    }
+    discoveryLog.push(`Included graph leg ${leg.flightNumber} ${leg.origin} → ${leg.destination} from ${leg.sourceProvider || leg.source}.`)
+    return [leg]
+  })
+  const airports = [...new Set(flightLegs.flatMap((leg) => [leg.origin, leg.destination]))].sort()
+  const legalConnections = flightLegs.flatMap((firstLeg) => flightLegs.flatMap((secondLeg) => {
+    if (firstLeg.destination !== secondLeg.origin) return []
+    if (firstLeg.origin === secondLeg.destination) return []
+    const minutes = minutesUntilConnection(firstLeg, secondLeg)
+    const maxConnectionMinutes = maxConnectionMinutesFor(firstLeg, secondLeg)
+    if (minutes === null) {
+      exclusionLog.push(`Excluded connection ${firstLeg.flightNumber} → ${secondLeg.flightNumber}: missing comparable schedule times.`)
+      return []
+    }
+    if (minutes < 35 || minutes > maxConnectionMinutes) {
+      exclusionLog.push(`Excluded connection ${firstLeg.flightNumber} → ${secondLeg.flightNumber}: ${minutes}m layover outside legal window 35-${maxConnectionMinutes}m.`)
+      return []
+    }
+    const alliancePartner = legsShareAlliance(firstLeg, secondLeg)
+    const reason = `${minutes}m legal connection at ${firstLeg.destination}${alliancePartner ? ' with alliance/codeshare partner support' : ''}.`
+    discoveryLog.push(`Included connection ${firstLeg.flightNumber} → ${secondLeg.flightNumber}: ${reason}`)
+    return [{
+      fromFlightNumber: firstLeg.operatingFlightNumber || firstLeg.flightNumber,
+      toFlightNumber: secondLeg.operatingFlightNumber || secondLeg.flightNumber,
+      airport: firstLeg.destination,
+      minutes,
+      alliancePartner,
+      maxConnectionMinutes,
+      reason
+    }]
+  }))
+  const codeshares = flightLegs
+    .filter((leg) => leg.marketingFlightNumbers?.length)
+    .map((leg) => ({ operatingFlightNumber: leg.operatingFlightNumber || leg.flightNumber, marketingFlightNumbers: leg.marketingFlightNumbers || [] }))
+
+  return {
+    airports,
+    flightLegs,
+    legalConnections,
+    alliances: alliancePartners,
+    codeshares,
+    maxConnectionWindows: { domesticMinutes: 12 * 60, internationalMinutes: 24 * 60 },
+    discoveryLog,
+    exclusionLog
+  }
+}
+
 function enrichmentKey(flight: Record<string, unknown>) {
   return String(flight.flight_number || flight.ident || flight.fa_flight_id || flight.id || '').replace(/\s+/g, '')
 }
 
 export function buildAllItinerariesFromFlights(flights: Record<string, unknown>[], request: ParsedItineraryRequest, enrichments: Record<string, Record<string, unknown>> = {}) {
-  const candidateLegs = flights
-    .filter((flight) => flightMatchesCarrier(flight, request.carrier))
-    .map((flight) => normalizeFlightLeg(flight, enrichments[enrichmentKey(flight)]))
+  const graph = buildCanonicalItineraryGraph(flights, request, enrichments)
+  const candidateLegs = graph.flightLegs
   const matchesRequestedDepartureDate = (leg: ItineraryLeg) => !request.date || localDateForAirport(leg.departureTime, leg.origin) === request.date
 
   const directItineraries = candidateLegs
     .filter((leg) => leg.origin === request.origin && leg.destination === request.destination && matchesRequestedDepartureDate(leg))
-    .map((leg) => itineraryFromLegs([leg]))
+    .map((leg) => annotateDiscoveredItinerary(itineraryFromLegs([leg]), graph, request, 'direct itinerary matched requested origin and destination'))
 
   if (!request.origin || !request.destination) {
     return generatedItineraries(directItineraries)
@@ -1210,7 +1356,7 @@ export function buildAllItinerariesFromFlights(flights: Record<string, unknown>[
         secondLeg.origin === firstLeg.destination &&
         isFeasibleConnection(firstLeg, secondLeg)
       )
-      .map((secondLeg) => itineraryFromLegs([firstLeg, secondLeg]))
+      .map((secondLeg) => annotateDiscoveredItinerary(itineraryFromLegs([firstLeg, secondLeg]), graph, request, `legal one-stop itinerary via ${firstLeg.destination}`))
     )
 
   const twoStopItineraries = request.maxLegs < 3 ? [] : firstLegs
@@ -1227,7 +1373,7 @@ export function buildAllItinerariesFromFlights(flights: Record<string, unknown>[
           finalLeg.origin === middleLeg.destination &&
           isFeasibleConnection(middleLeg, finalLeg)
         )
-        .map((finalLeg) => itineraryFromLegs([firstLeg, middleLeg, finalLeg]))
+        .map((finalLeg) => annotateDiscoveredItinerary(itineraryFromLegs([firstLeg, middleLeg, finalLeg]), graph, request, `legal two-stop itinerary via ${firstLeg.destination} and ${middleLeg.destination}`))
       )
     )
 
@@ -1240,6 +1386,60 @@ export function buildItinerariesFromFlights(flights: Record<string, unknown>[], 
 
 function generatedItineraries(itineraries: ItineraryResult[]) {
   return dedupeItineraries(itineraries).filter(hasReasonableTotalTravelTime)
+}
+
+function providerKey(value?: string) {
+  const text = String(value || '').toLowerCase()
+  if (text.includes('flightaware')) return 'flightaware'
+  if (text.includes('aviationstack')) return 'aviationstack'
+  if (text.includes('provider-cache') || text.includes('cache')) return 'provider-cache'
+  if (text.includes('supabase') || text.includes('stored')) return 'supabase'
+  return text || 'unknown'
+}
+
+function discoveryConfidenceFor(itinerary: ItineraryResult, providers: string[]) {
+  const hasScheduledTimes = itinerary.legs.every((leg) => Date.parse(leg.departureTime) && Date.parse(leg.arrivalTime))
+  const liveProvider = providers.some((provider) => provider === 'flightaware' || provider === 'aviationstack')
+  const score = Math.max(35, Math.min(98, 58 + (hasScheduledTimes ? 18 : 0) + (liveProvider ? 14 : 0) - itinerary.stopCount! * 4))
+  return {
+    score,
+    label: score >= 80 ? 'high' : score >= 60 ? 'medium' : 'low',
+    reason: `${providers.join(' + ') || 'unknown provider'} coverage with ${hasScheduledTimes ? 'scheduled times present' : 'some schedule times missing'}.`
+  } satisfies ItineraryDiscoveryConfidence
+}
+
+function annotateDiscoveredItinerary(itinerary: ItineraryResult, graph: CanonicalItineraryGraph, request: ParsedItineraryRequest, why: string): ItineraryResult {
+  const providers = [...new Set(itinerary.legs.map((leg) => providerKey(leg.sourceProvider || leg.source || leg.dataSource)).filter(Boolean))]
+  const missingProviders = supportedScheduleProviders.filter((provider) => !providers.includes(provider))
+  const providerCoverage = {
+    providers,
+    missingProviders,
+    complete: missingProviders.length === 0,
+    warnings: missingProviders.length
+      ? [`Market coverage is incomplete: ${missingProviders.join(', ')} did not provide rows for every assembled leg in this itinerary.`]
+      : []
+  }
+  const connectionReasons = itinerary.legs.slice(0, -1).map((leg, index) => {
+    const nextLeg = itinerary.legs[index + 1]
+    const connection = graph.legalConnections.find((item) => item.fromFlightNumber === (leg.operatingFlightNumber || leg.flightNumber) && item.toFlightNumber === (nextLeg.operatingFlightNumber || nextLeg.flightNumber))
+    return connection?.reason || `Connection ${leg.destination} satisfied legal connection rules.`
+  })
+  return {
+    ...itinerary,
+    completeness: {
+      status: providerCoverage.complete ? 'complete' : 'incomplete-coverage',
+      hasAllScheduledLegs: itinerary.legs.every((leg) => Boolean(leg.flightNumber && leg.departureTime && leg.arrivalTime)),
+      reason: providerCoverage.complete
+        ? 'Every scheduled leg required for this itinerary was present in the available provider graph.'
+        : 'The itinerary is assembled from available schedule rows, but not every configured provider supplied coverage for this market.'
+    },
+    providerCoverage,
+    confidence: discoveryConfidenceFor(itinerary, providers),
+    missingProviders,
+    whyIncluded: [why, ...connectionReasons, request.maxLegs ? `Within requested max legs: ${request.maxLegs}.` : 'Within default max legs.'],
+    discoveryLog: graph.discoveryLog.filter((entry) => itinerary.legs.some((leg) => entry.includes(leg.flightNumber) || entry.includes(leg.operatingFlightNumber || ''))).slice(0, 25),
+    exclusionLog: graph.exclusionLog.slice(0, 25)
+  }
 }
 
 function itineraryFromLegs(legs: ItineraryLeg[]): ItineraryResult {

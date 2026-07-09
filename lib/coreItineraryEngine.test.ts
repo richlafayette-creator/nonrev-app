@@ -1,0 +1,54 @@
+import assert from 'node:assert/strict'
+import { describe, it } from 'node:test'
+// @ts-expect-error Node's experimental TypeScript test runner resolves the .ts extension directly.
+import { buildAllItinerariesFromFlights, buildCanonicalItineraryGraph, normalizeItineraryRequest } from './itinerarySearch.ts'
+
+function request(params: Record<string, string>) {
+  return normalizeItineraryRequest(new URLSearchParams({ carrier: 'all', maxLegs: '3', date: '2026-07-10', ...params }))
+}
+
+const flights = [
+  { id: 'sbp-lax', flight_number: 'UA501', origin: 'SBP', destination: 'LAX', departure_time: '2026-07-10T13:00:00Z', arrival_time: '2026-07-10T14:05:00Z', carrier: 'United', source_provider: 'flightaware' },
+  { id: 'lax-nrt', flight_number: 'NH5', origin: 'LAX', destination: 'NRT', departure_time: '2026-07-10T16:00:00Z', arrival_time: '2026-07-11T03:30:00Z', carrier: 'ANA', operating_carrier: 'NH', marketing_flight_numbers: ['UA7945'], source_provider: 'flightaware' },
+  { id: 'nrt-hnd-bad', flight_number: 'JL900', origin: 'NRT', destination: 'HND', departure_time: '2026-07-11T03:45:00Z', arrival_time: '2026-07-11T04:30:00Z', carrier: 'Japan Airlines', source_provider: 'aviationstack' },
+  { id: 'nrt-hnd', flight_number: 'JL901', origin: 'NRT', destination: 'HND', departure_time: '2026-07-11T05:00:00Z', arrival_time: '2026-07-11T05:55:00Z', carrier: 'Japan Airlines', source_provider: 'aviationstack' },
+  { id: 'sbp-sfo', flight_number: 'AS2201', origin: 'SBP', destination: 'SFO', departure_time: '2026-07-10T13:30:00Z', arrival_time: '2026-07-10T14:40:00Z', carrier: 'Alaska Airlines', source_provider: 'provider-cache:alaska' },
+  { id: 'sfo-hnd', flight_number: 'JL1', origin: 'SFO', destination: 'HND', departure_time: '2026-07-10T17:00:00Z', arrival_time: '2026-07-11T04:40:00Z', carrier: 'Japan Airlines', marketing_flight_numbers: ['AS6919'], source_provider: 'aviationstack' },
+  { id: 'sbp-sea', flight_number: 'AS200', origin: 'SBP', destination: 'SEA', departure_time: '2026-07-10T12:00:00Z', arrival_time: '2026-07-10T14:00:00Z', carrier: 'Alaska Airlines', source_provider: 'supabase' },
+  { id: 'sea-hnd', flight_number: 'DL167', origin: 'SEA', destination: 'HND', departure_time: '2026-07-10T17:20:00Z', arrival_time: '2026-07-11T05:10:00Z', carrier: 'Delta', source_provider: 'flightaware' }
+]
+
+describe('core itinerary engine exhaustive discovery', () => {
+  it('builds a canonical graph with airports, legal connections, alliances, and codeshares', () => {
+    const graph = buildCanonicalItineraryGraph(flights, request({ origin: 'SBP', destination: 'HND' }))
+
+    assert.ok(graph.airports.includes('SBP'))
+    assert.ok(graph.airports.includes('HND'))
+    assert.ok(graph.codeshares.some((codeshare) => codeshare.marketingFlightNumbers.includes('UA7945')))
+    assert.ok(graph.legalConnections.some((connection) => connection.fromFlightNumber === 'UA501' && connection.toFlightNumber === 'NH5' && connection.alliancePartner))
+    assert.ok(graph.exclusionLog.some((entry) => entry.includes('JL900') && entry.includes('outside legal window')))
+  })
+
+  it('returns every legal assembled itinerary before scoring can rank them', () => {
+    const itineraries = buildAllItinerariesFromFlights(flights, request({ origin: 'SBP', destination: 'HND' }))
+    const routes = itineraries.map((itinerary) => itinerary.route).sort()
+
+    assert.deepEqual(routes, [
+      'SBP → LAX → NRT → HND',
+      'SBP → SEA → HND',
+      'SBP → SFO → HND'
+    ])
+    assert.ok(itineraries.every((itinerary) => itinerary.completeness?.hasAllScheduledLegs))
+    assert.ok(itineraries.every((itinerary) => itinerary.providerCoverage?.providers.length))
+    assert.ok(itineraries.every((itinerary) => itinerary.confidence?.score))
+    assert.ok(itineraries.every((itinerary) => itinerary.whyIncluded?.length))
+  })
+
+  it('does not remove lower-scoring alliance or secondary-airport itineraries', () => {
+    const itineraries = buildAllItinerariesFromFlights(flights, request({ origin: 'SBP', destination: 'HND' }))
+
+    assert.ok(itineraries.some((itinerary) => itinerary.route === 'SBP → SEA → HND'))
+    assert.ok(itineraries.some((itinerary) => itinerary.route === 'SBP → SFO → HND'))
+    assert.ok(itineraries.some((itinerary) => itinerary.route === 'SBP → LAX → NRT → HND'))
+  })
+})

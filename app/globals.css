@@ -6635,7 +6635,14 @@ main.nonrevy-results-page.nonrevy-plan-shell {
   font-size: clamp(2rem, 5vw, 3rem) !important;
 }
 
-.nonrevy-route-details,
+.nonrevy-route-details {
+  border: 1px solid #e5e7eb !important;
+  border-radius: 20px !important;
+  background: #ffffff !important;
+  color: #111827 !important;
+  box-shadow: 0 10px 26px rgba(17, 24, 39, 0.06) !important;
+}
+
 .nonrevy-results-trust-details {
   border: 1px solid rgba(226, 232, 240, 0.95) !important;
   border-radius: 18px !important;
@@ -6644,7 +6651,13 @@ main.nonrevy-results-page.nonrevy-plan-shell {
   box-shadow: none !important;
 }
 
-.nonrevy-route-details > summary,
+.nonrevy-route-details > summary {
+  padding: 14px 18px;
+  color: #4f46e5 !important;
+  cursor: pointer;
+  font-weight: 900;
+}
+
 .nonrevy-results-trust-details > summary {
   padding: 10px 14px;
   color: #4f46e5 !important;
@@ -6655,21 +6668,23 @@ main.nonrevy-results-page.nonrevy-plan-shell {
 .nonrevy-route-details__grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr));
-  gap: 10px;
-  padding: 0 12px 12px;
+  gap: 14px;
+  padding: 0 16px 16px;
 }
 
 .nonrevy-route-details__signal-card {
   display: grid;
-  gap: 5px;
-  padding: 12px;
-  border: 1px solid rgba(226, 232, 240, 0.95);
-  border-radius: 16px;
-  background: #ffffff;
+  gap: 8px;
+  padding: 16px;
+  border: 1px solid #e5e7eb !important;
+  border-radius: 18px;
+  background: #ffffff !important;
+  box-shadow: 0 12px 28px rgba(17, 24, 39, 0.07) !important;
+  color: #111827 !important;
 }
 
 .nonrevy-route-details__signal-card span {
-  color: #7c3aed !important;
+  color: #6d28d9 !important;
   font-size: 0.68rem;
   font-weight: 950;
   letter-spacing: 0.08em;
@@ -6677,13 +6692,15 @@ main.nonrevy-results-page.nonrevy-plan-shell {
 }
 
 .nonrevy-route-details__signal-card strong {
-  color: #0f172a !important;
-  font-size: 0.95rem;
+  color: #111827 !important;
+  font-size: 1rem;
+  line-height: 1.25;
 }
 
 .nonrevy-route-details__signal-card small {
-  color: #64748b !important;
-  line-height: 1.35;
+  color: #4B5563 !important;
+  font-size: 0.86rem;
+  line-height: 1.5;
 }
 
 .nonrevy-results-page .nonrevy-search-trust-receipt {
@@ -6740,5 +6757,35 @@ main.nonrevy-results-page.nonrevy-plan-shell {
 
   .nonrevy-results-page .nonrevy-ranked-result-card__confidence {
     min-height: 72px !important;
+  }
+
+  .nonrevy-route-details {
+    border-radius: 22px !important;
+  }
+
+  .nonrevy-route-details > summary {
+    padding: 16px 18px !important;
+    font-size: 0.95rem !important;
+  }
+
+  .nonrevy-route-details__grid {
+    grid-template-columns: 1fr !important;
+    gap: 14px !important;
+    padding: 0 14px 16px !important;
+  }
+
+  .nonrevy-route-details__signal-card {
+    gap: 9px !important;
+    padding: 18px !important;
+    border-radius: 18px !important;
+  }
+
+  .nonrevy-route-details__signal-card strong {
+    font-size: 1.02rem !important;
+  }
+
+  .nonrevy-route-details__signal-card small {
+    font-size: 0.92rem !important;
+    line-height: 1.55 !important;
   }
 }

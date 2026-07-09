@@ -550,6 +550,16 @@ function validateTravelDate(value: string) {
   return ''
 }
 
+function validateItinerarySearchInput(searchText: string, originAirport: string) {
+  const normalizedSearch = searchText.trim()
+  const airports = normalizedSearch.toUpperCase().match(/\b[A-Z]{3}\b/g) || []
+  if (!normalizedSearch && !originAirport) return 'Enter a route, airport pair, flight number, or origin airport before searching.'
+  if (originAirport && !/^$|^[A-Z]{3}$/.test(originAirport)) return 'Home airport must be a three-letter airport code, like LAX.'
+  if (airports.length >= 2 && airports[0] === airports[airports.length - 1]) return 'Origin and destination cannot be the same airport.'
+  if (normalizedSearch.length > 0 && normalizedSearch.length < 2) return 'Search needs at least two characters.'
+  return ''
+}
+
 function displayField(value?: string | number | null) {
   if (value === undefined || value === null || value === '') return 'Not provided'
   return String(value)
@@ -4847,6 +4857,7 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
     const requestedCarrier = overrides.carrier ?? carrier
     const requestedMaxLegs = overrides.maxLegs ?? maxLegs
     const dateError = validateTravelDate(requestedTravelWindow)
+    const inputError = validateItinerarySearchInput(trimmedSearch, originAirport)
 
     if (dateError) {
       setTravelDateError(dateError)
@@ -4858,6 +4869,16 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
       return
     }
     setTravelDateError('')
+
+    if (inputError) {
+      setLiveItineraries([])
+      setFrameworkRoutes([])
+      setItineraryDebug(null)
+      setItineraryStatus(inputError)
+      setItineraryDataMode('Awaiting valid search')
+      setItineraryWarnings([inputError])
+      return
+    }
 
     if (!trimmedSearch && !originAirport) {
       setLiveItineraries([])
@@ -4896,7 +4917,10 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
 
     try {
       const response = await fetch(`/api/itinerary/search?${params.toString()}`)
-      const data = await response.json()
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        throw new Error(data?.errorMessage || data?.message || `Search failed with HTTP ${response.status}`)
+      }
       const rawItineraries = Array.isArray(data?.itineraries) ? data.itineraries as LiveItineraryResult[] : []
       const rawFrameworkRoutes = Array.isArray(data?.frameworkRoutes) ? data.frameworkRoutes as LiveItineraryResult[] : []
       const itineraries = rawItineraries.filter(isProductionItinerary)
@@ -4935,13 +4959,14 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
           ? `Framework Routes available for ${data?.request?.origin || 'any origin'} → ${data?.request?.destination || 'any destination'}. Live schedule details unavailable.`
           : "We couldn't find live results for this search right now."
       ))
-    } catch {
+    } catch (error) {
+      const message = error instanceof Error && error.message ? error.message : "We couldn't find live results for this search right now."
       setLiveItineraries([])
       setFrameworkRoutes([])
       setItineraryDebug(null)
-      setItineraryStatus("We couldn't find live results for this search right now.")
+      setItineraryStatus(message)
       setItineraryDataMode('No current live data')
-      setItineraryWarnings(['Live results were unavailable for this search.'])
+      setItineraryWarnings([message, 'Try a specific airport pair, a different date, or broader carrier scope.'])
     } finally {
       setItineraryLoading(false)
     }

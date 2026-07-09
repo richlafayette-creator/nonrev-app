@@ -268,6 +268,15 @@ type ProviderStatus = {
   detail: string
 }
 
+type ProviderReliabilityCheck = {
+  providerName: string
+  lastSuccessfulResponse?: string
+  errorCount: number
+  sampleRouteAvailability: string
+  canSupportAllItinerarySearch: boolean
+  missingCapabilities: string[]
+}
+
 type ScheduleProviderReadinessStatus = 'Configured' | 'Missing' | 'Limited' | 'Placeholder'
 
 type StructuredProviderDiagnostic = {
@@ -437,6 +446,7 @@ type ItineraryDebugMetadata = {
   invalidDates?: string[]
   providerExplanation?: string[]
   providerStatuses?: ProviderStatus[]
+  providerReliabilityChecks?: ProviderReliabilityCheck[]
   trueLiveDataAvailable?: boolean
   trueLiveDataUnavailableReason?: string
   activeDataMode?: 'production-safe' | 'test-data'
@@ -5281,6 +5291,22 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
           <ul style={{ margin: '8px 0 0', paddingLeft: 18, color: '#475569' }}>
             {providerLimitations.slice(0, 10).map((limitation) => <li key={limitation}>{limitation}</li>)}
           </ul>
+        </details>
+      ) : null}
+      {itineraryDebug?.providerReliabilityChecks?.length ? (
+        <details style={{ marginTop: 12 }}>
+          <summary style={{ cursor: 'pointer', fontWeight: 'bold', color: '#475569' }}>Provider reliability checks</summary>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))', gap: 10, marginTop: 10 }}>
+            {itineraryDebug.providerReliabilityChecks.map((provider) => (
+              <article key={provider.providerName} style={{ border: '1px solid #e2e8f0', borderRadius: 12, padding: 10, background: '#f8fafc' }}>
+                <strong>{provider.providerName}</strong>
+                <p style={{ margin: '6px 0', color: '#475569' }}>{provider.sampleRouteAvailability}</p>
+                <p style={{ margin: '4px 0', color: '#475569' }}>Last success: {provider.lastSuccessfulResponse || 'None in this search'} · Errors: {provider.errorCount}</p>
+                <p style={{ margin: '4px 0', color: provider.canSupportAllItinerarySearch ? '#166534' : '#854d0e' }}>All-itinerary support: {provider.canSupportAllItinerarySearch ? 'yes' : 'limited'}</p>
+                <small style={{ color: '#64748b' }}>Missing: {provider.missingCapabilities.join(', ')}</small>
+              </article>
+            ))}
+          </div>
         </details>
       ) : null}
     </section>

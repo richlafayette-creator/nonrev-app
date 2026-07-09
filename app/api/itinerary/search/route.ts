@@ -34,6 +34,15 @@ type ProviderStatus = {
   detail: string
 }
 
+type ProviderReliabilityCheck = {
+  providerName: string
+  lastSuccessfulResponse?: string
+  errorCount: number
+  sampleRouteAvailability: string
+  canSupportAllItinerarySearch: boolean
+  missingCapabilities: string[]
+}
+
 type ApiResponseCounts = {
   providerCacheFetched: number
   providerCacheItineraries: number
@@ -66,6 +75,37 @@ type ItineraryCompletenessDiagnostics = {
 }
 
 const allItineraryProviderLimitation = 'Provider limitation: current schedule providers expose route/segment schedule searches, not a guaranteed exhaustive origin-to-destination itinerary feed. Nonrevy returns every complete viable itinerary it can assemble from the searched direct, hub, and destination-airport-group segments without fabricating legs.'
+
+function providerReliabilityChecks(statuses: ProviderStatus[], counts: ApiResponseCounts): ProviderReliabilityCheck[] {
+  const errorCountFor = (provider: ProviderKey) => statuses.filter((status) => status.provider === provider && (status.state === 'warning' || status.state === 'error')).length
+  const successTimestamp = (provider: ProviderKey) => statuses.some((status) => status.provider === provider && status.state === 'success') ? new Date().toISOString() : undefined
+  return [
+    {
+      providerName: providerLabels.flightaware,
+      lastSuccessfulResponse: successTimestamp('flightaware'),
+      errorCount: errorCountFor('flightaware'),
+      sampleRouteAvailability: `${counts.flightAwareScheduleFetched} schedule leg${counts.flightAwareScheduleFetched === 1 ? '' : 's'} and ${counts.flightAwareScheduleItineraries} complete itinerar${counts.flightAwareScheduleItineraries === 1 ? 'y' : 'ies'} in this search.`,
+      canSupportAllItinerarySearch: false,
+      missingCapabilities: ['No single all-market itinerary endpoint is used', 'No load/standby availability in schedule rows', 'Completeness depends on searched direct and connection segments']
+    },
+    {
+      providerName: providerLabels.supabase,
+      lastSuccessfulResponse: successTimestamp('supabase'),
+      errorCount: errorCountFor('supabase'),
+      sampleRouteAvailability: `${counts.providerCacheFetched + counts.supabaseFetched} cached/stored leg${counts.providerCacheFetched + counts.supabaseFetched === 1 ? '' : 's'} and ${counts.providerCacheItineraries + counts.supabaseItineraries} complete itinerar${counts.providerCacheItineraries + counts.supabaseItineraries === 1 ? 'y' : 'ies'} in this search.`,
+      canSupportAllItinerarySearch: false,
+      missingCapabilities: ['Stored/cache coverage only', 'May be stale', 'No live load/standby availability']
+    },
+    {
+      providerName: providerLabels.aviationstack,
+      lastSuccessfulResponse: successTimestamp('aviationstack'),
+      errorCount: errorCountFor('aviationstack'),
+      sampleRouteAvailability: `${counts.aviationstackFetched} fallback leg${counts.aviationstackFetched === 1 ? '' : 's'} and ${counts.aviationstackItineraries} complete itinerar${counts.aviationstackItineraries === 1 ? 'y' : 'ies'} in this search.`,
+      canSupportAllItinerarySearch: false,
+      missingCapabilities: ['Fallback route/date schedule lookup only', 'No load/standby availability', 'Completeness depends on provider route support']
+    }
+  ]
+}
 
 type SupabaseQueryDiagnostics = {
   attemptedPath: string
@@ -127,6 +167,7 @@ type ItineraryDebugMetadata = {
   invalidDates: string[]
   providerExplanation: string[]
   providerStatuses: ProviderStatus[]
+  providerReliabilityChecks: ProviderReliabilityCheck[]
   trueLiveDataAvailable: boolean
   trueLiveDataUnavailableReason: string
   activeDataMode: 'production-safe' | 'test-data'
@@ -1602,6 +1643,7 @@ function buildDebugMetadata({
     invalidDates,
     providerExplanation: mergedProviderStatuses.map((status, index) => `${index + 1}. ${status.label}: ${status.detail}`),
     providerStatuses: mergedProviderStatuses,
+    providerReliabilityChecks: providerReliabilityChecks(mergedProviderStatuses, apiResponseCounts),
     trueLiveDataAvailable,
     trueLiveDataUnavailableReason,
     activeDataMode: activeDataModeLabel(testDataModeEnabled),

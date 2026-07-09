@@ -6620,6 +6620,23 @@ main.nonrevy-results-page.nonrevy-plan-shell {
   line-height: 1.5;
 }
 
+.nonrevy-ai-route-summary ul {
+  display: grid;
+  gap: 6px;
+  margin: 12px 0 0;
+  padding-left: 18px;
+  color: #374151;
+  line-height: 1.45;
+}
+
+.nonrevy-ai-route-summary li::marker {
+  color: #7c3aed;
+}
+
+.nonrevy-ai-route-summary b {
+  color: #111827;
+}
+
 .nonrevy-ai-route-summary dl {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

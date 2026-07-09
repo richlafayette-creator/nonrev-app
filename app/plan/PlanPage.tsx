@@ -4408,7 +4408,15 @@ function ItineraryComparisonPanel({ comparisons, travelDate, communityLoads, onC
     route: summaryLeadRoute.route,
     score: summaryLeadRoute.successPrediction.confidenceScore,
     backup: summaryBackupRoute ? summaryBackupRoute.route : '',
-    trust: summaryLeadRoute.routeConfidence.badge
+    trust: summaryLeadRoute.routeConfidence.badge,
+    whyHighest: routeExplanationReasons(summaryLeadRoute, compactItineraries)[0] || `Highest blended score at ${summaryLeadRoute.score}/100 with ${summaryLeadRoute.successProbability}% planning confidence.`,
+    biggestRisk: keyRiskNote(summaryLeadRoute),
+    bestBackup: summaryBackupRoute ? `${summaryBackupRoute.route} · ${routeExplanationReasons(summaryBackupRoute, compactItineraries)[0] || summaryBackupRoute.riskLevel}` : 'No backup route ranked yet',
+    action: summaryLeadRoute.loadSupport?.source === 'unknown'
+      ? 'Request or verify a fresh load before committing to this routing.'
+      : summaryLeadRoute.connections > 0
+        ? 'Verify the connection buffer and keep the backup route open.'
+        : 'Confirm final loads close to departure, then keep this as the primary option.'
   } : null
 
 function searchTrustReceiptTone(dataMode: string, debug: ItineraryDebugMetadata | null) {
@@ -4634,6 +4642,12 @@ function renderFlightBoardRow(comparison: ItineraryComparison) {
             <span>AI route summary</span>
             <strong>{aiRouteSummary.title}</strong>
             <p>{aiRouteSummary.detail}</p>
+            <ul>
+              <li><b>Why ranked highest:</b> {aiRouteSummary.whyHighest}</li>
+              <li><b>Biggest risk:</b> {aiRouteSummary.biggestRisk}</li>
+              <li><b>Best backup:</b> {aiRouteSummary.bestBackup}</li>
+              <li><b>Action:</b> {aiRouteSummary.action}</li>
+            </ul>
           </div>
           <dl>
             <div>

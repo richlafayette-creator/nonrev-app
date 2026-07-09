@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 // @ts-expect-error Node's experimental TypeScript test runner resolves the .ts extension directly.
-import { providerScheduleRowFromResult, providerScheduleRowsFromResults } from './scheduleProviderAdapter.ts'
+import { providerScheduleRowFromResult, providerScheduleRowsFromResults, runScheduleProviderAdapter } from './scheduleProviderAdapter.ts'
 import type { NormalizedScheduleResult } from './liveScheduleProviders'
 
 const normalized: NormalizedScheduleResult = {
@@ -52,5 +52,20 @@ describe('schedule provider adapter', () => {
 
     assert.equal(row.source_checked_at, '2026-07-04T11:30:00Z')
     assert.equal(row.operating_carrier, 'UA')
+  })
+
+  it('runs pluggable provider adapters without exposing provider-native shapes to the engine', async () => {
+    const result = await runScheduleProviderAdapter({
+      key: 'mock-provider',
+      label: 'Mock Provider',
+      async searchSchedules() {
+        return { results: [normalized], requestCount: 1, status: 'success' }
+      }
+    }, { origin: 'SBP', destination: 'LAX' }, '2026-07-04T11:30:00Z')
+
+    assert.equal(result.provider, 'mock-provider')
+    assert.equal(result.rows.length, 1)
+    assert.equal(result.rows[0].source_provider, 'flightaware')
+    assert.equal(result.status, 'success')
   })
 })

@@ -6726,9 +6726,44 @@ main.nonrevy-results-page.nonrevy-plan-shell {
 }
 
 @media (max-width: 640px) {
+  body:has(.nonrevy-results-page) .app-menu {
+    margin-top: calc(env(safe-area-inset-top, 0px) + 10px) !important;
+    margin-inline: 16px !important;
+  }
+
+  body:has(.nonrevy-results-page) .app-menu__summary {
+    min-height: 44px !important;
+    align-items: center !important;
+  }
+
+  main.nonrevy-results-page.app-shell,
+  main.nonrevy-results-page.nonrevy-plan-shell {
+    padding: calc(env(safe-area-inset-top, 0px) + 12px) 14px 24px !important;
+  }
+
+  .nonrevy-results-hero {
+    margin: 8px auto 14px !important;
+    padding-top: 2px !important;
+    gap: 3px !important;
+  }
+
+  .nonrevy-results-hero__brand {
+    font-size: clamp(1.85rem, 8.2vw, 3.45rem) !important;
+    line-height: 1 !important;
+    letter-spacing: 0.018em !important;
+  }
+
+  .nonrevy-results-hero p {
+    font-size: clamp(0.68rem, 2.35vw, 0.78rem) !important;
+    line-height: 1.2 !important;
+  }
+
   .nonrevy-results-search {
     position: static !important;
     grid-template-columns: 1fr !important;
+    gap: 12px !important;
+    margin: 0 0 18px !important;
+    padding: 12px !important;
     border-radius: 22px !important;
   }
 
@@ -6740,23 +6775,72 @@ main.nonrevy-results-page.nonrevy-plan-shell {
     width: 100% !important;
   }
 
+  .nonrevy-results-page .nonrevy-flight-board {
+    padding: 16px !important;
+    border-radius: 24px !important;
+  }
+
+  .nonrevy-results-page .nonrevy-flight-board__list,
+  .nonrevy-ranked-result {
+    gap: 14px !important;
+  }
+
   .nonrevy-results-page .nonrevy-ranked-result-card {
-    grid-template-columns: 42px minmax(0, 1fr) minmax(72px, 0.55fr) !important;
+    grid-template-columns: 40px minmax(0, 1fr) 64px !important;
+    gap: 12px !important;
+    row-gap: 13px !important;
+    padding: 16px !important;
     align-items: start !important;
   }
 
   .nonrevy-results-page .nonrevy-ranked-result-card__logo {
     width: 38px !important;
     height: 38px !important;
+    grid-column: 1 !important;
+    grid-row: 1 !important;
   }
 
-  .nonrevy-results-page .nonrevy-ranked-result-card__airline,
-  .nonrevy-results-page .nonrevy-ranked-result-card__confidence {
-    grid-row: span 2;
+  .nonrevy-results-page .nonrevy-ranked-result-card__airline {
+    grid-column: 2 !important;
+    grid-row: 1 !important;
+    align-self: center !important;
+  }
+
+  .nonrevy-results-page .nonrevy-ranked-result-card__field:not(.nonrevy-ranked-result-card__airline) {
+    grid-column: 1 / -1 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 14px !important;
+    min-height: 42px !important;
+    padding: 10px 12px !important;
+    border: 1px solid #e5e7eb !important;
+    border-radius: 14px !important;
+    background: #f9fafb !important;
+  }
+
+  .nonrevy-results-page .nonrevy-ranked-result-card__field span,
+  .nonrevy-results-page .nonrevy-ranked-result-card__confidence span {
+    white-space: nowrap !important;
+  }
+
+  .nonrevy-results-page .nonrevy-ranked-result-card__field strong {
+    max-width: 58% !important;
+    text-align: right !important;
   }
 
   .nonrevy-results-page .nonrevy-ranked-result-card__confidence {
-    min-height: 72px !important;
+    grid-column: 3 !important;
+    grid-row: 1 !important;
+    align-self: center !important;
+    min-width: 0 !important;
+    min-height: 60px !important;
+    padding: 7px !important;
+    border-radius: 16px !important;
+  }
+
+  .nonrevy-results-page .nonrevy-ranked-result-card__confidence strong {
+    font-size: clamp(1.7rem, 8vw, 2.55rem) !important;
   }
 
   .nonrevy-route-details {

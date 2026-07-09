@@ -1255,6 +1255,85 @@ function buildNextGenSuccessScore(input: {
   })
 }
 
+function mvpRouteIntelligenceAdjustment(input: {
+  carrier: string
+  departureDateTime: string
+  connections: number
+  legs?: LiveItineraryResult['legs']
+  travelerProfile: TravelerProfileScaffold
+  historicalReportCount: number
+  airportIntelligence: RouteAirportIntelligence
+}) {
+  const factors: string[] = []
+  let adjustment = 0
+  const buffers = (input.legs || []).slice(0, -1).map((leg, index) => {
+    const arrival = parseScheduleTime(leg.arrivalTime)
+    const nextDeparture = parseScheduleTime(input.legs?.[index + 1]?.departureTime || '')
+    return arrival && nextDeparture && nextDeparture > arrival ? Math.round((nextDeparture - arrival) / 60000) : null
+  }).filter((value): value is number => value !== null)
+  const minimumBuffer = buffers.length ? Math.min(...buffers) : null
+  const departureHour = (() => {
+    const parsed = parseScheduleTime(input.departureDateTime)
+    return parsed ? new Date(parsed).getUTCHours() : null
+  })()
+  const backupAvailability = input.airportIntelligence.backupFlightAvailability.toLowerCase()
+  const preferredCarrier = normalizeCarrierFamily(input.travelerProfile.employeeAirline)
+  const routeCarrier = normalizeCarrierFamily(input.carrier)
+
+  adjustment -= Math.max(0, input.connections - 1) * 2
+  if (input.connections === 0) {
+    adjustment += 4
+    factors.push('nonstop route bonus')
+  } else {
+    factors.push(`${input.connections} connection${input.connections === 1 ? '' : 's'} considered`)
+  }
+
+  if (minimumBuffer !== null) {
+    if (minimumBuffer < 45) {
+      adjustment -= 8
+      factors.push(`tight ${minimumBuffer}m connection penalty`)
+    } else if (minimumBuffer < 75) {
+      adjustment -= 3
+      factors.push(`usable ${minimumBuffer}m connection buffer`)
+    } else if (minimumBuffer >= 110) {
+      adjustment += 4
+      factors.push(`comfortable ${minimumBuffer}m connection buffer`)
+    }
+  }
+
+  if (departureHour !== null && departureHour >= 20) {
+    const latePenalty = backupAvailability.includes('limited') || backupAvailability.includes('low') ? 7 : 3
+    adjustment -= latePenalty
+    factors.push('late-day departure recovery penalty')
+  }
+
+  if (routeCarrier === preferredCarrier) {
+    adjustment += 3
+    factors.push('preferred airline bonus')
+  }
+
+  if (input.historicalReportCount >= 8) {
+    adjustment += 4
+    factors.push('historical confidence scaffold bonus')
+  } else if (input.historicalReportCount === 0) {
+    adjustment -= 2
+    factors.push('limited historical confidence placeholder')
+  }
+
+  if (backupAvailability.includes('excellent') || backupAvailability.includes('good')) {
+    adjustment += 5
+    factors.push('strong recovery airport availability')
+  } else if (backupAvailability.includes('limited') || backupAvailability.includes('low')) {
+    adjustment -= 4
+    factors.push('limited recovery airport availability')
+  }
+
+  return {
+    adjustment: Math.max(-14, Math.min(14, adjustment)),
+    factors
+  }
+}
+
 function buildLiveItineraryComparison(
   itinerary: LiveItineraryResult,
   predictionEngine: ReturnType<typeof calculatePredictionEngine>,
@@ -1294,6 +1373,15 @@ function buildLiveItineraryComparison(
   const weatherIntelligence = itinerary.weatherIntelligence || buildWeatherIntelligenceForItinerary(itinerary)
   const weatherRisk = getRouteWeatherRisk(itinerary.route, weatherIntelligence)
   const airportIntelligence = buildRouteAirportIntelligence(itinerary.route)
+  const mvpIntelligence = mvpRouteIntelligenceAdjustment({
+    carrier: itinerary.carrier,
+    departureDateTime: itinerary.legs[0]?.departureTime || itinerary.departureTime || 'Pending',
+    connections,
+    legs: itinerary.legs,
+    travelerProfile,
+    historicalReportCount: historicalRoute?.reportCount || predictionEngine.sampleSize.historicalRouteReports,
+    airportIntelligence
+  })
   const successProbability = clampScore(
     predictionEngine.successProbability * 0.34 +
     itinerary.score * 0.26 +
@@ -1303,9 +1391,10 @@ function buildLiveItineraryComparison(
     outcomeSignal -
     connectionPenalty +
     disruption.successProbabilityImpact +
-    weatherRisk.successProbabilityImpact
+    weatherRisk.successProbabilityImpact +
+    mvpIntelligence.adjustment
   )
-  const score = clampScore(itinerary.score * 0.52 + successProbability * 0.32 + historicalScore * 0.16 - connectionPenalty + disruption.routeRankingImpact + weatherRisk.routeRankingImpact)
+  const score = clampScore(itinerary.score * 0.52 + successProbability * 0.32 + historicalScore * 0.16 - connectionPenalty + disruption.routeRankingImpact + weatherRisk.routeRankingImpact + mvpIntelligence.adjustment)
   const riskLevel = riskFromProbability(successProbability, itinerary.risk)
   const routeConfidence = calculateRouteConfidence({
     route: itinerary.route,
@@ -1460,6 +1549,7 @@ function buildLiveItineraryComparison(
       `Route confidence engine scores this option ${routeConfidence.score}/100 (${routeConfidence.badge}) with a ${routeConfidence.trend} trend.`,
       `Weather: ${weatherRisk.displayLabel}. Advisory weather intelligence adjusts planning confidence by ${weatherRisk.successProbabilityImpact} point${weatherRisk.successProbabilityImpact === 1 || weatherRisk.successProbabilityImpact === -1 ? '' : 's'} without overstating certainty.`,
       `Airport intelligence gives this route a ${airportIntelligence.connectionRiskScore}/100 connection risk score and ${airportIntelligence.backupFlightAvailability} backup flight availability.`,
+      `MVP route intelligence adjustment ${mvpIntelligence.adjustment >= 0 ? '+' : ''}${mvpIntelligence.adjustment}: ${mvpIntelligence.factors.join('; ') || 'no additional adjustment'}.`,
       `Disruption intelligence adjusts this option by ${disruption.successProbabilityImpact} probability points and ${disruption.routeRankingImpact} ranking points; route health is ${disruption.routeHealth}.`,
       historicalRoute
         ? `Historical route match ${historicalRoute.route} contributes ${historicalRoute.successRate}% success and ${historicalRoute.reportCount} reports.`
@@ -1524,6 +1614,14 @@ function buildFallbackItineraryComparison(
   const weatherIntelligence = buildWeatherIntelligenceForItinerary({ route: itinerary.route, dataFreshnessRule: 'route-framework' })
   const weatherRisk = getRouteWeatherRisk(itinerary.route, weatherIntelligence)
   const airportIntelligence = buildRouteAirportIntelligence(itinerary.route)
+  const mvpIntelligence = mvpRouteIntelligenceAdjustment({
+    carrier: carrierLabel,
+    departureDateTime: itinerary.window || 'Flexible',
+    connections,
+    travelerProfile,
+    historicalReportCount: historicalRoute?.reportCount || predictionEngine.sampleSize.historicalRouteReports,
+    airportIntelligence
+  })
   const successProbability = clampScore(
     predictionEngine.successProbability * 0.36 +
     itinerary.ranking.score * 0.24 +
@@ -1533,9 +1631,10 @@ function buildFallbackItineraryComparison(
     outcomeSignal -
     connectionPenalty +
     disruption.successProbabilityImpact +
-    weatherRisk.successProbabilityImpact
+    weatherRisk.successProbabilityImpact +
+    mvpIntelligence.adjustment
   )
-  const score = clampScore(itinerary.ranking.score * 0.5 + successProbability * 0.34 + historicalScore * 0.16 - connectionPenalty + disruption.routeRankingImpact + weatherRisk.routeRankingImpact)
+  const score = clampScore(itinerary.ranking.score * 0.5 + successProbability * 0.34 + historicalScore * 0.16 - connectionPenalty + disruption.routeRankingImpact + weatherRisk.routeRankingImpact + mvpIntelligence.adjustment)
   const riskLevel = riskFromProbability(successProbability, itinerary.confidence === 'Strong' ? 'Medium-Low' : 'Medium')
   const routeConfidence = calculateRouteConfidence({
     route: itinerary.route,
@@ -1665,7 +1764,8 @@ function buildFallbackItineraryComparison(
       `Route confidence engine scores this option ${routeConfidence.score}/100 (${routeConfidence.badge}) with a ${routeConfidence.trend} trend.`,
       `Weather: ${weatherRisk.displayLabel}. Advisory weather intelligence adjusts planning confidence by ${weatherRisk.successProbabilityImpact} point${weatherRisk.successProbabilityImpact === 1 || weatherRisk.successProbabilityImpact === -1 ? '' : 's'} without overstating certainty.`,
       `Airport intelligence gives this route a ${airportIntelligence.connectionRiskScore}/100 connection risk score and ${airportIntelligence.backupFlightAvailability} backup flight availability.`,
-      `Disruption intelligence adjusts this option by ${disruption.successProbabilityImpact} probability points and ${disruption.routeRankingImpact} ranking points; route health is ${disruption.routeHealth}.`,
+      `MVP route intelligence adjustment ${mvpIntelligence.adjustment >= 0 ? '+' : ''}${mvpIntelligence.adjustment}: ${mvpIntelligence.factors.join('; ') || 'no additional adjustment'}.`,
+      `Disruption intelligence adjusts this option by ${disruption.successProbabilityImpact} probability points and ${disruption.routeRankingImpact} points; route health is ${disruption.routeHealth}.`,
       historicalRoute
         ? `Historical route match ${historicalRoute.route} contributes ${historicalRoute.successRate}% success and ${historicalRoute.reportCount} reports.`
         : `Historical carrier scaffold contributes ${predictionEngine.inputSummary.historicalSuccessRate}% average success.`,

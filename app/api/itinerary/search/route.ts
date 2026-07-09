@@ -72,6 +72,11 @@ type ItineraryCompletenessDiagnostics = {
   totalGenerated: number
   totalRemoved: number
   reasonsRemoved: string[]
+  coverageIncomplete: boolean
+  missingProviders: string[]
+  coverageExplanation: string[]
+  includedLog: string[]
+  excludedLog: string[]
 }
 
 const allItineraryProviderLimitation = 'Provider limitation: current schedule providers expose route/segment schedule searches, not a guaranteed exhaustive origin-to-destination itinerary feed. Nonrevy returns every complete viable itinerary it can assemble from the searched direct, hub, and destination-airport-group segments without fabricating legs.'
@@ -866,13 +871,20 @@ function deduplicationSummary(itineraries: ItineraryResult[], providerLabel: str
 }
 
 function itineraryCompletenessDiagnostics(itineraries: ItineraryResult[], removed = 0, reasonsRemoved: string[] = []): ItineraryCompletenessDiagnostics {
+  const missingProviders = [...new Set(itineraries.flatMap((itinerary) => itinerary.missingProviders || itinerary.providerCoverage?.missingProviders || []))]
+  const coverageExplanation = [...new Set(itineraries.flatMap((itinerary) => itinerary.providerCoverage?.warnings || []))].slice(0, 8)
   return {
     directItinerariesFound: itineraries.filter((itinerary) => itinerary.legs.length === 1).length,
     oneStopItinerariesFound: itineraries.filter((itinerary) => itinerary.legs.length === 2).length,
     twoStopItinerariesFound: itineraries.filter((itinerary) => itinerary.legs.length === 3).length,
     totalGenerated: itineraries.length + removed,
     totalRemoved: removed,
-    reasonsRemoved: reasonsRemoved.length ? reasonsRemoved : removed ? ['Duplicate or endpoint-invalid itinerary removed before ranking.'] : []
+    reasonsRemoved: reasonsRemoved.length ? reasonsRemoved : removed ? ['Duplicate or endpoint-invalid itinerary removed before ranking.'] : [],
+    coverageIncomplete: missingProviders.length > 0,
+    missingProviders,
+    coverageExplanation: coverageExplanation.length ? coverageExplanation : missingProviders.length ? [`Incomplete market coverage: ${missingProviders.join(', ')} did not return rows for every assembled itinerary.`] : ['All configured schedule provider classes represented in discovered itinerary coverage.'],
+    includedLog: itineraries.flatMap((itinerary) => itinerary.whyIncluded || []).slice(0, 25),
+    excludedLog: itineraries.flatMap((itinerary) => itinerary.exclusionLog || []).slice(0, 25)
   }
 }
 

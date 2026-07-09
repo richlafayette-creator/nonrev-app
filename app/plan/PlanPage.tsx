@@ -4946,11 +4946,13 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
         ? 'Nearest-date testing data'
         : data?.dataMode === 'stored-supabase'
           ? 'Stored Supabase flight data'
+        : data?.dataMode === 'provider-cache'
+          ? 'Cached schedule data · live loads unavailable'
         : data?.dataMode === 'test-data'
         ? 'Demo fallback data (MVP test data)'
         : data?.dataMode === 'fallback' || itineraries.length === 0
           ? (data?.debug?.testDataModeEnabled === false ? 'No current live data' : 'Demo fallback data')
-          : 'Live provider API data')
+          : 'Live flight schedule data · load data unavailable')
       setItineraryDebug(data?.debug || null)
       const originCoverageMessage = data?.debug?.originCoverage?.status === 'insufficient' && typeof data.debug.originCoverage.message === 'string'
         ? data.debug.originCoverage.message
@@ -4961,7 +4963,7 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
         ? data.routeCoverageSuggestions
         : Array.isArray(data?.debug?.routeCoverageSuggestions) ? data.debug.routeCoverageSuggestions : []
       setItineraryStatus(originCoverageMessage || (itineraries.length
-        ? `${itineraries.length} live itinerary result${itineraries.length === 1 ? '' : 's'} found for ${data?.request?.origin || 'any origin'} → ${data?.request?.destination || 'any destination'}.`
+        ? `${itineraries.length} scheduled itinerary result${itineraries.length === 1 ? '' : 's'} found for ${data?.request?.origin || 'any origin'} → ${data?.request?.destination || 'any destination'}. Load data is unavailable unless explicitly shown.`
         : frameworkRouteResults.length || routeCoverageSuggestions.length
           ? `Framework Routes available for ${data?.request?.origin || 'any origin'} → ${data?.request?.destination || 'any destination'}. Live schedule details unavailable.`
           : "We couldn't find live results for this search right now."
@@ -5235,7 +5237,7 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
           <h2 style={{ margin: '4px 0 0', fontSize: 22 }}>All complete itineraries currently available from searched data</h2>
           <p style={{ margin: '8px 0 0', color: '#475569' }}>{itineraryStatus}</p>
         </div>
-        <span style={{ border: `1px solid ${itineraryDataMode === 'Live provider API data' ? '#16a34a' : '#ca8a04'}`, borderRadius: 999, padding: '6px 10px', color: itineraryDataMode === 'Live provider API data' ? '#166534' : '#854d0e', background: itineraryDataMode === 'Live provider API data' ? '#dcfce7' : '#fef9c3', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
+        <span style={{ border: `1px solid ${itineraryDataMode.includes('Live flight schedule') ? '#16a34a' : '#ca8a04'}`, borderRadius: 999, padding: '6px 10px', color: itineraryDataMode.includes('Live flight schedule') ? '#166534' : '#854d0e', background: itineraryDataMode.includes('Live flight schedule') ? '#dcfce7' : '#fef9c3', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
           {itineraryDataMode}
         </span>
       </div>
@@ -5246,6 +5248,7 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
           ['Resolved destination', itineraryDebug?.parsedDestination || 'Missing'],
           ['Resolved date', itineraryDebug?.parsedDate || travelWindow || 'Missing'],
           ['Data source', itinerarySource || 'Pending'],
+          ['Data trust', itineraryDataMode.includes('Live flight schedule') ? 'Live schedule data; loads unavailable' : itineraryDataMode],
           ['Itineraries found', String(itineraryComparisons.length)],
           ['Framework backups', String(frameworkRouteComparisons.length || backupRoutePossibilities.length)],
           ['Provider rows', String((itineraryDebug?.apiResponseCounts?.expandedScheduledFlightLegs ?? itineraryDebug?.apiResponseCounts?.flightAwareScheduleFetched ?? 0) || 0)]

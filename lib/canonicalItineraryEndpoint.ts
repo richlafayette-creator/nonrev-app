@@ -31,6 +31,8 @@ export type CanonicalItineraryEndpointDebug = {
     comparison: UnifiedScheduleSearchResult['comparison']
     coverageReport: UnifiedScheduleSearchResult['coverageReport']
     marketCoverage: UnifiedScheduleSearchResult['marketCoverage']
+    providerMetrics: UnifiedScheduleSearchResult['providerMetrics']
+    providerInfrastructure: UnifiedScheduleSearchResult['providerInfrastructure']
   }
   duplicateMerging: {
     duplicateRowsMerged: number
@@ -112,6 +114,8 @@ export async function runCanonicalItineraryEndpoint(options: CanonicalItineraryE
       comparison: { flightsUniqueToEachProvider: {}, missingAirports: {}, missingAirlines: {}, overlapPercentage: 0 },
       coverageReport: { byCountry: {}, byAirport: {}, byAirline: {}, knownDataGaps: ['Search skipped because origin or destination was missing.'] },
       marketCoverage: { providerContributionPercent: {}, providerCoveragePercent: {}, airportsCovered: [], carriersCovered: [], scheduleFreshness: {}, missingCoverage: ['Search skipped because origin or destination was missing.'], supplementRequests: [], supplementReason: 'Search skipped because origin or destination was missing.', normalizedSchedulesCached: 0 },
+      providerMetrics: [],
+      providerInfrastructure: [],
       warnings: ['Search skipped because origin or destination was missing.'],
       detail: 'Search skipped because origin or destination was missing.'
     } satisfies UnifiedScheduleSearchResult)
@@ -204,7 +208,9 @@ export async function runCanonicalItineraryEndpoint(options: CanonicalItineraryE
         coverage: search.providerCoverage,
         comparison: search.comparison,
         coverageReport: search.coverageReport,
-        marketCoverage: search.marketCoverage
+        marketCoverage: search.marketCoverage,
+        providerMetrics: search.providerMetrics,
+        providerInfrastructure: search.providerInfrastructure
       },
       duplicateMerging: {
         duplicateRowsMerged: search.rows.reduce((total, row) => total + (row.duplicate_count || 0), 0),

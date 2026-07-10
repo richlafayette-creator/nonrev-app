@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "test": "node --loader ./scripts/ts-extension-loader.mjs --test lib/coreItineraryEngine.test.ts lib/scheduleProviderAdapter.test.ts lib/canonicalItineraryEndpoint.test.ts",
+    "test": "node --loader ./scripts/ts-extension-loader.mjs --test lib/coreItineraryEngine.test.ts lib/scheduleProviderAdapter.test.ts lib/canonicalItineraryEndpoint.test.ts lib/providerInfrastructure.test.ts lib/providerScheduleIngestion.test.ts",
     "build": "next build",
     "start": "next start",
     "lint": "eslint"

@@ -37,7 +37,8 @@ function comparableDiagnostics(response: Awaited<ReturnType<typeof runCanonicalI
     providerRegistry: {
       ...response.debug.providerRegistry,
       diagnostics: response.debug.providerRegistry.diagnostics.map((diagnostic) => ({ ...diagnostic, queryTimeMs: '<duration>' })),
-      health: response.debug.providerRegistry.health.map((health) => ({ ...health, responseTimeMs: '<duration>' }))
+      health: response.debug.providerRegistry.health.map((health) => ({ ...health, responseTimeMs: '<duration>' })),
+      providerMetrics: response.debug.providerRegistry.providerMetrics.map((metrics) => ({ ...metrics, responseLatencyMs: '<duration>' }))
     }
   }
 }

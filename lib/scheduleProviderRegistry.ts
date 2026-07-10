@@ -16,6 +16,7 @@ import {
   type ScheduleProviderSearchResponse
 } from './scheduleProviderAdapter'
 import { buildScheduleProviderCoverageReport, compareScheduleProviders, mergeDuplicateScheduleRows, type ScheduleProviderComparisonDiagnostics, type ScheduleProviderCoverageReport } from './scheduleProviderDiagnostics'
+import { providerInfrastructureSnapshot, type ProviderInfrastructureSnapshot } from './providerInfrastructure'
 
 export type UnifiedScheduleProvider = ScheduleProviderAdapter
 
@@ -28,8 +29,19 @@ export type UnifiedScheduleSearchResult = {
   comparison: ScheduleProviderComparisonDiagnostics
   coverageReport: ScheduleProviderCoverageReport
   marketCoverage: MarketCoverageDiagnostics
+  providerMetrics: ProviderMetricsDiagnostics[]
+  providerInfrastructure: ProviderInfrastructureSnapshot[]
   warnings: string[]
   detail: string
+}
+
+export type ProviderMetricsDiagnostics = {
+  provider: string
+  coverage: ScheduleProviderHealth['coverage']
+  freshness: ScheduleProviderHealth['freshness']
+  responseLatencyMs: number
+  failures: string[]
+  cacheHitRate: number
 }
 
 export type MarketCoverageDiagnostics = {
@@ -216,6 +228,17 @@ function buildMarketCoverageDiagnostics(rows: ProviderAgnosticScheduleRow[], pro
   }
 }
 
+function buildProviderMetrics(providerResults: ScheduleProviderAdapterResult[]): ProviderMetricsDiagnostics[] {
+  return providerResults.map((result) => ({
+    provider: result.provider,
+    coverage: result.health.coverage,
+    freshness: result.health.freshness,
+    responseLatencyMs: result.health.responseTimeMs,
+    failures: uniqueMessages([...(result.health.errors || []), ...(result.diagnostics.providerFailures || [])]),
+    cacheHitRate: result.diagnostics.cacheStatus === 'hit' ? 100 : result.diagnostics.cacheStatus === 'miss' ? 0 : result.diagnostics.cacheStatus === 'unavailable' ? 0 : 0
+  }))
+}
+
 function canonicalProviderAdapter(options: {
   key: string
   label: string
@@ -344,6 +367,7 @@ export function createDefaultScheduleProviderRegistry(providers: UnifiedSchedule
       const comparison = compareScheduleProviders(providerResults)
       const coverageReport = buildScheduleProviderCoverageReport(rows, providerResults)
       const marketCoverage = buildMarketCoverageDiagnostics(rows, providerResults, searchRequests, cacheResult.stored)
+      const providerMetrics = buildProviderMetrics(providerResults)
       return {
         rows,
         providerResults,
@@ -353,6 +377,8 @@ export function createDefaultScheduleProviderRegistry(providers: UnifiedSchedule
         comparison,
         coverageReport,
         marketCoverage,
+        providerMetrics,
+        providerInfrastructure: providerInfrastructureSnapshot(),
         warnings: uniqueMessages(providerResults.map((result) => result.warning)),
         detail: `${providerResults.map((result) => `${result.provider}: ${result.detail || result.status}`).join(' · ')} · ${cacheResult.detail}`
       }

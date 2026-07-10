@@ -30,6 +30,7 @@ export type CanonicalItineraryEndpointDebug = {
     coverage: UnifiedScheduleSearchResult['providerCoverage']
     comparison: UnifiedScheduleSearchResult['comparison']
     coverageReport: UnifiedScheduleSearchResult['coverageReport']
+    marketCoverage: UnifiedScheduleSearchResult['marketCoverage']
   }
   duplicateMerging: {
     duplicateRowsMerged: number
@@ -110,6 +111,7 @@ export async function runCanonicalItineraryEndpoint(options: CanonicalItineraryE
       providerDiagnostics: [],
       comparison: { flightsUniqueToEachProvider: {}, missingAirports: {}, missingAirlines: {}, overlapPercentage: 0 },
       coverageReport: { byCountry: {}, byAirport: {}, byAirline: {}, knownDataGaps: ['Search skipped because origin or destination was missing.'] },
+      marketCoverage: { providerContributionPercent: {}, providerCoveragePercent: {}, airportsCovered: [], carriersCovered: [], scheduleFreshness: {}, missingCoverage: ['Search skipped because origin or destination was missing.'], supplementRequests: [], supplementReason: 'Search skipped because origin or destination was missing.', normalizedSchedulesCached: 0 },
       warnings: ['Search skipped because origin or destination was missing.'],
       detail: 'Search skipped because origin or destination was missing.'
     } satisfies UnifiedScheduleSearchResult)
@@ -201,7 +203,8 @@ export async function runCanonicalItineraryEndpoint(options: CanonicalItineraryE
         health: search.providerHealth,
         coverage: search.providerCoverage,
         comparison: search.comparison,
-        coverageReport: search.coverageReport
+        coverageReport: search.coverageReport,
+        marketCoverage: search.marketCoverage
       },
       duplicateMerging: {
         duplicateRowsMerged: search.rows.reduce((total, row) => total + (row.duplicate_count || 0), 0),

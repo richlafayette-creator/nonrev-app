@@ -1,4 +1,4 @@
-import { createAviationstackScheduleProvider, createFlightAwareScheduleProvider, type LiveScheduleProvider, type NormalizedScheduleResult } from './liveScheduleProviders'
+import { createAmadeusScheduleProvider, createAviationstackScheduleProvider, createCiriumOagScheduleProvider, createFlightAwareScheduleProvider, type LiveScheduleProvider, type NormalizedScheduleResult } from './liveScheduleProviders'
 import { createProviderResultRepository, type ProviderResultRepository } from './providerResultRepository'
 import {
   defaultScheduleProviderCapabilities,
@@ -27,8 +27,21 @@ export type UnifiedScheduleSearchResult = {
   providerDiagnostics: ScheduleProviderDiagnostic[]
   comparison: ScheduleProviderComparisonDiagnostics
   coverageReport: ScheduleProviderCoverageReport
+  marketCoverage: MarketCoverageDiagnostics
   warnings: string[]
   detail: string
+}
+
+export type MarketCoverageDiagnostics = {
+  providerContributionPercent: Record<string, number>
+  providerCoveragePercent: Record<string, number>
+  airportsCovered: string[]
+  carriersCovered: string[]
+  scheduleFreshness: Record<string, { newestSourceCheckedAt?: string; oldestSourceCheckedAt?: string; freshnessHours?: number }>
+  missingCoverage: string[]
+  supplementRequests: Array<{ scope: string; origin?: string; destination?: string; carrier?: string }>
+  supplementReason: string
+  normalizedSchedulesCached: number
 }
 
 export type ScheduleProviderRegistry = {
@@ -39,6 +52,168 @@ export type ScheduleProviderRegistry = {
 
 function uniqueMessages(messages: Array<string | undefined>) {
   return [...new Set(messages.filter((message): message is string => Boolean(message?.trim())))]
+}
+
+function uniqueStrings(values: Array<string | undefined>) {
+  return [...new Set(values.map((value) => String(value || '').trim()).filter(Boolean))]
+}
+
+const marketExpansionHubs = ['SFO', 'LAX', 'SEA', 'DEN', 'ORD', 'DFW', 'IAH', 'EWR', 'JFK', 'ATL', 'HND', 'NRT', 'HNL', 'OGG', 'SAN', 'PDX', 'PHX']
+
+const regionalAirportNeighbors: Record<string, string[]> = {
+  SBP: ['SFO', 'LAX', 'SAN', 'SEA', 'PDX'],
+  SAN: ['LAX', 'SFO', 'SEA', 'PHX', 'DEN'],
+  OGG: ['HNL', 'LAX', 'SFO', 'SEA'],
+  PDX: ['SEA', 'SFO', 'LAX', 'DEN']
+}
+
+const secondaryInternationalNeighbors: Record<string, string[]> = {
+  HND: ['NRT', 'SFO', 'LAX', 'SEA', 'HNL'],
+  NRT: ['HND', 'SFO', 'LAX', 'SEA', 'HNL'],
+  HNL: ['OGG', 'SFO', 'LAX', 'SEA', 'HND', 'NRT']
+}
+
+function marketHubsFor(request: ScheduleProviderSearchRequest) {
+  return uniqueStrings([
+    ...(request.origin ? regionalAirportNeighbors[request.origin] || [] : []),
+    ...(request.destination ? regionalAirportNeighbors[request.destination] || [] : []),
+    ...(request.origin ? secondaryInternationalNeighbors[request.origin] || [] : []),
+    ...(request.destination ? secondaryInternationalNeighbors[request.destination] || [] : []),
+    ...marketExpansionHubs
+  ]).filter((airport) => airport !== request.origin && airport !== request.destination).slice(0, 2)
+}
+
+function supplementalSearchRequests(request: ScheduleProviderSearchRequest) {
+  if (!request.origin || !request.destination) return [{ scope: 'requested-market', request }]
+  const base = { date: request.date, carrier: request.carrier, maxResults: request.maxResults }
+  const requests = [
+    { scope: 'requested-market', request },
+    { scope: 'origin-departures', request: { ...base, origin: request.origin } },
+    { scope: 'destination-arrivals', request: { ...base, destination: request.destination } },
+    ...marketHubsFor(request).flatMap((hub) => [
+      { scope: `origin-to-hub:${hub}`, request: { ...base, origin: request.origin, destination: hub } },
+      { scope: `hub-to-destination:${hub}`, request: { ...base, origin: hub, destination: request.destination } }
+    ])
+  ]
+  const deduped = new Map<string, { scope: string; request: ScheduleProviderSearchRequest }>()
+  requests.forEach((entry) => {
+    const key = [entry.request.origin || '*', entry.request.destination || '*', entry.request.date || '*', entry.request.carrier || '*'].join('|')
+    if (!deduped.has(key)) deduped.set(key, entry)
+  })
+  return [...deduped.values()]
+}
+
+function rowToNormalizedResult(row: ProviderAgnosticScheduleRow): NormalizedScheduleResult {
+  return {
+    carrier: row.carrier || row.airline,
+    flightNumber: row.flight_number,
+    origin: row.origin,
+    destination: row.destination,
+    departureTime: row.departure_time,
+    arrivalTime: row.arrival_time,
+    duration: row.duration,
+    aircraft: row.aircraft,
+    status: row.status,
+    source: row.source_provider,
+    sourceCheckedAt: row.source_checked_at,
+    operatingCarrier: row.operating_carrier,
+    operatingFlightNumber: row.operating_flight_number,
+    marketingFlightNumbers: row.marketing_flight_numbers,
+    duplicateCount: row.duplicate_count
+  }
+}
+
+function providerRowMergeKey(row: ProviderAgnosticScheduleRow) {
+  return [row.operating_flight_number || row.flight_number, row.origin, row.destination, row.departure_time, row.arrival_time].join('|')
+}
+
+function dedupeRowsFromSupplementalRequests(rows: ProviderAgnosticScheduleRow[]) {
+  const deduped = new Map<string, ProviderAgnosticScheduleRow>()
+  rows.forEach((row) => {
+    const key = providerRowMergeKey(row)
+    if (!deduped.has(key)) deduped.set(key, row)
+  })
+  return [...deduped.values()]
+}
+
+function aggregateProviderResults(results: ScheduleProviderAdapterResult[]): ScheduleProviderAdapterResult[] {
+  const grouped = new Map<string, ScheduleProviderAdapterResult[]>()
+  results.forEach((result) => grouped.set(result.provider, [...(grouped.get(result.provider) || []), result]))
+  return [...grouped.entries()].map(([provider, items]) => {
+    const first = items[0]
+    const rows = dedupeRowsFromSupplementalRequests(items.flatMap((item) => item.rows))
+    const warnings = uniqueMessages(items.map((item) => item.warning))
+    const details = uniqueMessages(items.map((item) => item.detail))
+    const status = items.some((item) => item.status === 'success') ? 'success'
+      : items.some((item) => item.status === 'warning') ? 'warning'
+      : items.some((item) => item.status === 'error') ? 'error'
+      : 'skipped'
+    const health = defaultScheduleProviderHealth(provider, rows, status, items.reduce((total, item) => total + item.health.responseTimeMs, 0), warnings)
+    const coverage = defaultScheduleProviderCoverage(provider, undefined, rows, status, warnings.join(' · ') || undefined)
+    const diagnostics: ScheduleProviderDiagnostic = {
+      providerUsed: provider,
+      queryTimeMs: items.reduce((total, item) => total + item.diagnostics.queryTimeMs, 0),
+      cacheStatus: items.some((item) => item.diagnostics.cacheStatus === 'hit') ? 'hit' : items.some((item) => item.diagnostics.cacheStatus === 'unavailable') ? 'unavailable' : items.some((item) => item.diagnostics.cacheStatus === 'miss') ? 'miss' : 'bypass',
+      airportsSearched: uniqueStrings(items.flatMap((item) => item.diagnostics.airportsSearched)),
+      carriersSearched: uniqueStrings(items.flatMap((item) => item.diagnostics.carriersSearched)),
+      itineraryCount: rows.length,
+      providerFailures: uniqueMessages(items.flatMap((item) => item.diagnostics.providerFailures))
+    }
+    return {
+      provider,
+      rows,
+      warning: warnings.join(' · ') || undefined,
+      detail: details.join(' · ') || `${rows.length} normalized schedule rows returned across supplemented market searches.`,
+      requestCount: items.reduce((total, item) => total + (item.requestCount || 0), 0),
+      status,
+      health,
+      coverage,
+      capabilities: first.capabilities,
+      diagnostics
+    }
+  })
+}
+
+function freshnessHours(value?: string) {
+  const parsed = Date.parse(value || '')
+  if (!Number.isFinite(parsed)) return undefined
+  return Math.round(((Date.now() - parsed) / 3600000) * 10) / 10
+}
+
+function buildMarketCoverageDiagnostics(rows: ProviderAgnosticScheduleRow[], providerResults: ScheduleProviderAdapterResult[], searchRequests: ReturnType<typeof supplementalSearchRequests>, normalizedSchedulesCached: number): MarketCoverageDiagnostics {
+  const totalRows = rows.length || 1
+  const airportsCovered = uniqueStrings(rows.flatMap((row) => [row.origin, row.destination])).sort()
+  const carriersCovered = uniqueStrings(rows.map((row) => row.airline || row.carrier)).sort()
+  const allAirports = uniqueStrings(providerResults.flatMap((result) => result.rows.flatMap((row) => [row.origin, row.destination]))).sort()
+  const allCarriers = uniqueStrings(providerResults.flatMap((result) => result.rows.map((row) => row.airline || row.carrier))).sort()
+  const providerContributionPercent = Object.fromEntries(providerResults.map((result) => [result.provider, Math.round((result.rows.length / totalRows) * 10000) / 100]))
+  const providerCoveragePercent = Object.fromEntries(providerResults.map((result) => {
+    const providerAirports = uniqueStrings(result.rows.flatMap((row) => [row.origin, row.destination]))
+    const providerCarriers = uniqueStrings(result.rows.map((row) => row.airline || row.carrier))
+    const airportCoverage = allAirports.length ? providerAirports.length / allAirports.length : result.rows.length ? 1 : 0
+    const carrierCoverage = allCarriers.length ? providerCarriers.length / allCarriers.length : result.rows.length ? 1 : 0
+    return [result.provider, Math.round(((airportCoverage + carrierCoverage) / 2) * 10000) / 100]
+  }))
+  const scheduleFreshness = Object.fromEntries(providerResults.map((result) => [result.provider, {
+    newestSourceCheckedAt: result.health.freshness.newestSourceCheckedAt,
+    oldestSourceCheckedAt: result.health.freshness.oldestSourceCheckedAt,
+    freshnessHours: freshnessHours(result.health.freshness.newestSourceCheckedAt)
+  }]))
+  const missingCoverage = uniqueMessages([
+    ...providerResults.flatMap((result) => result.coverage.missingDataReason ? [`${result.provider}: ${result.coverage.missingDataReason}`] : []),
+    ...providerResults.flatMap((result) => result.status !== 'success' ? [`${result.provider}: ${result.warning || result.detail || 'provider did not return successful schedule coverage'}`] : [])
+  ])
+  return {
+    providerContributionPercent,
+    providerCoveragePercent,
+    airportsCovered,
+    carriersCovered,
+    scheduleFreshness,
+    missingCoverage,
+    supplementRequests: searchRequests.map((entry) => ({ scope: entry.scope, origin: entry.request.origin, destination: entry.request.destination, carrier: entry.request.carrier })),
+    supplementReason: searchRequests.length > 1 ? 'Requested market was supplemented with origin departures, destination arrivals, and hub markets to improve regional, secondary-international, mixed-carrier, overnight, and multi-alliance itinerary discovery.' : 'Only the requested market was searched because origin or destination was unavailable.',
+    normalizedSchedulesCached
+  }
 }
 
 function canonicalProviderAdapter(options: {
@@ -153,17 +328,22 @@ export function createMockScheduleProvider(results: NormalizedScheduleResult[] =
 export function createDefaultScheduleProviderRegistry(providers: UnifiedScheduleProvider[] = [
   createSupabaseCacheScheduleProvider(),
   liveProviderAdapter(createFlightAwareScheduleProvider(), 20),
-  liveProviderAdapter(createAviationstackScheduleProvider(), 30)
+  liveProviderAdapter(createAviationstackScheduleProvider(), 30),
+  liveProviderAdapter(createAmadeusScheduleProvider(), 40),
+  liveProviderAdapter(createCiriumOagScheduleProvider(), 50)
 ]): ScheduleProviderRegistry {
   const sortedProviders = [...providers].sort((a, b) => a.priority - b.priority)
   return {
     providers: sortedProviders,
     providerKeys: () => sortedProviders.map((provider) => provider.key),
     async searchSchedules(request) {
-      const providerResults = await Promise.all(sortedProviders.map((provider) => runScheduleProviderAdapter(provider, request)))
+      const searchRequests = supplementalSearchRequests(request)
+      const providerResults = aggregateProviderResults(await Promise.all(sortedProviders.flatMap((provider) => searchRequests.map((entry) => runScheduleProviderAdapter(provider, entry.request)))))
       const rows = mergeDuplicateScheduleRows(providerResults.flatMap((result) => result.rows))
+      const cacheResult = await createProviderResultRepository().storeNormalizedResults(rows.map(rowToNormalizedResult))
       const comparison = compareScheduleProviders(providerResults)
       const coverageReport = buildScheduleProviderCoverageReport(rows, providerResults)
+      const marketCoverage = buildMarketCoverageDiagnostics(rows, providerResults, searchRequests, cacheResult.stored)
       return {
         rows,
         providerResults,
@@ -172,8 +352,9 @@ export function createDefaultScheduleProviderRegistry(providers: UnifiedSchedule
         providerDiagnostics: providerResults.map((result) => result.diagnostics),
         comparison,
         coverageReport,
+        marketCoverage,
         warnings: uniqueMessages(providerResults.map((result) => result.warning)),
-        detail: providerResults.map((result) => `${result.provider}: ${result.detail || result.status}`).join(' · ')
+        detail: `${providerResults.map((result) => `${result.provider}: ${result.detail || result.status}`).join(' · ')} · ${cacheResult.detail}`
       }
     }
   }

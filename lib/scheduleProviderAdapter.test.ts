@@ -178,7 +178,43 @@ describe('schedule provider adapter', () => {
     assert.equal(result.rows.length, 0)
     assert.equal(result.providerCoverage[0].status, 'empty')
     assert.equal(result.providerDiagnostics[0].itineraryCount, 0)
-    assert.deepEqual(result.providerDiagnostics[0].airportsSearched, ['SBP', 'LAX'])
+    assert.ok(result.providerDiagnostics[0].airportsSearched.includes('SBP'))
+    assert.ok(result.providerDiagnostics[0].airportsSearched.includes('LAX'))
     assert.deepEqual(result.providerDiagnostics[0].carriersSearched, ['UA'])
+    assert.ok(result.marketCoverage.supplementRequests.some((request) => request.scope === 'origin-departures'))
+    assert.ok(result.marketCoverage.missingCoverage.some((message) => message.includes('empty-provider')))
+  })
+
+  it('supplements incomplete market coverage and exposes contribution, coverage, freshness, airports, carriers, and cache diagnostics', async () => {
+    const primaryOnlyExact = canonicalTestProvider('primary-exact', [{ ...normalized, source: 'primary-exact', origin: 'SBP', destination: 'SFO' }], 1)
+    const supplementalHubProvider = {
+      ...canonicalTestProvider('supplemental-hub', [], 2),
+      async searchSchedules(request) {
+        if (request.origin === 'SFO' && request.destination === 'HND') {
+          return {
+            results: [{ ...normalized, source: 'supplemental-hub', carrier: 'ANA', flightNumber: 'NH7', origin: 'SFO', destination: 'HND', departureTime: '2026-07-04T16:00:00Z', arrivalTime: '2026-07-05T04:00:00Z', sourceCheckedAt: '2026-07-04T11:10:00Z' }],
+            requestCount: 1,
+            status: 'success' as const,
+            detail: 'Hub supplement returned.'
+          }
+        }
+        return { results: [], requestCount: 1, status: 'skipped' as const, detail: 'No rows for this market.' }
+      }
+    }
+    const registry = createDefaultScheduleProviderRegistry([primaryOnlyExact, supplementalHubProvider])
+
+    const result = await registry.searchSchedules({ origin: 'SBP', destination: 'HND', date: '2026-07-04', carrier: 'all' })
+
+    assert.equal(result.rows.length, 2)
+    assert.ok(result.rows.some((row) => row.origin === 'SBP' && row.destination === 'SFO'))
+    assert.ok(result.rows.some((row) => row.origin === 'SFO' && row.destination === 'HND'))
+    assert.ok(result.marketCoverage.supplementRequests.some((request) => request.scope === 'origin-to-hub:SFO'))
+    assert.ok(result.marketCoverage.supplementRequests.some((request) => request.scope === 'hub-to-destination:SFO'))
+    assert.ok(result.marketCoverage.providerContributionPercent['primary-exact'] > 0)
+    assert.ok(result.marketCoverage.providerCoveragePercent['supplemental-hub'] > 0)
+    assert.deepEqual(result.marketCoverage.airportsCovered, ['HND', 'SBP', 'SFO'])
+    assert.ok(result.marketCoverage.carriersCovered.includes('ANA'))
+    assert.equal(result.marketCoverage.scheduleFreshness['supplemental-hub'].newestSourceCheckedAt, '2026-07-04T11:10:00Z')
+    assert.equal(result.marketCoverage.normalizedSchedulesCached, 2)
   })
 })

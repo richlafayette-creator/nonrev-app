@@ -69,8 +69,58 @@ describe('core itinerary engine exhaustive discovery', () => {
     assert.deepEqual(report.duplicateItineraries, [])
     assert.ok(report.flightsExamined >= flights.length)
     assert.ok(report.legalConnectionsFound >= 3)
+    assert.ok(report.airportsExplored.includes('SBP'))
+    assert.ok(report.edgesExplored >= 3)
+    assert.equal(report.completeItinerariesFound, 3)
+    assert.ok(report.itinerariesFiltered >= 1)
+    assert.ok(report.providerContribution.flightaware.flightLegs >= 1)
+    assert.ok(report.searchDurationMs >= 0)
     assert.ok(report.discardedConnections.some((entry) => entry.includes('JL900')))
     assert.ok(report.discardedItineraries.some((item) => item.route === 'SBP → PHX' && item.reason.includes('No legal onward connection')))
+  })
+
+  it('honors configurable connection windows, airline restrictions, alliance preference metadata, and airport blacklist', () => {
+    const baseline = validateRoutingEngineCoverage(flights, request({ origin: 'SBP', destination: 'HND' }), {
+      expectedItineraries: ['SBP → LAX → NRT → HND', 'SBP → SEA → HND', 'SBP → SFO → HND'],
+      minimumConnectionMinutes: 35,
+      maximumConnectionMinutes: 24 * 60,
+      maxLegs: 3,
+      alliancePreference: 'oneworld'
+    })
+    assert.equal(baseline.routingCoveragePercentage, 100)
+
+    const noSea = validateRoutingEngineCoverage(flights, request({ origin: 'SBP', destination: 'HND' }), {
+      expectedItineraries: ['SBP → LAX → NRT → HND', 'SBP → SFO → HND'],
+      airportBlacklist: ['SEA']
+    })
+    assert.deepEqual(noSea.missingItineraries, [])
+    assert.ok(!noSea.discoveredItineraries.includes('SBP → SEA → HND'))
+
+    const alaskaOnly = buildAllItinerariesFromFlights(flights, request({ origin: 'SBP', destination: 'HND' }), {}, { airlineRestrictions: ['AS', 'Alaska', 'JL'] })
+    assert.deepEqual(alaskaOnly.map((itinerary) => itinerary.route), ['SBP → SFO → HND'])
+  })
+
+  it('covers dense international, small regional, disconnected, mixed-carrier, circular-prevention, and duplicate-merge scenarios', () => {
+    const denseFlights = [
+      ...flights,
+      { id: 'sbp-lax-dupe', flight_number: 'UA501', origin: 'SBP', destination: 'LAX', departure_time: '2026-07-10T13:00:00Z', arrival_time: '2026-07-10T14:05:00Z', carrier: 'United', source_provider: 'aviationstack' },
+      { id: 'lax-cdg', flight_number: 'AF65', origin: 'LAX', destination: 'CDG', departure_time: '2026-07-10T17:30:00Z', arrival_time: '2026-07-11T06:30:00Z', carrier: 'Air France', source_provider: 'flightaware' },
+      { id: 'cdg-hnd', flight_number: 'JL46', origin: 'CDG', destination: 'HND', departure_time: '2026-07-11T09:00:00Z', arrival_time: '2026-07-11T20:00:00Z', carrier: 'Japan Airlines', source_provider: 'aviationstack' },
+      { id: 'lax-sbp-cycle', flight_number: 'UA502', origin: 'LAX', destination: 'SBP', departure_time: '2026-07-10T15:00:00Z', arrival_time: '2026-07-10T16:00:00Z', carrier: 'United', source_provider: 'flightaware' },
+      { id: 'xyz-abc', flight_number: 'ZZ1', origin: 'XYZ', destination: 'ABC', departure_time: '2026-07-10T10:00:00Z', arrival_time: '2026-07-10T11:00:00Z', carrier: 'Disconnected Air', source_provider: 'supabase' }
+    ]
+    const report = validateRoutingEngineCoverage(denseFlights, request({ origin: 'SBP', destination: 'HND' }), {
+      expectedItineraries: ['SBP → LAX → CDG → HND', 'SBP → LAX → NRT → HND', 'SBP → SEA → HND', 'SBP → SFO → HND']
+    })
+    const disconnected = validateRoutingEngineCoverage(denseFlights, request({ origin: 'SBP', destination: 'ABC' }), { expectedItineraries: [] })
+
+    assert.equal(report.routingCoveragePercentage, 100)
+    assert.ok(report.discoveredItineraries.includes('SBP → LAX → CDG → HND'))
+    assert.ok(report.discoveredItineraries.includes('SBP → SEA → HND'))
+    assert.ok(report.duplicateMerges >= 1)
+    assert.ok(report.discardedItineraries.some((item) => item.reason.includes('Cycle prevented')))
+    assert.equal(disconnected.completeItinerariesFound, 0)
+    assert.ok(disconnected.itinerariesFiltered > 0)
   })
 
   it('covers simple domestic, domestic plus international hub, 2-stop international, alliance, codeshare, secondary-airport, and multiple-routing searches', () => {

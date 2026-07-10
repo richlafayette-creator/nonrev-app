@@ -49,6 +49,10 @@ export type ItineraryLeg = {
   dataFreshness?: 'live' | 'cached' | 'stored' | 'demo' | 'inferred' | 'unavailable'
   dataTrust?: 'live' | 'cached' | 'stored' | 'demo' | 'inferred' | 'unavailable'
   duplicateCount?: number
+  providers?: string[]
+  confidence?: number
+  coverageStatus?: string
+  missingDataReason?: string
 }
 
 export type ItineraryResult = {
@@ -128,6 +132,7 @@ export type ItineraryResult = {
   providerCoverage?: ItineraryProviderCoverage
   confidence?: ItineraryDiscoveryConfidence
   missingProviders?: string[]
+  missingDataReason?: string
   whyIncluded?: string[]
   discoveryLog?: string[]
   exclusionLog?: string[]
@@ -1296,7 +1301,11 @@ export function normalizeFlightLeg(flight: Record<string, unknown>, enrichment?:
     dataSource: sourceProvider,
     dataFreshness: dataTrust,
     dataTrust,
-    duplicateCount: numberFrom(flight, ['duplicate_count'], 0)
+    duplicateCount: numberFrom(flight, ['duplicate_count'], 0),
+    providers: stringArrayFrom(valueFrom(flight, ['providers', 'schedule_sources'])),
+    confidence: numberFrom(flight, ['confidence'], 0),
+    coverageStatus: valueFrom(flight, ['coverage_status']) || undefined,
+    missingDataReason: valueFrom(flight, ['missing_data_reason']) || undefined
   }
 }
 
@@ -1496,7 +1505,7 @@ function discoveryConfidenceFor(itinerary: ItineraryResult, providers: string[])
 }
 
 function annotateDiscoveredItinerary(itinerary: ItineraryResult, graph: CanonicalItineraryGraph, request: ParsedItineraryRequest, why: string): ItineraryResult {
-  const providers = [...new Set(itinerary.legs.map((leg) => providerKey(leg.sourceProvider || leg.source || leg.dataSource)).filter(Boolean))]
+  const providers = [...new Set(itinerary.legs.flatMap((leg) => leg.providers?.length ? leg.providers.map(providerKey) : [providerKey(leg.sourceProvider || leg.source || leg.dataSource)]).filter(Boolean))]
   const missingProviders = supportedScheduleProviders.filter((provider) => !providers.includes(provider))
   const providerCoverage = {
     providers,
@@ -1523,6 +1532,7 @@ function annotateDiscoveredItinerary(itinerary: ItineraryResult, graph: Canonica
     providerCoverage,
     confidence: discoveryConfidenceFor(itinerary, providers),
     missingProviders,
+    missingDataReason: itinerary.legs.map((leg) => leg.missingDataReason).find(Boolean) || (missingProviders.length ? `Missing schedule coverage from ${missingProviders.join(', ')}.` : undefined),
     whyIncluded: [why, ...connectionReasons, request.maxLegs ? `Within requested max legs: ${request.maxLegs}.` : 'Within default max legs.'],
     discoveryLog: graph.discoveryLog.filter((entry) => itinerary.legs.some((leg) => entry.includes(leg.flightNumber) || entry.includes(leg.operatingFlightNumber || ''))).slice(0, 25),
     exclusionLog: graph.exclusionLog.slice(0, 25)
@@ -1572,7 +1582,8 @@ function itineraryFromLegs(legs: ItineraryLeg[]): ItineraryResult {
     dataSource: [...new Set(legs.map((leg) => leg.dataSource || leg.sourceProvider || leg.source))].join(' + '),
     dataFreshness: dataTrust,
     dataTrust,
-    duplicateCount: legs.reduce((total, leg) => total + (leg.duplicateCount || 0), 0)
+    duplicateCount: legs.reduce((total, leg) => total + (leg.duplicateCount || 0), 0),
+    missingDataReason: legs.map((leg) => leg.missingDataReason).find(Boolean)
   }
 }
 

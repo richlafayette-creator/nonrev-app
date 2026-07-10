@@ -3,6 +3,8 @@ import { airportScaffoldFor } from '../../../../lib/airportMapScaffold'
 import { buildAllItinerariesFromFlights, closestAvailableFlightDates, flightMatchesRequest, normalizeFlightRouteForDiagnostics, normalizeItineraryRequest, summarizeRouteMatching, validateRoutingEngineCoverage, type ItineraryResult, type ParsedItineraryRequest, type RouteMatchingSummary, type RoutingValidationReport } from '../../../../lib/itinerarySearch'
 import { mvpRouteSeedDate, mvpRouteSeedFlightsForRequest } from '../../../../lib/mvpRouteSeedData'
 import { createAviationstackScheduleProvider, createFlightAwareScheduleProvider, getLiveScheduleProviderReadiness, scheduleResultsToFlightRecords, type ScheduleProviderReadiness } from '../../../../lib/liveScheduleProviders'
+import { createDefaultScheduleProviderRegistry, unifiedRowsToFlightRecords } from '../../../../lib/scheduleProviderRegistry'
+import type { ScheduleProviderDiagnostic } from '../../../../lib/scheduleProviderAdapter'
 import { createProviderResultRepository, providerResultTableName, type ProviderCacheLookupResult, type ProviderResultRecord } from '../../../../lib/providerResultRepository'
 import { applyRouteCoverageLookupResult, buildRouteCoverageFallbackSuggestions, destinationAirportGroup, positioningHubsForOrigin, type RouteCoverageLookupStatus, type RouteCoverageSuggestion } from '../../../../lib/routeCoverageFallback'
 import { enforceItineraryEndpointIntegrity, enforceItineraryListEndpointIntegrity } from '../../../../lib/itineraryIntegrity'
@@ -181,6 +183,7 @@ type ItineraryDebugMetadata = {
   dataFreshnessExplanation: string[]
   scheduleProviderReadiness: ScheduleProviderReadiness[]
   providerDiagnostics: StructuredProviderDiagnostic[]
+  scheduleProviderDiagnostics?: ScheduleProviderDiagnostic[]
   safeErrors: string[]
   deduplicationNotes: string[]
   deduplicatedRowsRemoved: number
@@ -1338,12 +1341,13 @@ function expandedScheduleSegmentsForRequest(request: ReturnType<typeof normalize
 }
 
 async function fetchExpandedScheduleFlights(request: ReturnType<typeof normalizeItineraryRequest>) {
-  const providerCache = createProviderResultRepository()
+  const registry = createDefaultScheduleProviderRegistry()
   const segments = expandedScheduleSegmentsForRequest(request)
   const warnings: string[] = []
   const emptyResults: string[] = []
   const rateLimits: string[] = []
   const providerStatuses: ProviderStatus[] = []
+  const providerDiagnostics: ScheduleProviderDiagnostic[] = []
   const flights: FlightRecord[] = []
   let providerCacheFetched = 0
   let flightAwareRequests = 0
@@ -1353,41 +1357,33 @@ async function fetchExpandedScheduleFlights(request: ReturnType<typeof normalize
 
   for (const segment of segments) {
     const segmentRequest = { ...request, origin: segment.origin, destination: segment.destination }
-    const cached = await providerCache.findCachedResults({
+    const providerSearch = await registry.searchSchedules({
       origin: segment.origin,
       destination: segment.destination,
       date: request.date,
       carrier: request.carrier,
-      maxAgeHours: 72,
-      limit: 500
+      maxResults: 250
     })
-    const cachedFlights = providerCacheRecordsToFlightRecords(cached.records)
-    if (cachedFlights.length) {
-      providerCacheFetched += cachedFlights.length
-      flights.push(...cachedFlights)
-    }
+    providerDiagnostics.push(...providerSearch.providerDiagnostics)
+    warnings.push(...providerSearch.warnings)
+    providerSearch.warnings.forEach((warning) => {
+      const limit = rateLimitMessage(/aviationstack/i.test(warning) ? 'Aviationstack' : 'FlightAware', undefined, warning)
+      if (limit) rateLimits.push(limit)
+    })
+    if (!providerSearch.rows.length) emptyResults.push(`Canonical schedule providers returned no usable rows for ${segment.origin} → ${segment.destination}.`)
+    flights.push(...unifiedRowsToFlightRecords(providerSearch.rows))
 
-    const flightAware = await fetchFlightAwareScheduleFlights(segmentRequest)
-    flightAwareRequests += flightAware.requestCount
-    flightAwareFetched += flightAware.flights.length
-    if (flightAware.warning) {
-      warnings.push(flightAware.warning)
-      const limit = rateLimitMessage('FlightAware', undefined, flightAware.warning)
-      if (limit) rateLimits.push(limit)
+    for (const providerResult of providerSearch.providerResults) {
+      if (providerResult.provider === 'supabase-cache') providerCacheFetched += providerResult.rows.length
+      if (providerResult.provider === 'flightaware') {
+        flightAwareRequests += providerResult.requestCount || 0
+        flightAwareFetched += providerResult.rows.length
+      }
+      if (providerResult.provider === 'aviationstack') {
+        aviationstackRequests += providerResult.requestCount || 0
+        aviationstackFetched += providerResult.rows.length
+      }
     }
-    if (flightAware.flights.length) {
-      flights.push(...flightAware.flights)
-    }
-    if (!flightAware.flights.length) emptyResults.push(`FlightAware returned no usable rows for ${segment.origin} → ${segment.destination}.`)
-    const aviationstack = await fetchAviationstackFlights(segmentRequest)
-    aviationstackRequests += aviationstack.requestCount
-    aviationstackFetched += aviationstack.flights.length
-    if (aviationstack.warning) {
-      warnings.push(aviationstack.warning)
-      const limit = rateLimitMessage('Aviationstack', undefined, aviationstack.warning)
-      if (limit) rateLimits.push(limit)
-    }
-    if (aviationstack.flights.length) flights.push(...aviationstack.flights)
   }
 
   const unique = uniqueFlights(flights)
@@ -1420,6 +1416,7 @@ async function fetchExpandedScheduleFlights(request: ReturnType<typeof normalize
     emptyResults: uniqueMessages(emptyResults),
     rateLimits: uniqueMessages(rateLimits),
     providerStatuses,
+    providerDiagnostics,
     counts: {
       providerCacheFetched,
       flightAwareRequests,
@@ -1589,7 +1586,8 @@ function buildDebugMetadata({
   noResultsExplanation = [],
   itineraryCompletenessDiagnostics,
   originCoverage,
-  routingValidation
+  routingValidation,
+  scheduleProviderDiagnostics
 }: {
   parsedRequest: ReturnType<typeof normalizeItineraryRequest>
   supabaseResultCount: number
@@ -1624,6 +1622,7 @@ function buildDebugMetadata({
   itineraryCompletenessDiagnostics?: ItineraryCompletenessDiagnostics
   originCoverage?: OriginCoverageDiagnostic
   routingValidation?: RoutingValidationReport
+  scheduleProviderDiagnostics?: ScheduleProviderDiagnostic[]
 }): ItineraryDebugMetadata {
   const mergedProviderStatuses = mergeProviderStatuses(providerStatuses)
   const recoveryV2Diagnostics = buildRecoveryV2ServerDiagnostics({
@@ -1673,6 +1672,7 @@ function buildDebugMetadata({
       providerFallbackOrder,
       routeCoverageSuggestions
     }),
+    scheduleProviderDiagnostics,
     safeErrors,
     deduplicationNotes,
     deduplicatedRowsRemoved,
@@ -1878,7 +1878,8 @@ export async function GET(request: Request) {
       deduplicatedRowsRemoved: deduplication.removed,
       normalizedFlightAwareItinerarySample: safeNormalizedItinerarySample(expandedScheduleSearch.topItineraries.find((itinerary) => itinerary.source.includes('flightaware')) || expandedScheduleSearch.topItineraries[0]),
       itineraryCompletenessDiagnostics: expandedScheduleSearch.completeness,
-      routingValidation
+      routingValidation,
+      scheduleProviderDiagnostics: expandedScheduleSearch.providerDiagnostics
     })
 
     return NextResponse.json({

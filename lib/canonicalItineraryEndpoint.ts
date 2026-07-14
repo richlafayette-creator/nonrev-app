@@ -16,9 +16,35 @@ export type EndpointConsistencyDiagnostics = {
   itineraryCount: number
 }
 
+export type ItineraryCoverageTrustDiagnostics = {
+  resolvedOrigin?: string
+  resolvedDestination?: string
+  resolvedTravelDate?: string
+  providersQueried: string[]
+  providerSuccesses: string[]
+  providerFailures: Array<{ provider: string; reason: string }>
+  cacheHits: string[]
+  cacheMisses: string[]
+  flightsReceivedFromEachProvider: Record<string, number>
+  uniqueFlightsAfterNormalization: number
+  airportsExplored: string[]
+  graphEdgesExplored: number
+  validConnectionsFound: number
+  itinerariesAssembled: number
+  itinerariesExcluded: number
+  exactExclusionReasons: Array<{ route: string; reason: string }>
+  duplicateItinerariesMerged: number
+  searchDurationMs: number
+  dataFreshness: UnifiedScheduleSearchResult['marketCoverage']['scheduleFreshness']
+  knownMarketGaps: string[]
+  resultSetCompleteness: 'complete' | 'partial' | 'indeterminate'
+  conciseStatus: string
+}
+
 export type CanonicalItineraryEndpointDebug = {
   endpointConsistency: EndpointConsistencyDiagnostics
   routingValidation: RoutingValidationReport
+  coverageTrust: ItineraryCoverageTrustDiagnostics
   providerRegistry: {
     providersConfigured: string[]
     providersUsed: string[]
@@ -50,10 +76,12 @@ export type CanonicalItineraryEndpointResponse = {
   source_provider: string
   source_checked_at?: string
   statusMessage: string
+  resultSetCompleteness: 'complete' | 'partial' | 'indeterminate'
+  coverageStatus: string
   enrichedWithFlightAware: boolean
   providerBadges: string[]
   warnings: string[]
-  debug: CanonicalItineraryEndpointDebug
+  debug?: CanonicalItineraryEndpointDebug
   count: number
   scheduledFlightLegCount: number
   itineraries: ItineraryResult[]
@@ -91,6 +119,57 @@ function dataModeFor(providersUsed: string[]) {
   if (providersUsed.some((provider) => provider.includes('flightaware') || provider.includes('aviationstack'))) return 'live'
   if (providersUsed.some((provider) => provider.includes('cache') || provider.includes('supabase'))) return 'provider-cache'
   return 'no-current-live-data'
+}
+
+
+function coverageTrustDiagnostics(search: UnifiedScheduleSearchResult, parsedRequest: ParsedItineraryRequest, routingValidation: RoutingValidationReport, itineraries: ItineraryResult[]): ItineraryCoverageTrustDiagnostics {
+  const providerSuccesses = search.providerResults.filter((result) => result.status === 'success').map((result) => result.provider)
+  const providerFailures = search.providerResults
+    .filter((result) => result.status === 'error' || result.warning)
+    .map((result) => ({ provider: result.provider, reason: result.warning || result.detail || 'provider did not return successful coverage' }))
+  const cacheHits = search.providerDiagnostics.filter((diagnostic) => diagnostic.cacheStatus === 'hit').map((diagnostic) => diagnostic.providerUsed)
+  const cacheMisses = search.providerDiagnostics.filter((diagnostic) => diagnostic.cacheStatus === 'miss').map((diagnostic) => diagnostic.providerUsed)
+  const knownMarketGaps = uniqueMessages([...search.coverageReport.knownDataGaps, ...search.marketCoverage.missingCoverage])
+  const resultSetCompleteness: ItineraryCoverageTrustDiagnostics['resultSetCompleteness'] = knownMarketGaps.length || providerFailures.length || routingValidation.safetyCapHit
+    ? itineraries.length ? 'partial' : 'indeterminate'
+    : 'complete'
+  const usesCache = cacheHits.length > 0 || itineraries.some((itinerary) => /cache|supabase/i.test(itinerary.source))
+  const liveLoadUnavailable = 'Itinerary complete; standby load data unavailable'
+  const conciseStatus = !itineraries.length
+    ? 'No itinerary found in currently available provider data'
+    : resultSetCompleteness === 'complete'
+      ? 'Comprehensive schedule coverage confirmed'
+      : usesCache
+        ? 'Cached schedule data'
+        : providerFailures.length === search.providerResults.length && search.providerResults.length > 0
+          ? 'Provider unavailable'
+          : knownMarketGaps.length
+            ? 'Partial schedule coverage'
+            : liveLoadUnavailable
+  return {
+    resolvedOrigin: parsedRequest.origin,
+    resolvedDestination: parsedRequest.destination,
+    resolvedTravelDate: parsedRequest.date,
+    providersQueried: search.providerResults.map((result) => result.provider),
+    providerSuccesses,
+    providerFailures,
+    cacheHits,
+    cacheMisses,
+    flightsReceivedFromEachProvider: Object.fromEntries(search.providerResults.map((result) => [result.provider, result.rows.length])),
+    uniqueFlightsAfterNormalization: search.rows.length,
+    airportsExplored: routingValidation.airportsExplored,
+    graphEdgesExplored: routingValidation.edgesExplored,
+    validConnectionsFound: routingValidation.legalConnectionsFound,
+    itinerariesAssembled: itineraries.length,
+    itinerariesExcluded: routingValidation.itinerariesFiltered,
+    exactExclusionReasons: routingValidation.discardedItineraries,
+    duplicateItinerariesMerged: routingValidation.duplicateMerges,
+    searchDurationMs: routingValidation.searchDurationMs,
+    dataFreshness: search.marketCoverage.scheduleFreshness,
+    knownMarketGaps,
+    resultSetCompleteness,
+    conciseStatus
+  }
 }
 
 export async function runCanonicalItineraryEndpoint(options: CanonicalItineraryEndpointOptions): Promise<CanonicalItineraryEndpointResponse> {
@@ -164,6 +243,8 @@ export async function runCanonicalItineraryEndpoint(options: CanonicalItineraryE
   }
   const routeMatching = summarizeRouteMatching(flights, parsedRequest)
   const trueLiveDataAvailable = itineraries.some((itinerary) => /flightaware|aviationstack/i.test(itinerary.source))
+  const coverageTrust = coverageTrustDiagnostics(search, parsedRequest, routingValidation, itineraries)
+  const debugEnabled = booleanParam(options.searchParams, 'debug') || process.env.NODE_ENV !== 'production'
 
   return {
     ok: true,
@@ -173,11 +254,13 @@ export async function runCanonicalItineraryEndpoint(options: CanonicalItineraryE
     dataMode: dataModeFor(providersUsed),
     source_provider: 'provider-registry',
     source_checked_at: sourceCheckedAt(itineraries),
-    statusMessage: `${itineraries.length} complete itinerary${itineraries.length === 1 ? '' : 'ies'} assembled by ${routingEngineVersion} from ${flights.length} canonical schedule leg${flights.length === 1 ? '' : 's'}.`,
+    statusMessage: coverageTrust.conciseStatus,
+    resultSetCompleteness: coverageTrust.resultSetCompleteness,
+    coverageStatus: coverageTrust.conciseStatus,
     enrichedWithFlightAware: providersUsed.some((provider) => provider.includes('flightaware')),
     providerBadges: providersUsed.length ? providersUsed : registry.providerKeys(),
     warnings,
-    debug: {
+    debug: debugEnabled ? {
       endpointConsistency,
       routingValidation,
       apiResponseCounts,
@@ -197,6 +280,7 @@ export async function runCanonicalItineraryEndpoint(options: CanonicalItineraryE
       deduplicationNotes: search.rows.some((row) => row.duplicate_count) ? [`Canonical duplicate merging removed ${search.rows.reduce((total, row) => total + (row.duplicate_count || 0), 0)} duplicate provider row${search.rows.reduce((total, row) => total + (row.duplicate_count || 0), 0) === 1 ? '' : 's'}.`] : [],
       deduplicatedRowsRemoved: search.rows.reduce((total, row) => total + (row.duplicate_count || 0), 0),
       normalizedFlightAwareItinerarySample: undefined,
+      coverageTrust,
       providerRegistry: {
         providersConfigured: registry.providerKeys(),
         providersUsed,
@@ -216,7 +300,7 @@ export async function runCanonicalItineraryEndpoint(options: CanonicalItineraryE
         duplicateRowsMerged: search.rows.reduce((total, row) => total + (row.duplicate_count || 0), 0),
         duplicateItinerariesMerged: routingValidation.duplicateMerges
       }
-    },
+    } : undefined,
     count: itineraries.length,
     scheduledFlightLegCount: flights.length,
     itineraries

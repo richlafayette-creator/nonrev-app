@@ -62,8 +62,31 @@ describe('canonical itinerary endpoint pipeline', () => {
     assert.equal(first.debug.endpointConsistency.routingEngineVersion, routingEngineVersion)
     assert.equal(first.debug.endpointConsistency.graphSize.flightLegs, 2)
     assert.equal(first.debug.endpointConsistency.itineraryCount, 1)
+    assert.equal(first.debug.coverageTrust.resolvedOrigin, 'SBP')
+    assert.equal(first.debug.coverageTrust.resolvedDestination, 'HND')
+    assert.equal(first.debug.coverageTrust.uniqueFlightsAfterNormalization, 2)
+    assert.equal(first.debug.coverageTrust.itinerariesAssembled, 1)
+    assert.equal(first.debug.coverageTrust.resultSetCompleteness, 'partial')
+    assert.equal(first.coverageStatus, 'Partial schedule coverage')
     assert.equal(first.debug.duplicateMerging.duplicateRowsMerged, 1)
     assert.deepEqual(first.debug.duplicateMerging, second.debug.duplicateMerging)
     assert.deepEqual(comparableDiagnostics(first), comparableDiagnostics(second))
+  })
+
+  it('keeps detailed diagnostics out of normal production responses unless debug mode is requested', async () => {
+    const originalNodeEnv = process.env.NODE_ENV
+    process.env.NODE_ENV = 'production'
+    try {
+      const normal = await runCanonicalItineraryEndpoint({ endpoint: 'GET /api/itinerary/search', registry: registry(), searchParams: params() })
+      const debugParams = params()
+      debugParams.set('debug', '1')
+      const debug = await runCanonicalItineraryEndpoint({ endpoint: 'GET /api/itinerary/search', registry: registry(), searchParams: debugParams })
+
+      assert.equal(normal.debug, undefined)
+      assert.ok(normal.coverageStatus)
+      assert.ok(debug.debug?.coverageTrust.providersQueried.includes('mock-a'))
+    } finally {
+      process.env.NODE_ENV = originalNodeEnv
+    }
   })
 })

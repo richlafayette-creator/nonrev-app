@@ -63,6 +63,20 @@ export type ProviderAgnosticScheduleRow = {
   marketing_flight_numbers: string[]
   codeshare_relationships: string[]
   duplicate_count: number
+  marketing_airline: string
+  operating_airline: string
+  marketing_flight_number: string
+  departure_timezone?: string
+  arrival_timezone?: string
+  operating_date?: string
+  arrival_operating_date?: string
+  departure_terminal?: string
+  arrival_terminal?: string
+  codeshare_identity?: string
+  provider_record_id?: string
+  retrieval_timestamp: string
+  data_freshness: string
+  data_status: string
 }
 
 export type ScheduleProviderSearchRequest = {
@@ -141,18 +155,23 @@ function confidenceForResult(result: NormalizedScheduleResult) {
   return Math.max(30, Math.min(98, 54 + (hasTimes ? 22 : 0) + (liveProvider ? 14 : 0) - (cached ? 6 : 0)))
 }
 
+export function validateNormalizedScheduleResult(result: NormalizedScheduleResult) {
+  const missing = [
+    !result.flightNumber || result.flightNumber === 'Flight TBD' ? 'flight number' : undefined,
+    !result.origin || result.origin === 'TBD' ? 'origin' : undefined,
+    !result.destination || result.destination === 'TBD' ? 'destination' : undefined,
+    !Number.isFinite(Date.parse(result.departureTime)) ? 'departure time' : undefined,
+    !Number.isFinite(Date.parse(result.arrivalTime)) ? 'arrival time' : undefined
+  ].filter((value): value is string => Boolean(value))
+  return { valid: missing.length === 0, missing }
+}
+
 function rowCoverageStatus(result: NormalizedScheduleResult): ScheduleProviderCoverageStatus {
-  if (!result.origin || !result.destination || result.origin === 'TBD' || result.destination === 'TBD') return 'partial'
-  if (!Number.isFinite(Date.parse(result.departureTime)) || !Number.isFinite(Date.parse(result.arrivalTime))) return 'partial'
-  return 'covered'
+  return validateNormalizedScheduleResult(result).valid ? 'covered' : 'partial'
 }
 
 function missingDataReason(result: NormalizedScheduleResult) {
-  const missing: string[] = []
-  if (!result.origin || result.origin === 'TBD') missing.push('origin')
-  if (!result.destination || result.destination === 'TBD') missing.push('destination')
-  if (!Number.isFinite(Date.parse(result.departureTime))) missing.push('departure time')
-  if (!Number.isFinite(Date.parse(result.arrivalTime))) missing.push('arrival time')
+  const missing = validateNormalizedScheduleResult(result).missing
   return missing.length ? `Provider row missing ${missing.join(', ')}.` : undefined
 }
 
@@ -198,15 +217,40 @@ export function providerScheduleRowFromResult(result: NormalizedScheduleResult, 
     missing_data_reason: missingDataReason(result),
     operating_carrier: result.operatingCarrier || result.carrier,
     operating_flight_number: result.operatingFlightNumber || result.flightNumber,
-    marketing_carrier: airlineCode(result.flightNumber) || result.carrier,
+    marketing_carrier: airlineCode(result.marketingFlightNumber || result.flightNumber) || result.carrier,
     marketing_flight_numbers: result.marketingFlightNumbers || [],
     codeshare_relationships: codeshareRelationships(result),
-    duplicate_count: result.duplicateCount || 0
+    duplicate_count: result.duplicateCount || 0,
+    marketing_airline: result.marketingAirline || result.carrier,
+    operating_airline: result.operatingAirline || result.operatingCarrier || result.carrier,
+    marketing_flight_number: result.marketingFlightNumber || result.flightNumber,
+    departure_timezone: result.departureTimeZone,
+    arrival_timezone: result.arrivalTimeZone,
+    operating_date: result.operatingDate,
+    arrival_operating_date: result.arrivalOperatingDate,
+    departure_terminal: result.departureTerminal,
+    arrival_terminal: result.arrivalTerminal,
+    codeshare_identity: result.codeshareIdentity || codeshareRelationships(result)[0],
+    provider_record_id: result.providerRecordId || providerRowId(result),
+    retrieval_timestamp: result.retrievalTimestamp || result.sourceCheckedAt || checkedAt,
+    data_freshness: result.dataFreshness || 'unavailable',
+    data_status: result.dataStatus || (/flightaware|aviationstack/i.test(result.source) ? 'live' : /cache|supabase|stored/i.test(result.source) ? 'cached' : /mock|demo/i.test(result.source) ? 'demo' : 'scheduled')
   }
 }
 
+export function quarantineMalformedScheduleResults(results: NormalizedScheduleResult[]) {
+  const valid: NormalizedScheduleResult[] = []
+  const quarantined: Array<{ result: NormalizedScheduleResult; reason: string }> = []
+  results.forEach((result) => {
+    const validation = validateNormalizedScheduleResult(result)
+    if (validation.valid) valid.push(result)
+    else quarantined.push({ result, reason: `Provider row quarantined: missing ${validation.missing.join(', ')}.` })
+  })
+  return { valid, quarantined }
+}
+
 export function providerScheduleRowsFromResults(results: NormalizedScheduleResult[], checkedAt = new Date().toISOString()): ProviderAgnosticScheduleRow[] {
-  return results.map((result) => providerScheduleRowFromResult(result, checkedAt))
+  return quarantineMalformedScheduleResults(results).valid.map((result) => providerScheduleRowFromResult(result, checkedAt))
 }
 
 export function defaultScheduleProviderCapabilities(overrides: Partial<ScheduleProviderCapabilities> = {}): ScheduleProviderCapabilities {
@@ -271,15 +315,17 @@ export async function runScheduleProviderAdapter(adapter: ScheduleProviderAdapte
   const startedAt = Date.now()
   try {
     const response = await adapter.searchSchedules(request)
-    const rows = providerScheduleRowsFromResults(response.results, checkedAt)
+    const quarantine = quarantineMalformedScheduleResults(response.results)
+    const rows = quarantine.valid.map((result) => providerScheduleRowFromResult(result, checkedAt))
+    const quarantineWarnings = quarantine.quarantined.map((item) => item.reason)
     const status = response.status || (response.warning ? 'warning' : 'success')
-    const errors = response.warning ? [response.warning] : []
+    const errors = [...(response.warning ? [response.warning] : []), ...quarantineWarnings]
     const responseTimeMs = Date.now() - startedAt
     return {
       provider: adapter.key,
       rows,
-      warning: response.warning,
-      detail: response.detail,
+      warning: uniqueStrings([response.warning, ...quarantineWarnings]).join(' · ') || undefined,
+      detail: quarantineWarnings.length ? `${response.detail || ''} ${quarantineWarnings.length} malformed provider row${quarantineWarnings.length === 1 ? '' : 's'} quarantined.`.trim() : response.detail,
       requestCount: response.requestCount,
       status,
       health: await adapter.health(rows, status, responseTimeMs, errors),

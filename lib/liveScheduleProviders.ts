@@ -9,6 +9,8 @@ export type LiveScheduleProviderKey =
   | 'cirium-oag'
   | 'supabase-schedule-ingestion'
 
+export type ScheduleDataStatus = 'live' | 'cached' | 'scheduled' | 'inferred' | 'demo' | 'unavailable'
+
 export type NormalizedScheduleResult = {
   carrier: string
   flightNumber: string
@@ -23,6 +25,20 @@ export type NormalizedScheduleResult = {
   sourceCheckedAt?: string
   operatingCarrier?: string
   operatingFlightNumber?: string
+  marketingAirline?: string
+  operatingAirline?: string
+  marketingFlightNumber?: string
+  departureTimeZone?: string
+  arrivalTimeZone?: string
+  operatingDate?: string
+  arrivalOperatingDate?: string
+  departureTerminal?: string
+  arrivalTerminal?: string
+  codeshareIdentity?: string
+  providerRecordId?: string
+  retrievalTimestamp?: string
+  dataFreshness?: string
+  dataStatus?: ScheduleDataStatus
   marketingFlightNumbers?: string[]
   duplicateCount?: number
 }
@@ -206,6 +222,17 @@ function scheduleMatchesOriginLocalDate(result: NormalizedScheduleResult, date?:
   return airportLocalDate(result.departureTime, result.origin) === date
 }
 
+function operatingDateFor(value?: string, airportCode?: string) {
+  return airportLocalDate(value, airportCode)
+}
+
+function freshnessLabel(sourceCheckedAt?: string) {
+  const parsed = Date.parse(sourceCheckedAt || '')
+  if (!Number.isFinite(parsed)) return 'unavailable'
+  const hours = Math.max(0, Math.round(((Date.now() - parsed) / 3600000) * 10) / 10)
+  return `${hours}h`
+}
+
 function uniqueMessages(messages: Array<string | undefined>) {
   return [...new Set(messages.filter((message): message is string => Boolean(message?.trim())))]
 }
@@ -360,7 +387,22 @@ export function normalizeAviationstackScheduleResult(flight: AviationstackFlight
     aircraft,
     status: flight.flight_status || 'Unknown',
     source: 'aviationstack',
-    sourceCheckedAt: new Date().toISOString()
+    sourceCheckedAt: new Date().toISOString(),
+    operatingCarrier: flight.airline?.iata || flight.airline?.icao || flight.airline?.name,
+    operatingFlightNumber: flightNumber,
+    marketingAirline: flight.airline?.name || flight.airline?.iata || flight.airline?.icao,
+    operatingAirline: flight.airline?.name || flight.airline?.iata || flight.airline?.icao,
+    marketingFlightNumber: flightNumber,
+    departureTimeZone: flight.departure?.timezone || airportTimeZones[origin],
+    arrivalTimeZone: flight.arrival?.timezone || airportTimeZones[destination],
+    operatingDate: flight.flight_date || operatingDateFor(flight.departure?.scheduled || flight.departure?.estimated || flight.departure?.actual, origin),
+    arrivalOperatingDate: operatingDateFor(flight.arrival?.scheduled || flight.arrival?.estimated || flight.arrival?.actual, destination),
+    departureTerminal: flight.departure?.terminal,
+    arrivalTerminal: flight.arrival?.terminal,
+    providerRecordId: flight.flight?.icao || flight.flight?.iata || flight.flight?.number,
+    retrievalTimestamp: new Date().toISOString(),
+    dataFreshness: freshnessLabel(new Date().toISOString()),
+    dataStatus: 'live'
   }
 }
 
@@ -389,6 +431,18 @@ export function normalizeFlightAwareScheduleResult(flight: FlightAwareSchedule, 
     sourceCheckedAt,
     operatingCarrier: provided(carrier),
     operatingFlightNumber: provided(operatingFlightNumber),
+    marketingAirline: provided(carrier),
+    operatingAirline: provided(carrier),
+    marketingFlightNumber: provided(marketingFlightNumber),
+    departureTimeZone: airportTimeZones[provided(origin)],
+    arrivalTimeZone: airportTimeZones[provided(destination)],
+    operatingDate: operatingDateFor(departureTime, provided(origin)),
+    arrivalOperatingDate: operatingDateFor(arrivalTime, provided(destination)),
+    codeshareIdentity: marketingFlightNumber && operatingFlightNumber && marketingFlightNumber !== operatingFlightNumber ? `${marketingFlightNumber} marketed on ${operatingFlightNumber}` : undefined,
+    providerRecordId: flight.fa_flight_id || flight.ident_icao || flight.ident_iata || flight.ident,
+    retrievalTimestamp: sourceCheckedAt,
+    dataFreshness: freshnessLabel(sourceCheckedAt),
+    dataStatus: 'live',
     marketingFlightNumbers: uniqueMarketingFlights([marketingFlightNumber]).filter((number) => number !== provided(operatingFlightNumber)),
     duplicateCount: 0
   }

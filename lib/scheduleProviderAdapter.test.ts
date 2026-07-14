@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 // @ts-expect-error Node's experimental TypeScript test runner resolves the .ts extension directly.
-import { defaultScheduleProviderCapabilities, defaultScheduleProviderCoverage, defaultScheduleProviderHealth, providerScheduleRowFromResult, providerScheduleRowsFromResults, runScheduleProviderAdapter } from './scheduleProviderAdapter.ts'
+import { defaultScheduleProviderCapabilities, defaultScheduleProviderCoverage, defaultScheduleProviderHealth, providerScheduleRowFromResult, providerScheduleRowsFromResults, quarantineMalformedScheduleResults, runScheduleProviderAdapter } from './scheduleProviderAdapter.ts'
 // @ts-expect-error Node's experimental TypeScript test runner resolves the .ts extension directly.
 import { buildScheduleProviderCoverageReport, compareScheduleProviders, mergeDuplicateScheduleRows } from './scheduleProviderDiagnostics.ts'
 // @ts-expect-error Node's experimental TypeScript test runner resolves the .ts extension directly.
@@ -58,6 +58,11 @@ describe('schedule provider adapter', () => {
     assert.deepEqual(row.marketing_flight_numbers, ['NH7000'])
     assert.deepEqual(row.codeshare_relationships, ['NH7000 marketed on UA100'])
     assert.equal(row.duplicate_count, 2)
+    assert.equal(row.marketing_airline, 'United')
+    assert.equal(row.operating_airline, 'UA')
+    assert.equal(row.marketing_flight_number, 'UA100')
+    assert.equal(row.provider_record_id, 'flightaware-UA100-SBP-LAX-2026-07-04T12:00:00Z')
+    assert.equal(row.data_status, 'live')
     assert.equal(row.coverage_status, 'covered')
     assert.equal(row.missing_data_reason, undefined)
     assert.ok(row.confidence >= 80)
@@ -82,6 +87,21 @@ describe('schedule provider adapter', () => {
 
     assert.equal(row.source_checked_at, '2026-07-04T11:30:00Z')
     assert.equal(row.operating_carrier, 'UA')
+  })
+
+  it('quarantines malformed provider records before they can appear as complete live flights', async () => {
+    const malformed = { ...normalized, flightNumber: 'Flight TBD', departureTime: 'Pending' }
+    const quarantine = quarantineMalformedScheduleResults([normalized, malformed])
+
+    assert.equal(quarantine.valid.length, 1)
+    assert.equal(quarantine.quarantined.length, 1)
+    assert.match(quarantine.quarantined[0].reason, /flight number/)
+    assert.equal(providerScheduleRowsFromResults([malformed]).length, 0)
+
+    const result = await runScheduleProviderAdapter(canonicalTestProvider('malformed-provider', [normalized, malformed]), { origin: 'SBP', destination: 'LAX' })
+    assert.equal(result.rows.length, 1)
+    assert.match(result.detail || '', /malformed provider row/)
+    assert.ok(result.diagnostics.providerFailures.some((failure) => /quarantined/.test(failure)))
   })
 
   it('runs pluggable provider adapters through the full canonical interface', async () => {

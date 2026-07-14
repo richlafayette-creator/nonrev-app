@@ -75,6 +75,8 @@ describe('core itinerary engine exhaustive discovery', () => {
     assert.ok(report.itinerariesFiltered >= 1)
     assert.ok(report.providerContribution.flightaware.flightLegs >= 1)
     assert.ok(report.searchDurationMs >= 0)
+    assert.equal(report.safetyCapHit, false)
+    assert.equal(report.safetyCapLimit, 50000)
     assert.ok(report.discardedConnections.some((entry) => entry.includes('JL900')))
     assert.ok(report.discardedItineraries.some((item) => item.route === 'SBP → PHX' && item.reason.includes('No legal onward connection')))
   })
@@ -121,6 +123,14 @@ describe('core itinerary engine exhaustive discovery', () => {
     assert.ok(report.discardedItineraries.some((item) => item.reason.includes('Cycle prevented')))
     assert.equal(disconnected.completeItinerariesFound, 0)
     assert.ok(disconnected.itinerariesFiltered > 0)
+  })
+
+  it('discloses configurable computational safety caps instead of silently truncating graph exploration', () => {
+    const report = validateRoutingEngineCoverage(flights, request({ origin: 'SBP', destination: 'HND' }), { maxGraphEdges: 1 })
+
+    assert.equal(report.safetyCapHit, true)
+    assert.equal(report.safetyCapLimit, 1)
+    assert.ok(report.discardedItineraries.some((item) => item.reason.includes('Configurable graph edge safety cap 1')))
   })
 
   it('covers simple domestic, domestic plus international hub, 2-stop international, alliance, codeshare, secondary-airport, and multiple-routing searches', () => {

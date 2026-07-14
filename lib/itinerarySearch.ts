@@ -192,6 +192,8 @@ export type RoutingValidationReport = {
   duplicateMerges: number
   providerContribution: Record<string, { flightLegs: number; itineraries: number }>
   searchDurationMs: number
+  safetyCapHit: boolean
+  safetyCapLimit: number
   discardedConnections: string[]
   discardedItineraries: DiscardedRoutingItem[]
   expectedItineraries: string[]
@@ -210,6 +212,7 @@ export type RoutingValidationOptions = {
   airlineRestrictions?: string[]
   alliancePreference?: string
   airportBlacklist?: string[]
+  maxGraphEdges?: number
 }
 
 export type FlightRouteNormalization = {
@@ -1455,12 +1458,15 @@ function buildAllItinerariesFromGraph(graph: CanonicalItineraryGraph, request: P
         itinerariesFiltered: 1,
         duplicateMerges: 0,
         providerContribution: providerContributionFor(graph, []),
-        searchDurationMs: Date.now() - startedAt
+        searchDurationMs: Date.now() - startedAt,
+        safetyCapHit: false,
+        safetyCapLimit: options.maxGraphEdges || 50000
       }
     }
   }
 
   const maxLegs = Math.max(1, options.maxLegs || request.maxLegs || 3)
+  const maxGraphEdges = Math.max(1, options.maxGraphEdges || 50000)
   const legalConnectionKeys = new Set(graph.legalConnections.map((connection) => `${connection.fromFlightNumber}|${connection.toFlightNumber}`))
   const nextLegsFor = (leg: ItineraryLeg) => graph.flightLegs.filter((candidate) =>
     candidate.origin === leg.destination &&
@@ -1470,6 +1476,7 @@ function buildAllItinerariesFromGraph(graph: CanonicalItineraryGraph, request: P
   const discarded: DiscardedRoutingItem[] = []
   const airportsExplored = new Set<string>()
   let edgesExplored = 0
+  let safetyCapHit = false
 
   const visit = (legs: ItineraryLeg[], visitedAirports: Set<string>) => {
     const lastLeg = legs[legs.length - 1]
@@ -1486,6 +1493,11 @@ function buildAllItinerariesFromGraph(graph: CanonicalItineraryGraph, request: P
     const candidates = nextLegsFor(lastLeg)
     if (!candidates.length) discarded.push({ route: itineraryRouteForLegs(legs), reason: `No legal onward connection from ${lastLeg.destination}.` })
     candidates.forEach((candidate) => {
+      if (edgesExplored >= maxGraphEdges) {
+        safetyCapHit = true
+        discarded.push({ route: `${itineraryRouteForLegs(legs)} → ${candidate.destination}`, reason: `Configurable graph edge safety cap ${maxGraphEdges} reached; search stopped before exploring this connection.` })
+        return
+      }
       edgesExplored += 1
       if (visitedAirports.has(candidate.destination) && candidate.destination !== request.destination) {
         discarded.push({ route: `${itineraryRouteForLegs(legs)} → ${candidate.destination}`, reason: `Cycle prevented at ${candidate.destination}.` })
@@ -1498,6 +1510,11 @@ function buildAllItinerariesFromGraph(graph: CanonicalItineraryGraph, request: P
   graph.flightLegs
     .filter((leg) => leg.origin === request.origin && matchesRequestedDepartureDate(leg))
     .forEach((leg) => {
+      if (edgesExplored >= maxGraphEdges) {
+        safetyCapHit = true
+        discarded.push({ route: `${leg.origin} → ${leg.destination}`, reason: `Configurable graph edge safety cap ${maxGraphEdges} reached before exploring this origin flight.` })
+        return
+      }
       edgesExplored += 1
       visit([leg], new Set([leg.origin, leg.destination]))
     })
@@ -1516,7 +1533,9 @@ function buildAllItinerariesFromGraph(graph: CanonicalItineraryGraph, request: P
       itinerariesFiltered: allDiscarded.length,
       duplicateMerges: generated.discarded.filter((item) => item.reason.includes('Duplicate itinerary key')).length,
       providerContribution: providerContributionFor(graph, generated.itineraries),
-      searchDurationMs: Date.now() - startedAt
+      searchDurationMs: Date.now() - startedAt,
+      safetyCapHit,
+      safetyCapLimit: maxGraphEdges
     }
   }
 }
@@ -1543,6 +1562,8 @@ export function validateRoutingEngineCoverage(flights: Record<string, unknown>[]
     duplicateMerges: generated.diagnostics.duplicateMerges,
     providerContribution: generated.diagnostics.providerContribution,
     searchDurationMs: Math.max(generated.diagnostics.searchDurationMs, Date.now() - startedAt),
+    safetyCapHit: generated.diagnostics.safetyCapHit,
+    safetyCapLimit: generated.diagnostics.safetyCapLimit,
     discardedConnections: graph.exclusionLog.filter((entry) => entry.startsWith('Excluded connection')),
     discardedItineraries: generated.discarded,
     expectedItineraries,

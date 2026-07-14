@@ -203,6 +203,10 @@ describe('schedule provider adapter', () => {
     assert.deepEqual(result.providerDiagnostics[0].carriersSearched, ['UA'])
     assert.ok(result.marketCoverage.supplementRequests.some((request) => request.scope === 'origin-departures'))
     assert.ok(result.marketCoverage.missingCoverage.some((message) => message.includes('empty-provider')))
+    assert.ok(result.marketCoverage.missingAirports.includes('SBP'))
+    assert.ok(result.marketCoverage.missingAirports.includes('LAX'))
+    assert.ok(result.marketCoverage.missingAirlines.includes('UA'))
+    assert.ok(result.marketCoverage.missingMarkets.includes('SBP-LAX'))
   })
 
   it('supplements incomplete market coverage and exposes contribution, coverage, freshness, airports, carriers, and cache diagnostics', async () => {
@@ -235,6 +239,11 @@ describe('schedule provider adapter', () => {
     assert.deepEqual(result.marketCoverage.airportsCovered, ['HND', 'SBP', 'SFO'])
     assert.ok(result.marketCoverage.carriersCovered.includes('ANA'))
     assert.equal(result.marketCoverage.scheduleFreshness['supplemental-hub'].newestSourceCheckedAt, '2026-07-04T11:10:00Z')
+    assert.ok(result.marketCoverage.missingAirports.includes('LAX'))
+    assert.deepEqual(result.marketCoverage.missingDates, [])
+    assert.ok(result.marketCoverage.missingMarkets.includes('SBP-HND'))
+    assert.ok(result.marketCoverage.missingMarkets.includes('LAX-HND'))
+    assert.ok(result.marketCoverage.missingCoverage.some((message) => message.includes('market:SBP-HND')))
     assert.equal(result.marketCoverage.normalizedSchedulesCached, 2)
   })
 })

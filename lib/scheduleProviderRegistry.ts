@@ -51,6 +51,10 @@ export type MarketCoverageDiagnostics = {
   carriersCovered: string[]
   scheduleFreshness: Record<string, { newestSourceCheckedAt?: string; oldestSourceCheckedAt?: string; freshnessHours?: number }>
   missingCoverage: string[]
+  missingAirports: string[]
+  missingAirlines: string[]
+  missingDates: string[]
+  missingMarkets: string[]
   supplementRequests: Array<{ scope: string; origin?: string; destination?: string; carrier?: string }>
   supplementReason: string
   normalizedSchedulesCached: number
@@ -211,9 +215,23 @@ function buildMarketCoverageDiagnostics(rows: ProviderAgnosticScheduleRow[], pro
     oldestSourceCheckedAt: result.health.freshness.oldestSourceCheckedAt,
     freshnessHours: freshnessHours(result.health.freshness.newestSourceCheckedAt)
   }]))
+  const requestedAirports = uniqueStrings(searchRequests.flatMap((entry) => [entry.request.origin, entry.request.destination])).sort()
+  const requestedCarriers = uniqueStrings(searchRequests.map((entry) => entry.request.carrier === 'all' ? undefined : entry.request.carrier)).sort()
+  const requestedDates = uniqueStrings(searchRequests.map((entry) => entry.request.date)).sort()
+  const coveredDates = uniqueStrings(rows.map((row) => row.operating_date || row.departure_time?.slice(0, 10))).sort()
+  const coveredMarkets = new Set(rows.map((row) => `${row.origin}-${row.destination}`))
+  const requestedMarkets = uniqueStrings(searchRequests.map((entry) => entry.request.origin && entry.request.destination ? `${entry.request.origin}-${entry.request.destination}` : undefined)).sort()
+  const missingAirports = requestedAirports.filter((airport) => !airportsCovered.includes(airport))
+  const missingAirlines = requestedCarriers.filter((carrier) => !carriersCovered.some((covered) => covered.toLowerCase().includes(carrier.toLowerCase()) || carrier.toLowerCase().includes(covered.toLowerCase())))
+  const missingDates = requestedDates.filter((date) => !coveredDates.includes(date))
+  const missingMarkets = requestedMarkets.filter((market) => !coveredMarkets.has(market))
   const missingCoverage = uniqueMessages([
     ...providerResults.flatMap((result) => result.coverage.missingDataReason ? [`${result.provider}: ${result.coverage.missingDataReason}`] : []),
-    ...providerResults.flatMap((result) => result.status !== 'success' ? [`${result.provider}: ${result.warning || result.detail || 'provider did not return successful schedule coverage'}`] : [])
+    ...providerResults.flatMap((result) => result.status !== 'success' ? [`${result.provider}: ${result.warning || result.detail || 'provider did not return successful schedule coverage'}`] : []),
+    ...missingAirports.map((airport) => `airport:${airport}: no normalized schedule rows covered this requested or supplemental airport.`),
+    ...missingAirlines.map((airline) => `airline:${airline}: no normalized schedule rows covered this requested carrier.`),
+    ...missingDates.map((date) => `date:${date}: no normalized schedule rows covered this requested travel date.`),
+    ...missingMarkets.map((market) => `market:${market}: no normalized schedule rows covered this requested or supplemental market.`)
   ])
   return {
     providerContributionPercent,
@@ -222,6 +240,10 @@ function buildMarketCoverageDiagnostics(rows: ProviderAgnosticScheduleRow[], pro
     carriersCovered,
     scheduleFreshness,
     missingCoverage,
+    missingAirports,
+    missingAirlines,
+    missingDates,
+    missingMarkets,
     supplementRequests: searchRequests.map((entry) => ({ scope: entry.scope, origin: entry.request.origin, destination: entry.request.destination, carrier: entry.request.carrier })),
     supplementReason: searchRequests.length > 1 ? 'Requested market was supplemented with origin departures, destination arrivals, and hub markets to improve regional, secondary-international, mixed-carrier, overnight, and multi-alliance itinerary discovery.' : 'Only the requested market was searched because origin or destination was unavailable.',
     normalizedSchedulesCached

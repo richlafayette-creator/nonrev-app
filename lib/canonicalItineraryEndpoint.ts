@@ -113,7 +113,7 @@ export async function runCanonicalItineraryEndpoint(options: CanonicalItineraryE
       providerDiagnostics: [],
       comparison: { flightsUniqueToEachProvider: {}, missingAirports: {}, missingAirlines: {}, overlapPercentage: 0 },
       coverageReport: { byCountry: {}, byAirport: {}, byAirline: {}, knownDataGaps: ['Search skipped because origin or destination was missing.'] },
-      marketCoverage: { providerContributionPercent: {}, providerCoveragePercent: {}, airportsCovered: [], carriersCovered: [], scheduleFreshness: {}, missingCoverage: ['Search skipped because origin or destination was missing.'], supplementRequests: [], supplementReason: 'Search skipped because origin or destination was missing.', normalizedSchedulesCached: 0 },
+      marketCoverage: { providerContributionPercent: {}, providerCoveragePercent: {}, airportsCovered: [], carriersCovered: [], scheduleFreshness: {}, missingCoverage: ['Search skipped because origin or destination was missing.'], missingAirports: [], missingAirlines: [], missingDates: [], missingMarkets: [], supplementRequests: [], supplementReason: 'Search skipped because origin or destination was missing.', normalizedSchedulesCached: 0 },
       providerMetrics: [],
       providerInfrastructure: [],
       warnings: ['Search skipped because origin or destination was missing.'],

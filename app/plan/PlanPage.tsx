@@ -1048,6 +1048,35 @@ function totalTravelTimeFromItinerary(itinerary: LiveItineraryResult) {
   return `${hours}h ${minutes.toString().padStart(2, '0')}m`
 }
 
+function minutesToDurationLabel(totalMinutes: number) {
+  if (!Number.isFinite(totalMinutes) || totalMinutes < 0) return 'Pending schedule data'
+  const hours = Math.floor(totalMinutes / 60)
+  const minutes = totalMinutes % 60
+  return `${hours}h ${minutes.toString().padStart(2, '0')}m`
+}
+
+function itineraryConnectionSummaries(itinerary: LiveItineraryResult) {
+  return itinerary.legs.slice(0, -1).map((leg, index) => {
+    const nextLeg = itinerary.legs[index + 1]
+    const arrival = parseScheduleTime(leg.arrivalTime)
+    const departure = parseScheduleTime(nextLeg?.departureTime || '')
+    const layover = arrival && departure && departure > arrival ? minutesToDurationLabel(Math.round((departure - arrival) / 60000)) : 'Pending layover'
+    const airportChange = nextLeg && leg.destination !== nextLeg.origin ? ` · airport change ${leg.destination} → ${nextLeg.origin}` : ''
+    return `${leg.destination}: ${layover}${airportChange}`
+  })
+}
+
+function itineraryOvernightSummary(itinerary: LiveItineraryResult) {
+  const overnightLegs = itinerary.legs
+    .map((leg, index) => {
+      const departureDate = itineraryLoadDateFromSchedule(leg.departureTime)
+      const arrivalDate = itineraryLoadDateFromSchedule(leg.arrivalTime)
+      return departureDate && arrivalDate && departureDate !== arrivalDate ? `Leg ${index + 1} arrives ${arrivalDate}` : undefined
+    })
+    .filter((value): value is string => Boolean(value))
+  return overnightLegs.length ? overnightLegs.join(' · ') : 'No overnight segment indicated by schedule timestamps'
+}
+
 function fallbackTravelTimeEstimate(itinerary: FallbackItineraryResult) {
   const airportCount = itinerary.route.split('→').length
   if (airportCount <= 1) return 'Pending schedule data'
@@ -5956,8 +5985,9 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
             ) : null}
           </details>
           {liveItineraries.length > 0 ? (
-            <details className="nonrevy-premium-details" style={{ border: '1px solid #334155', borderRadius: 18, padding: 14, background: '#020617', marginTop: 16 }}>
-              <summary style={{ color: '#67e8f9', cursor: 'pointer', fontWeight: 'bold' }}>Developer Diagnostics: flight details, airport details, aircraft, duration, connection notes, and provider data</summary>
+            <section style={{ border: '1px solid #334155', borderRadius: 18, padding: 14, background: '#020617', marginTop: 16 }}>
+              <h2 style={{ color: '#67e8f9', marginTop: 0 }}>All viable itineraries from available schedule data</h2>
+              <p style={{ color: '#cbd5e1' }}>Ranking may reorder these options, but every complete itinerary returned by the canonical search is shown with its full segment chain, freshness, and missing-data warnings. Standby/load availability is separate and remains unavailable unless a real load source is attached.</p>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))', gap: 16, marginTop: 14 }}>
               {liveItineraries.map((itinerary) => (
                 <article key={itinerary.id} style={{ border: '1px solid #334155', borderRadius: 20, padding: 18, background: '#0f172a' }}>
@@ -5986,6 +6016,13 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
                     </div>
                   ) : null}
                   <p style={{ color: '#38bdf8', fontSize: 18, fontWeight: 'bold' }}>{displayField(itinerary.route)}</p>
+                  <div style={{ border: '1px solid #334155', borderRadius: 14, padding: 12, background: '#020617', marginTop: 10 }}>
+                    <strong style={{ color: '#f8fafc' }}>Complete itinerary chain</strong>
+                    <p style={{ color: '#cbd5e1', margin: '6px 0' }}>{itinerary.legs.map((leg) => `${displayField(leg.carrier)} ${displayField(leg.flightNumber)} ${displayField(leg.origin)}→${displayField(leg.destination)} (${displayField(leg.departureTime)} → ${displayField(leg.arrivalTime)})`).join(' · ')}</p>
+                    <p style={{ color: '#94a3b8', margin: 0 }}>Stops: {Math.max(0, itinerary.legs.length - 1)} · Total duration: {displayField(totalTravelTimeFromItinerary(itinerary))} · Connections: {itineraryConnectionSummaries(itinerary).join(' · ') || 'Nonstop'} · Overnight: {itineraryOvernightSummary(itinerary)}</p>
+                    <p style={{ color: '#fde68a', margin: '6px 0 0' }}>Load status: standby/load data unavailable unless a live or verified community load source is present. {itinerary.dataFreshnessWarning ? `Warning: ${itinerary.dataFreshnessWarning}` : ''}</p>
+                    <p style={{ color: '#cbd5e1', margin: '6px 0 0' }}>Backup possibilities: {itinerary.suggestedRecoveryPaths?.length ? itinerary.suggestedRecoveryPaths.map((path) => path.label).join(' · ') : 'No backup itinerary has been verified from current schedule rows.'}</p>
+                  </div>
                   <p style={{ color: '#facc15', fontWeight: 'bold' }}>Provider score: {itinerary.score}/100</p>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 150px), 1fr))', gap: 10, margin: '12px 0' }}>
                     {[
@@ -6036,7 +6073,7 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
                 </article>
               ))}
               </div>
-            </details>
+            </section>
           ) : (
             <div style={{ border: '1px solid #facc15', borderRadius: 18, padding: 18, background: '#1c1917', color: '#fde68a' }}>
               <h3 style={{ marginTop: 0 }}>No current live itinerary data</h3>

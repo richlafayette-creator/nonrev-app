@@ -34,6 +34,10 @@ function comparableDiagnostics(response: Awaited<ReturnType<typeof runCanonicalI
       searchDurationMs: '<duration>'
     },
     providerDiagnostics: (response.debug.providerDiagnostics as Array<Record<string, unknown>>).map((diagnostic) => ({ ...diagnostic, queryTimeMs: '<duration>' })),
+    coverageTrust: {
+      ...response.debug.coverageTrust,
+      searchDurationMs: '<duration>'
+    },
     providerRegistry: {
       ...response.debug.providerRegistry,
       diagnostics: response.debug.providerRegistry.diagnostics.map((diagnostic) => ({ ...diagnostic, queryTimeMs: '<duration>' })),

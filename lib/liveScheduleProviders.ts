@@ -1,4 +1,5 @@
 import { createProviderResultRepository } from './providerResultRepository'
+import { executeProviderOperation, providerOnboardingConfigFor } from './providerInfrastructure'
 import { providerScheduleRowsFromResults } from './scheduleProviderAdapter'
 
 export type LiveScheduleProviderKey =
@@ -266,6 +267,35 @@ async function fetchJsonWithTimeout(url: string, init: RequestInit = {}, timeout
   }
 }
 
+class RetryableProviderStatusError extends Error {
+  status: number
+
+  constructor(status: number, message: string) {
+    super(message)
+    this.status = status
+  }
+}
+
+async function fetchJsonWithProviderInfrastructure(providerKey: LiveScheduleProviderKey, url: string, init: RequestInit = {}) {
+  const config = providerOnboardingConfigFor(providerKey)
+  if (!config) return fetchJsonWithTimeout(url, init, defaultProviderTimeoutMs)
+  let lastResult: Awaited<ReturnType<typeof fetchJsonWithTimeout>> | undefined
+  try {
+    return await executeProviderOperation(config, async () => {
+      const result = await fetchJsonWithTimeout(url, init, config.timeoutMs)
+      lastResult = result
+      if (config.retry.retryableStatuses?.includes(result.response.status)) {
+        const retryMessage = safeMessage(result.data?.title || result.data?.error?.message || result.data?.error || result.data?.message || `${config.label} request failed with ${result.response.status}`)
+        throw new RetryableProviderStatusError(result.response.status, retryMessage)
+      }
+      return result
+    })
+  } catch (error) {
+    if (error instanceof RetryableProviderStatusError && lastResult) return lastResult
+    throw error
+  }
+}
+
 
 function normalizedInstant(value?: string) {
   const parsed = value ? Date.parse(value) : NaN
@@ -411,7 +441,7 @@ export function createFlightAwareScheduleProvider(apiKey = process.env.FLIGHTAWA
       const sourceCheckedAt = new Date().toISOString()
 
       try {
-        const { response, data } = await fetchJsonWithTimeout(`https://aeroapi.flightaware.com/aeroapi/schedules/${encodeURIComponent(startDate)}/${encodeURIComponent(endDate)}?${params.toString()}`, {
+        const { response, data } = await fetchJsonWithProviderInfrastructure('flightaware', `https://aeroapi.flightaware.com/aeroapi/schedules/${encodeURIComponent(startDate)}/${encodeURIComponent(endDate)}?${params.toString()}`, {
           headers: { 'x-apikey': apiKey }
         })
 
@@ -504,7 +534,7 @@ export function createAviationstackScheduleProvider(apiKey = process.env.AVIATIO
         if (carrierCode) params.set('airline_iata', carrierCode)
 
         try {
-          const { response, data } = await fetchJsonWithTimeout(`https://api.aviationstack.com/v1/flights?${params.toString()}`)
+          const { response, data } = await fetchJsonWithProviderInfrastructure('aviationstack', `https://api.aviationstack.com/v1/flights?${params.toString()}`)
           if (!response.ok || data?.error) {
             const status = response.status || 400
             const rawMessage = safeMessage(data?.error?.message || data?.error?.code || `Aviationstack request failed with ${status}`)

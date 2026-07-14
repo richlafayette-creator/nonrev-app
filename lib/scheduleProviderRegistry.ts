@@ -290,9 +290,12 @@ function cacheRecordToNormalizedResult(record: Record<string, unknown>): Normali
     arrivalTime: String(record.arrival_time || 'Pending'),
     duration: String(record.duration || 'Not provided'),
     aircraft: String(record.aircraft || 'Unknown'),
-    status: String(record.status || 'Cached provider result'),
+    status: String(record.status || (record.cache_freshness === 'stale' ? 'Stale cached provider result' : 'Cached provider result')),
     source: source.startsWith('provider-cache') ? source : `provider-cache:${source}`,
     sourceCheckedAt: String(record.source_checked_at || record.cached_at || new Date().toISOString()),
+    dataStatus: 'cached',
+    dataFreshness: String(record.cache_freshness || 'current-cache'),
+    retrievalTimestamp: String(record.cached_at || record.source_checked_at || new Date().toISOString()),
     operatingCarrier: String(record.operating_carrier || record.carrier || record.airline || 'Unknown Airline'),
     operatingFlightNumber: String(record.operating_flight_number || record.flight_number || 'Flight TBD'),
     marketingFlightNumbers: Array.isArray(record.marketing_flight_numbers) ? record.marketing_flight_numbers.map(String) : []
@@ -312,15 +315,16 @@ export function createSupabaseCacheScheduleProvider(repository: ProviderResultRe
         date: request.date,
         carrier: request.carrier,
         maxAgeHours: 72,
-        limit: request.maxResults || 500
+        limit: request.maxResults || 500,
+        allowStaleOnMiss: true
       })
-      const results = lookup.records.map((record) => cacheRecordToNormalizedResult(record as unknown as Record<string, unknown>))
+      const results = lookup.records.map((record) => cacheRecordToNormalizedResult({ ...(record as unknown as Record<string, unknown>), cache_freshness: lookup.freshness }))
       return {
         results,
         detail: lookup.detail,
         requestCount: 1,
-        status: lookup.status === 'hit' ? 'success' : lookup.status === 'miss' ? 'skipped' : 'warning',
-        warning: lookup.status === 'unavailable' ? lookup.detail : undefined,
+        status: lookup.status === 'hit' ? lookup.freshness === 'stale' ? 'warning' : 'success' : lookup.status === 'miss' ? 'skipped' : 'warning',
+        warning: lookup.status === 'unavailable' || lookup.freshness === 'stale' ? lookup.detail : undefined,
         cacheStatus: lookup.status === 'hit' ? 'hit' : lookup.status === 'miss' ? 'miss' : 'unavailable'
       }
     }

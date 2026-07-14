@@ -1,6 +1,7 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { ingestNormalizedProviderSchedules, normalizeAndDeduplicateSchedules } from './providerScheduleIngestion'
+import { createNoopProviderResultRepository } from './providerResultRepository'
 import type { NormalizedScheduleResult } from './liveScheduleProviders'
 
 const baseSchedule: NormalizedScheduleResult = {
@@ -50,7 +51,7 @@ describe('provider schedule ingestion', () => {
           return { enabled: true, attempted: true, stored: results.length, status: 'stored', detail: 'stored' }
         },
         async findCachedResults() {
-          return { table: 'provider_itinerary_results', storageMode: 'local-fallback', status: 'miss', records: [], detail: 'miss' }
+          return { table: 'provider_itinerary_results', storageMode: 'local-fallback', status: 'miss', records: [], detail: 'miss', freshness: 'unavailable', staleRecordCount: 0 }
         }
       }
     })
@@ -66,5 +67,23 @@ describe('provider schedule ingestion', () => {
     assert.equal(result.metrics.freshness.newestSourceCheckedAt, '2026-07-10T12:30:00.000Z')
     assert.deepEqual(result.metrics.failures, ['bad provider row'])
     assert.equal(stored[0].length, 1)
+  })
+
+  it('retains duplicate-safe last-known-good cache records for stale fallback', async () => {
+    const repository = createNoopProviderResultRepository('test cache')
+    await repository.storeNormalizedResults([
+      { ...baseSchedule, sourceCheckedAt: '2026-07-01T12:30:00.000Z' },
+      { ...baseSchedule, sourceCheckedAt: '2026-07-01T12:30:00.000Z' }
+    ])
+
+    const freshOnly = await repository.findCachedResults({ origin: 'SBP', destination: 'SFO', date: '2026-07-10', maxAgeHours: 1 })
+    const staleFallback = await repository.findCachedResults({ origin: 'SBP', destination: 'SFO', date: '2026-07-10', maxAgeHours: 1, allowStaleOnMiss: true })
+
+    assert.equal(freshOnly.status, 'miss')
+    assert.equal(staleFallback.status, 'hit')
+    assert.equal(staleFallback.freshness, 'stale')
+    assert.equal(staleFallback.staleRecordCount, 1)
+    assert.equal(staleFallback.records.length, 1)
+    assert.match(staleFallback.detail, /last-known-good|stale/i)
   })
 })

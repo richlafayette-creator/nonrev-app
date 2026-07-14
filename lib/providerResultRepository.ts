@@ -37,6 +37,7 @@ export type ProviderCacheLookupRequest = {
   carrier?: string
   maxAgeHours?: number
   limit?: number
+  allowStaleOnMiss?: boolean
 }
 
 export type ProviderCacheLookupResult = {
@@ -45,6 +46,8 @@ export type ProviderCacheLookupResult = {
   status: 'hit' | 'miss' | 'unavailable'
   records: ProviderResultRecord[]
   detail: string
+  freshness: 'current' | 'stale' | 'unavailable'
+  staleRecordCount: number
 }
 
 export type ProviderResultRepository = {
@@ -204,9 +207,23 @@ function recordMatchesRequest(record: ProviderResultRecord, request: ProviderCac
   return hoursOld(record) <= (request.maxAgeHours || defaultCacheMaxAgeHours)
 }
 
-function localLookup(request: ProviderCacheLookupRequest): ProviderResultRecord[] {
+function recordMatchesMarket(record: ProviderResultRecord, request: ProviderCacheLookupRequest) {
+  if (request.origin && record.origin !== request.origin) return false
+  if (request.destination && record.destination !== request.destination) return false
+  if (request.date && (localIsoDay(record.departure_time, record.origin) || isoDay(record.departure_time)) !== request.date) return false
+  if (request.carrier && request.carrier !== 'all') {
+    const carrier = request.carrier.toUpperCase()
+    if (![record.carrier, record.airline, record.flight_number].some((value) => value.toUpperCase().includes(carrier))) return false
+  }
+  return true
+}
+
+function localLookup(request: ProviderCacheLookupRequest, options: { stale?: boolean } = {}): ProviderResultRecord[] {
+  const maxAgeHours = request.maxAgeHours || defaultCacheMaxAgeHours
+  const ageLimit = options.stale ? Math.max(24 * 21, maxAgeHours * 14) : maxAgeHours
   return localProviderResultCache
-    .filter((record) => recordMatchesRequest(record, request))
+    .filter((record) => recordMatchesMarket(record, request))
+    .filter((record) => options.stale ? hoursOld(record) > maxAgeHours && hoursOld(record) <= ageLimit : hoursOld(record) <= maxAgeHours)
     .sort((a, b) => Date.parse(b.source_checked_at || b.cached_at) - Date.parse(a.source_checked_at || a.cached_at))
     .slice(0, request.limit || 100)
 }
@@ -226,12 +243,16 @@ export function createNoopProviderResultRepository(detail = 'Provider result per
     },
     async findCachedResults(request) {
       const records = localLookup(request)
+      const staleRecords = records.length ? [] : request.allowStaleOnMiss ? localLookup(request, { stale: true }) : []
+      const selectedRecords = records.length ? records : staleRecords
       return {
         table: providerResultTableName,
-        storageMode: records.length ? 'local-fallback' : 'disabled',
-        status: records.length ? 'hit' : 'miss',
-        records,
-        detail: records.length ? `${records.length} local provider cache result${records.length === 1 ? '' : 's'} found.` : detail
+        storageMode: selectedRecords.length ? 'local-fallback' : 'disabled',
+        status: selectedRecords.length ? 'hit' : 'miss',
+        records: selectedRecords,
+        detail: records.length ? `${records.length} local provider cache result${records.length === 1 ? '' : 's'} found.` : staleRecords.length ? `${staleRecords.length} stale local provider cache result${staleRecords.length === 1 ? '' : 's'} retained as last-known-good fallback.` : detail,
+        freshness: records.length ? 'current' : staleRecords.length ? 'stale' : 'unavailable',
+        staleRecordCount: staleRecords.length
       }
     }
   }
@@ -341,11 +362,11 @@ export function createProviderResultRepository(env: ProviderResultRepositoryEnv 
         apikey: serviceRoleKey,
         Authorization: `Bearer ${serviceRoleKey}`,
         'Content-Type': 'application/json',
-        Prefer: 'return=minimal'
+        Prefer: 'return=minimal,resolution=merge-duplicates'
       }
 
       try {
-        let response = await fetchWithTimeout(`${supabaseUrl.replace(/\/$/, '')}/rest/v1/${providerResultTableName}`, {
+        let response = await fetchWithTimeout(`${supabaseUrl.replace(/\/$/, '')}/rest/v1/${providerResultTableName}?on_conflict=result_fingerprint`, {
           method: 'POST',
           headers,
           body: JSON.stringify(records)
@@ -389,6 +410,7 @@ export function createProviderResultRepository(env: ProviderResultRepositoryEnv 
 
     async findCachedResults(request) {
       const localRecords = localLookup(request)
+      const staleLocalRecords = localRecords.length ? [] : request.allowStaleOnMiss ? localLookup(request, { stale: true }) : []
       try {
         const response = await fetchWithTimeout(supabaseQueryUrl(supabaseUrl, request), {
           headers: {
@@ -399,10 +421,12 @@ export function createProviderResultRepository(env: ProviderResultRepositoryEnv 
         if (!response.ok) {
           return {
             table: providerResultTableName,
-            storageMode: localRecords.length ? 'local-fallback' : 'supabase',
-            status: localRecords.length ? 'hit' : 'unavailable',
-            records: localRecords,
-            detail: localRecords.length ? `Supabase cache lookup failed (${response.status}); using ${localRecords.length} local fallback result${localRecords.length === 1 ? '' : 's'}.` : `Supabase cache lookup failed (${response.status}); no local fallback cache matched.`
+            storageMode: localRecords.length || staleLocalRecords.length ? 'local-fallback' : 'supabase',
+            status: localRecords.length || staleLocalRecords.length ? 'hit' : 'unavailable',
+            records: localRecords.length ? localRecords : staleLocalRecords,
+            detail: localRecords.length ? `Supabase cache lookup failed (${response.status}); using ${localRecords.length} local fallback result${localRecords.length === 1 ? '' : 's'}.` : staleLocalRecords.length ? `Supabase cache lookup failed (${response.status}); using ${staleLocalRecords.length} stale last-known-good local fallback result${staleLocalRecords.length === 1 ? '' : 's'}.` : `Supabase cache lookup failed (${response.status}); no local fallback cache matched.`,
+            freshness: localRecords.length ? 'current' : staleLocalRecords.length ? 'stale' : 'unavailable',
+            staleRecordCount: staleLocalRecords.length
           }
         }
         const data = await readJsonSafely(response)
@@ -410,17 +434,21 @@ export function createProviderResultRepository(env: ProviderResultRepositoryEnv 
         return {
           table: providerResultTableName,
           storageMode: 'supabase',
-          status: records.length ? 'hit' : localRecords.length ? 'hit' : 'miss',
-          records: records.length ? records : localRecords,
-          detail: records.length ? `${records.length} Supabase provider cache result${records.length === 1 ? '' : 's'} found.` : localRecords.length ? `${localRecords.length} local fallback provider cache result${localRecords.length === 1 ? '' : 's'} found.` : 'No matching provider cache rows found.'
+          status: records.length || localRecords.length || staleLocalRecords.length ? 'hit' : 'miss',
+          records: records.length ? records : localRecords.length ? localRecords : staleLocalRecords,
+          detail: records.length ? `${records.length} Supabase provider cache result${records.length === 1 ? '' : 's'} found.` : localRecords.length ? `${localRecords.length} local fallback provider cache result${localRecords.length === 1 ? '' : 's'} found.` : staleLocalRecords.length ? `${staleLocalRecords.length} stale last-known-good local fallback provider cache result${staleLocalRecords.length === 1 ? '' : 's'} found.` : 'No matching provider cache rows found.',
+          freshness: records.length || localRecords.length ? 'current' : staleLocalRecords.length ? 'stale' : 'unavailable',
+          staleRecordCount: staleLocalRecords.length
         }
       } catch {
         return {
           table: providerResultTableName,
-          storageMode: localRecords.length ? 'local-fallback' : 'supabase',
-          status: localRecords.length ? 'hit' : 'unavailable',
-          records: localRecords,
-          detail: localRecords.length ? `Supabase cache lookup failed; using ${localRecords.length} local fallback result${localRecords.length === 1 ? '' : 's'}.` : 'Supabase cache lookup failed; no local fallback cache matched.'
+          storageMode: localRecords.length || staleLocalRecords.length ? 'local-fallback' : 'supabase',
+          status: localRecords.length || staleLocalRecords.length ? 'hit' : 'unavailable',
+          records: localRecords.length ? localRecords : staleLocalRecords,
+          detail: localRecords.length ? `Supabase cache lookup failed; using ${localRecords.length} local fallback result${localRecords.length === 1 ? '' : 's'}.` : staleLocalRecords.length ? `Supabase cache lookup failed; using ${staleLocalRecords.length} stale last-known-good local fallback result${staleLocalRecords.length === 1 ? '' : 's'}.` : 'Supabase cache lookup failed; no local fallback cache matched.',
+          freshness: localRecords.length ? 'current' : staleLocalRecords.length ? 'stale' : 'unavailable',
+          staleRecordCount: staleLocalRecords.length
         }
       }
     }

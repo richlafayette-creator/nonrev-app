@@ -59,6 +59,30 @@ body:has(.nonrevy-conversation) {
   padding: 2px;
 }
 
+.nonrevy-context-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+}
+
+.nonrevy-context-strip span {
+  display: inline-flex;
+  gap: 6px;
+  max-width: 100%;
+  border: 1px solid rgba(17, 24, 39, 0.08);
+  border-radius: 999px;
+  padding: 6px 10px;
+  background: #ffffff;
+  color: #334155;
+  font-size: 0.8rem;
+  overflow-wrap: anywhere;
+}
+
+.nonrevy-context-strip strong {
+  color: #047857;
+}
+
 .nonrevy-conversation__message {
   max-width: min(100%, 720px);
   border-radius: 8px;

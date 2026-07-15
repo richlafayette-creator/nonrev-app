@@ -316,6 +316,8 @@ export default function ConversationalTripWorkspace({ initialPrompt = '' }: { in
           <p>Fly Smarter</p>
         </header>
 
+        <ContextStrip context={context} />
+
         <div className="nonrevy-conversation__messages" aria-live="polite">
           {messages.map((message) => (
             <article key={message.id} className={`nonrevy-conversation__message nonrevy-conversation__message--${message.role}`}>
@@ -440,6 +442,36 @@ function InlineResult({ result, active, mode, onOpen, onCollapse, onMinimize }: 
         <button type="button" onClick={onMinimize}>Minimize</button>
       </div>
     </div>
+  )
+}
+
+function ContextStrip({ context }: { context: TripContext }) {
+  const chips = [
+    ['Origin', context.origin],
+    ['Destination', context.destination],
+    ['Date', context.date],
+    ['Benefits', context.travelerBenefits.join(', ')],
+    ['Preferred', context.preferredAirlines.join(', ')],
+    ['Avoid', context.avoidedAirports.join(', ')],
+    ['Max stops', typeof context.maxStops === 'number' ? String(context.maxStops) : undefined],
+    ['Connections', context.connectionPreference],
+    ['Cabin', context.cabin],
+    ['Overnight', context.overnightTolerance],
+    ['Pinned', context.pinnedItineraryIds.length ? String(context.pinnedItineraryIds.length) : undefined],
+    ['Intent', context.followUpIntent]
+  ].filter(([, value]) => Boolean(value))
+
+  if (!chips.length) return null
+
+  return (
+    <section className="nonrevy-context-strip" aria-label="Current trip context">
+      {chips.map(([label, value]) => (
+        <span key={label}>
+          <strong>{label}</strong>
+          {value}
+        </span>
+      ))}
+    </section>
   )
 }
 

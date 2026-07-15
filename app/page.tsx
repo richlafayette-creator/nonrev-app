@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { type FormEvent, useState } from 'react'
+import ConversationalTripWorkspace from './ConversationalTripWorkspace'
 import { isConversationalWorkspaceEnabled } from '../lib/featureFlags'
 import { markActivationStep } from '../lib/onboardingActivation'
 
@@ -14,6 +15,10 @@ export default function Home() {
   const [maximumStops, setMaximumStops] = useState('')
   const [cabin, setCabin] = useState('')
   const [message, setMessage] = useState('')
+
+  if (conversationalWorkspaceEnabled) {
+    return <ConversationalTripWorkspace />
+  }
 
   function submitSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()

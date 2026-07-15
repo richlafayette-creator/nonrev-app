@@ -2,9 +2,11 @@
 
 import Link from 'next/link'
 import { type FormEvent, useState } from 'react'
+import { isConversationalWorkspaceEnabled } from '../lib/featureFlags'
 import { markActivationStep } from '../lib/onboardingActivation'
 
 export default function Home() {
+  const conversationalWorkspaceEnabled = isConversationalWorkspaceEnabled()
   const [search, setSearch] = useState('')
   const [travelDate, setTravelDate] = useState('')
   const [passengers, setPassengers] = useState('1')
@@ -32,7 +34,7 @@ export default function Home() {
   }
 
   return (
-    <main className="app-shell nonrevy-home">
+    <main className={`app-shell nonrevy-home${conversationalWorkspaceEnabled ? ' nonrevy-home--conversational-enabled' : ''}`}>
       <Link className="nonrevy-home__profile" href="/profile" aria-label="Open profile and settings">
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path d="M12 12.25a4.25 4.25 0 1 0 0-8.5 4.25 4.25 0 0 0 0 8.5Zm0 2c-4.02 0-7.25 2.07-7.25 4.64 0 .75.61 1.36 1.36 1.36h11.78c.75 0 1.36-.61 1.36-1.36 0-2.57-3.23-4.64-7.25-4.64Z" />

@@ -374,6 +374,7 @@ export default function ConversationalTripWorkspace({ initialPrompt = '' }: { in
             result={activeResult}
             filters={filters}
             context={context}
+            mode={workspaceMode}
             filteredCount={filteredItineraries.length}
             filteredOutCount={filteredOutCount}
             pinnedCount={pinnedCount}
@@ -478,10 +479,11 @@ function ContextStrip({ context }: { context: TripContext }) {
   )
 }
 
-function WorkspaceHeader({ result, filters, context, filteredCount, filteredOutCount, pinnedCount, powerView, onFilters, onPowerView, onCollapse, onMinimize }: {
+function WorkspaceHeader({ result, filters, context, mode, filteredCount, filteredOutCount, pinnedCount, powerView, onFilters, onPowerView, onCollapse, onMinimize }: {
   result: WorkspaceResultSet
   filters: WorkspaceFilters
   context: TripContext
+  mode: WorkspaceMode
   filteredCount: number
   filteredOutCount: number
   pinnedCount: number
@@ -496,7 +498,7 @@ function WorkspaceHeader({ result, filters, context, filteredCount, filteredOutC
       <div>
         <p className="nonrevy-workspace__eyebrow">Itinerary workspace</p>
         <h2>{context.origin || 'Origin'} → {context.destination || 'Destination'}</h2>
-        <p>{filteredCount} shown · {result.itineraries.length} total viable scheduled itineraries · {pinnedCount} pinned{filteredOutCount ? ` · ${filteredOutCount} hidden by local filters` : ''}</p>
+        <p>{mode} · {filteredCount} shown · {result.itineraries.length} total viable scheduled itineraries · {pinnedCount} pinned{filteredOutCount ? ` · ${filteredOutCount} hidden by local filters` : ''}</p>
       </div>
       <div className="nonrevy-workspace__controls">
         <select value={filters.sort} onChange={(event) => onFilters({ ...filters, sort: event.target.value as WorkspaceFilters['sort'] })} aria-label="Sort itineraries">

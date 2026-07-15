@@ -523,6 +523,18 @@ function WorkspaceHeader({ result, filters, context, mode, filteredCount, filter
           <option value="1">Up to 1 stop</option>
           <option value="2">Up to 2 stops</option>
         </select>
+        <input
+          value={filters.carriers.join(', ')}
+          onChange={(event) => onFilters({ ...filters, carriers: event.target.value.split(',').map((value) => value.trim()).filter(Boolean) })}
+          placeholder="Carrier filter"
+          aria-label="Carrier filter"
+        />
+        <input
+          value={filters.avoidAirports.join(', ')}
+          onChange={(event) => onFilters({ ...filters, avoidAirports: event.target.value.split(',').map((value) => value.trim().toUpperCase()).filter(Boolean) })}
+          placeholder="Avoid airports"
+          aria-label="Avoid airports"
+        />
         <button type="button" aria-pressed={powerView} onClick={() => onPowerView(!powerView)}>Power View</button>
         <button type="button" onClick={onCollapse}>Collapse</button>
         <button type="button" onClick={onMinimize}>Minimize</button>

@@ -291,6 +291,7 @@ body:has(.nonrevy-conversation) {
 }
 
 .nonrevy-workspace__controls select,
+.nonrevy-workspace__controls input,
 .nonrevy-workspace__controls button {
   min-height: 38px;
   border: 1px solid rgba(17, 24, 39, 0.1);

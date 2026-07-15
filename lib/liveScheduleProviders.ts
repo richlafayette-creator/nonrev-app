@@ -726,7 +726,7 @@ function withOverride(base: ScheduleProviderReadiness, override?: ReadinessOverr
 export function getLiveScheduleProviderReadiness(options: ReadinessOptions = {}): ScheduleProviderReadiness[] {
   const env = options.env || process.env
   const aviationstack = createAviationstackScheduleProvider(env.AVIATIONSTACK_API_KEY)
-  const flightAware = createFlightAwareScheduleProvider()
+  const flightAware = createFlightAwareScheduleProvider(env.FLIGHTAWARE_API_KEY)
   const amadeus = createAmadeusScheduleProvider()
   const ciriumOag = createCiriumOagScheduleProvider()
   const supabase = createSupabaseScheduleIngestionProvider()

@@ -1,4 +1,5 @@
 import { enforceItineraryListEndpointIntegrity } from './itineraryIntegrity'
+import { buildItineraryProviderHealthMatrix } from './itineraryProviderHealthReport'
 import { buildAllItinerariesFromFlights, normalizeItineraryRequest, summarizeRouteMatching, validateRoutingEngineCoverage, type ItineraryResult, type ParsedItineraryRequest, type RoutingValidationReport } from './itinerarySearch'
 import { createDefaultScheduleProviderRegistry, unifiedRowsToFlightRecords, type ScheduleProviderRegistry, type UnifiedScheduleSearchResult } from './scheduleProviderRegistry'
 
@@ -296,6 +297,7 @@ export async function runCanonicalItineraryEndpoint(options: CanonicalItineraryE
         providerMetrics: search.providerMetrics,
         providerInfrastructure: search.providerInfrastructure
       },
+      providerHealthMatrix: buildItineraryProviderHealthMatrix({ search }),
       duplicateMerging: {
         duplicateRowsMerged: search.rows.reduce((total, row) => total + (row.duplicate_count || 0), 0),
         duplicateItinerariesMerged: routingValidation.duplicateMerges

@@ -97,7 +97,7 @@ export default function ConversationalTripWorkspace({ initialPrompt = '' }: { in
     {
       id: 'assistant-welcome',
       role: 'assistant',
-      text: 'Tell me where you need to go. I’ll keep the answer short and attach any verified itinerary workspace right here.'
+      text: 'Tell me where you need to go. I’ll keep answers short and use only returned itinerary, source, freshness, coverage, and load-status data.'
     }
   ])
   const [prompt, setPrompt] = useState(initialPrompt)

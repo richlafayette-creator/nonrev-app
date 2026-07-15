@@ -246,10 +246,10 @@ export function applyWorkspaceFilters(itineraries: ConversationalItinerary[], fi
 export function summarizeVerifiedResult(result: WorkspaceResultSet) {
   const count = result.itineraries.length
   if (count > 0) {
-    return `${count} viable scheduled itinerar${count === 1 ? 'y' : 'ies'} found. Load availability is separate and only shown when a verified source is attached.`
+    return `${count} viable scheduled itinerar${count === 1 ? 'y' : 'ies'} found from verified structured result data. Load availability is separate and only shown when a verified source is attached.`
   }
   if (result.frameworkRoutes.length > 0) {
-    return `${result.frameworkRoutes.length} route framework${result.frameworkRoutes.length === 1 ? '' : 's'} found, but current schedule availability was not attached.`
+    return `${result.frameworkRoutes.length} route framework${result.frameworkRoutes.length === 1 ? '' : 's'} found, but current schedule availability was not attached. I will not treat frameworks as live availability.`
   }
   return result.status || 'No current live itinerary data is available for that request.'
 }

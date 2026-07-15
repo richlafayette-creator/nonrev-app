@@ -252,10 +252,24 @@ export function summarizeVerifiedResult(result: WorkspaceResultSet) {
   if (count > 0) {
     return `${count} viable scheduled itinerar${count === 1 ? 'y' : 'ies'} found from verified structured result data. Load availability is separate and only shown when a verified source is attached.`
   }
-  if (result.frameworkRoutes.length > 0) {
-    return `${result.frameworkRoutes.length} route framework${result.frameworkRoutes.length === 1 ? '' : 's'} found, but current schedule availability was not attached. I will not treat frameworks as live availability.`
+  const limitationText = [
+    result.status,
+    ...result.warnings,
+    result.debug?.originCoverage?.message,
+    ...(result.debug?.originCoverage?.limitations || []),
+    result.debug?.trueLiveDataUnavailableReason,
+    ...(result.debug?.safeErrors || [])
+  ].filter(Boolean).join(' ').toLowerCase()
+  if (limitationText.includes('rate limit') || limitationText.includes('rate-limited') || limitationText.includes('429')) {
+    return 'I could not verify current itineraries because a live provider is rate-limited right now. I will not show stale rows as availability; try again later or broaden the route/date.'
   }
-  return result.status || 'No current live itinerary data is available for that request.'
+  if (result.frameworkRoutes.length > 0) {
+    return `${result.frameworkRoutes.length} route framework${result.frameworkRoutes.length === 1 ? '' : 's'} matched, but current schedule availability was not attached. I can use that as route context, but I will not treat it as live availability.`
+  }
+  if (result.debug?.originCoverage?.status === 'insufficient') {
+    return 'I could not verify current itineraries for that request because provider coverage is incomplete for the requested airport or route. I will show less rather than invent availability.'
+  }
+  return 'I could not verify current itineraries for that request. Try a specific airport pair, a different date, or broader carrier scope.'
 }
 
 export function noLoadDataLabel(itinerary: ConversationalItinerary) {

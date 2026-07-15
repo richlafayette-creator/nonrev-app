@@ -25,7 +25,7 @@ body:has(.nonrevy-conversation) {
   width: min(100%, 920px);
   margin: 0 auto;
   display: grid;
-  grid-template-rows: auto minmax(220px, 1fr) auto auto;
+  grid-auto-rows: auto;
   gap: 16px;
 }
 
@@ -57,6 +57,7 @@ body:has(.nonrevy-conversation) {
   display: grid;
   align-content: start;
   gap: 12px;
+  min-height: clamp(180px, 28dvh, 360px);
   padding: 2px;
 }
 
@@ -141,6 +142,8 @@ body:has(.nonrevy-conversation) {
   z-index: 30;
   display: grid;
   gap: 8px;
+  width: 100%;
+  max-width: 100%;
   padding: 10px;
   border: 1px solid rgba(17, 24, 39, 0.08);
   border-radius: 12px;
@@ -173,6 +176,7 @@ body:has(.nonrevy-conversation) {
   background: #fbfcff;
   color: #111827;
   font: inherit;
+  line-height: 1.35;
 }
 
 .nonrevy-conversation__composer button {
@@ -236,6 +240,24 @@ body:has(.nonrevy-conversation) {
   margin-top: 4px;
   color: #854d0e;
   font-weight: 700;
+}
+
+.nonrevy-debug-disclosure {
+  margin-top: 8px;
+  color: #475569;
+  font-size: 0.82rem;
+}
+
+.nonrevy-debug-disclosure summary {
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.nonrevy-debug-disclosure ul {
+  display: grid;
+  gap: 6px;
+  margin: 8px 0 0;
+  padding-left: 18px;
 }
 
 .nonrevy-inline-result > div:last-child {
@@ -315,6 +337,22 @@ body:has(.nonrevy-conversation) {
 
 .nonrevy-workspace__warnings p {
   margin: 0;
+}
+
+.nonrevy-empty-result {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+  border: 1px solid rgba(17, 24, 39, 0.08);
+  border-radius: 8px;
+  padding: 14px;
+  background: #ffffff;
+  color: #172033;
+}
+
+.nonrevy-empty-result p {
+  margin: 0;
+  color: #475569;
 }
 
 .nonrevy-workspace__grid {
@@ -522,11 +560,9 @@ body:has(.nonrevy-conversation) {
   }
 
   .nonrevy-workspace {
-    position: fixed;
-    inset: max(8px, env(safe-area-inset-top)) 0 0;
-    z-index: 50;
-    overflow: auto;
-    overscroll-behavior: contain;
+    position: relative;
+    z-index: 1;
+    overflow: visible;
     width: 100%;
     margin: 0;
     border-top: 0;

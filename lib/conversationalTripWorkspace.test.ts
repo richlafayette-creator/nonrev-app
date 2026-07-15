@@ -145,15 +145,17 @@ describe('conversational trip workspace logic', () => {
     }))
 
     assert.match(summary, /route framework/i)
-    assert.match(summary, /not treat frameworks as live availability/i)
+    assert.match(summary, /not treat it as live availability/i)
   })
 
-  it('keeps the conversational workspace behind an opt-in feature flag', () => {
+  it('keeps the conversational workspace on by default with an explicit legacy opt-out', () => {
     const previous = process.env.NEXT_PUBLIC_CONVERSATIONAL_WORKSPACE
     delete process.env.NEXT_PUBLIC_CONVERSATIONAL_WORKSPACE
-    assert.equal(isConversationalWorkspaceEnabled(), false)
+    assert.equal(isConversationalWorkspaceEnabled(), true)
     process.env.NEXT_PUBLIC_CONVERSATIONAL_WORKSPACE = 'true'
     assert.equal(isConversationalWorkspaceEnabled(), true)
+    process.env.NEXT_PUBLIC_CONVERSATIONAL_WORKSPACE = 'false'
+    assert.equal(isConversationalWorkspaceEnabled(), false)
     if (previous === undefined) {
       delete process.env.NEXT_PUBLIC_CONVERSATIONAL_WORKSPACE
     } else {

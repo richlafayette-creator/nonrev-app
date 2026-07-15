@@ -13,6 +13,7 @@ body:has(.nonrevy-conversation) {
 .nonrevy-conversation {
   min-height: 100vh;
   min-height: 100dvh;
+  scroll-padding-bottom: max(120px, env(safe-area-inset-bottom));
   padding: max(18px, env(safe-area-inset-top)) clamp(14px, 3vw, 34px) max(96px, env(safe-area-inset-bottom));
   background: #fbfcff;
   color: #111827;
@@ -497,6 +498,7 @@ body:has(.nonrevy-conversation) {
 @media (max-width: 720px) {
   .nonrevy-conversation {
     padding-inline: 10px;
+    overflow-x: clip;
   }
 
   .nonrevy-conversation__chat {
@@ -523,6 +525,7 @@ body:has(.nonrevy-conversation) {
     inset: max(8px, env(safe-area-inset-top)) 0 0;
     z-index: 50;
     overflow: auto;
+    overscroll-behavior: contain;
     width: 100%;
     margin: 0;
     border-top: 0;
@@ -530,6 +533,10 @@ body:has(.nonrevy-conversation) {
     padding: 14px 10px max(92px, env(safe-area-inset-bottom));
     background: #fbfcff;
     box-shadow: 0 -18px 52px rgba(15, 23, 42, 0.18);
+  }
+
+  .nonrevy-trip-bar {
+    max-height: calc(100dvh - max(24px, env(safe-area-inset-top)));
   }
 
   .nonrevy-workspace__controls {

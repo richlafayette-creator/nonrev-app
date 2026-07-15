@@ -220,7 +220,8 @@ body:has(.nonrevy-conversation) {
 }
 
 .nonrevy-inline-result strong,
-.nonrevy-inline-result span {
+.nonrevy-inline-result span,
+.nonrevy-inline-result small {
   display: block;
 }
 
@@ -228,6 +229,12 @@ body:has(.nonrevy-conversation) {
   margin-top: 2px;
   color: #64748b;
   font-size: 0.82rem;
+}
+
+.nonrevy-inline-result small {
+  margin-top: 4px;
+  color: #854d0e;
+  font-weight: 700;
 }
 
 .nonrevy-inline-result > div:last-child {

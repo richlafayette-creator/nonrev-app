@@ -435,7 +435,10 @@ function InlineResult({ result, active, mode, onOpen, onCollapse, onMinimize }: 
     <div className={`nonrevy-inline-result${active ? ' nonrevy-inline-result--active' : ''}`}>
       <div>
         <strong>{result.itineraries.length} viable itineraries found</strong>
-        <span>{result.dataMode} · {new Date(result.createdAt).toLocaleTimeString()}</span>
+        <span>{result.dataMode} · {result.source} · {new Date(result.createdAt).toLocaleTimeString()}</span>
+        {result.warnings[0] || result.debug?.originCoverage?.status === 'insufficient' ? (
+          <small>{result.warnings[0] || result.debug?.originCoverage?.message || 'Partial coverage warning attached'}</small>
+        ) : null}
       </div>
       <div>
         <button type="button" onClick={mode === 'expanded' && active ? onCollapse : onOpen}>{mode === 'expanded' && active ? 'Collapse' : 'Expand'}</button>

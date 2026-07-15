@@ -111,6 +111,7 @@ export default function ConversationalTripWorkspace({ initialPrompt = '' }: { in
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const restored = useRef(false)
+  const restoredSavedResult = useRef(false)
   const hydratedInitialPrompt = useRef(false)
 
   useEffect(() => {
@@ -121,7 +122,10 @@ export default function ConversationalTripWorkspace({ initialPrompt = '' }: { in
       if (!saved) return
       const parsed = JSON.parse(saved)
       if (Array.isArray(parsed.messages)) setMessages(parsed.messages)
-      if (Array.isArray(parsed.results)) setResults(parsed.results)
+      if (Array.isArray(parsed.results)) {
+        restoredSavedResult.current = parsed.results.length > 0
+        setResults(parsed.results)
+      }
       if (parsed.context) setContext(parsed.context)
       if (parsed.activeResultId) setActiveResultId(parsed.activeResultId)
       if (parsed.workspaceMode) setWorkspaceMode(parsed.workspaceMode)
@@ -148,7 +152,7 @@ export default function ConversationalTripWorkspace({ initialPrompt = '' }: { in
   }, [context, messages, results, activeResultId, workspaceMode, filters, expandedCards, compareIds])
 
   useEffect(() => {
-    if (hydratedInitialPrompt.current || !initialPrompt.trim()) return
+    if (hydratedInitialPrompt.current || restoredSavedResult.current || !initialPrompt.trim()) return
     hydratedInitialPrompt.current = true
     void submitPrompt(initialPrompt)
   }, [initialPrompt])

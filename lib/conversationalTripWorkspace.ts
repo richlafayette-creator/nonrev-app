@@ -261,15 +261,15 @@ export function summarizeVerifiedResult(result: WorkspaceResultSet) {
     ...(result.debug?.safeErrors || [])
   ].filter(Boolean).join(' ').toLowerCase()
   if (limitationText.includes('rate limit') || limitationText.includes('rate-limited') || limitationText.includes('429')) {
-    return 'I could not verify current itineraries because a live provider is rate-limited right now. I will not show stale rows as availability; try again later or broaden the route/date.'
+    return "I couldn't retrieve verified live itineraries from the currently connected sources. Provider limitation: a connected source is rate-limited right now."
   }
   if (result.frameworkRoutes.length > 0) {
     return `${result.frameworkRoutes.length} route framework${result.frameworkRoutes.length === 1 ? '' : 's'} matched, but current schedule availability was not attached. I can use that as route context, but I will not treat it as live availability.`
   }
   if (result.debug?.originCoverage?.status === 'insufficient') {
-    return 'I could not verify current itineraries for that request because provider coverage is incomplete for the requested airport or route. I will show less rather than invent availability.'
+    return "I couldn't retrieve verified live itineraries from the currently connected sources. Schedule coverage is incomplete for the requested airport or route."
   }
-  return 'I could not verify current itineraries for that request. Try a specific airport pair, a different date, or broader carrier scope.'
+  return "I couldn't retrieve verified live itineraries from the currently connected sources."
 }
 
 export function noLoadDataLabel(itinerary: ConversationalItinerary) {

@@ -35,6 +35,8 @@ const examplePrompts = [
   'Which arrives earliest?'
 ]
 
+const verifiedLiveUnavailableMessage = "I couldn't retrieve verified live itineraries from the currently connected sources."
+
 function newId(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 }
@@ -83,11 +85,27 @@ function apiDataModeLabel(dataMode: string, itineraryCount: number) {
 }
 
 function providerLimitationNotes(result: WorkspaceResultSet) {
-  const notes = [
+  const diagnosticText = [
     ...result.warnings,
-    ...(result.debug?.originCoverage?.status === 'insufficient' && result.debug.originCoverage.message ? [result.debug.originCoverage.message] : []),
-    ...(result.debug?.originCoverage?.limitations || []),
-    ...(result.debug?.trueLiveDataUnavailableReason ? [result.debug.trueLiveDataUnavailableReason] : [])
+    result.status,
+    result.debug?.trueLiveDataUnavailableReason,
+    ...(result.debug?.safeErrors || [])
+  ].filter(Boolean).join(' ').toLowerCase()
+
+  const notes = [
+    !result.itineraries.length ? verifiedLiveUnavailableMessage : undefined,
+    /rate limit|rate-limited|429|quota|usage limit|monthly/.test(diagnosticText)
+      ? 'Provider limitation: a connected source is rate-limited right now.'
+      : undefined,
+    result.frameworkRoutes.length
+      ? `${result.frameworkRoutes.length} route framework${result.frameworkRoutes.length === 1 ? '' : 's'} matched separately from verified live itinerary results.`
+      : undefined,
+    result.dataMode.toLowerCase().includes('cached')
+      ? 'Provider limitation: cached schedule rows are not shown as live availability.'
+      : undefined,
+    result.debug?.originCoverage?.status === 'insufficient'
+      ? 'Schedule coverage: connected sources do not have complete coverage for this airport or route.'
+      : undefined
   ].filter(Boolean)
 
   return Array.from(new Set(notes)).slice(0, 3)
@@ -127,6 +145,7 @@ export default function ConversationalTripWorkspace({ initialPrompt = '' }: { in
   const [workspaceMode, setWorkspaceMode] = useState<WorkspaceMode>('expanded')
   const [filters, setFilters] = useState<WorkspaceFilters>({ avoidAirports: [], carriers: [], sort: 'ranked' })
   const [powerView, setPowerView] = useState(false)
+  const [developerDiagnosticsEnabled, setDeveloperDiagnosticsEnabled] = useState(false)
   const [expandedCards, setExpandedCards] = useState<string[]>([])
   const [compareIds, setCompareIds] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
@@ -171,6 +190,12 @@ export default function ConversationalTripWorkspace({ initialPrompt = '' }: { in
       compareIds
     }))
   }, [context, messages, results, activeResultId, workspaceMode, filters, expandedCards, compareIds])
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const enabled = ['1', 'true', 'yes', 'on'].includes((params.get('debug') || params.get('developer') || '').toLowerCase()) || window.localStorage.getItem('nonrevyDeveloperMode') === 'true'
+    setDeveloperDiagnosticsEnabled(enabled)
+  }, [])
 
   useEffect(() => {
     if (hydratedInitialPrompt.current || restoredSavedResult.current || !initialPrompt.trim()) return
@@ -258,8 +283,8 @@ export default function ConversationalTripWorkspace({ initialPrompt = '' }: { in
       const rawMessage = providerError instanceof Error && providerError.message ? providerError.message : ''
       const limited = /rate limit|rate-limited|429/i.test(rawMessage)
       const message = limited
-        ? 'I could not verify current itineraries because a live provider is rate-limited right now.'
-        : 'I could not complete the provider check for that request.'
+        ? `${verifiedLiveUnavailableMessage} Provider limitation: a connected source is rate-limited right now.`
+        : verifiedLiveUnavailableMessage
       setError(`${message} Try a specific airport pair, a different date, or broader carrier scope.`)
       addAssistantMessage(`${message} I will not show stale or unverified availability. Try a specific airport pair, a different date, or broader carrier scope.`)
     } finally {
@@ -378,6 +403,7 @@ export default function ConversationalTripWorkspace({ initialPrompt = '' }: { in
                     setActiveResultId(message.resultId || null)
                     setWorkspaceMode('minimized')
                   }}
+                  developerDiagnosticsEnabled={developerDiagnosticsEnabled}
                 />
               ) : null}
             </article>
@@ -424,10 +450,10 @@ export default function ConversationalTripWorkspace({ initialPrompt = '' }: { in
             onMinimize={() => setWorkspaceMode('minimized')}
           />
 
-          <Warnings result={activeResult} />
+          <Warnings result={activeResult} developerDiagnosticsEnabled={developerDiagnosticsEnabled} />
 
           {!filteredItineraries.length ? (
-            <NoResultPanel result={activeResult} filteredOutCount={filteredOutCount} />
+            <NoResultPanel result={activeResult} filteredOutCount={filteredOutCount} developerDiagnosticsEnabled={developerDiagnosticsEnabled} />
           ) : powerView ? (
             <PowerView itineraries={filteredItineraries} selectedIds={compareIds} onCompare={toggleCompare} result={activeResult} />
           ) : (
@@ -464,13 +490,14 @@ export default function ConversationalTripWorkspace({ initialPrompt = '' }: { in
   )
 }
 
-function InlineResult({ result, active, mode, onOpen, onCollapse, onMinimize }: {
+function InlineResult({ result, active, mode, onOpen, onCollapse, onMinimize, developerDiagnosticsEnabled }: {
   result: WorkspaceResultSet | null
   active: boolean
   mode: WorkspaceMode
   onOpen: () => void
   onCollapse: () => void
   onMinimize: () => void
+  developerDiagnosticsEnabled: boolean
 }) {
   if (!result) return null
   const limitations = providerLimitationNotes(result)
@@ -481,7 +508,7 @@ function InlineResult({ result, active, mode, onOpen, onCollapse, onMinimize }: 
         <strong>{result.itineraries.length ? `${result.itineraries.length} viable itinerar${result.itineraries.length === 1 ? 'y' : 'ies'} found` : 'No verified live itineraries found'}</strong>
         <span>{result.dataMode} · {result.source} · {new Date(result.createdAt).toLocaleTimeString()}</span>
         {limitations.map((limitation) => <small key={limitation}>{limitation}</small>)}
-        <DebugDisclosure diagnostics={diagnostics} />
+        <DebugDisclosure diagnostics={diagnostics} enabled={developerDiagnosticsEnabled} />
       </div>
       <div>
         <button type="button" onClick={mode === 'expanded' && active ? onCollapse : onOpen}>{mode === 'expanded' && active ? 'Collapse' : 'Expand'}</button>
@@ -575,34 +602,36 @@ function WorkspaceHeader({ result, filters, context, mode, filteredCount, filter
   )
 }
 
-function Warnings({ result }: { result: WorkspaceResultSet }) {
+function Warnings({ result, developerDiagnosticsEnabled }: { result: WorkspaceResultSet; developerDiagnosticsEnabled: boolean }) {
   const warnings = providerLimitationNotes(result)
   const diagnostics = developerDiagnostics(result)
-  if (!warnings.length && !result.frameworkRoutes.length) return null
+  if (!warnings.length && !result.frameworkRoutes.length && !result.itineraries.length) return null
   return (
     <section className="nonrevy-workspace__warnings">
-      {warnings.map((warning) => <p key={warning}>{warning}</p>)}
-      {result.frameworkRoutes.length ? <p>{result.frameworkRoutes.length} framework route{result.frameworkRoutes.length === 1 ? '' : 's'} exist separately from verified schedule availability.</p> : null}
-      <p>Schedule availability and standby/load availability are separate. No seat count or probability is shown without a verified source.</p>
-      <DebugDisclosure diagnostics={diagnostics} />
+      <p><strong>Schedule coverage:</strong> {result.dataMode}</p>
+      <p><strong>Itinerary results:</strong> {result.itineraries.length ? `${result.itineraries.length} verified live itinerar${result.itineraries.length === 1 ? 'y' : 'ies'} returned.` : verifiedLiveUnavailableMessage}</p>
+      <p><strong>Load availability:</strong> Standby/load availability is separate and unavailable unless a verified load source is attached.</p>
+      <p><strong>Provider limitation:</strong> {warnings[0] || 'No provider limitation is shown for this result.'}</p>
+      {warnings.slice(1).map((warning) => <p key={warning}>{warning}</p>)}
+      <DebugDisclosure diagnostics={diagnostics} enabled={developerDiagnosticsEnabled} />
     </section>
   )
 }
 
-function NoResultPanel({ result, filteredOutCount }: { result: WorkspaceResultSet; filteredOutCount: number }) {
+function NoResultPanel({ result, filteredOutCount, developerDiagnosticsEnabled }: { result: WorkspaceResultSet; filteredOutCount: number; developerDiagnosticsEnabled: boolean }) {
   const diagnostics = developerDiagnostics(result)
   return (
     <section className="nonrevy-empty-result">
       <strong>{filteredOutCount ? 'No itineraries match the current filters.' : 'No verified live itineraries are available for this result.'}</strong>
-      <p>{filteredOutCount ? 'Clear filters to bring the verified returned itineraries back.' : summarizeVerifiedResult(result)}</p>
+      <p>{filteredOutCount ? 'Clear filters to bring the verified returned itineraries back.' : verifiedLiveUnavailableMessage}</p>
       {result.frameworkRoutes.length ? <p>{result.frameworkRoutes.length} route framework{result.frameworkRoutes.length === 1 ? '' : 's'} matched, but frameworks are not displayed as live availability.</p> : null}
-      <DebugDisclosure diagnostics={diagnostics} />
+      <DebugDisclosure diagnostics={diagnostics} enabled={developerDiagnosticsEnabled} />
     </section>
   )
 }
 
-function DebugDisclosure({ diagnostics }: { diagnostics: string[] }) {
-  if (!diagnostics.length) return null
+function DebugDisclosure({ diagnostics, enabled }: { diagnostics: string[]; enabled: boolean }) {
+  if (!enabled || !diagnostics.length) return null
   return (
     <details className="nonrevy-debug-disclosure">
       <summary>Developer diagnostics</summary>

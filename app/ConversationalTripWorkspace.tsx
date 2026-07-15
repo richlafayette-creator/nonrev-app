@@ -306,6 +306,10 @@ export default function ConversationalTripWorkspace({ initialPrompt = '' }: { in
     if (action === 'explain') {
       addAssistantMessage(`This card is a verified itinerary display only: ${itineraryRoute(itinerary)} from ${sourceLabel(itinerary)} with ${freshnessLabel(itinerary, activeResult?.dataMode || '')}. ${noLoadDataLabel(itinerary)}.`, activeResult?.id)
     }
+    if (action === 'backups') {
+      const backups = itinerary.suggestedRecoveryPaths?.map((path) => path.label).join(' · ')
+      addAssistantMessage(backups || 'No backup itinerary has been verified from current schedule rows for this card.', activeResult?.id)
+    }
   }
 
   return (
@@ -575,6 +579,7 @@ function ItineraryCard({ itinerary, result, pinned, comparing, expanded, onPin, 
         <button type="button" onClick={onPin}>{pinned ? 'Pinned' : 'Pin'}</button>
         <button type="button" aria-pressed={comparing} onClick={onCompare}>Compare</button>
         <button type="button" onClick={() => onAction('explain', itinerary)}>Explain</button>
+        <button type="button" onClick={() => onAction('backups', itinerary)}>Show backups</button>
         <button type="button" onClick={onExpand}>{expanded ? 'Hide segments' : 'Show segments'}</button>
         <button type="button" onClick={() => onAction('avoid', itinerary)}>Avoid airport</button>
         <button type="button" onClick={() => onAction('prefer', itinerary)}>Prefer carrier</button>

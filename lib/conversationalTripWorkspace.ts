@@ -116,6 +116,8 @@ function unique(values: Array<string | undefined>) {
 export function mergeTripContext(previous: TripContext, prompt: string): TripContext {
   const parsed = parseItineraryPrompt(prompt)
   const lower = prompt.toLowerCase()
+  const followUpIntent = classifyFollowUpIntent(prompt)
+  const canUpdateRoute = followUpIntent === 'new-search'
   const airportCodes = unique(prompt.match(/\b[A-Za-z]{3}\b/g) || [])
   const avoided = unique([
     ...previous.avoidedAirports,
@@ -157,9 +159,9 @@ export function mergeTripContext(previous: TripContext, prompt: string): TripCon
 
   return {
     ...previous,
-    origin: parsed.origin || previous.origin,
-    destination: parsed.destination || previous.destination,
-    date: parsed.date || previous.date,
+    origin: canUpdateRoute ? parsed.origin || previous.origin : previous.origin,
+    destination: canUpdateRoute ? parsed.destination || previous.destination : previous.destination,
+    date: canUpdateRoute ? parsed.date || previous.date : previous.date,
     travelerBenefits: previous.travelerBenefits,
     preferredAirlines,
     avoidedAirports: avoided.length ? avoided : airportCodes.filter((code) => lower.includes(`avoid ${code.toLowerCase()}`)),
@@ -167,7 +169,7 @@ export function mergeTripContext(previous: TripContext, prompt: string): TripCon
     cabin,
     overnightTolerance,
     connectionPreference: lower.includes('earliest') ? 'earliest arrival' : previous.connectionPreference,
-    followUpIntent: classifyFollowUpIntent(prompt)
+    followUpIntent
   }
 }
 
@@ -185,6 +187,8 @@ export function classifyFollowUpIntent(prompt: string) {
 }
 
 export function promptRequiresProviderRefresh(prompt: string, current: TripContext) {
+  const intent = classifyFollowUpIntent(prompt)
+  if (intent !== 'new-search') return false
   const parsed = parseItineraryPrompt(prompt)
   if (parsed.origin && parsed.origin !== current.origin) return true
   if (parsed.destination && parsed.destination !== current.destination) return true

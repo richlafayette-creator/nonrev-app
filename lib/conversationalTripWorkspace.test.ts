@@ -14,6 +14,8 @@ import {
   type ConversationalItinerary,
   type WorkspaceResultSet
 } from './conversationalTripWorkspace.ts'
+// @ts-expect-error Node's experimental TypeScript test runner resolves the .ts extension directly.
+import { isCurrentLiveAvailability } from './liveAvailabilityGuard.ts'
 
 const sampleItineraries: ConversationalItinerary[] = [
   {
@@ -146,6 +148,28 @@ describe('conversational trip workspace logic', () => {
 
     assert.match(summary, /route framework/i)
     assert.match(summary, /not treat it as live availability/i)
+  })
+
+  it('uses truthful customer-safe no-results language', () => {
+    const summary = summarizeVerifiedResult(resultSet({
+      itineraries: [],
+      frameworkRoutes: [],
+      warnings: ['FlightAware credentials rejected before provider request execution.']
+    }))
+
+    assert.equal(summary, "I couldn't retrieve verified live itineraries from the currently connected sources.")
+  })
+
+  it('never treats demo fallback rows as current live availability', () => {
+    assert.equal(isCurrentLiveAvailability({
+      id: 'demo',
+      source: 'demo-fallback',
+      sourceProvider: 'test-data',
+      dataFreshnessLabel: 'Demo fallback data',
+      dataFreshnessRule: 'demo-fallback',
+      providerBadges: ['Live provider API data'],
+      productionAvailability: true
+    }), false)
   })
 
   it('keeps the conversational workspace on by default with an explicit legacy opt-out', () => {

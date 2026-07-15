@@ -188,6 +188,12 @@ describe('schedule provider adapter', () => {
     assert.deepEqual(registry.providerKeys(), ['first', 'second', 'third'])
   })
 
+  it('does not register placeholder providers in the default live search registry', () => {
+    const registry = createDefaultScheduleProviderRegistry()
+
+    assert.deepEqual(registry.providerKeys(), ['supabase-cache', 'flightaware', 'aviationstack'])
+  })
+
   it('returns canonical diagnostics for empty provider responses', async () => {
     const registry = createDefaultScheduleProviderRegistry([
       createMockScheduleProvider([], { key: 'empty-provider', priority: 1, status: 'skipped', detail: 'No rows.' })

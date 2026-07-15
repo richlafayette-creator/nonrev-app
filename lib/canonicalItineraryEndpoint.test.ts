@@ -4,6 +4,8 @@ import { describe, it } from 'node:test'
 import { canonicalItineraryEndpointAudit, runCanonicalItineraryEndpoint, routingEngineVersion } from './canonicalItineraryEndpoint.ts'
 // @ts-expect-error Node's experimental TypeScript test runner resolves the .ts extension directly.
 import { createDefaultScheduleProviderRegistry, createMockScheduleProvider } from './scheduleProviderRegistry.ts'
+// @ts-expect-error Node's experimental TypeScript test runner resolves the .ts extension directly.
+import { isCurrentLiveAvailability } from './liveAvailabilityGuard.ts'
 
 const rows = [
   { carrier: 'United', flightNumber: 'UA100', origin: 'SBP', destination: 'SFO', departureTime: '2026-07-10T13:00:00Z', arrivalTime: '2026-07-10T14:00:00Z', duration: '1h', aircraft: 'E75', status: 'Scheduled', source: 'mock-a', sourceCheckedAt: '2026-07-09T12:00:00Z' },
@@ -92,5 +94,37 @@ describe('canonical itinerary endpoint pipeline', () => {
     } finally {
       process.env.NODE_ENV = originalNodeEnv
     }
+  })
+
+  it('returns verified live itineraries when fixtures provide valid live schedules', async () => {
+    const liveRegistry = createDefaultScheduleProviderRegistry([
+      createMockScheduleProvider([
+        { ...rows[0], source: 'flightaware', sourceCheckedAt: '2026-07-09T12:00:00Z' },
+        { ...rows[2], source: 'flightaware', sourceCheckedAt: '2026-07-09T12:01:00Z' }
+      ], { key: 'flightaware', priority: 10 })
+    ])
+
+    const response = await runCanonicalItineraryEndpoint({ endpoint: 'GET /api/itinerary/search', registry: liveRegistry, searchParams: params() })
+
+    assert.equal(response.itineraries.length, 1)
+    assert.equal(response.itineraries[0].route, 'SBP → SFO → HND')
+    assert.equal(response.itineraries[0].productionAvailability, true)
+    assert.equal(response.itineraries[0].dataFreshnessRule, 'exact-requested-date')
+    assert.equal(isCurrentLiveAvailability(response.itineraries[0]), true)
+  })
+
+  it('does not label demo fixture itineraries as live', async () => {
+    const demoRegistry = createDefaultScheduleProviderRegistry([
+      createMockScheduleProvider([
+        { ...rows[0], source: 'mvp-route-seed-test-data', status: 'Test Data' },
+        { ...rows[2], source: 'mvp-route-seed-test-data', status: 'Test Data' }
+      ], { key: 'demo-provider', priority: 10 })
+    ])
+
+    const response = await runCanonicalItineraryEndpoint({ endpoint: 'GET /api/itinerary/search', registry: demoRegistry, searchParams: params() })
+
+    assert.equal(response.itineraries.length, 1)
+    assert.equal(response.itineraries[0].productionAvailability, false)
+    assert.equal(isCurrentLiveAvailability(response.itineraries[0]), false)
   })
 })

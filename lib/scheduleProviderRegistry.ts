@@ -377,9 +377,7 @@ export function createMockScheduleProvider(results: NormalizedScheduleResult[] =
 export function createDefaultScheduleProviderRegistry(providers: UnifiedScheduleProvider[] = [
   createSupabaseCacheScheduleProvider(),
   liveProviderAdapter(createFlightAwareScheduleProvider(), 20),
-  liveProviderAdapter(createAviationstackScheduleProvider(), 30),
-  liveProviderAdapter(createAmadeusScheduleProvider(), 40),
-  liveProviderAdapter(createCiriumOagScheduleProvider(), 50)
+  liveProviderAdapter(createAviationstackScheduleProvider(), 30)
 ]): ScheduleProviderRegistry {
   const sortedProviders = [...providers].sort((a, b) => a.priority - b.priority)
   return {

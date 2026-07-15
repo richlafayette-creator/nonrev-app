@@ -1612,9 +1612,60 @@ function discoveryConfidenceFor(itinerary: ItineraryResult, providers: string[])
   } satisfies ItineraryDiscoveryConfidence
 }
 
+function itineraryFreshnessFor(itinerary: ItineraryResult, providers: string[], request: ParsedItineraryRequest) {
+  const hasLiveProvider = providers.some((provider) => provider === 'flightaware' || provider === 'aviationstack')
+  const everyLegLive = itinerary.legs.every((leg) => leg.dataTrust === 'live')
+  const requestedDateMatched = !request.date || localDateForAirport(itinerary.departureTime, itinerary.origin || itinerary.legs[0]?.origin) === request.date
+  const hasScheduledTimes = itinerary.legs.every((leg) => Number.isFinite(Date.parse(leg.departureTime)) && Number.isFinite(Date.parse(leg.arrivalTime)))
+  const productionAvailability = hasLiveProvider && everyLegLive && requestedDateMatched && hasScheduledTimes
+
+  if (productionAvailability) {
+    return {
+      providerBadges: providers,
+      dataFreshnessLabel: 'Live provider API data',
+      dataFreshnessDetail: 'Every displayed leg came from a connected live schedule provider for the requested date.',
+      dataFreshnessRule: 'exact-requested-date' as const,
+      dataFreshnessWarning: undefined,
+      productionAvailability
+    }
+  }
+
+  if (providers.some((provider) => provider === 'provider-cache')) {
+    return {
+      providerBadges: providers,
+      dataFreshnessLabel: 'Cached provider data',
+      dataFreshnessDetail: 'Stored provider rows can support route context, but they are not verified current live availability.',
+      dataFreshnessRule: 'cached-provider-current' as const,
+      dataFreshnessWarning: 'Not verified as current live availability.',
+      productionAvailability: false
+    }
+  }
+
+  if (providers.some((provider) => provider === 'supabase')) {
+    return {
+      providerBadges: providers,
+      dataFreshnessLabel: 'Stored Supabase flight data',
+      dataFreshnessDetail: 'Stored rows can support route context, but they are not verified current live availability.',
+      dataFreshnessRule: 'stored-historical-data' as const,
+      dataFreshnessWarning: 'Not verified as current live availability.',
+      productionAvailability: false
+    }
+  }
+
+  return {
+    providerBadges: providers,
+    dataFreshnessLabel: 'Schedule freshness unavailable',
+    dataFreshnessDetail: 'The itinerary was not verified from a connected live schedule provider.',
+    dataFreshnessRule: 'route-framework' as const,
+    dataFreshnessWarning: 'Not verified as current live availability.',
+    productionAvailability: false
+  }
+}
+
 function annotateDiscoveredItinerary(itinerary: ItineraryResult, graph: CanonicalItineraryGraph, request: ParsedItineraryRequest, why: string): ItineraryResult {
   const providers = [...new Set(itinerary.legs.flatMap((leg) => leg.providers?.length ? leg.providers.map(providerKey) : [providerKey(leg.sourceProvider || leg.source || leg.dataSource)]).filter(Boolean))]
   const missingProviders = supportedScheduleProviders.filter((provider) => !providers.includes(provider))
+  const freshness = itineraryFreshnessFor(itinerary, providers, request)
   const providerCoverage = {
     providers,
     missingProviders,
@@ -1630,6 +1681,7 @@ function annotateDiscoveredItinerary(itinerary: ItineraryResult, graph: Canonica
   })
   return {
     ...itinerary,
+    ...freshness,
     completeness: {
       status: providerCoverage.complete ? 'complete' : 'incomplete-coverage',
       hasAllScheduledLegs: itinerary.legs.every((leg) => Boolean(leg.flightNumber && leg.departureTime && leg.arrivalTime)),

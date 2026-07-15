@@ -175,8 +175,14 @@ export default function ConversationalTripWorkspace({ initialPrompt = '' }: { in
     setContext(merged)
     setFilters((current) => {
       if (merged.followUpIntent === 'show-all') return { avoidAirports: [], carriers: [], sort: 'ranked' }
+      const exactStops = /\bonly\s+one[-\s]?stop\b|\bone[-\s]?stop\s+routes?\b/i.test(nextPrompt)
+        ? 1
+        : /\bnonstop\s+only\b|\bonly\s+nonstop\b/i.test(nextPrompt)
+          ? 0
+          : undefined
       return {
         ...current,
+        exactStops,
         maxStops: merged.maxStops,
         avoidAirports: merged.avoidedAirports,
         carriers: merged.preferredAirlines,

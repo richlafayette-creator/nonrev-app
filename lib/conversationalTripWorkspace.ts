@@ -60,6 +60,7 @@ export type ConversationalItinerary = {
 
 export type WorkspaceFilters = {
   maxStops?: number
+  exactStops?: number
   avoidAirports: string[]
   carriers: string[]
   sort: 'ranked' | 'earliest' | 'fewest-stops' | 'duration'
@@ -223,6 +224,7 @@ function parseDurationMinutes(value?: string) {
 
 export function applyWorkspaceFilters(itineraries: ConversationalItinerary[], filters: WorkspaceFilters) {
   const visible = itineraries.filter((itinerary) => {
+    if (typeof filters.exactStops === 'number' && itineraryStopCount(itinerary) !== filters.exactStops) return false
     if (typeof filters.maxStops === 'number' && itineraryStopCount(itinerary) > filters.maxStops) return false
     const airports = routeAirports(itinerary)
     if (filters.avoidAirports.some((airport) => airports.includes(airport.toUpperCase()))) return false

@@ -22,6 +22,10 @@ function rowMergeKey(row: ProviderAgnosticScheduleRow) {
   return [row.operating_flight_number || row.flight_number, row.origin, row.destination, row.departure_time, row.arrival_time].join('|')
 }
 
+function primaryScheduleSource(sources: string[]) {
+  return sources.find((source) => !/cache|supabase/i.test(source)) || sources[0] || 'provider-cache'
+}
+
 export function mergeDuplicateScheduleRows(rows: ProviderAgnosticScheduleRow[]): ProviderAgnosticScheduleRow[] {
   const merged = new Map<string, ProviderAgnosticScheduleRow>()
   rows.forEach((row) => {
@@ -33,12 +37,13 @@ export function mergeDuplicateScheduleRows(rows: ProviderAgnosticScheduleRow[]):
       return
     }
     const scheduleSources = uniqueStrings([...existing.schedule_sources, ...(row.schedule_sources || []), row.source_provider])
+    const primarySource = primaryScheduleSource(scheduleSources)
     const marketingFlights = uniqueStrings([...existing.marketing_flight_numbers, ...row.marketing_flight_numbers, row.flight_number])
       .filter((flightNumber) => flightNumber !== existing.operating_flight_number)
     merged.set(key, {
       ...existing,
-      source_provider: scheduleSources.join('+'),
-      schedule_source: scheduleSources.join('+'),
+      source_provider: primarySource,
+      schedule_source: primarySource,
       schedule_sources: scheduleSources,
       providers: scheduleSources,
       aircraft: existing.aircraft !== 'Unknown' && existing.aircraft !== 'Not provided' ? existing.aircraft : row.aircraft,

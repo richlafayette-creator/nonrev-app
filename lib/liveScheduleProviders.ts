@@ -1,6 +1,6 @@
 import { createProviderResultRepository } from './providerResultRepository'
 import { executeProviderOperation, providerOnboardingConfigFor } from './providerInfrastructure'
-import { providerScheduleRowsFromResults } from './scheduleProviderAdapter'
+import { providerScheduleRowsFromResults, type ScheduleProviderCallLog } from './scheduleProviderAdapter'
 
 export type LiveScheduleProviderKey =
   | 'aviationstack'
@@ -58,6 +58,7 @@ export type LiveScheduleProviderResponse = {
   status: 'success' | 'skipped' | 'warning' | 'error'
   warning?: string
   detail: string
+  providerCallLogs?: ScheduleProviderCallLog[]
 }
 
 export type LiveScheduleProvider = {
@@ -294,6 +295,42 @@ async function fetchJsonWithTimeout(url: string, init: RequestInit = {}, timeout
   }
 }
 
+function safeProviderUrl(url: string) {
+  return url
+    .replace(/access_key=[^&\s]+/gi, 'access_key=[hidden]')
+    .replace(/apikey=[^&\s]+/gi, 'apikey=[hidden]')
+}
+
+function quotaHeadersFrom(response: Response) {
+  const headers: Record<string, string> = {}
+  response.headers.forEach((value, key) => {
+    if (/rate|quota|limit|remaining|reset|retry-after/i.test(key)) headers[key] = value
+  })
+  return headers
+}
+
+function providerCallLog(input: {
+  provider: LiveScheduleProviderKey
+  url: string
+  startedAt: number
+  response?: Response
+  detail: string
+  cacheStatus?: ScheduleProviderCallLog['cacheStatus']
+}): ScheduleProviderCallLog {
+  const status = input.response?.status
+  return {
+    provider: input.provider,
+    url: safeProviderUrl(input.url),
+    httpStatus: status,
+    latencyMs: Date.now() - input.startedAt,
+    quotaHeaders: input.response ? quotaHeadersFrom(input.response) : {},
+    rateLimited: status === 429 || /rate limit|quota|usage limit|monthly/i.test(input.detail),
+    authenticationFailure: status === 401 || status === 403 || /credential|authentication|authorization|api key/i.test(input.detail),
+    cacheStatus: input.cacheStatus,
+    detail: safeMessage(input.detail)
+  }
+}
+
 class RetryableProviderStatusError extends Error {
   status: number
 
@@ -495,30 +532,36 @@ export function createFlightAwareScheduleProvider(apiKey = process.env.FLIGHTAWA
       const sourceCheckedAt = new Date().toISOString()
 
       try {
-        const { response, data } = await fetchJsonWithProviderInfrastructure('flightaware', `https://aeroapi.flightaware.com/aeroapi/schedules/${encodeURIComponent(startDate)}/${encodeURIComponent(endDate)}?${params.toString()}`, {
+        const url = `https://aeroapi.flightaware.com/aeroapi/schedules/${encodeURIComponent(startDate)}/${encodeURIComponent(endDate)}?${params.toString()}`
+        const startedAt = Date.now()
+        const { response, data } = await fetchJsonWithProviderInfrastructure('flightaware', url, {
           headers: { 'x-apikey': apiKey }
         })
 
         if (!response.ok) {
           const rawMessage = safeMessage(data?.title || data?.error || data?.message || `FlightAware schedule request failed with ${response.status}`)
+          const warning = safeProviderMessage('FlightAware', response.status, rawMessage)
           return {
             provider: 'flightaware',
             results: [],
             requestCount: 1,
             status: 'warning',
-            warning: safeProviderMessage('FlightAware', response.status, rawMessage),
-            detail: 'FlightAware live schedule search returned no usable rows.'
+            warning,
+            detail: 'FlightAware live schedule search returned no usable rows.',
+            providerCallLogs: [providerCallLog({ provider: 'flightaware', url, startedAt, response, detail: warning, cacheStatus: 'bypass' })]
           }
         }
 
         if (!Array.isArray(data?.scheduled)) {
+          const warning = 'FlightAware returned an unexpected schedule payload; live schedules were not used'
           return {
             provider: 'flightaware',
             results: [],
             requestCount: 1,
             status: 'warning',
-            warning: 'FlightAware returned an unexpected schedule payload; live schedules were not used',
-            detail: 'FlightAware live schedule search returned no usable rows.'
+            warning,
+            detail: 'FlightAware live schedule search returned no usable rows.',
+            providerCallLogs: [providerCallLog({ provider: 'flightaware', url, startedAt, response, detail: warning, cacheStatus: 'bypass' })]
           }
         }
 
@@ -535,16 +578,27 @@ export function createFlightAwareScheduleProvider(apiKey = process.env.FLIGHTAWA
           results,
           requestCount: 1,
           status: results.length ? 'success' : 'skipped',
-          detail: results.length ? `${results.length} FlightAware live schedule result${results.length === 1 ? '' : 's'} returned.` : 'FlightAware returned no matching live schedule rows.'
+          detail: results.length ? `${results.length} FlightAware live schedule result${results.length === 1 ? '' : 's'} returned.` : 'FlightAware returned no matching live schedule rows.',
+          providerCallLogs: [providerCallLog({ provider: 'flightaware', url, startedAt, response, detail: results.length ? `${results.length} rows` : 'FlightAware returned no matching live schedule rows.', cacheStatus: 'bypass' })]
         }
-      } catch {
+      } catch (error) {
+        const detail = safeMessage(error) || 'FlightAware live schedule request failed; falling back safely'
         return {
           provider: 'flightaware',
           results: [],
           requestCount: 1,
           status: 'warning',
           warning: 'FlightAware live schedule request failed; falling back safely',
-          detail: 'FlightAware live schedule search failed before returning usable rows.'
+          detail: 'FlightAware live schedule search failed before returning usable rows.',
+          providerCallLogs: [{
+            provider: 'flightaware',
+            latencyMs: 0,
+            quotaHeaders: {},
+            rateLimited: /rate limit|429/i.test(detail),
+            authenticationFailure: /credential|auth|401|403/i.test(detail),
+            cacheStatus: 'bypass',
+            detail
+          }]
         }
       }
     }
@@ -576,6 +630,7 @@ export function createAviationstackScheduleProvider(apiKey = process.env.AVIATIO
       const carrierCodes = aviationstackCarrierCodes(request.carrier)
       const warnings: string[] = []
       const results: NormalizedScheduleResult[] = []
+      const providerCallLogs: ScheduleProviderCallLog[] = []
 
       await Promise.all(carrierCodes.map(async (carrierCode) => {
         const params = new URLSearchParams({
@@ -588,21 +643,38 @@ export function createAviationstackScheduleProvider(apiKey = process.env.AVIATIO
         if (carrierCode) params.set('airline_iata', carrierCode)
 
         try {
-          const { response, data } = await fetchJsonWithProviderInfrastructure('aviationstack', `https://api.aviationstack.com/v1/flights?${params.toString()}`)
+          const url = `https://api.aviationstack.com/v1/flights?${params.toString()}`
+          const startedAt = Date.now()
+          const { response, data } = await fetchJsonWithProviderInfrastructure('aviationstack', url)
           if (!response.ok || data?.error) {
             const status = response.status || 400
             const rawMessage = safeMessage(data?.error?.message || data?.error?.code || `Aviationstack request failed with ${status}`)
-            warnings.push(safeProviderMessage('Aviationstack', status, rawMessage))
+            const warning = safeProviderMessage('Aviationstack', status, rawMessage)
+            warnings.push(warning)
+            providerCallLogs.push(providerCallLog({ provider: 'aviationstack', url, startedAt, response, detail: warning, cacheStatus: 'bypass' }))
             return
           }
 
           if (Array.isArray(data?.data)) {
             results.push(...data.data.map(normalizeAviationstackScheduleResult))
+            providerCallLogs.push(providerCallLog({ provider: 'aviationstack', url, startedAt, response, detail: `${data.data.length} rows`, cacheStatus: 'bypass' }))
           } else {
-            warnings.push('Aviationstack returned an unexpected payload; no fallback flights were used')
+            const warning = 'Aviationstack returned an unexpected payload; no fallback flights were used'
+            warnings.push(warning)
+            providerCallLogs.push(providerCallLog({ provider: 'aviationstack', url, startedAt, response, detail: warning, cacheStatus: 'bypass' }))
           }
-        } catch {
+        } catch (error) {
+          const detail = safeMessage(error) || 'Aviationstack request failed; fallback provider skipped safely'
           warnings.push('Aviationstack request failed; fallback provider skipped safely')
+          providerCallLogs.push({
+            provider: 'aviationstack',
+            latencyMs: 0,
+            quotaHeaders: {},
+            rateLimited: /rate limit|429/i.test(detail),
+            authenticationFailure: /credential|auth|401|403/i.test(detail),
+            cacheStatus: 'bypass',
+            detail
+          })
         }
       }))
 
@@ -614,7 +686,8 @@ export function createAviationstackScheduleProvider(apiKey = process.env.AVIATIO
         requestCount: carrierCodes.length,
         status: uniqueResults.length ? 'success' : warnings.length ? 'warning' : 'skipped',
         warning: warnings.length ? uniqueMessages(warnings).join(' · ') : undefined,
-        detail: uniqueResults.length ? `${uniqueResults.length} Aviationstack schedule result${uniqueResults.length === 1 ? '' : 's'} returned.` : 'Aviationstack returned no usable schedule rows.'
+        detail: uniqueResults.length ? `${uniqueResults.length} Aviationstack schedule result${uniqueResults.length === 1 ? '' : 's'} returned.` : 'Aviationstack returned no usable schedule rows.',
+        providerCallLogs
       }
     }
   }

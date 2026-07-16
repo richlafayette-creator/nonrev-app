@@ -34,6 +34,19 @@ export type ScheduleProviderDiagnostic = {
   providerFailures: string[]
 }
 
+export type ScheduleProviderCallLog = {
+  provider: string
+  url?: string
+  scope?: string
+  httpStatus?: number
+  latencyMs: number
+  quotaHeaders: Record<string, string>
+  rateLimited: boolean
+  authenticationFailure: boolean
+  cacheStatus?: ScheduleProviderCacheStatus
+  detail: string
+}
+
 export type ProviderAgnosticScheduleRow = {
   id: string
   source_provider: string
@@ -115,6 +128,7 @@ export type ScheduleProviderAdapterResult = {
   coverage: ScheduleProviderCoverage
   capabilities: ScheduleProviderCapabilities
   diagnostics: ScheduleProviderDiagnostic
+  providerCallLogs?: ScheduleProviderCallLog[]
 }
 
 export type ScheduleProviderSearchResponse = {
@@ -124,6 +138,7 @@ export type ScheduleProviderSearchResponse = {
   requestCount?: number
   status?: ScheduleProviderStatus
   cacheStatus?: ScheduleProviderCacheStatus
+  providerCallLogs?: ScheduleProviderCallLog[]
 }
 
 export type ScheduleProviderAdapter = {
@@ -331,7 +346,8 @@ export async function runScheduleProviderAdapter(adapter: ScheduleProviderAdapte
       health: await adapter.health(rows, status, responseTimeMs, errors),
       coverage: await adapter.providerCoverage(request, rows, status, response.warning),
       capabilities: adapter.capabilities(),
-      diagnostics: diagnosticsFor(adapter.key, request, responseTimeMs, response.cacheStatus || 'bypass', rows.length, errors)
+      diagnostics: diagnosticsFor(adapter.key, request, responseTimeMs, response.cacheStatus || 'bypass', rows.length, errors),
+      providerCallLogs: response.providerCallLogs
     }
   } catch (error) {
     const warning = error instanceof Error ? error.message : `${adapter.label} failed`
@@ -345,7 +361,16 @@ export async function runScheduleProviderAdapter(adapter: ScheduleProviderAdapte
       health: await adapter.health([], 'error', responseTimeMs, [warning]),
       coverage: await adapter.providerCoverage(request, [], 'error', warning),
       capabilities: adapter.capabilities(),
-      diagnostics: diagnosticsFor(adapter.key, request, responseTimeMs, 'unavailable', 0, [warning])
+      diagnostics: diagnosticsFor(adapter.key, request, responseTimeMs, 'unavailable', 0, [warning]),
+      providerCallLogs: [{
+        provider: adapter.key,
+        latencyMs: responseTimeMs,
+        quotaHeaders: {},
+        rateLimited: /rate limit|rate-limited|429/i.test(warning),
+        authenticationFailure: /credential|auth|401|403/i.test(warning),
+        cacheStatus: 'unavailable',
+        detail: warning
+      }]
     }
   }
 }

@@ -8,6 +8,7 @@ import {
   type ProviderAgnosticScheduleRow,
   type ScheduleProviderAdapter,
   type ScheduleProviderAdapterResult,
+  type ScheduleProviderCallLog,
   type ScheduleProviderCapabilities,
   type ScheduleProviderCoverage,
   type ScheduleProviderDiagnostic,
@@ -31,6 +32,7 @@ export type UnifiedScheduleSearchResult = {
   marketCoverage: MarketCoverageDiagnostics
   providerMetrics: ProviderMetricsDiagnostics[]
   providerInfrastructure: ProviderInfrastructureSnapshot[]
+  providerCallLogs: ScheduleProviderCallLog[]
   warnings: string[]
   detail: string
 }
@@ -185,7 +187,8 @@ function aggregateProviderResults(results: ScheduleProviderAdapterResult[]): Sch
       health,
       coverage,
       capabilities: first.capabilities,
-      diagnostics
+      diagnostics,
+      providerCallLogs: items.flatMap((item) => item.providerCallLogs || [])
     }
   })
 }
@@ -261,6 +264,11 @@ function buildProviderMetrics(providerResults: ScheduleProviderAdapterResult[]):
   }))
 }
 
+function resultWasRateLimited(result: ScheduleProviderAdapterResult) {
+  const text = [result.warning, result.detail, ...(result.diagnostics.providerFailures || [])].join(' ')
+  return /rate limit|rate-limited|quota|429/i.test(text) || Boolean(result.providerCallLogs?.some((call) => call.rateLimited))
+}
+
 function canonicalProviderAdapter(options: {
   key: string
   label: string
@@ -295,7 +303,8 @@ function liveProviderAdapter(provider: LiveScheduleProvider, priority: number): 
         detail: response.detail,
         requestCount: response.requestCount,
         status: response.status,
-        cacheStatus: 'bypass'
+        cacheStatus: 'bypass',
+        providerCallLogs: response.providerCallLogs
       }
     }
   })
@@ -328,7 +337,7 @@ export function createSupabaseCacheScheduleProvider(repository: ProviderResultRe
   return canonicalProviderAdapter({
     key: 'supabase-cache',
     label: 'Supabase provider cache',
-    priority: 10,
+    priority: 90,
     capabilities: defaultScheduleProviderCapabilities({ futureSchedules: true, routeSearch: true, cacheRead: true }),
     async searchSchedules(request) {
       const lookup = await repository.findCachedResults({
@@ -341,13 +350,24 @@ export function createSupabaseCacheScheduleProvider(repository: ProviderResultRe
         allowStaleOnMiss: true
       })
       const results = lookup.records.map((record) => cacheRecordToNormalizedResult({ ...(record as unknown as Record<string, unknown>), cache_freshness: lookup.freshness }))
+      const degradedFallback = lookup.storageMode === 'local-fallback' && lookup.httpStatus !== undefined
       return {
         results,
         detail: lookup.detail,
         requestCount: 1,
-        status: lookup.status === 'hit' ? lookup.freshness === 'stale' ? 'warning' : 'success' : lookup.status === 'miss' ? 'skipped' : 'warning',
-        warning: lookup.status === 'unavailable' || lookup.freshness === 'stale' ? lookup.detail : undefined,
-        cacheStatus: lookup.status === 'hit' ? 'hit' : lookup.status === 'miss' ? 'miss' : 'unavailable'
+        status: lookup.status === 'hit' ? lookup.freshness === 'stale' || degradedFallback ? 'warning' : 'success' : lookup.status === 'miss' ? 'skipped' : 'warning',
+        warning: lookup.status === 'unavailable' || lookup.freshness === 'stale' || degradedFallback ? lookup.detail : undefined,
+        cacheStatus: lookup.status === 'hit' ? 'hit' : lookup.status === 'miss' ? 'miss' : 'unavailable',
+        providerCallLogs: [{
+          provider: 'supabase-cache',
+          latencyMs: 0,
+          httpStatus: lookup.httpStatus,
+          quotaHeaders: lookup.quotaHeaders || {},
+          rateLimited: lookup.httpStatus === 429,
+          authenticationFailure: Boolean(lookup.authenticationFailure),
+          cacheStatus: lookup.status === 'hit' ? 'hit' : lookup.status === 'miss' ? 'miss' : 'unavailable',
+          detail: lookup.detail
+        }]
       }
     }
   })
@@ -375,9 +395,9 @@ export function createMockScheduleProvider(results: NormalizedScheduleResult[] =
 }
 
 export function createDefaultScheduleProviderRegistry(providers: UnifiedScheduleProvider[] = [
-  createSupabaseCacheScheduleProvider(),
-  liveProviderAdapter(createFlightAwareScheduleProvider(), 20),
-  liveProviderAdapter(createAviationstackScheduleProvider(), 30)
+  liveProviderAdapter(createFlightAwareScheduleProvider(), 10),
+  liveProviderAdapter(createAviationstackScheduleProvider(), 20),
+  createSupabaseCacheScheduleProvider()
 ]): ScheduleProviderRegistry {
   const sortedProviders = [...providers].sort((a, b) => a.priority - b.priority)
   return {
@@ -385,9 +405,19 @@ export function createDefaultScheduleProviderRegistry(providers: UnifiedSchedule
     providerKeys: () => sortedProviders.map((provider) => provider.key),
     async searchSchedules(request) {
       const searchRequests = supplementalSearchRequests(request)
-      const providerResults = aggregateProviderResults(await Promise.all(sortedProviders.flatMap((provider) => searchRequests.map((entry) => runScheduleProviderAdapter(provider, entry.request)))))
+      const providerResults: ScheduleProviderAdapterResult[] = []
+      for (const provider of sortedProviders) {
+        const isCacheProvider = /cache|supabase/i.test(provider.key)
+        const liveRowsAlreadyAvailable = providerResults.some((result) => !/cache|supabase/i.test(result.provider) && result.rows.length > 0)
+        const liveProviderWasRateLimited = providerResults.some((result) => !/cache|supabase/i.test(result.provider) && resultWasRateLimited(result))
+        if (isCacheProvider && liveRowsAlreadyAvailable && !liveProviderWasRateLimited) continue
+
+        const aggregated = aggregateProviderResults(await Promise.all(searchRequests.map((entry) => runScheduleProviderAdapter(provider, entry.request))))
+        providerResults.push(...aggregated)
+      }
       const rows = mergeDuplicateScheduleRows(providerResults.flatMap((result) => result.rows))
-      const cacheResult = await createProviderResultRepository().storeNormalizedResults(rows.map(rowToNormalizedResult))
+      const liveRows = rows.filter((row) => !/cache|supabase/i.test(row.source_provider))
+      const cacheResult = await createProviderResultRepository().storeNormalizedResults(liveRows.map(rowToNormalizedResult))
       const comparison = compareScheduleProviders(providerResults)
       const coverageReport = buildScheduleProviderCoverageReport(rows, providerResults)
       const marketCoverage = buildMarketCoverageDiagnostics(rows, providerResults, searchRequests, cacheResult.stored)
@@ -403,6 +433,7 @@ export function createDefaultScheduleProviderRegistry(providers: UnifiedSchedule
         marketCoverage,
         providerMetrics,
         providerInfrastructure: providerInfrastructureSnapshot(),
+        providerCallLogs: providerResults.flatMap((result) => result.providerCallLogs || []),
         warnings: uniqueMessages(providerResults.map((result) => result.warning)),
         detail: `${providerResults.map((result) => `${result.provider}: ${result.detail || result.status}`).join(' · ')} · ${cacheResult.detail}`
       }

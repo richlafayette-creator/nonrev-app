@@ -48,6 +48,9 @@ export type ProviderCacheLookupResult = {
   detail: string
   freshness: 'current' | 'stale' | 'unavailable'
   staleRecordCount: number
+  httpStatus?: number
+  quotaHeaders?: Record<string, string>
+  authenticationFailure?: boolean
 }
 
 export type ProviderResultRepository = {
@@ -300,6 +303,14 @@ function supabaseQueryUrl(supabaseUrl: string, request: ProviderCacheLookupReque
   return `${supabaseUrl.replace(/\/$/, '')}/rest/v1/${providerResultTableName}?${params.toString()}`
 }
 
+function responseQuotaHeaders(response: Response) {
+  const headers: Record<string, string> = {}
+  response.headers.forEach((value, key) => {
+    if (/rate|quota|limit|remaining|reset|retry-after/i.test(key)) headers[key] = value
+  })
+  return headers
+}
+
 function normalizeSupabaseRecord(raw: Record<string, unknown>): ProviderResultRecord {
   const checkedAt = cleanValue(String(raw.source_checked_at || raw.cached_at || raw.created_at || cacheTimestamp()))
   return {
@@ -426,7 +437,10 @@ export function createProviderResultRepository(env: ProviderResultRepositoryEnv 
             records: localRecords.length ? localRecords : staleLocalRecords,
             detail: localRecords.length ? `Supabase cache lookup failed (${response.status}); using ${localRecords.length} local fallback result${localRecords.length === 1 ? '' : 's'}.` : staleLocalRecords.length ? `Supabase cache lookup failed (${response.status}); using ${staleLocalRecords.length} stale last-known-good local fallback result${staleLocalRecords.length === 1 ? '' : 's'}.` : `Supabase cache lookup failed (${response.status}); no local fallback cache matched.`,
             freshness: localRecords.length ? 'current' : staleLocalRecords.length ? 'stale' : 'unavailable',
-            staleRecordCount: staleLocalRecords.length
+            staleRecordCount: staleLocalRecords.length,
+            httpStatus: response.status,
+            quotaHeaders: responseQuotaHeaders(response),
+            authenticationFailure: response.status === 401 || response.status === 403
           }
         }
         const data = await readJsonSafely(response)
@@ -438,7 +452,10 @@ export function createProviderResultRepository(env: ProviderResultRepositoryEnv 
           records: records.length ? records : localRecords.length ? localRecords : staleLocalRecords,
           detail: records.length ? `${records.length} Supabase provider cache result${records.length === 1 ? '' : 's'} found.` : localRecords.length ? `${localRecords.length} local fallback provider cache result${localRecords.length === 1 ? '' : 's'} found.` : staleLocalRecords.length ? `${staleLocalRecords.length} stale last-known-good local fallback provider cache result${staleLocalRecords.length === 1 ? '' : 's'} found.` : 'No matching provider cache rows found.',
           freshness: records.length || localRecords.length ? 'current' : staleLocalRecords.length ? 'stale' : 'unavailable',
-          staleRecordCount: staleLocalRecords.length
+          staleRecordCount: staleLocalRecords.length,
+          httpStatus: response.status,
+          quotaHeaders: responseQuotaHeaders(response),
+          authenticationFailure: false
         }
       } catch {
         return {

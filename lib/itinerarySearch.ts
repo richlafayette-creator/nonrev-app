@@ -1082,10 +1082,10 @@ function closestMatchingRoutes(diagnostics: FlightRouteMatchDiagnostics[], reque
 function routeMatchExplanation(summary: Pick<RouteMatchingSummary, 'requested' | 'totalCandidates' | 'originMatches' | 'destinationMatches' | 'dateMatches' | 'carrierMatches' | 'exactRouteMatches' | 'finalMatchedRows' | 'dateCoverage'>) {
   if (summary.finalMatchedRows > 0 && summary.dateCoverage.nearestDateApplied) return `${summary.finalMatchedRows} fetched row${summary.finalMatchedRows === 1 ? '' : 's'} matched using Personal Testing Mode nearest-date matching: requested ${summary.dateCoverage.requestedSearchDate || 'any date'}, matched ${summary.dateCoverage.effectiveMatchDate || 'nearest available date'}. Results are not strict same-date matches.`
   if (summary.finalMatchedRows > 0) return `${summary.finalMatchedRows} fetched row${summary.finalMatchedRows === 1 ? '' : 's'} matched the normalized route, carrier, and date filters.`
-  if (summary.totalCandidates === 0) return 'No Supabase rows were available to match against this request.'
+  if (summary.totalCandidates === 0) return 'No provider schedule rows were available to match against this request.'
 
   if (summary.requested.origin && summary.requested.destination && summary.exactRouteMatches === 0) {
-    return `Supabase returned ${summary.totalCandidates} candidate row${summary.totalCandidates === 1 ? '' : 's'}, but no row normalized to exact route ${summary.requested.origin} → ${summary.requested.destination}. See closest matching routes for alternatives in the fetched dataset.`
+    return `Provider data returned ${summary.totalCandidates} candidate row${summary.totalCandidates === 1 ? '' : 's'}, but no row normalized to exact route ${summary.requested.origin} → ${summary.requested.destination}. See closest matching routes for alternatives in the fetched dataset.`
   }
 
   const blockers = [
@@ -1096,11 +1096,11 @@ function routeMatchExplanation(summary: Pick<RouteMatchingSummary, 'requested' |
   ].filter(Boolean)
 
   if (summary.exactRouteMatches > 0 && blockers.length) {
-    return `Supabase returned ${summary.totalCandidates} candidate row${summary.totalCandidates === 1 ? '' : 's'} and ${summary.exactRouteMatches} exact normalized route row${summary.exactRouteMatches === 1 ? '' : 's'}, but ${blockers.join('; ')}.`
+    return `Provider data returned ${summary.totalCandidates} candidate row${summary.totalCandidates === 1 ? '' : 's'} and ${summary.exactRouteMatches} exact normalized route row${summary.exactRouteMatches === 1 ? '' : 's'}, but ${blockers.join('; ')}.`
   }
 
-  if (blockers.length) return `Supabase returned ${summary.totalCandidates} candidate row${summary.totalCandidates === 1 ? '' : 's'}, but ${blockers.join('; ')}.`
-  return `Supabase returned ${summary.totalCandidates} candidate row${summary.totalCandidates === 1 ? '' : 's'}, but no single row matched all normalized route/carrier/date filters together. This usually means fetched rows share only one endpoint, are connection candidates, or the exact route is absent from the current dataset.`
+  if (blockers.length) return `Provider data returned ${summary.totalCandidates} candidate row${summary.totalCandidates === 1 ? '' : 's'}, but ${blockers.join('; ')}.`
+  return `Provider data returned ${summary.totalCandidates} candidate row${summary.totalCandidates === 1 ? '' : 's'}, but no single row matched all normalized route/carrier/date filters together. This usually means fetched rows share only one endpoint, are connection candidates, or the exact route is absent from the current dataset.`
 }
 
 export function summarizeRouteMatching(

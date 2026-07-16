@@ -60,6 +60,7 @@ export type CanonicalItineraryEndpointDebug = {
     marketCoverage: UnifiedScheduleSearchResult['marketCoverage']
     providerMetrics: UnifiedScheduleSearchResult['providerMetrics']
     providerInfrastructure: UnifiedScheduleSearchResult['providerInfrastructure']
+    providerCallLogs: UnifiedScheduleSearchResult['providerCallLogs']
   }
   duplicateMerging: {
     duplicateRowsMerged: number
@@ -134,19 +135,24 @@ function coverageTrustDiagnostics(search: UnifiedScheduleSearchResult, parsedReq
   const resultSetCompleteness: ItineraryCoverageTrustDiagnostics['resultSetCompleteness'] = knownMarketGaps.length || providerFailures.length || routingValidation.safetyCapHit
     ? itineraries.length ? 'partial' : 'indeterminate'
     : 'complete'
+  const hasLiveItineraries = itineraries.some((itinerary) => /flightaware|aviationstack/i.test(itinerary.source))
   const usesCache = cacheHits.length > 0 || itineraries.some((itinerary) => /cache|supabase/i.test(itinerary.source))
+  const cacheBackedItineraries = itineraries.some((itinerary) => /cache|supabase/i.test(itinerary.source))
   const liveLoadUnavailable = 'Itinerary complete; standby load data unavailable'
-  const conciseStatus = !itineraries.length
-    ? 'No itinerary found in currently available provider data'
-    : resultSetCompleteness === 'complete'
-      ? 'Comprehensive schedule coverage confirmed'
-      : usesCache
-        ? 'Cached schedule data'
-        : providerFailures.length === search.providerResults.length && search.providerResults.length > 0
-          ? 'Provider unavailable'
-          : knownMarketGaps.length
-            ? 'Partial schedule coverage'
-            : liveLoadUnavailable
+  let conciseStatus = liveLoadUnavailable
+  if (!itineraries.length) {
+    conciseStatus = 'No itinerary found in currently available provider data'
+  } else if (resultSetCompleteness === 'complete') {
+    conciseStatus = 'Comprehensive schedule coverage confirmed'
+  } else if (hasLiveItineraries) {
+    conciseStatus = liveLoadUnavailable
+  } else if (cacheBackedItineraries || usesCache) {
+    conciseStatus = 'Cached schedule data'
+  } else if (providerFailures.length === search.providerResults.length && search.providerResults.length > 0) {
+    conciseStatus = 'Provider unavailable'
+  } else if (knownMarketGaps.length) {
+    conciseStatus = 'Partial schedule coverage'
+  }
   return {
     resolvedOrigin: parsedRequest.origin,
     resolvedDestination: parsedRequest.destination,
@@ -196,6 +202,7 @@ export async function runCanonicalItineraryEndpoint(options: CanonicalItineraryE
       marketCoverage: { providerContributionPercent: {}, providerCoveragePercent: {}, airportsCovered: [], carriersCovered: [], scheduleFreshness: {}, missingCoverage: ['Search skipped because origin or destination was missing.'], missingAirports: [], missingAirlines: [], missingDates: [], missingMarkets: [], supplementRequests: [], supplementReason: 'Search skipped because origin or destination was missing.', normalizedSchedulesCached: 0 },
       providerMetrics: [],
       providerInfrastructure: [],
+      providerCallLogs: [],
       warnings: ['Search skipped because origin or destination was missing.'],
       detail: 'Search skipped because origin or destination was missing.'
     } satisfies UnifiedScheduleSearchResult)
@@ -218,6 +225,12 @@ export async function runCanonicalItineraryEndpoint(options: CanonicalItineraryE
   const warnings = uniqueMessages([
     ...search.warnings,
     ...routingValidation.graph.exclusionLog.filter((entry) => entry.includes('missing') || entry.includes('outside legal window')).slice(0, 8),
+    !itineraries.length && search.providerDiagnostics.some((diagnostic) => diagnostic.providerUsed.includes('cache') && diagnostic.cacheStatus === 'hit')
+      ? 'Supabase cache returned rows, but none assembled into the exact requested itinerary; unrelated cached legs were not displayed.'
+      : undefined,
+    !itineraries.length && search.providerDiagnostics.some((diagnostic) => diagnostic.providerUsed.includes('cache') && diagnostic.cacheStatus === 'miss')
+      ? 'Supabase cache fallback was checked and had no matching rows for the requested route/date.'
+      : undefined,
     search.coverageReport.knownDataGaps.length ? `Provider coverage incomplete: ${search.coverageReport.knownDataGaps.join('; ')}` : undefined
   ])
   const providerStatuses = search.providerResults.map((result) => ({
@@ -295,7 +308,8 @@ export async function runCanonicalItineraryEndpoint(options: CanonicalItineraryE
         coverageReport: search.coverageReport,
         marketCoverage: search.marketCoverage,
         providerMetrics: search.providerMetrics,
-        providerInfrastructure: search.providerInfrastructure
+        providerInfrastructure: search.providerInfrastructure,
+        providerCallLogs: search.providerCallLogs
       },
       providerHealthMatrix: buildItineraryProviderHealthMatrix({ search }),
       duplicateMerging: {

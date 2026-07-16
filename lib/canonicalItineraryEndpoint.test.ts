@@ -110,6 +110,7 @@ describe('canonical itinerary endpoint pipeline', () => {
     assert.equal(response.itineraries[0].route, 'SBP → SFO → HND')
     assert.equal(response.itineraries[0].productionAvailability, true)
     assert.equal(response.itineraries[0].dataFreshnessRule, 'exact-requested-date')
+    assert.equal(response.coverageStatus, 'Itinerary complete; standby load data unavailable')
     assert.equal(isCurrentLiveAvailability(response.itineraries[0]), true)
   })
 

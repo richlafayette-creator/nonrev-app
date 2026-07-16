@@ -5,7 +5,7 @@ import { defaultScheduleProviderCapabilities, defaultScheduleProviderCoverage, d
 // @ts-expect-error Node's experimental TypeScript test runner resolves the .ts extension directly.
 import { buildScheduleProviderCoverageReport, compareScheduleProviders, mergeDuplicateScheduleRows } from './scheduleProviderDiagnostics.ts'
 // @ts-expect-error Node's experimental TypeScript test runner resolves the .ts extension directly.
-import { createDefaultScheduleProviderRegistry, createMockScheduleProvider } from './scheduleProviderRegistry.ts'
+import { createDefaultScheduleProviderRegistry, createMockScheduleProvider, createSupabaseCacheScheduleProvider } from './scheduleProviderRegistry.ts'
 import type { NormalizedScheduleResult } from './liveScheduleProviders'
 
 const normalized: NormalizedScheduleResult = {
@@ -191,7 +191,7 @@ describe('schedule provider adapter', () => {
   it('does not register placeholder providers in the default live search registry', () => {
     const registry = createDefaultScheduleProviderRegistry()
 
-    assert.deepEqual(registry.providerKeys(), ['supabase-cache', 'flightaware', 'aviationstack'])
+    assert.deepEqual(registry.providerKeys(), ['flightaware', 'aviationstack', 'supabase-cache'])
   })
 
   it('returns canonical diagnostics for empty provider responses', async () => {
@@ -213,6 +213,56 @@ describe('schedule provider adapter', () => {
     assert.ok(result.marketCoverage.missingAirports.includes('LAX'))
     assert.ok(result.marketCoverage.missingAirlines.includes('UA'))
     assert.ok(result.marketCoverage.missingMarkets.includes('SBP-LAX'))
+  })
+
+  it('reports Supabase cache local fallback as degraded when the table is unreachable', async () => {
+    const cacheProvider = createSupabaseCacheScheduleProvider({
+      async storeNormalizedResults() {
+        return { enabled: true, attempted: true, stored: 0, status: 'local-fallback', detail: 'not used' }
+      },
+      async findCachedResults() {
+        return {
+          table: 'provider_itinerary_results',
+          storageMode: 'local-fallback',
+          status: 'hit',
+          records: [{
+            source_provider: 'flightaware',
+            source_checked_at: '2026-07-04T11:00:00Z',
+            cached_at: '2026-07-04T11:01:00Z',
+            search_timestamp: '2026-07-04T11:01:00Z',
+            day_of_week: 6,
+            month: 7,
+            origin: 'SBP',
+            destination: 'LAX',
+            departure_time: '2026-07-04T12:00:00Z',
+            arrival_time: '2026-07-04T13:00:00Z',
+            flight_number: 'UA100',
+            carrier: 'United',
+            airline: 'United',
+            aircraft: 'E75',
+            status: 'Scheduled',
+            provider_request_hash: 'hash',
+            provider_request_scope: 'scope',
+            result_fingerprint: 'fingerprint',
+            provenance_version: 'provider-result-provenance-v1'
+          }],
+          detail: 'Supabase cache lookup failed (404); using 1 local fallback result.',
+          freshness: 'current',
+          staleRecordCount: 0,
+          httpStatus: 404,
+          quotaHeaders: {},
+          authenticationFailure: false
+        }
+      }
+    })
+
+    const result = await runScheduleProviderAdapter(cacheProvider, { origin: 'SBP', destination: 'LAX', date: '2026-07-04' })
+
+    assert.equal(result.status, 'warning')
+    assert.equal(result.rows.length, 1)
+    assert.match(result.warning || '', /Supabase cache lookup failed/)
+    assert.equal(result.providerCallLogs?.[0]?.httpStatus, 404)
+    assert.equal(result.providerCallLogs?.[0]?.cacheStatus, 'hit')
   })
 
   it('supplements incomplete market coverage and exposes contribution, coverage, freshness, airports, carriers, and cache diagnostics', async () => {

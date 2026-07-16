@@ -75,6 +75,6 @@ describe('itinerary search edge cases', () => {
     assert.equal(summary.totalCandidates, 0)
     assert.equal(summary.finalMatchedRows, 0)
     assert.deepEqual(summary.closestMatchingRoutes, [])
-    assert.match(summary.matchExplanation, /No Supabase rows were available/)
+    assert.match(summary.matchExplanation, /No provider schedule rows were available/)
   })
 })

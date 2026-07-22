@@ -19,7 +19,7 @@ const europePrompt = 'Family of 5 leaving SBP July 27. Anywhere in Europe. Event
 
 describe('beta search client', () => {
   it('constructs a valid API request from a natural-language prompt', () => {
-    const built = buildBetaSearchRequest('Family of 2 leaving SFO July 27 to HND. Use ZED.', profile())
+    const built = buildBetaSearchRequest('Family of 2 leaving SFO July 27 to HND. Use ZED.', profile(), { now })
 
     assert.equal(built.ok, true)
     if (!built.ok) return
@@ -29,7 +29,7 @@ describe('beta search client', () => {
   })
 
   it('uses mission-derived traveler count before profile fallback', () => {
-    const built = buildBetaSearchRequest(europePrompt, profile(2))
+    const built = buildBetaSearchRequest(europePrompt, profile(2), { now })
 
     assert.equal(built.ok, true)
     if (!built.ok) return
@@ -37,7 +37,7 @@ describe('beta search client', () => {
   })
 
   it('uses profile-derived traveler count when the mission does not specify travelers', () => {
-    const built = buildBetaSearchRequest('Leaving SFO July 27 to HND. Use ZED.', profile(3))
+    const built = buildBetaSearchRequest('Leaving SFO July 27 to HND. Use ZED.', profile(3), { now })
 
     assert.equal(built.ok, true)
     if (!built.ok) return
@@ -45,7 +45,7 @@ describe('beta search client', () => {
   })
 
   it('defaults to one-way only when no return date exists', () => {
-    const built = buildBetaSearchRequest('Leaving SFO July 27 to HND.', profile())
+    const built = buildBetaSearchRequest('Leaving SFO July 27 to HND.', profile(), { now })
 
     assert.equal(built.ok, true)
     if (!built.ok) return
@@ -53,7 +53,7 @@ describe('beta search client', () => {
   })
 
   it('handles round-trip prompts when a return date exists', () => {
-    const built = buildBetaSearchRequest('Leaving SFO July 27 to HND returning August 2.', profile())
+    const built = buildBetaSearchRequest('Leaving SFO July 27 to HND returning August 2.', profile(), { now })
 
     assert.equal(built.ok, true)
     if (!built.ok) return
@@ -62,7 +62,7 @@ describe('beta search client', () => {
   })
 
   it('uses a schema-safe placeholder for region-only destination searches', () => {
-    const built = buildBetaSearchRequest(europePrompt, profile())
+    const built = buildBetaSearchRequest(europePrompt, profile(), { now })
 
     assert.equal(built.ok, true)
     if (!built.ok) return
@@ -73,7 +73,7 @@ describe('beta search client', () => {
   })
 
   it('uses a specific airport destination when one is present', () => {
-    const built = buildBetaSearchRequest('Leaving SFO July 27 to HND.', profile())
+    const built = buildBetaSearchRequest('Leaving SFO July 27 to HND.', profile(), { now })
 
     assert.equal(built.ok, true)
     if (!built.ok) return
@@ -83,7 +83,7 @@ describe('beta search client', () => {
   })
 
   it('maps ZED preference from the mission parser', () => {
-    const built = buildBetaSearchRequest('Leaving SFO July 27 to HND with ZED.', profile())
+    const built = buildBetaSearchRequest('Leaving SFO July 27 to HND with ZED.', profile(), { now })
 
     assert.equal(built.ok, true)
     if (!built.ok) return
@@ -91,7 +91,7 @@ describe('beta search client', () => {
   })
 
   it('maps revenue backup preference from the mission parser', () => {
-    const built = buildBetaSearchRequest('Leaving SFO July 27 to HND with revenue backups.', profile())
+    const built = buildBetaSearchRequest('Leaving SFO July 27 to HND with revenue backups.', profile(), { now })
 
     assert.equal(built.ok, true)
     if (!built.ok) return
@@ -99,7 +99,7 @@ describe('beta search client', () => {
   })
 
   it('returns a concise validation state for malformed prompts', () => {
-    const built = buildBetaSearchRequest('maybe someday', profile())
+    const built = buildBetaSearchRequest('maybe someday', profile(), { now })
 
     assert.equal(built.ok, false)
     if (built.ok) return
@@ -111,6 +111,7 @@ describe('beta search client', () => {
     const result = await runBetaSearchFromPrompt({
       prompt: 'Leaving SFO July 27 to HND.',
       profile: profile(),
+      now,
       fetchImpl: responseFetch(400, { error: 'Invalid search request.', issues: [{ field: 'origin', message: 'origin is required.' }] })
     })
 
@@ -124,6 +125,7 @@ describe('beta search client', () => {
     const result = await runBetaSearchFromPrompt({
       prompt: 'Leaving SFO July 27 to HND.',
       profile: profile(),
+      now,
       fetchImpl: responseFetch(422, { error: 'Search request failed validation.', issues: [{ field: 'destination', message: 'invalid airport' }] })
     })
 
@@ -137,6 +139,7 @@ describe('beta search client', () => {
     const result = await runBetaSearchFromPrompt({
       prompt: 'Leaving SFO July 27 to HND.',
       profile: profile(),
+      now,
       fetchImpl: responseFetch(500, { error: 'Search pipeline failed unexpectedly.' })
     })
 
@@ -149,6 +152,7 @@ describe('beta search client', () => {
     const result = await runBetaSearchFromPrompt({
       prompt: 'Leaving SFO July 27 to HND.',
       profile: profile(),
+      now,
       fetchImpl: async () => { throw new Error('offline') }
     })
 
@@ -161,6 +165,7 @@ describe('beta search client', () => {
     const result = await runBetaSearchFromPrompt({
       prompt: 'Leaving SFO July 27 to HND.',
       profile: profile(),
+      now,
       fetchImpl: responseFetch(200, { ok: true })
     })
 
@@ -177,10 +182,66 @@ describe('beta search client', () => {
   })
 
   it('produces deterministic request construction for repeated prompts', () => {
-    const first = buildBetaSearchRequest(europePrompt, profile())
-    const second = buildBetaSearchRequest(europePrompt, profile())
+    const first = buildBetaSearchRequest(europePrompt, profile(), { now })
+    const second = buildBetaSearchRequest(europePrompt, profile(), { now })
 
     assert.deepEqual(second, first)
+  })
+
+  it('builds an API request with ISO departureDate from tomorrow', () => {
+    const built = buildBetaSearchRequest('LAX to HND tomorrow', profile(), { now })
+
+    assert.equal(built.ok, true)
+    if (!built.ok) return
+    assert.equal(built.request.origin, 'LAX')
+    assert.equal(built.request.destination, 'HND')
+    assert.equal(built.request.departureDate, '2026-07-23')
+    assert.equal((built.request.tripMission as any).departureDate, '2026-07-23')
+  })
+
+  it('does not overwrite an explicit structured departure date with prompt text', () => {
+    const built = buildBetaSearchRequest('LAX to HND tomorrow', profile(), {
+      now,
+      explicitDepartureDate: '2026-08-01'
+    })
+
+    assert.equal(built.ok, true)
+    if (!built.ok) return
+    assert.equal(built.request.departureDate, '2026-08-01')
+  })
+
+  it('uses a previously stored mission date when the prompt has no date', () => {
+    const built = buildBetaSearchRequest('LAX to HND', profile(), {
+      now,
+      previousMission: { departureDate: '2026-07-27' }
+    })
+
+    assert.equal(built.ok, true)
+    if (!built.ok) return
+    assert.equal(built.request.departureDate, '2026-07-27')
+  })
+
+  it('does not show missing-date copy after successful natural-language resolution', () => {
+    const built = buildBetaSearchRequest('LAX to HND tomorrow', profile(), { now })
+
+    assert.equal(built.ok, true)
+    assert.equal(JSON.stringify(built).includes('Add a departure date.'), false)
+  })
+
+  it('returns a specific invalid-date message', () => {
+    const built = buildBetaSearchRequest('LAX to HND 2/30/26', profile(), { now })
+
+    assert.equal(built.ok, false)
+    if (built.ok) return
+    assert.equal(built.message, 'That date is not valid. Try July 27, 2026.')
+  })
+
+  it('returns a specific ambiguous numeric-date message', () => {
+    const built = buildBetaSearchRequest('LAX to HND 27/7/26', profile(), { now })
+
+    assert.equal(built.ok, false)
+    if (built.ok) return
+    assert.equal(built.message, 'Use month/day format, for example 7/27/26.')
   })
 
   it('stores successful API results in session storage', async () => {

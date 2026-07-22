@@ -9,8 +9,10 @@ import {
   itineraryStopCount,
   mergeTripContext,
   noLoadDataLabel,
+  providerSearchPromptFromContext,
   promptRequiresProviderRefresh,
   routeAirports,
+  shouldAppendAssistantMessage,
   summarizeVerifiedResult,
   type ConversationalItinerary,
   type TripContext,
@@ -225,6 +227,13 @@ export default function ConversationalTripWorkspace({ initialPrompt = '' }: { in
     setMessages((current) => [...current, { id: newId('assistant'), role: 'assistant', text, resultId }])
   }
 
+  function addAssistantMessageOnce(text: string, resultId?: string) {
+    setMessages((current) => {
+      if (!shouldAppendAssistantMessage(current, text, resultId)) return current
+      return [...current, { id: newId('assistant'), role: 'assistant', text, resultId }]
+    })
+  }
+
   function updateContextFromPrompt(nextPrompt: string) {
     const merged = mergeTripContext(context, nextPrompt)
     setContext(merged)
@@ -257,7 +266,8 @@ export default function ConversationalTripWorkspace({ initialPrompt = '' }: { in
       setSearchState('validating')
       const profile = loadTravelerProfileFromStorage()
       setSearchState('searching')
-      const result = await runBetaSearchFromPrompt({ prompt: query, profile, storage })
+      const providerQuery = providerSearchPromptFromContext(query, nextContext)
+      const result = await runBetaSearchFromPrompt({ prompt: providerQuery, profile, storage })
       if (result.ok) {
         setSearchState('success')
         window.location.href = '/results'
@@ -266,7 +276,7 @@ export default function ConversationalTripWorkspace({ initialPrompt = '' }: { in
 
       setSearchState(result.state)
       setError(result.message)
-      addAssistantMessage(result.message)
+      addAssistantMessageOnce(result.message)
     } finally {
       setLoading(false)
     }

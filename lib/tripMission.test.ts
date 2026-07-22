@@ -17,6 +17,8 @@ function expectedMonthDay(month: number, day: number) {
   return new Date(Date.UTC(candidate < today ? year + 1 : year, month - 1, day)).toISOString().slice(0, 10)
 }
 
+const fixedNow = new Date('2026-07-22T12:00:00Z')
+
 describe('trip mission parser foundation', () => {
   it('parses a Europe family request with preferred destination context', () => {
     const mission = parseMissionFromPrompt('Family of 5 leaving SBP July 27. Anywhere in Europe. Eventually Montenegro.')
@@ -39,6 +41,30 @@ describe('trip mission parser foundation', () => {
     assert.equal(mission.destinationRegion, 'Japan')
     assert.deepEqual(mission.preferredDestinations, [])
     assert.equal(mission.priority, 'fastest')
+  })
+
+  it('parses LAX to HND tomorrow with an injected clock', () => {
+    const mission = parseMissionFromPrompt('LAX to HND tomorrow', { now: fixedNow })
+
+    assert.deepEqual(mission.originAirports, ['LAX', 'HND'])
+    assert.equal(mission.departureDate, '2026-07-23')
+  })
+
+  it('parses SBP to Europe July 27 with an injected clock', () => {
+    const mission = parseMissionFromPrompt('Family of 5 leaving SBP July 27. Anywhere in Europe.', { now: fixedNow })
+
+    assert.deepEqual(mission.originAirports, ['SBP'])
+    assert.equal(mission.travelers, 5)
+    assert.equal(mission.destinationRegion, 'Europe')
+    assert.equal(mission.departureDate, '2026-07-27')
+  })
+
+  it('parses family of 5 next Friday with an injected clock', () => {
+    const mission = parseMissionFromPrompt('Family of 5 to Europe next Friday', { now: fixedNow })
+
+    assert.equal(mission.travelers, 5)
+    assert.equal(mission.destinationRegion, 'Europe')
+    assert.equal(mission.departureDate, '2026-07-31')
   })
 
   it('detects flexible gateways and travel modes', () => {

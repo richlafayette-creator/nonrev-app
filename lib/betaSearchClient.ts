@@ -1,6 +1,7 @@
 import { type SearchApiErrorResponse, type SearchApiSuccessResponse } from './searchResponse'
 import { type BetaSearchRequest } from './searchRequest'
 import { validateSearchRequest, type SearchValidationIssue } from './searchValidation'
+import { resolveNaturalLanguageDate } from './naturalLanguageDate'
 import { parseMissionFromPrompt, type TripMission } from './tripMission'
 import {
   normalizeTravelerProfile,
@@ -53,6 +54,13 @@ export type BuildBetaSearchRequestResult =
     message: string
     issues: SearchValidationIssue[]
   }
+
+export type BuildBetaSearchRequestOptions = {
+  now?: Date
+  explicitDepartureDate?: string
+  previousMission?: Partial<TripMission>
+  existingDepartureDate?: string
+}
 
 export type RunBetaSearchResult =
   | { ok: true; state: 'success'; storedResult: BetaSearchStoredResult }
@@ -150,6 +158,34 @@ function validationMessage(issues: SearchValidationIssue[]) {
   return issues[0]?.message || 'Please add the missing trip details.'
 }
 
+function normalizeIsoDate(value: unknown) {
+  if (typeof value !== 'string') return ''
+  const text = value.trim()
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) return ''
+  const parsed = Date.parse(`${text}T00:00:00Z`)
+  if (!Number.isFinite(parsed)) return ''
+  const normalized = new Date(parsed).toISOString().slice(0, 10)
+  return normalized === text ? text : ''
+}
+
+function departureDateIssue(prompt: string, options: BuildBetaSearchRequestOptions): SearchValidationIssue {
+  const resolved = resolveNaturalLanguageDate(prompt, { now: options.now })
+  if (resolved.warnings.some((warning) => warning.includes('month/day format'))) {
+    return { field: 'departureDate', message: 'Use month/day format, for example 7/27/26.' }
+  }
+  if (resolved.warnings.some((warning) => warning.includes('not valid'))) {
+    return { field: 'departureDate', message: 'That date is not valid. Try July 27, 2026.' }
+  }
+  return { field: 'departureDate', message: 'Add a departure date.' }
+}
+
+function departureDateFor(mission: TripMission, options: BuildBetaSearchRequestOptions) {
+  return normalizeIsoDate(options.explicitDepartureDate) ||
+    mission.departureDate ||
+    normalizeIsoDate(options.previousMission?.departureDate) ||
+    normalizeIsoDate(options.existingDepartureDate)
+}
+
 export function readTravelerProfileFromStorage(storage?: StorageLike) {
   if (!storage) return normalizeTravelerProfile()
   try {
@@ -160,7 +196,11 @@ export function readTravelerProfileFromStorage(storage?: StorageLike) {
   }
 }
 
-export function buildBetaSearchRequest(prompt: string, profileInput: Partial<TravelerProfileScaffold> = normalizeTravelerProfile()): BuildBetaSearchRequestResult {
+export function buildBetaSearchRequest(
+  prompt: string,
+  profileInput: Partial<TravelerProfileScaffold> = normalizeTravelerProfile(),
+  options: BuildBetaSearchRequestOptions = {}
+): BuildBetaSearchRequestResult {
   const trimmed = typeof prompt === 'string' ? prompt.trim() : ''
   if (!trimmed) {
     return {
@@ -171,7 +211,12 @@ export function buildBetaSearchRequest(prompt: string, profileInput: Partial<Tra
     }
   }
 
-  const mission = parseMissionFromPrompt(trimmed)
+  const parsedMission = parseMissionFromPrompt(trimmed, { now: options.now })
+  const selectedDepartureDate = departureDateFor(parsedMission, options)
+  const mission: TripMission = {
+    ...parsedMission,
+    ...(selectedDepartureDate ? { departureDate: selectedDepartureDate } : {})
+  }
   const profile = normalizeTravelerProfile(profileInput)
   const origin = originFromPrompt(trimmed, mission)
   const positioningAirports = positioningAirportsFromPrompt(trimmed, origin)
@@ -186,7 +231,7 @@ export function buildBetaSearchRequest(prompt: string, profileInput: Partial<Tra
 
   const issues: SearchValidationIssue[] = []
   if (!origin) issues.push({ field: 'origin', message: 'Add a three-letter origin airport code.' })
-  if (!mission.departureDate) issues.push({ field: 'departureDate', message: 'Add a departure date.' })
+  if (!mission.departureDate) issues.push(departureDateIssue(trimmed, options))
   if (!destinationAirport && !destinationRegion) issues.push({ field: 'destination', message: 'Add a destination airport or supported destination region.' })
   if (tripType === 'round_trip' && !mission.returnDate) issues.push({ field: 'returnDate', message: 'Add a return date for round-trip searches.' })
   if (issues.length) return { ok: false, state: 'parsing', message: validationMessage(issues), issues }
@@ -203,6 +248,7 @@ export function buildBetaSearchRequest(prompt: string, profileInput: Partial<Tra
       preferredDepartureAirports: [origin],
       preferredDestinations,
       travelers: travelerCount,
+      departureDate: mission.departureDate,
       ...(destinationRegion ? { destinationRegion } : {})
     },
     travelerProfile: profile,
@@ -293,7 +339,7 @@ export async function runBetaSearchFromPrompt(input: {
   now?: Date
 }): Promise<RunBetaSearchResult> {
   const profile = normalizeTravelerProfile(input.profile || readTravelerProfileFromStorage(input.storage))
-  const built = buildBetaSearchRequest(input.prompt, profile)
+  const built = buildBetaSearchRequest(input.prompt, profile, { now: input.now })
   if (!built.ok) return built
 
   const fetchImpl = input.fetchImpl || (typeof fetch !== 'undefined' ? fetch : undefined)

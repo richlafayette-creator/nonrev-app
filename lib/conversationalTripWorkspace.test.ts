@@ -9,7 +9,9 @@ import {
   itineraryStopCount,
   mergeTripContext,
   noLoadDataLabel,
+  providerSearchPromptFromContext,
   promptRequiresProviderRefresh,
+  shouldAppendAssistantMessage,
   summarizeVerifiedResult,
   type ConversationalItinerary,
   type WorkspaceResultSet
@@ -59,6 +61,8 @@ const sampleItineraries: ConversationalItinerary[] = [
   }
 ]
 
+const fixedNow = new Date('2026-07-22T12:00:00Z')
+
 function resultSet(overrides: Partial<WorkspaceResultSet> = {}): WorkspaceResultSet {
   return {
     id: 'result-1',
@@ -78,12 +82,49 @@ function resultSet(overrides: Partial<WorkspaceResultSet> = {}): WorkspaceResult
 
 describe('conversational trip workspace logic', () => {
   it('builds structured context from an initial natural-language search', () => {
-    const context = mergeTripContext(emptyTripContext(), 'LAX to HND tomorrow in business')
+    const context = mergeTripContext(emptyTripContext(), 'LAX to HND tomorrow in business', { now: fixedNow })
 
     assert.equal(context.origin, 'LAX')
     assert.equal(context.destination, 'HND')
+    assert.equal(context.date, '2026-07-23')
     assert.equal(context.cabin, 'business')
     assert.equal(context.followUpIntent, 'new-search')
+  })
+
+  it('merges a date-only follow-up with prior origin and destination', () => {
+    const initial = mergeTripContext(emptyTripContext(), 'LAX to HND', { now: fixedNow })
+    const clarified = mergeTripContext(initial, '7/27/26', { now: fixedNow })
+    const providerPrompt = providerSearchPromptFromContext('7/27/26', clarified, { now: fixedNow })
+
+    assert.equal(clarified.origin, 'LAX')
+    assert.equal(clarified.destination, 'HND')
+    assert.equal(clarified.date, '2026-07-27')
+    assert.equal(providerPrompt, 'LAX to HND 7/27/26')
+  })
+
+  it('keeps origin and destination after a date-only follow-up', () => {
+    const context = mergeTripContext(emptyTripContext(), 'LAX to HND', { now: fixedNow })
+    const clarified = mergeTripContext(context, 'July 27, 2026', { now: fixedNow })
+
+    assert.equal(clarified.origin, 'LAX')
+    assert.equal(clarified.destination, 'HND')
+    assert.equal(clarified.date, '2026-07-27')
+  })
+
+  it('requires a provider refresh when a date-only follow-up completes the trip', () => {
+    const context = mergeTripContext(emptyTripContext(), 'LAX to HND', { now: fixedNow })
+
+    assert.equal(promptRequiresProviderRefresh('7/27/26', context, { now: fixedNow }), true)
+  })
+
+  it('suppresses duplicate assistant validation messages', () => {
+    const messages = [
+      { role: 'user' as const, text: 'LAX to HND' },
+      { role: 'assistant' as const, text: 'Add a departure date.' }
+    ]
+
+    assert.equal(shouldAppendAssistantMessage(messages, 'Add a departure date.'), false)
+    assert.equal(shouldAppendAssistantMessage(messages, 'That date is not valid. Try July 27, 2026.'), true)
   })
 
   it('treats clarifications as current-trip modifications instead of new searches', () => {

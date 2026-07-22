@@ -1,4 +1,5 @@
 import { parseItineraryPrompt } from './itinerarySearch'
+import { resolveNaturalLanguageDate, type NaturalLanguageDateOptions } from './naturalLanguageDate'
 
 export type WorkspaceMode = 'collapsed' | 'expanded' | 'minimized'
 
@@ -113,8 +114,9 @@ function unique(values: Array<string | undefined>) {
   return Array.from(new Set(values.filter((value): value is string => Boolean(value)).map((value) => value.toUpperCase())))
 }
 
-export function mergeTripContext(previous: TripContext, prompt: string): TripContext {
-  const parsed = parseItineraryPrompt(prompt)
+export function mergeTripContext(previous: TripContext, prompt: string, options: NaturalLanguageDateOptions = {}): TripContext {
+  const parsed = parseItineraryPrompt(prompt, options.now)
+  const resolvedDate = resolveNaturalLanguageDate(prompt, options).isoDate
   const lower = prompt.toLowerCase()
   const followUpIntent = classifyFollowUpIntent(prompt)
   const canUpdateRoute = followUpIntent === 'new-search'
@@ -161,7 +163,7 @@ export function mergeTripContext(previous: TripContext, prompt: string): TripCon
     ...previous,
     origin: canUpdateRoute ? parsed.origin || previous.origin : previous.origin,
     destination: canUpdateRoute ? parsed.destination || previous.destination : previous.destination,
-    date: canUpdateRoute ? parsed.date || previous.date : previous.date,
+    date: canUpdateRoute ? parsed.date || resolvedDate || previous.date : previous.date,
     travelerBenefits: previous.travelerBenefits,
     preferredAirlines,
     avoidedAirports: avoided.length ? avoided : airportCodes.filter((code) => lower.includes(`avoid ${code.toLowerCase()}`)),
@@ -171,6 +173,28 @@ export function mergeTripContext(previous: TripContext, prompt: string): TripCon
     connectionPreference: lower.includes('earliest') ? 'earliest arrival' : previous.connectionPreference,
     followUpIntent
   }
+}
+
+export function providerSearchPromptFromContext(prompt: string, context: TripContext, options: NaturalLanguageDateOptions = {}) {
+  const trimmed = prompt.trim()
+  if (!trimmed) return trimmed
+  const parsed = parseItineraryPrompt(trimmed, options.now)
+  const promptDate = parsed.date || resolveNaturalLanguageDate(trimmed, options).isoDate
+  const prefixParts: string[] = []
+  if (!parsed.origin && context.origin) prefixParts.push(context.origin)
+  if (!parsed.destination && context.destination) prefixParts.push(`${prefixParts.length ? 'to ' : ''}${context.destination}`)
+  if (!promptDate && context.date) prefixParts.push(context.date)
+  if (!prefixParts.length) return trimmed
+  return `${prefixParts.join(' ')} ${trimmed}`.replace(/\s+/g, ' ').trim()
+}
+
+export function shouldAppendAssistantMessage(
+  messages: Array<{ role: 'user' | 'assistant'; text: string; resultId?: string }>,
+  text: string,
+  resultId?: string
+) {
+  const lastAssistant = [...messages].reverse().find((message) => message.role === 'assistant')
+  return !(lastAssistant?.text === text && lastAssistant.resultId === resultId)
 }
 
 export function classifyFollowUpIntent(prompt: string) {
@@ -186,13 +210,14 @@ export function classifyFollowUpIntent(prompt: string) {
   return 'new-search'
 }
 
-export function promptRequiresProviderRefresh(prompt: string, current: TripContext) {
+export function promptRequiresProviderRefresh(prompt: string, current: TripContext, options: NaturalLanguageDateOptions = {}) {
   const intent = classifyFollowUpIntent(prompt)
   if (intent !== 'new-search') return false
-  const parsed = parseItineraryPrompt(prompt)
+  const parsed = parseItineraryPrompt(prompt, options.now)
+  const resolvedDate = resolveNaturalLanguageDate(prompt, options).isoDate
   if (parsed.origin && parsed.origin !== current.origin) return true
   if (parsed.destination && parsed.destination !== current.destination) return true
-  if (parsed.date && parsed.date !== current.date) return true
+  if ((parsed.date || resolvedDate) && (parsed.date || resolvedDate) !== current.date) return true
   return !current.origin && !current.destination
 }
 

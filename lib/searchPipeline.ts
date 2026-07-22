@@ -39,6 +39,14 @@ import {
   travelerProfileAssumptions,
   type TravelerProfileScaffold
 } from './travelerProfile'
+import {
+  SearchExecutionEngine,
+  type SearchExecutionItinerary,
+  type SearchExecutionProvider,
+  type SearchExecutionProviderAttribution,
+  type SearchExecutionProviderRun,
+  type SearchExecutionResult
+} from './searchExecutionEngine'
 
 export type SearchTripType = 'one_way' | 'round_trip' | 'open_jaw'
 
@@ -98,6 +106,9 @@ export type SearchPipelineOptions = {
   now?: Date
   signals?: RecommendationSignals
   adapters?: SearchPipelineAdapters
+  executionResult?: SearchExecutionResult
+  executionProviders?: SearchExecutionProvider[]
+  executionTimeoutMs?: number
 }
 
 export type SearchResultRecommendation = {
@@ -124,6 +135,7 @@ export type SearchResultItinerary = {
   segments: BetaItinerarySegment[]
   timeline: TravelTimelineItem[]
   fallbacks: FallbackOption[]
+  providerAttribution: SearchExecutionProviderAttribution[]
   weatherPlaceholder: string
   missingData: string[]
   unknownScheduleIndicators: string[]
@@ -172,6 +184,7 @@ export type SearchResult = {
   summary: string
   timeline: TravelTimelineItem[]
   fallbacks: FallbackOption[]
+  providerRuns: SearchExecutionProviderRun[]
   pipelineTrace: SearchPipelineTraceItem[]
   assumptions: string[]
 }
@@ -334,6 +347,84 @@ function segmentUnknownScheduleIndicators(segment: BetaItinerarySegment) {
   ])
 }
 
+function knownProviderValue(value: unknown) {
+  return typeof value === 'string' && value.trim() && !/^unknown\b|^not provided\b|^live load unavailable\b/i.test(value.trim())
+}
+
+function normalizedMode(value: string) {
+  return value === 'rail' || value === 'ferry' || value === 'car' || value === 'surface' || value === 'flight'
+    ? value
+    : 'surface'
+}
+
+function executionMatchesSearchItinerary(searchItinerary: SearchResultItinerary, executionItinerary: SearchExecutionItinerary) {
+  if (searchItinerary.segments.length !== executionItinerary.segments.length) return false
+  return searchItinerary.segments.every((segment, index) => {
+    const providerSegment = executionItinerary.segments[index]
+    if (!providerSegment) return false
+    if (segment.origin !== providerSegment.origin || segment.destination !== providerSegment.destination) return false
+    if (segment.mode !== normalizedMode(providerSegment.transportType)) return false
+    if (segment.carrier && providerSegment.carrier && segment.carrier !== providerSegment.carrier) return false
+    return true
+  })
+}
+
+function applyExecutionSegment(segment: BetaItinerarySegment, executionSegment: SearchExecutionItinerary['segments'][number]): BetaItinerarySegment {
+  return {
+    ...segment,
+    ...(segment.carrier || !knownProviderValue(executionSegment.carrier) ? {} : { carrier: executionSegment.carrier }),
+    schedule: {
+      flightNumber: knownProviderValue(executionSegment.flightNumber) ? executionSegment.flightNumber || segment.schedule.flightNumber : segment.schedule.flightNumber,
+      departureTime: knownProviderValue(executionSegment.departureTime) ? executionSegment.departureTime || segment.schedule.departureTime : segment.schedule.departureTime,
+      arrivalTime: knownProviderValue(executionSegment.arrivalTime) ? executionSegment.arrivalTime || segment.schedule.arrivalTime : segment.schedule.arrivalTime,
+      seatCount: knownProviderValue(executionSegment.seatCount) ? executionSegment.seatCount || segment.schedule.seatCount : segment.schedule.seatCount
+    },
+    estimatedDuration: knownProviderValue(executionSegment.duration) && segment.estimatedDuration.startsWith('Unknown')
+      ? executionSegment.duration || segment.estimatedDuration
+      : segment.estimatedDuration,
+    notes: uniqueStrings([
+      ...segment.notes,
+      ...(executionSegment.notes || []),
+      knownProviderValue(executionSegment.scheduleStatus) ? executionSegment.scheduleStatus || '' : '',
+      knownProviderValue(executionSegment.loadStatus) ? executionSegment.loadStatus || '' : ''
+    ])
+  }
+}
+
+function missingDataForSearchItinerary(itinerary: SearchResultItinerary) {
+  return uniqueStrings([
+    ...itinerary.segments.flatMap((segment) => [
+      segment.schedule.flightNumber.startsWith('Unknown') ? `${segment.origin}-${segment.destination} flight number` : '',
+      segment.schedule.departureTime.startsWith('Unknown') ? `${segment.origin}-${segment.destination} departure time` : '',
+      segment.schedule.arrivalTime.startsWith('Unknown') ? `${segment.origin}-${segment.destination} arrival time` : '',
+      segment.schedule.seatCount.startsWith('Unknown') ? `${segment.origin}-${segment.destination} live loads` : '',
+      segment.mode === 'flight' && !segment.carrier ? `${segment.origin}-${segment.destination} carrier` : ''
+    ]),
+    ...itinerary.missingData.filter((item) => !/flight number|departure time|arrival time|live loads|carrier/i.test(item))
+  ])
+}
+
+function applyExecutionResultToItineraries(
+  itineraries: SearchResultItinerary[],
+  executionResult?: SearchExecutionResult
+) {
+  if (!executionResult?.itineraries.length) return itineraries
+  return itineraries.map((itinerary) => {
+    const matched = executionResult.itineraries.find((executionItinerary) => executionMatchesSearchItinerary(itinerary, executionItinerary))
+    if (!matched) return itinerary
+    const segments = itinerary.segments.map((segment, index) => applyExecutionSegment(segment, matched.segments[index]))
+    const updated = {
+      ...itinerary,
+      segments,
+      providerAttribution: matched.providerAttribution || [],
+      missingData: [] as string[],
+      unknownScheduleIndicators: uniqueStrings(segments.flatMap(segmentUnknownScheduleIndicators))
+    }
+    updated.missingData = missingDataForSearchItinerary(updated)
+    return updated
+  })
+}
+
 function missingDataForItinerary(itinerary: BetaItinerary) {
   return uniqueStrings([
     ...itinerary.segments.flatMap((segment) => [
@@ -416,6 +507,7 @@ function searchResultItinerary(
     segments: itinerary.segments,
     timeline: itinerary.travelTimeline,
     fallbacks: itinerary.fallbackOptions,
+    providerAttribution: [],
     weatherPlaceholder: itinerary.weatherSummaryPlaceholder,
     missingData,
     unknownScheduleIndicators,
@@ -569,9 +661,9 @@ export function runSearchPipeline(request: NaturalSearchObject, options: SearchP
     pipelineTrace.push(trace('itinerary_assembly', 'failed', 'Itinerary assembly failed; search result returned without itineraries.'))
   }
 
-  const itineraries = dedupeSearchItineraries(betaItineraries.map((itinerary) =>
+  const itineraries = applyExecutionResultToItineraries(dedupeSearchItineraries(betaItineraries.map((itinerary) =>
     searchResultItinerary(itinerary, tripType, request, mission)
-  ))
+  )), options.executionResult)
   const rankedRecommendations = recommendationResult.recommendations.map(recommendationSummary)
   const missingData = uniqueStrings([
     !mission.originAirports.length ? 'origin airports' : '',
@@ -587,6 +679,7 @@ export function runSearchPipeline(request: NaturalSearchObject, options: SearchP
   ])
   const allWarnings = uniqueStrings([
     ...warnings,
+    ...(options.executionResult?.warnings || []),
     ...recommendationResult.warnings,
     ...itineraries.flatMap((itinerary) => itinerary.missingData.filter((item) => /unavailable|unknown|missing|not attached/i.test(item)))
   ])
@@ -600,6 +693,14 @@ export function runSearchPipeline(request: NaturalSearchObject, options: SearchP
     : `No complete itinerary framework assembled. Confidence ${confidence.score} (${confidence.label}).`
 
   pipelineTrace.push(trace('final_result', itineraries.length ? 'ok' : 'partial', summary))
+  if (options.executionResult) {
+    const successCount = options.executionResult.providerRuns.filter((run) => run.status === 'success').length
+    pipelineTrace.push(trace(
+      'final_result',
+      successCount ? 'ok' : options.executionResult.providerRuns.length ? 'partial' : 'partial',
+      `Search execution providers completed: ${successCount}/${options.executionResult.providerRuns.length} successful.`
+    ))
+  }
 
   return {
     id: `search-${now.toISOString()}`,
@@ -621,6 +722,7 @@ export function runSearchPipeline(request: NaturalSearchObject, options: SearchP
     summary,
     timeline,
     fallbacks,
+    providerRuns: options.executionResult?.providerRuns || [],
     pipelineTrace,
     assumptions: uniqueStrings([
       ...tripMissionAssumptions(mission),
@@ -633,3 +735,25 @@ export function runSearchPipeline(request: NaturalSearchObject, options: SearchP
   }
 }
 
+export async function runSearchPipelineWithExecution(request: NaturalSearchObject, options: SearchPipelineOptions = {}): Promise<SearchResult> {
+  const now = options.now || new Date()
+  const mission = normalizeSearchMission(request)
+  const tripType = inferTripType(request, mission)
+  const travelerProfile = normalizeTravelerProfile(request.travelerProfile || defaultTravelerProfile)
+  const executionEngine = new SearchExecutionEngine({
+    providers: options.executionProviders || [],
+    timeoutMs: options.executionTimeoutMs
+  })
+  const executionResult = await executionEngine.execute({
+    mission,
+    tripType,
+    travelerCount: mission.travelers,
+    travelerProfile
+  })
+
+  return runSearchPipeline(request, {
+    ...options,
+    now,
+    executionResult
+  })
+}

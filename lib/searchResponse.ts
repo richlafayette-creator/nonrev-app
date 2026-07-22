@@ -1,7 +1,7 @@
 import { getGroundTransportProviderReadiness } from './groundTransportReadiness'
 import { getHotelProviderReadiness } from './hotelProviderReadiness'
 import { providerInfrastructureSnapshot } from './providerInfrastructure'
-import { runSearchPipeline, type SearchPipelineOptions, type SearchResult } from './searchPipeline'
+import { runSearchPipeline, runSearchPipelineWithExecution, type SearchPipelineOptions, type SearchResult } from './searchPipeline'
 import { toSearchPipelineRequest } from './searchRequest'
 import { validateSearchRequest, type SearchValidationIssue } from './searchValidation'
 import { getWeatherIntegrationReadiness } from './weatherIntegrationReadiness'
@@ -54,6 +54,7 @@ export type SearchApiSuccessResponse = {
   summary: string
   fallbacks: SearchResult['fallbacks']
   providerReadiness: SearchProviderReadiness
+  providerRuns: SearchResult['providerRuns']
   unknownScheduleIndicators: string[]
   itineraries: SearchResult['itineraries']
   pipelineTrace: SearchResult['pipelineTrace']
@@ -139,6 +140,7 @@ export function serializeSearchResult(result: SearchResult, env?: Record<string,
     summary: result.summary,
     fallbacks: result.fallbacks,
     providerReadiness: providerReadiness(env),
+    providerRuns: result.providerRuns,
     unknownScheduleIndicators: result.unknownScheduleIndicators,
     itineraries: result.itineraries,
     pipelineTrace: result.pipelineTrace,
@@ -164,6 +166,40 @@ export function executeSearchApi(body: unknown, options: ExecuteSearchApiOptions
     const pipelineRequest = toSearchPipelineRequest(validation.request)
     const runPipeline = options.runPipeline || runSearchPipeline
     const result = runPipeline(pipelineRequest, {
+      ...options.pipelineOptions,
+      now: options.now
+    })
+    return { status: 200, body: serializeSearchResult(result, options.env) }
+  } catch (error) {
+    return {
+      status: 500,
+      body: {
+        error: 'Search pipeline failed unexpectedly.',
+        code: 'search_pipeline_failed',
+        status: 500,
+        issues: [{ field: 'pipeline', message: error instanceof Error ? error.message : String(error) }]
+      }
+    }
+  }
+}
+
+export async function executeSearchApiAsync(body: unknown, options: ExecuteSearchApiOptions = {}): Promise<ExecuteSearchApiResult> {
+  const validation = validateSearchRequest(body)
+  if (!validation.ok) {
+    return {
+      status: validation.status,
+      body: {
+        error: validation.status === 400 ? 'Invalid search request.' : 'Search request failed validation.',
+        code: validation.code,
+        status: validation.status,
+        issues: validation.issues
+      }
+    }
+  }
+
+  try {
+    const pipelineRequest = toSearchPipelineRequest(validation.request)
+    const result = await runSearchPipelineWithExecution(pipelineRequest, {
       ...options.pipelineOptions,
       now: options.now
     })

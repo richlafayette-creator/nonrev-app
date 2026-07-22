@@ -199,7 +199,7 @@ function hoursOld(record: ProviderResultRecord, now = Date.now()) {
   return (now - parsed) / 3600000
 }
 
-function recordMatchesRequest(record: ProviderResultRecord, request: ProviderCacheLookupRequest) {
+function recordMatchesRequest(record: ProviderResultRecord, request: ProviderCacheLookupRequest, now = Date.now()) {
   if (request.origin && record.origin !== request.origin) return false
   if (request.destination && record.destination !== request.destination) return false
   if (request.date && (localIsoDay(record.departure_time, record.origin) || isoDay(record.departure_time)) !== request.date) return false
@@ -207,7 +207,7 @@ function recordMatchesRequest(record: ProviderResultRecord, request: ProviderCac
     const carrier = request.carrier.toUpperCase()
     if (![record.carrier, record.airline, record.flight_number].some((value) => value.toUpperCase().includes(carrier))) return false
   }
-  return hoursOld(record) <= (request.maxAgeHours || defaultCacheMaxAgeHours)
+  return hoursOld(record, now) <= (request.maxAgeHours || defaultCacheMaxAgeHours)
 }
 
 function recordMatchesMarket(record: ProviderResultRecord, request: ProviderCacheLookupRequest) {
@@ -221,17 +221,18 @@ function recordMatchesMarket(record: ProviderResultRecord, request: ProviderCach
   return true
 }
 
-function localLookup(request: ProviderCacheLookupRequest, options: { stale?: boolean } = {}): ProviderResultRecord[] {
+function localLookup(request: ProviderCacheLookupRequest, options: { stale?: boolean; now?: number } = {}): ProviderResultRecord[] {
+  const now = options.now ?? Date.now()
   const maxAgeHours = request.maxAgeHours || defaultCacheMaxAgeHours
   const ageLimit = options.stale ? Math.max(24 * 21, maxAgeHours * 14) : maxAgeHours
   return localProviderResultCache
     .filter((record) => recordMatchesMarket(record, request))
-    .filter((record) => options.stale ? hoursOld(record) > maxAgeHours && hoursOld(record) <= ageLimit : hoursOld(record) <= maxAgeHours)
+    .filter((record) => options.stale ? hoursOld(record, now) > maxAgeHours && hoursOld(record, now) <= ageLimit : hoursOld(record, now) <= maxAgeHours)
     .sort((a, b) => Date.parse(b.source_checked_at || b.cached_at) - Date.parse(a.source_checked_at || a.cached_at))
     .slice(0, request.limit || 100)
 }
 
-export function createNoopProviderResultRepository(detail = 'Provider result persistence is disabled.'): ProviderResultRepository {
+export function createNoopProviderResultRepository(detail = 'Provider result persistence is disabled.', options: { now?: () => number } = {}): ProviderResultRepository {
   return {
     async storeNormalizedResults(results) {
       const records = results.map(normalizedResultToProviderResultRecord)
@@ -245,8 +246,9 @@ export function createNoopProviderResultRepository(detail = 'Provider result per
       }
     },
     async findCachedResults(request) {
-      const records = localLookup(request)
-      const staleRecords = records.length ? [] : request.allowStaleOnMiss ? localLookup(request, { stale: true }) : []
+      const now = options.now?.() ?? Date.now()
+      const records = localLookup(request, { now })
+      const staleRecords = records.length ? [] : request.allowStaleOnMiss ? localLookup(request, { stale: true, now }) : []
       const selectedRecords = records.length ? records : staleRecords
       return {
         table: providerResultTableName,

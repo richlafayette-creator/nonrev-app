@@ -12,10 +12,10 @@ import { defaultTravelerProfile, normalizeTravelerProfile, type TravelerProfileS
 export type ItineraryTransportMode = StrategyLeg['transportType']
 
 export type ItinerarySegmentSchedule = {
-  flightNumber: 'Unknown - not provided by route framework'
-  departureTime: 'Unknown - provider schedule validation required'
-  arrivalTime: 'Unknown - provider schedule validation required'
-  seatCount: 'Unknown - live load data not attached'
+  flightNumber: string
+  departureTime: string
+  arrivalTime: string
+  seatCount: string
 }
 
 export type BetaItinerarySegment = {

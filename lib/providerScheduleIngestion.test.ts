@@ -70,7 +70,7 @@ describe('provider schedule ingestion', () => {
   })
 
   it('retains duplicate-safe last-known-good cache records for stale fallback', async () => {
-    const repository = createNoopProviderResultRepository('test cache')
+    const repository = createNoopProviderResultRepository('test cache', { now: () => Date.parse('2026-07-10T13:30:00.000Z') })
     await repository.storeNormalizedResults([
       { ...baseSchedule, sourceCheckedAt: '2026-07-01T12:30:00.000Z' },
       { ...baseSchedule, sourceCheckedAt: '2026-07-01T12:30:00.000Z' }

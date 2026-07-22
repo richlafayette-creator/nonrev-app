@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { executeSearchApi } from '../../../lib/searchResponse'
+import { executeSearchApiAsync } from '../../../lib/searchResponse'
 import { readSearchRequestBody } from '../../../lib/searchRequest'
 
 export async function POST(request: Request) {
@@ -12,6 +12,6 @@ export async function POST(request: Request) {
     }, { status: parsed.status })
   }
 
-  const response = executeSearchApi(parsed.body)
+  const response = await executeSearchApiAsync(parsed.body)
   return NextResponse.json(response.body, { status: response.status })
 }

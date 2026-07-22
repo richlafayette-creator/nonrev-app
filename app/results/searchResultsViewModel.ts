@@ -74,7 +74,8 @@ function knownText(value: unknown, fallback: string) {
 
 function scheduleStatus(schedule: SearchApiSuccessResponse['segments'][number]['schedule']) {
   const values = [schedule.flightNumber, schedule.departureTime, schedule.arrivalTime]
-  return values.some((value) => /^unknown\b/i.test(value)) ? 'Schedule not yet verified' : 'Schedule verified'
+  if (values.some((value) => /^unknown\b/i.test(value))) return 'Schedule not yet verified'
+  return `${schedule.flightNumber} · ${schedule.departureTime} -> ${schedule.arrivalTime}`
 }
 
 function loadStatus(schedule: SearchApiSuccessResponse['segments'][number]['schedule']) {
@@ -116,6 +117,9 @@ function staticOnlyNotice(result: SearchApiSuccessResponse) {
     ...result.unknownScheduleIndicators,
     ...result.missingData
   ].join(' ').toLowerCase()
+  if (/schedule data: aviationstack|provider_reported/i.test(JSON.stringify(result.itineraries))) {
+    return 'Schedule/status fields include provider-supplied data where segments matched. Live standby loads remain unavailable.'
+  }
   if (/live|unknown|not attached|unavailable|not provided/.test(text)) {
     return 'Current recommendations use route and profile intelligence. Live schedules and standby loads are not yet connected.'
   }

@@ -4,14 +4,20 @@ import { type TravelerProfileScaffold } from './travelerProfile'
 
 export type SearchExecutionProviderReadiness = {
   enabled: boolean
-  status: 'ready' | 'disabled' | 'credential_missing' | 'unavailable'
+  status: 'ready' | 'disabled' | 'credential_missing' | 'unavailable' | 'configured' | 'degraded' | 'rate_limited' | 'timed_out' | 'unsupported_request'
   message?: string
 }
 
 export type SearchExecutionProviderCapabilities = {
   schedules?: boolean
+  flightStatus?: boolean
+  carrierIdentity?: boolean
+  providerTimestamps?: boolean
+  airportMetadata?: boolean
+  aircraftMetadata?: boolean
   loads?: boolean
   fares?: boolean
+  zedEligibility?: boolean
   weather?: boolean
   routeSearch?: boolean
 }
@@ -19,6 +25,10 @@ export type SearchExecutionProviderCapabilities = {
 export type SearchExecutionProviderAttribution = {
   providerId: string
   providerName: string
+  providerRecordIds?: string[]
+  fetchedAt?: string
+  fields?: string[]
+  freshnessAgeMs?: number
 }
 
 export type SearchExecutionSegment = {
@@ -26,13 +36,35 @@ export type SearchExecutionSegment = {
   destination: string
   transportType: 'flight' | 'rail' | 'ferry' | 'car' | 'surface'
   carrier?: string
+  airlineCode?: string
+  airlineName?: string
   flightNumber?: string
   departureTime?: string
   arrivalTime?: string
+  scheduledDeparture?: string
+  scheduledArrival?: string
+  estimatedDeparture?: string
+  estimatedArrival?: string
+  actualDeparture?: string
+  actualArrival?: string
   seatCount?: string
   duration?: string
   scheduleStatus?: string
+  flightStatus?: string
   loadStatus?: string
+  departureTerminal?: string
+  arrivalTerminal?: string
+  departureGate?: string
+  arrivalGate?: string
+  aircraftRegistration?: string
+  aircraftIata?: string
+  aircraftIcao?: string
+  codeshareInformation?: string[]
+  providerId?: string
+  providerRecordId?: string
+  fetchedAt?: string
+  sourceConfidence?: 'provider_reported' | 'partial_provider_reported'
+  providerSuppliedFields?: string[]
   notes?: string[]
 }
 
@@ -49,11 +81,22 @@ export type SearchExecutionRequest = {
   tripType: SearchTripType
   travelerCount: number
   travelerProfile: TravelerProfileScaffold
+  routeSegments?: Array<{
+    origin: string
+    destination: string
+    transportType: SearchExecutionSegment['transportType']
+    carrier?: string
+    journeyDate?: string
+    itineraryId?: string
+    segmentIndex?: number
+  }>
 }
 
 export type SearchExecutionProviderResult = {
   itineraries: SearchExecutionItinerary[]
   warnings?: string[]
+  status?: SearchExecutionProviderRun['status']
+  diagnostics?: SearchExecutionProviderRun['diagnostics']
 }
 
 export type SearchExecutionProvider = {
@@ -67,11 +110,25 @@ export type SearchExecutionProvider = {
 export type SearchExecutionProviderRun = {
   providerId: string
   providerName: string
-  status: 'success' | 'skipped' | 'failed' | 'timeout'
+  status: 'success' | 'skipped' | 'failed' | 'timeout' | 'degraded' | 'rate_limited' | 'unsupported_request'
   readiness: SearchExecutionProviderReadiness
   capabilities: SearchExecutionProviderCapabilities
   itineraryCount: number
   warnings: string[]
+  diagnostics?: {
+    lastRequestStatus?: string
+    responseLatencyMs?: number
+    recordsReceived?: number
+    recordsNormalized?: number
+    recordsMatched?: number
+    recordsUnmatched?: number
+    errorCategory?: string
+    retryUsed?: boolean
+    fetchedAt?: string
+    cached?: boolean
+    cacheAgeMs?: number
+    requestCount?: number
+  }
 }
 
 export type SearchExecutionResult = {
@@ -107,13 +164,35 @@ function normalizeSegment(segment: SearchExecutionSegment): SearchExecutionSegme
     destination: normalizeCode(segment.destination),
     transportType: segment.transportType,
     ...(known(segment.carrier) ? { carrier: normalizeCode(segment.carrier) } : {}),
+    ...(known(segment.airlineCode) ? { airlineCode: normalizeCode(segment.airlineCode) } : {}),
+    ...(known(segment.airlineName) ? { airlineName: String(segment.airlineName).trim() } : {}),
     ...(known(segment.flightNumber) ? { flightNumber: String(segment.flightNumber).trim().toUpperCase() } : {}),
     ...(known(segment.departureTime) ? { departureTime: String(segment.departureTime).trim() } : {}),
     ...(known(segment.arrivalTime) ? { arrivalTime: String(segment.arrivalTime).trim() } : {}),
+    ...(known(segment.scheduledDeparture) ? { scheduledDeparture: String(segment.scheduledDeparture).trim() } : {}),
+    ...(known(segment.scheduledArrival) ? { scheduledArrival: String(segment.scheduledArrival).trim() } : {}),
+    ...(known(segment.estimatedDeparture) ? { estimatedDeparture: String(segment.estimatedDeparture).trim() } : {}),
+    ...(known(segment.estimatedArrival) ? { estimatedArrival: String(segment.estimatedArrival).trim() } : {}),
+    ...(known(segment.actualDeparture) ? { actualDeparture: String(segment.actualDeparture).trim() } : {}),
+    ...(known(segment.actualArrival) ? { actualArrival: String(segment.actualArrival).trim() } : {}),
     ...(known(segment.seatCount) ? { seatCount: String(segment.seatCount).trim() } : {}),
     ...(known(segment.duration) ? { duration: String(segment.duration).trim() } : {}),
     ...(known(segment.scheduleStatus) ? { scheduleStatus: String(segment.scheduleStatus).trim() } : {}),
+    ...(known(segment.flightStatus) ? { flightStatus: String(segment.flightStatus).trim() } : {}),
     ...(known(segment.loadStatus) ? { loadStatus: String(segment.loadStatus).trim() } : {}),
+    ...(known(segment.departureTerminal) ? { departureTerminal: String(segment.departureTerminal).trim() } : {}),
+    ...(known(segment.arrivalTerminal) ? { arrivalTerminal: String(segment.arrivalTerminal).trim() } : {}),
+    ...(known(segment.departureGate) ? { departureGate: String(segment.departureGate).trim() } : {}),
+    ...(known(segment.arrivalGate) ? { arrivalGate: String(segment.arrivalGate).trim() } : {}),
+    ...(known(segment.aircraftRegistration) ? { aircraftRegistration: String(segment.aircraftRegistration).trim() } : {}),
+    ...(known(segment.aircraftIata) ? { aircraftIata: String(segment.aircraftIata).trim().toUpperCase() } : {}),
+    ...(known(segment.aircraftIcao) ? { aircraftIcao: String(segment.aircraftIcao).trim().toUpperCase() } : {}),
+    ...(segment.codeshareInformation?.length ? { codeshareInformation: uniqueStrings(segment.codeshareInformation) } : {}),
+    ...(known(segment.providerId) ? { providerId: String(segment.providerId).trim() } : {}),
+    ...(known(segment.providerRecordId) ? { providerRecordId: String(segment.providerRecordId).trim() } : {}),
+    ...(known(segment.fetchedAt) ? { fetchedAt: String(segment.fetchedAt).trim() } : {}),
+    ...(segment.sourceConfidence ? { sourceConfidence: segment.sourceConfidence } : {}),
+    ...(segment.providerSuppliedFields?.length ? { providerSuppliedFields: uniqueStrings(segment.providerSuppliedFields) } : {}),
     notes: uniqueStrings(segment.notes || [])
   }
 }
@@ -165,13 +244,35 @@ function mergeSegments(first: SearchExecutionSegment, second: SearchExecutionSeg
   return {
     ...first,
     carrier: mergeField(first.carrier, second.carrier),
+    airlineCode: mergeField(first.airlineCode, second.airlineCode),
+    airlineName: mergeField(first.airlineName, second.airlineName),
     flightNumber: mergeField(first.flightNumber, second.flightNumber),
     departureTime: mergeField(first.departureTime, second.departureTime),
     arrivalTime: mergeField(first.arrivalTime, second.arrivalTime),
+    scheduledDeparture: mergeField(first.scheduledDeparture, second.scheduledDeparture),
+    scheduledArrival: mergeField(first.scheduledArrival, second.scheduledArrival),
+    estimatedDeparture: mergeField(first.estimatedDeparture, second.estimatedDeparture),
+    estimatedArrival: mergeField(first.estimatedArrival, second.estimatedArrival),
+    actualDeparture: mergeField(first.actualDeparture, second.actualDeparture),
+    actualArrival: mergeField(first.actualArrival, second.actualArrival),
     seatCount: mergeField(first.seatCount, second.seatCount),
     duration: mergeField(first.duration, second.duration),
     scheduleStatus: mergeField(first.scheduleStatus, second.scheduleStatus),
+    flightStatus: mergeField(first.flightStatus, second.flightStatus),
     loadStatus: mergeField(first.loadStatus, second.loadStatus),
+    departureTerminal: mergeField(first.departureTerminal, second.departureTerminal),
+    arrivalTerminal: mergeField(first.arrivalTerminal, second.arrivalTerminal),
+    departureGate: mergeField(first.departureGate, second.departureGate),
+    arrivalGate: mergeField(first.arrivalGate, second.arrivalGate),
+    aircraftRegistration: mergeField(first.aircraftRegistration, second.aircraftRegistration),
+    aircraftIata: mergeField(first.aircraftIata, second.aircraftIata),
+    aircraftIcao: mergeField(first.aircraftIcao, second.aircraftIcao),
+    providerId: mergeField(first.providerId, second.providerId),
+    providerRecordId: mergeField(first.providerRecordId, second.providerRecordId),
+    fetchedAt: mergeField(first.fetchedAt, second.fetchedAt),
+    sourceConfidence: first.sourceConfidence || second.sourceConfidence,
+    codeshareInformation: uniqueStrings([...(first.codeshareInformation || []), ...(second.codeshareInformation || [])]),
+    providerSuppliedFields: uniqueStrings([...(first.providerSuppliedFields || []), ...(second.providerSuppliedFields || [])]),
     notes: uniqueStrings([...(first.notes || []), ...(second.notes || [])])
   }
 }
@@ -229,16 +330,19 @@ async function executeProvider(provider: SearchExecutionProvider, request: Searc
   try {
     const result = await Promise.race([provider.search(request), timeout<SearchExecutionProviderResult>(timeoutMs)])
     const itineraries = result.itineraries.map((itinerary) => normalizeItinerary(itinerary, provider))
+    const diagnostics = (result as SearchExecutionProviderResult & { diagnostics?: SearchExecutionProviderRun['diagnostics']; status?: SearchExecutionProviderRun['status'] }).diagnostics
+    const status = (result as SearchExecutionProviderResult & { status?: SearchExecutionProviderRun['status'] }).status || 'success'
     return {
       itineraries,
       run: {
         providerId: provider.id,
         providerName: provider.name,
-        status: 'success' as const,
+        status,
         readiness: provider.readiness,
         capabilities: provider.capabilities,
         itineraryCount: itineraries.length,
-        warnings: uniqueStrings(result.warnings || [])
+        warnings: uniqueStrings(result.warnings || []),
+        ...(diagnostics ? { diagnostics } : {})
       }
     }
   } catch (error) {

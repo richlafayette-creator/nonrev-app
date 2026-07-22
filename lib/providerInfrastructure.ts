@@ -158,8 +158,9 @@ export function resolveProviderCredentials(config: ProviderOnboardingConfig, env
   const credentials: Record<string, string> = {}
   const missingEnvKeys: string[] = []
   ;(config.credentials || []).forEach((credential) => {
-    const value = env[credential.envKey]
-    if (value) credentials[credential.envKey] = value
+    const value = env[credential.envKey]?.trim() || ''
+    const placeholder = /^(placeholder|changeme|change-me|your[_-]?.*|test-key-here|example|none|null|undefined)$/i.test(value)
+    if (value && !placeholder) credentials[credential.envKey] = value
     else if (credential.required !== false) missingEnvKeys.push(credential.envKey)
   })
   return { configured: missingEnvKeys.length === 0, missingEnvKeys, credentials }

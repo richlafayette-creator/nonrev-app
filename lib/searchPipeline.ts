@@ -47,6 +47,7 @@ import {
   type SearchExecutionProviderRun,
   type SearchExecutionResult
 } from './searchExecutionEngine'
+import { createAviationstackExecutionProvider } from './aviationstackExecutionProvider'
 
 export type SearchTripType = 'one_way' | 'round_trip' | 'open_jaw'
 
@@ -109,6 +110,22 @@ export type SearchPipelineOptions = {
   executionResult?: SearchExecutionResult
   executionProviders?: SearchExecutionProvider[]
   executionTimeoutMs?: number
+}
+
+function routeSegmentsForExecution(result: SearchResult): SearchExecutionResult['request']['routeSegments'] {
+  return result.itineraries.flatMap((itinerary) =>
+    itinerary.journeys.flatMap((journey) =>
+      journey.segments.map((segment, index) => ({
+        origin: segment.origin,
+        destination: segment.destination,
+        transportType: segment.mode,
+        carrier: segment.carrier,
+        journeyDate: journey.date,
+        itineraryId: itinerary.id,
+        segmentIndex: index
+      }))
+    )
+  )
 }
 
 export type SearchResultRecommendation = {
@@ -370,9 +387,23 @@ function executionMatchesSearchItinerary(searchItinerary: SearchResultItinerary,
 }
 
 function applyExecutionSegment(segment: BetaItinerarySegment, executionSegment: SearchExecutionItinerary['segments'][number]): BetaItinerarySegment {
+  const providerNotes = uniqueStrings([
+    executionSegment.airlineName || executionSegment.airlineCode || executionSegment.carrier
+      ? `Airline: ${[executionSegment.airlineName, executionSegment.airlineCode].filter(Boolean).join(' ') || executionSegment.carrier}`
+      : '',
+    executionSegment.flightNumber ? `Flight: ${executionSegment.flightNumber}` : '',
+    executionSegment.flightStatus ? `Flight status: ${executionSegment.flightStatus}` : '',
+    executionSegment.departureTerminal || executionSegment.departureGate
+      ? `Departure terminal/gate: ${[executionSegment.departureTerminal, executionSegment.departureGate].filter(Boolean).join('/')}`
+      : '',
+    executionSegment.arrivalTerminal || executionSegment.arrivalGate
+      ? `Arrival terminal/gate: ${[executionSegment.arrivalTerminal, executionSegment.arrivalGate].filter(Boolean).join('/')}`
+      : '',
+    executionSegment.fetchedAt ? `Schedule data: Aviationstack, fetched ${executionSegment.fetchedAt}` : ''
+  ])
   return {
     ...segment,
-    ...(segment.carrier || !knownProviderValue(executionSegment.carrier) ? {} : { carrier: executionSegment.carrier }),
+    ...(segment.carrier || !knownProviderValue(executionSegment.airlineCode || executionSegment.carrier) ? {} : { carrier: executionSegment.airlineCode || executionSegment.carrier }),
     schedule: {
       flightNumber: knownProviderValue(executionSegment.flightNumber) ? executionSegment.flightNumber || segment.schedule.flightNumber : segment.schedule.flightNumber,
       departureTime: knownProviderValue(executionSegment.departureTime) ? executionSegment.departureTime || segment.schedule.departureTime : segment.schedule.departureTime,
@@ -385,6 +416,7 @@ function applyExecutionSegment(segment: BetaItinerarySegment, executionSegment: 
     notes: uniqueStrings([
       ...segment.notes,
       ...(executionSegment.notes || []),
+      ...providerNotes,
       knownProviderValue(executionSegment.scheduleStatus) ? executionSegment.scheduleStatus || '' : '',
       knownProviderValue(executionSegment.loadStatus) ? executionSegment.loadStatus || '' : ''
     ])
@@ -740,15 +772,22 @@ export async function runSearchPipelineWithExecution(request: NaturalSearchObjec
   const mission = normalizeSearchMission(request)
   const tripType = inferTripType(request, mission)
   const travelerProfile = normalizeTravelerProfile(request.travelerProfile || defaultTravelerProfile)
+  const staticResult = runSearchPipeline(request, {
+    ...options,
+    now,
+    executionResult: undefined,
+    executionProviders: undefined
+  })
   const executionEngine = new SearchExecutionEngine({
-    providers: options.executionProviders || [],
+    providers: options.executionProviders || [createAviationstackExecutionProvider({ now: () => now })],
     timeoutMs: options.executionTimeoutMs
   })
   const executionResult = await executionEngine.execute({
     mission,
     tripType,
     travelerCount: mission.travelers,
-    travelerProfile
+    travelerProfile,
+    routeSegments: routeSegmentsForExecution(staticResult)
   })
 
   return runSearchPipeline(request, {

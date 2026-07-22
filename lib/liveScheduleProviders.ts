@@ -34,6 +34,19 @@ export type NormalizedScheduleResult = {
   arrivalOperatingDate?: string
   departureTerminal?: string
   arrivalTerminal?: string
+  departureGate?: string
+  arrivalGate?: string
+  airlineCode?: string
+  airlineName?: string
+  scheduledDeparture?: string
+  scheduledArrival?: string
+  estimatedDeparture?: string
+  estimatedArrival?: string
+  actualDeparture?: string
+  actualArrival?: string
+  aircraftRegistration?: string
+  aircraftIata?: string
+  aircraftIcao?: string
   codeshareIdentity?: string
   providerRecordId?: string
   retrievalTimestamp?: string
@@ -243,6 +256,12 @@ function provided(value?: string | number | null) {
   return String(value)
 }
 
+function configuredSecret(value?: string) {
+  const trimmed = value?.trim() || ''
+  if (!trimmed || /^(placeholder|changeme|change-me|your[_-]?|test-key-here|example|none|null|undefined)$/i.test(trimmed)) return undefined
+  return trimmed
+}
+
 function durationBetween(departure?: string, arrival?: string) {
   const departureMs = departure ? Date.parse(departure) : NaN
   const arrivalMs = arrival ? Date.parse(arrival) : NaN
@@ -413,6 +432,7 @@ export function normalizeAviationstackScheduleResult(flight: AviationstackFlight
   const origin = flight.departure?.iata || flight.departure?.icao || 'TBD'
   const destination = flight.arrival?.iata || flight.arrival?.icao || 'TBD'
   const aircraft = flight.aircraft?.iata || flight.aircraft?.icao || flight.aircraft?.registration || 'Unknown'
+  const sourceCheckedAt = new Date().toISOString()
 
   return {
     carrier: flight.airline?.name || flight.airline?.iata || flight.airline?.icao || 'Unknown Airline',
@@ -424,7 +444,9 @@ export function normalizeAviationstackScheduleResult(flight: AviationstackFlight
     aircraft,
     status: flight.flight_status || 'Unknown',
     source: 'aviationstack',
-    sourceCheckedAt: new Date().toISOString(),
+    sourceCheckedAt,
+    airlineCode: flight.airline?.iata || flight.airline?.icao,
+    airlineName: flight.airline?.name,
     operatingCarrier: flight.airline?.iata || flight.airline?.icao || flight.airline?.name,
     operatingFlightNumber: flightNumber,
     marketingAirline: flight.airline?.name || flight.airline?.iata || flight.airline?.icao,
@@ -436,9 +458,20 @@ export function normalizeAviationstackScheduleResult(flight: AviationstackFlight
     arrivalOperatingDate: operatingDateFor(flight.arrival?.scheduled || flight.arrival?.estimated || flight.arrival?.actual, destination),
     departureTerminal: flight.departure?.terminal,
     arrivalTerminal: flight.arrival?.terminal,
+    departureGate: flight.departure?.gate,
+    arrivalGate: flight.arrival?.gate,
+    scheduledDeparture: flight.departure?.scheduled,
+    scheduledArrival: flight.arrival?.scheduled,
+    estimatedDeparture: flight.departure?.estimated,
+    estimatedArrival: flight.arrival?.estimated,
+    actualDeparture: flight.departure?.actual,
+    actualArrival: flight.arrival?.actual,
+    aircraftRegistration: flight.aircraft?.registration,
+    aircraftIata: flight.aircraft?.iata,
+    aircraftIcao: flight.aircraft?.icao,
     providerRecordId: flight.flight?.icao || flight.flight?.iata || flight.flight?.number,
-    retrievalTimestamp: new Date().toISOString(),
-    dataFreshness: freshnessLabel(new Date().toISOString()),
+    retrievalTimestamp: sourceCheckedAt,
+    dataFreshness: freshnessLabel(sourceCheckedAt),
     dataStatus: 'live'
   }
 }
@@ -489,7 +522,7 @@ export function scheduleResultsToFlightRecords(results: NormalizedScheduleResult
   return providerScheduleRowsFromResults(results)
 }
 
-export function createFlightAwareScheduleProvider(apiKey = process.env.FLIGHTAWARE_API_KEY): LiveScheduleProvider {
+export function createFlightAwareScheduleProvider(apiKey = configuredSecret(process.env.FLIGHTAWARE_API_KEY)): LiveScheduleProvider {
   return {
     key: 'flightaware',
     label: 'FlightAware AeroAPI',
@@ -605,7 +638,8 @@ export function createFlightAwareScheduleProvider(apiKey = process.env.FLIGHTAWA
   }
 }
 
-export function createAviationstackScheduleProvider(apiKey = process.env.AVIATIONSTACK_API_KEY): LiveScheduleProvider {
+export function createAviationstackScheduleProvider(apiKey = configuredSecret(process.env.AVIATIONSTACK_API_KEY)): LiveScheduleProvider {
+  const safeApiKey = configuredSecret(apiKey)
   return {
     key: 'aviationstack',
     label: 'Aviationstack',
@@ -616,7 +650,7 @@ export function createAviationstackScheduleProvider(apiKey = process.env.AVIATIO
       flightNumberEnrichment: false
     },
     async searchSchedules(request) {
-      if (!apiKey) {
+      if (!safeApiKey) {
         return {
           provider: 'aviationstack',
           results: [],
@@ -634,7 +668,7 @@ export function createAviationstackScheduleProvider(apiKey = process.env.AVIATIO
 
       await Promise.all(carrierCodes.map(async (carrierCode) => {
         const params = new URLSearchParams({
-          access_key: apiKey,
+          access_key: safeApiKey,
           limit: String(request.maxResults || 50)
         })
         if (request.origin) params.set('dep_iata', request.origin)

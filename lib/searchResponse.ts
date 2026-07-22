@@ -31,6 +31,24 @@ export type SearchApiSuccessResponse = {
   warnings: string[]
   confidence: SearchResult['confidence']
   recommendations: SearchResult['recommendations']
+  recommendationDetails: Array<{
+    id: string
+    label: 'Plan A' | 'Plan B' | 'Plan C'
+    rank: number
+    status: string
+    gateway: string
+    finalScore: number
+    confidence: number
+    estimatedSuccess: number
+    wholePartyZedEligible: boolean
+    eligibleZedAirlines: string[]
+    strengths: string[]
+    weaknesses: string[]
+    switchConditions: string[]
+    risks: Array<{ code: string; title: string; description: string; severity: string; trigger?: string }>
+    dataWarnings: string[]
+  }>
+  dataQuality: SearchResult['recommendationResult']['dataQuality']
   segments: SearchResult['segments']
   timeline: SearchResult['timeline']
   summary: string
@@ -92,6 +110,30 @@ export function serializeSearchResult(result: SearchResult, env?: Record<string,
     warnings: result.warnings,
     confidence: result.confidence,
     recommendations: result.recommendations,
+    recommendationDetails: result.recommendationResult.recommendations.map((recommendation) => ({
+      id: recommendation.id,
+      label: recommendation.label,
+      rank: recommendation.rank,
+      status: recommendation.status,
+      gateway: recommendation.plan.gateway,
+      finalScore: recommendation.finalScore,
+      confidence: recommendation.confidence,
+      estimatedSuccess: recommendation.estimatedSuccess,
+      wholePartyZedEligible: recommendation.wholePartyZedEligible,
+      eligibleZedAirlines: recommendation.eligibleZedAirlines,
+      strengths: recommendation.explanation.strengths,
+      weaknesses: recommendation.explanation.weaknesses,
+      switchConditions: recommendation.explanation.switchConditions,
+      risks: recommendation.risks.map((risk) => ({
+        code: risk.code,
+        title: risk.title,
+        description: risk.description,
+        severity: risk.severity,
+        ...(risk.trigger ? { trigger: risk.trigger } : {})
+      })),
+      dataWarnings: recommendation.dataWarnings
+    })),
+    dataQuality: result.recommendationResult.dataQuality,
     segments: result.segments,
     timeline: result.timeline,
     summary: result.summary,

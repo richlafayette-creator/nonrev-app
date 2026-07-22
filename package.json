@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "test": "node --loader ./scripts/ts-extension-loader.mjs --test lib/coreItineraryEngine.test.ts lib/scheduleProviderAdapter.test.ts lib/canonicalItineraryEndpoint.test.ts lib/providerInfrastructure.test.ts lib/providerScheduleIngestion.test.ts lib/loadAvailability.test.ts lib/conversationalTripWorkspace.test.ts lib/conversationalMobileViewport.test.ts lib/itineraryProviderHealthReport.test.ts lib/travelerProfile.test.ts lib/tripMission.test.ts lib/gatewayDiscovery.test.ts lib/itineraryStrategy.test.ts lib/recommendationEngine.test.ts lib/itineraryAssembler.test.ts lib/searchPipeline.test.ts lib/searchApi.test.ts",
+    "test": "node --loader ./scripts/ts-extension-loader.mjs --test lib/coreItineraryEngine.test.ts lib/scheduleProviderAdapter.test.ts lib/canonicalItineraryEndpoint.test.ts lib/providerInfrastructure.test.ts lib/providerScheduleIngestion.test.ts lib/loadAvailability.test.ts lib/conversationalTripWorkspace.test.ts lib/conversationalMobileViewport.test.ts lib/itineraryProviderHealthReport.test.ts lib/travelerProfile.test.ts lib/tripMission.test.ts lib/gatewayDiscovery.test.ts lib/itineraryStrategy.test.ts lib/recommendationEngine.test.ts lib/itineraryAssembler.test.ts lib/searchPipeline.test.ts lib/searchApi.test.ts lib/betaSearchClient.test.ts lib/searchResultsViewModel.test.ts",
     "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint"

@@ -1,6 +1,7 @@
 'use client'
 
 import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react'
+import { runBetaSearchFromPrompt } from '../lib/betaSearchClient'
 import { isCurrentLiveAvailability } from '../lib/liveAvailabilityGuard'
 import {
   applyWorkspaceFilters,
@@ -18,6 +19,7 @@ import {
   type WorkspaceResultSet
 } from '../lib/conversationalTripWorkspace'
 import { markActivationStep } from '../lib/onboardingActivation'
+import { loadTravelerProfileFromStorage } from '../lib/travelerProfile'
 
 type ChatMessage = {
   id: string
@@ -36,9 +38,11 @@ const examplePrompts = [
 ]
 
 const verifiedLiveUnavailableMessage = "I couldn't retrieve verified live itineraries from the currently connected sources."
+let generatedId = 0
 
 function newId(prefix: string) {
-  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+  generatedId += 1
+  return `${prefix}-${Date.now()}-${generatedId}`
 }
 
 function sourceLabel(itinerary: ConversationalItinerary) {
@@ -149,6 +153,7 @@ export default function ConversationalTripWorkspace({ initialPrompt = '' }: { in
   const [expandedCards, setExpandedCards] = useState<string[]>([])
   const [compareIds, setCompareIds] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
+  const [searchState, setSearchState] = useState<'idle' | 'parsing' | 'validating' | 'searching' | 'success' | 'no-viable-plans' | 'api-validation-error' | 'api-server-error' | 'malformed-response' | 'offline-network-error'>('idle')
   const [error, setError] = useState('')
   const restored = useRef(false)
   const restoredSavedResult = useRef(false)
@@ -245,48 +250,23 @@ export default function ConversationalTripWorkspace({ initialPrompt = '' }: { in
   async function runProviderSearch(query: string, nextContext: TripContext) {
     setLoading(true)
     setError('')
+    setSearchState('parsing')
     markActivationStep('runFirstTripPlan')
-    const params = new URLSearchParams({ q: query })
-    if (nextContext.origin) params.set('origin', nextContext.origin)
-    if (nextContext.date) params.set('date', nextContext.date)
-    if (nextContext.preferredAirlines[0]) params.set('carrier', nextContext.preferredAirlines[0].toLowerCase())
-    params.set('maxLegs', String((nextContext.maxStops ?? 1) + 1))
-
+    const storage = typeof window !== 'undefined' ? window.sessionStorage : undefined
     try {
-      const response = await fetch(`/api/itinerary/search?${params.toString()}`)
-      const data = await response.json().catch(() => ({}))
-      if (!response.ok) throw new Error(data?.errorMessage || data?.message || `Search failed with HTTP ${response.status}`)
-
-      const rawItineraries = Array.isArray(data?.itineraries) ? data.itineraries as ConversationalItinerary[] : []
-      const rawFrameworkRoutes = Array.isArray(data?.frameworkRoutes) ? data.frameworkRoutes as ConversationalItinerary[] : []
-      const scheduleItineraries = rawItineraries.filter((itinerary) => isCurrentLiveAvailability(itinerary))
-      const frameworkRoutes = [...rawFrameworkRoutes, ...rawItineraries.filter((itinerary) => itinerary.dataFreshnessRule === 'route-framework' || itinerary.sourceProvider === 'route-framework' || itinerary.source === 'route-framework')]
-      const result: WorkspaceResultSet = {
-        id: newId('result'),
-        query,
-        context: nextContext,
-        itineraries: scheduleItineraries,
-        frameworkRoutes,
-        warnings: Array.isArray(data?.warnings) ? data.warnings : [],
-        source: data?.sourceLabel || 'Canonical itinerary search',
-        dataMode: apiDataModeLabel(data?.dataMode, scheduleItineraries.length),
-        status: data?.errorMessage || '',
-        debug: data?.debug || null,
-        createdAt: new Date().toISOString()
+      setSearchState('validating')
+      const profile = loadTravelerProfileFromStorage()
+      setSearchState('searching')
+      const result = await runBetaSearchFromPrompt({ prompt: query, profile, storage })
+      if (result.ok) {
+        setSearchState('success')
+        window.location.href = '/results'
+        return
       }
-      result.status = summarizeVerifiedResult(result)
-      setResults((current) => [...current, result])
-      setActiveResultId(result.id)
-      setWorkspaceMode(scheduleItineraries.length ? 'collapsed' : 'expanded')
-      addAssistantMessage(summarizeVerifiedResult(result), result.id)
-    } catch (providerError) {
-      const rawMessage = providerError instanceof Error && providerError.message ? providerError.message : ''
-      const limited = /rate limit|rate-limited|429/i.test(rawMessage)
-      const message = limited
-        ? `${verifiedLiveUnavailableMessage} Provider limitation: a connected source is rate-limited right now.`
-        : verifiedLiveUnavailableMessage
-      setError(`${message} Try a specific airport pair, a different date, or broader carrier scope.`)
-      addAssistantMessage(`${message} I will not show stale or unverified availability. Try a specific airport pair, a different date, or broader carrier scope.`)
+
+      setSearchState(result.state)
+      setError(result.message)
+      addAssistantMessage(result.message)
     } finally {
       setLoading(false)
     }
@@ -408,8 +388,8 @@ export default function ConversationalTripWorkspace({ initialPrompt = '' }: { in
               ) : null}
             </article>
           ))}
-          {loading ? <div className="nonrevy-conversation__loading">Checking current schedule availability...</div> : null}
-          {error ? <p className="nonrevy-conversation__error">{error}</p> : null}
+          {loading ? <div className="nonrevy-conversation__loading" aria-live="polite">{searchState === 'searching' ? 'Searching beta route frameworks...' : searchState === 'validating' ? 'Validating trip request...' : 'Parsing trip request...'}</div> : null}
+          {error ? <p className="nonrevy-conversation__error" role="alert">{error}</p> : null}
         </div>
 
         <div className="nonrevy-conversation__examples" aria-label="Example prompts">

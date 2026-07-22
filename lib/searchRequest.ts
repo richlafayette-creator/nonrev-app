@@ -13,6 +13,7 @@ export type BetaSearchPreferences = {
   preferredDepartureAirports?: string[]
   preferredDestinations?: string[]
   destinationRegion?: string
+  positioningAirports?: string[]
 }
 
 export type BetaSearchRequest = {

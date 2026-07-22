@@ -1,24 +1,10 @@
-'use client'
-
 import { Suspense } from 'react'
-import { useSearchParams } from 'next/navigation'
-import ConversationalTripWorkspace from '../ConversationalTripWorkspace'
-import { PlanPage } from '../plan/PlanPage'
-import { isConversationalWorkspaceEnabled } from '../../lib/featureFlags'
+import SearchResultsClient from './SearchResultsClient'
 
 export default function ResultsPage() {
-  if (isConversationalWorkspaceEnabled()) {
-    return (
-      <Suspense fallback={<ConversationalTripWorkspace />}>
-        <ConversationalResultsPage />
-      </Suspense>
-    )
-  }
-
-  return <PlanPage compactResultsMode />
-}
-
-function ConversationalResultsPage() {
-  const params = useSearchParams()
-  return <ConversationalTripWorkspace initialPrompt={params.get('aiTrip') || params.get('q') || ''} />
+  return (
+    <Suspense fallback={<main className="app-shell nonrevy-results-page"><section className="nonrevy-results-page__shell"><h1>Loading beta search results</h1></section></main>}>
+      <SearchResultsClient />
+    </Suspense>
+  )
 }

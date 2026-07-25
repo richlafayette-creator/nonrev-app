@@ -55,6 +55,7 @@ export type SearchApiSuccessResponse = {
   fallbacks: SearchResult['fallbacks']
   providerReadiness: SearchProviderReadiness
   providerRuns: SearchResult['providerRuns']
+  providerHealth: SearchResult['providerHealth']
   unknownScheduleIndicators: string[]
   itineraries: SearchResult['itineraries']
   pipelineTrace: SearchResult['pipelineTrace']
@@ -141,6 +142,7 @@ export function serializeSearchResult(result: SearchResult, env?: Record<string,
     fallbacks: result.fallbacks,
     providerReadiness: providerReadiness(env),
     providerRuns: result.providerRuns,
+    providerHealth: result.providerHealth,
     unknownScheduleIndicators: result.unknownScheduleIndicators,
     itineraries: result.itineraries,
     pipelineTrace: result.pipelineTrace,

@@ -47,7 +47,8 @@ import {
   type SearchExecutionProviderRun,
   type SearchExecutionResult
 } from './searchExecutionEngine'
-import { createAviationstackExecutionProvider } from './aviationstackExecutionProvider'
+import { createDefaultProviderManager } from './providerAdapters'
+import { type ProviderHealth, type ProviderManager } from './providerManager'
 
 export type SearchTripType = 'one_way' | 'round_trip' | 'open_jaw'
 
@@ -109,6 +110,7 @@ export type SearchPipelineOptions = {
   adapters?: SearchPipelineAdapters
   executionResult?: SearchExecutionResult
   executionProviders?: SearchExecutionProvider[]
+  providerManager?: ProviderManager
   executionTimeoutMs?: number
 }
 
@@ -202,6 +204,7 @@ export type SearchResult = {
   timeline: TravelTimelineItem[]
   fallbacks: FallbackOption[]
   providerRuns: SearchExecutionProviderRun[]
+  providerHealth: ProviderHealth[]
   pipelineTrace: SearchPipelineTraceItem[]
   assumptions: string[]
 }
@@ -595,6 +598,31 @@ function confidenceForResult(
   }
 }
 
+function providerSignalsFromExecution(executionResult?: SearchExecutionResult): RecommendationSignals {
+  if (!executionResult) return {}
+  const successfulRuns = executionResult.providerRuns.filter((run) => run.status === 'success')
+  const scheduleRuns = successfulRuns.filter((run) => run.capabilities.schedules || run.capabilities.routeSearch)
+  const loadRuns = successfulRuns.filter((run) => run.capabilities.loads && run.diagnostics?.recordsNormalized)
+  const weights = executionResult.providerHealth
+    .filter((health) => health.recordsNormalized > 0)
+    .map((health) => health.confidenceWeight)
+  const providerConfidence = weights.length
+    ? Math.round(weights.reduce((sum, value) => sum + value, 0) / weights.length)
+    : undefined
+  return {
+    operatingScheduleDataAvailable: scheduleRuns.some((run) => (run.diagnostics?.recordsNormalized || run.itineraryCount) > 0),
+    liveLoadDataAvailable: loadRuns.length > 0,
+    providerConfidence,
+    providerConfidenceBasis: executionResult.providerHealth.map((health) =>
+      `${health.providerId}:${health.status}:${health.recordsNormalized}`
+    )
+  }
+}
+
+function recommendationSignals(options: SearchPipelineOptions): RecommendationSignals | undefined {
+  return options.signals || (options.executionResult ? providerSignalsFromExecution(options.executionResult) : undefined)
+}
+
 function routeDedupeKey(itinerary: SearchResultItinerary) {
   return itinerary.journeys
     .flatMap((journey) => journey.segments.map((segment) => `${journey.direction}:${segment.origin}-${segment.destination}-${segment.mode}-${segment.carrier || 'unknown'}`))
@@ -665,7 +693,7 @@ export function runSearchPipeline(request: NaturalSearchObject, options: SearchP
       mission,
       strategies,
       travelerProfile,
-      { gateways, signals: options.signals, now }
+      { gateways, signals: recommendationSignals(options), now }
     )
     if (!recommendationResult.recommendations.length) warnings.push('No recommendations were produced from the available strategy data.')
     pipelineTrace.push(trace('recommendation_engine', recommendationResult.recommendations.length ? 'ok' : 'partial', `${recommendationResult.recommendations.length} recommendation(s) produced.`))
@@ -755,6 +783,7 @@ export function runSearchPipeline(request: NaturalSearchObject, options: SearchP
     timeline,
     fallbacks,
     providerRuns: options.executionResult?.providerRuns || [],
+    providerHealth: options.executionResult?.providerHealth || [],
     pipelineTrace,
     assumptions: uniqueStrings([
       ...tripMissionAssumptions(mission),
@@ -779,7 +808,11 @@ export async function runSearchPipelineWithExecution(request: NaturalSearchObjec
     executionProviders: undefined
   })
   const executionEngine = new SearchExecutionEngine({
-    providers: options.executionProviders || [createAviationstackExecutionProvider({ now: () => now })],
+    ...(options.providerManager
+      ? { providerManager: options.providerManager }
+      : options.executionProviders
+        ? { providers: options.executionProviders }
+        : { providerManager: createDefaultProviderManager({ now: () => now, timeoutMs: options.executionTimeoutMs }) }),
     timeoutMs: options.executionTimeoutMs
   })
   const executionResult = await executionEngine.execute({

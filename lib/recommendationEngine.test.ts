@@ -232,6 +232,23 @@ describe('recommendation and risk engine', () => {
     assert.equal(JSON.stringify(result).includes('5 seats'), false)
     assert.ok(recommendationResultAssumptions(result).includes('No live seat counts, clearance probabilities, or real-time availability are inferred.'))
   })
+
+  it('weights recommendation confidence from normalized provider confidence', () => {
+    const mission = zedMission()
+    const plan = planFixture({ carrier: 'LH', score: 70, confidence: 70, estimatedSuccess: 70 })
+    const weak = scoreRecommendation(mission, plan, eligibleProfile('LH'), {
+      now,
+      signals: { ...liveSignals, providerConfidence: 30 }
+    })
+    const strong = scoreRecommendation(mission, plan, eligibleProfile('LH'), {
+      now,
+      signals: { ...liveSignals, providerConfidence: 90 }
+    })
+
+    assert.ok(strong.confidence > weak.confidence)
+    assert.ok(strong.finalScore > weak.finalScore)
+    assert.ok(strong.estimatedSuccess > weak.estimatedSuccess)
+  })
 })
 
 function zedMission(): TripMission {

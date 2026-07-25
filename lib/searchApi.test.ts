@@ -1,11 +1,13 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 // @ts-expect-error Node's experimental TypeScript test runner resolves the .ts extension directly.
-import { executeSearchApi, serializeSearchResult } from './searchResponse.ts'
+import { executeSearchApi, executeSearchApiAsync, serializeSearchResult } from './searchResponse.ts'
 // @ts-expect-error Node's experimental TypeScript test runner resolves the .ts extension directly.
 import { readSearchRequestBody, toSearchPipelineRequest } from './searchRequest.ts'
 // @ts-expect-error Node's experimental TypeScript test runner resolves the .ts extension directly.
 import { runSearchPipeline } from './searchPipeline.ts'
+// @ts-expect-error Node's experimental TypeScript test runner resolves the .ts extension directly.
+import { type SearchExecutionProvider } from './searchExecutionEngine.ts'
 // @ts-expect-error Node's experimental TypeScript test runner resolves the .ts extension directly.
 import { validateSearchRequest } from './searchValidation.ts'
 // @ts-expect-error Node's experimental TypeScript test runner resolves the .ts extension directly.
@@ -283,6 +285,23 @@ describe('/api/search beta search API', () => {
     assert.equal(body.providerReadiness.weather.clientLiveCallsAllowed, false)
   })
 
+  it('surfaces execution provider health in async API responses', async () => {
+    const response = await executeSearchApiAsync(validBody({
+      origin: 'LAX',
+      destination: 'HND',
+      preferences: { ...validBody().preferences, preferredDepartureAirports: ['LAX'], preferredDestinations: ['HND'] }
+    }), {
+      now,
+      pipelineOptions: { executionProviders: [apiProvider('alpha')] }
+    })
+
+    assert.equal(response.status, 200)
+    if (response.status !== 200) return
+    assert.ok(response.body.providerRuns.some((run) => run.providerId === 'alpha' && run.status === 'success'))
+    assert.ok(response.body.providerHealth.some((health) => health.providerId === 'alpha' && health.recordsNormalized === 1))
+    assert.equal(JSON.stringify(response.body).includes('super-secret-api-key'), false)
+  })
+
   it('returns 500 when an unexpected pipeline exception escapes', () => {
     const response = executeSearchApi(validBody(), {
       now,
@@ -333,4 +352,37 @@ function profile(travelerType: TravelerProfileScaffold['travelerType']) {
     ],
     zedAgreements: []
   } as Partial<TravelerProfileScaffold>)
+}
+
+function apiProvider(id: string): SearchExecutionProvider {
+  return {
+    id,
+    name: `${id} provider`,
+    readiness: { enabled: true, status: 'ready' },
+    capabilities: { schedules: true, routeSearch: true, loads: false },
+    async search() {
+      return {
+        itineraries: [{
+          dataQuality: 'high',
+          segments: [{
+            origin: 'LAX',
+            destination: 'HND',
+            transportType: 'flight',
+            carrier: 'JL',
+            flightNumber: 'JL15',
+            departureTime: '2026-07-27T13:00:00Z',
+            arrivalTime: '2026-07-28T04:30:00Z',
+            notes: ['Provider supplied normalized schedule candidate.']
+          }]
+        }],
+        diagnostics: {
+          recordsReceived: 1,
+          recordsNormalized: 1,
+          recordsMatched: 1,
+          recordsUnmatched: 0,
+          responseLatencyMs: 2
+        }
+      }
+    }
+  }
 }

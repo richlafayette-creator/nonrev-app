@@ -188,6 +188,7 @@ function storedFixture(options: {
         },
         limitations: []
       },
+      providerHealth: [],
       unknownScheduleIndicators: ['Unknown - provider schedule validation required', 'Unknown - live load data not attached'],
       itineraries: [{
         id: 'itinerary-plan-a',

@@ -1,10 +1,16 @@
 import { type SearchTripType } from './searchPipeline'
 import { type TripMission } from './tripMission'
 import { type TravelerProfileScaffold } from './travelerProfile'
+import {
+  createLegacyExecutionProviderAdapter,
+  ProviderManager,
+  type ProviderHealth,
+  type ProviderManagerRunResult
+} from './providerManager'
 
 export type SearchExecutionProviderReadiness = {
   enabled: boolean
-  status: 'ready' | 'disabled' | 'credential_missing' | 'unavailable' | 'configured' | 'degraded' | 'rate_limited' | 'timed_out' | 'unsupported_request'
+  status: 'ready' | 'disabled' | 'credential_missing' | 'unavailable' | 'configured' | 'degraded' | 'rate_limited' | 'quota_exhausted' | 'invalid_key' | 'network_failure' | 'provider_unavailable' | 'timed_out' | 'unsupported_request'
   message?: string
 }
 
@@ -110,7 +116,7 @@ export type SearchExecutionProvider = {
 export type SearchExecutionProviderRun = {
   providerId: string
   providerName: string
-  status: 'success' | 'skipped' | 'failed' | 'timeout' | 'degraded' | 'rate_limited' | 'unsupported_request'
+  status: 'success' | 'skipped' | 'failed' | 'timeout' | 'degraded' | 'rate_limited' | 'quota_exhausted' | 'invalid_key' | 'network_failure' | 'provider_unavailable' | 'unsupported_request'
   readiness: SearchExecutionProviderReadiness
   capabilities: SearchExecutionProviderCapabilities
   itineraryCount: number
@@ -135,12 +141,14 @@ export type SearchExecutionResult = {
   request: SearchExecutionRequest
   itineraries: SearchExecutionItinerary[]
   providerRuns: SearchExecutionProviderRun[]
+  providerHealth: ProviderHealth[]
   warnings: string[]
   dataQuality: 'high' | 'medium' | 'low'
 }
 
 export type SearchExecutionEngineOptions = {
   providers?: SearchExecutionProvider[]
+  providerManager?: ProviderManager
   timeoutMs?: number
 }
 
@@ -301,67 +309,6 @@ export function mergeProviderItineraries(itineraries: SearchExecutionItinerary[]
   return [...merged.values()]
 }
 
-function timeout<T>(ms: number): Promise<T> {
-  return new Promise((_, reject) => {
-    setTimeout(() => reject(new Error(`Provider timed out after ${ms}ms`)), ms)
-  })
-}
-
-function providerEnabled(provider: SearchExecutionProvider) {
-  return provider.readiness.enabled && provider.readiness.status === 'ready'
-}
-
-async function executeProvider(provider: SearchExecutionProvider, request: SearchExecutionRequest, timeoutMs: number) {
-  if (!providerEnabled(provider)) {
-    return {
-      itineraries: [],
-      run: {
-        providerId: provider.id,
-        providerName: provider.name,
-        status: 'skipped' as const,
-        readiness: provider.readiness,
-        capabilities: provider.capabilities,
-        itineraryCount: 0,
-        warnings: [provider.readiness.message || `${provider.name} is not ready.`]
-      }
-    }
-  }
-
-  try {
-    const result = await Promise.race([provider.search(request), timeout<SearchExecutionProviderResult>(timeoutMs)])
-    const itineraries = result.itineraries.map((itinerary) => normalizeItinerary(itinerary, provider))
-    const diagnostics = (result as SearchExecutionProviderResult & { diagnostics?: SearchExecutionProviderRun['diagnostics']; status?: SearchExecutionProviderRun['status'] }).diagnostics
-    const status = (result as SearchExecutionProviderResult & { status?: SearchExecutionProviderRun['status'] }).status || 'success'
-    return {
-      itineraries,
-      run: {
-        providerId: provider.id,
-        providerName: provider.name,
-        status,
-        readiness: provider.readiness,
-        capabilities: provider.capabilities,
-        itineraryCount: itineraries.length,
-        warnings: uniqueStrings(result.warnings || []),
-        ...(diagnostics ? { diagnostics } : {})
-      }
-    }
-  } catch (error) {
-    const message = error instanceof Error ? error.message : `${provider.name} provider failed.`
-    return {
-      itineraries: [],
-      run: {
-        providerId: provider.id,
-        providerName: provider.name,
-        status: message.includes('timed out after') ? 'timeout' as const : 'failed' as const,
-        readiness: provider.readiness,
-        capabilities: provider.capabilities,
-        itineraryCount: 0,
-        warnings: [message]
-      }
-    }
-  }
-}
-
 function resultDataQuality(runs: SearchExecutionProviderRun[], itineraries: SearchExecutionItinerary[]): SearchExecutionResult['dataQuality'] {
   if (!runs.length || !itineraries.length) return 'low'
   const successes = runs.filter((run) => run.status === 'success').length
@@ -379,21 +326,41 @@ export class SearchExecutionEngine {
 
   async execute(request: SearchExecutionRequest): Promise<SearchExecutionResult> {
     const providers = this.options.providers || []
-    const timeoutMs = this.options.timeoutMs || defaultTimeoutMs
-    const executions = await Promise.all(providers.map((provider) => executeProvider(provider, request, timeoutMs)))
+    const providerManager = this.options.providerManager || new ProviderManager({
+      providers: providers.map((provider) => createLegacyExecutionProviderAdapter(provider)),
+      timeoutMs: this.options.timeoutMs || defaultTimeoutMs
+    })
+    const executions = await providerManager.execute(request)
     const providerRuns = executions.map((item) => item.run)
-    const itineraries = mergeProviderItineraries(executions.flatMap((item) => item.itineraries))
+    const normalizedExecutions = executions.map((item) => normalizeManagerExecution(item))
+    const itineraries = mergeProviderItineraries(normalizedExecutions.flatMap((item) => item.itineraries))
     const warnings = uniqueStrings([
       ...providerRuns.flatMap((run) => run.warnings),
-      !providers.length ? 'No search execution providers are configured.' : ''
+      !providerManager.registeredProviders().length ? 'No search execution providers are configured.' : ''
     ])
 
     return {
       request,
       itineraries,
       providerRuns,
+      providerHealth: executions.map((item) => item.health),
       warnings,
       dataQuality: resultDataQuality(providerRuns, itineraries)
     }
+  }
+}
+
+function normalizeManagerExecution(execution: ProviderManagerRunResult): ProviderManagerRunResult {
+  const provider = {
+    id: execution.run.providerId,
+    name: execution.run.providerName,
+    readiness: execution.run.readiness,
+    capabilities: execution.run.capabilities,
+    search: async (): Promise<SearchExecutionProviderResult> => ({ itineraries: execution.itineraries })
+  }
+  const itineraries = execution.itineraries.map((itinerary) => normalizeItinerary(itinerary, provider))
+  return {
+    ...execution,
+    itineraries
   }
 }

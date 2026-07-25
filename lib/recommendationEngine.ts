@@ -67,6 +67,8 @@ export interface RecommendationSignals {
   liveLoadDataAvailable?: boolean
   operatingScheduleDataAvailable?: boolean
   weatherDataAvailable?: boolean
+  providerConfidence?: number
+  providerConfidenceBasis?: string[]
 }
 
 export interface RecommendationOptions {
@@ -97,6 +99,12 @@ function normalizeCarrierCode(value: unknown) {
 
 function uniqueStrings(values: string[]) {
   return [...new Set(values)]
+}
+
+function normalizedProviderConfidence(signals: RecommendationSignals) {
+  return typeof signals.providerConfidence === 'number' && Number.isFinite(signals.providerConfidence)
+    ? clampScore(signals.providerConfidence)
+    : undefined
 }
 
 function planCarrierCodes(plan: ItineraryPlan) {
@@ -234,9 +242,15 @@ export function scoreRecommendation(
   if (!signals.liveLoadDataAvailable) confidence -= 8
   if (!signals.operatingScheduleDataAvailable) confidence -= 10
   if (!signals.weatherDataAvailable) confidence -= 3
+  const providerConfidence = normalizedProviderConfidence(signals)
+  if (providerConfidence !== undefined) {
+    confidence += Math.round((providerConfidence - 50) / 5)
+    if (signals.operatingScheduleDataAvailable) finalScore += Math.round((providerConfidence - 50) / 10)
+  }
 
   estimatedSuccess += zed.wholePartyZedEligible ? 3 : 0
   estimatedSuccess -= mixedTransport ? 2 : 0
+  if (providerConfidence !== undefined && signals.operatingScheduleDataAvailable) estimatedSuccess += Math.round((providerConfidence - 50) / 20)
 
   return {
     finalScore: clampScore(finalScore),
@@ -251,6 +265,8 @@ function dataWarningsForPlan(plan: ItineraryPlan, signals: RecommendationSignals
   if (!signals.liveLoadDataAvailable) warnings.push('Live standby/load data is unavailable for this static recommendation.')
   if (!signals.operatingScheduleDataAvailable) warnings.push('Live operating schedule data is unavailable for this static recommendation.')
   if (!signals.weatherDataAvailable) warnings.push('Weather data is unavailable for this recommendation.')
+  const providerConfidence = normalizedProviderConfidence(signals)
+  if (providerConfidence !== undefined && signals.operatingScheduleDataAvailable) warnings.push(`Provider schedule confidence weight: ${providerConfidence}/100.`)
   return warnings
 }
 

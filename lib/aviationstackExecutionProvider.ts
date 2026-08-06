@@ -1,5 +1,6 @@
 import {
   createAviationstackScheduleProvider,
+  createAerodataboxScheduleProvider,
   type LiveScheduleProvider,
   type NormalizedScheduleResult
 } from './liveScheduleProviders'
@@ -262,9 +263,9 @@ function errorCategory(warning = '') {
 }
 
 export function createAviationstackExecutionProvider(options: AviationstackExecutionProviderOptions = {}): SearchExecutionProvider {
-  const apiKey = configuredSecret(options.apiKey ?? process.env.AVIATIONSTACK_API_KEY)
+  const apiKey = configuredSecret(options.apiKey ?? process.env.AERODATABOX_API_KEY)
   const now = options.now || (() => new Date())
-  const provider = options.provider || createAviationstackScheduleProvider(apiKey)
+  const provider = options.provider || createAerodataboxScheduleProvider(apiKey)
   const maxAirportPairs = Math.max(1, Math.min(options.maxAirportPairs || defaultMaxAirportPairs, defaultMaxAirportPairs))
   const maxResultsPerPair = Math.max(1, Math.min(options.maxResultsPerPair || defaultMaxResultsPerPair, defaultMaxResultsPerPair))
   const cache = options.cache || defaultCache

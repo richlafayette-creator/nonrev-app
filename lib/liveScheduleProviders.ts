@@ -4,6 +4,7 @@ import { providerScheduleRowsFromResults, type ScheduleProviderCallLog } from '.
 
 export type LiveScheduleProviderKey =
   | 'aviationstack'
+  | 'aerodatabox'
   | 'flightaware'
   | 'amadeus'
   | 'cirium-oag'
@@ -638,6 +639,45 @@ export function createFlightAwareScheduleProvider(apiKey = configuredSecret(proc
   }
 }
 
+export function createAerodataboxScheduleProvider(apiKey = configuredSecret(process.env.AERODATABOX_API_KEY)): LiveScheduleProvider {
+  const safeApiKey = configuredSecret(apiKey)
+  return {
+    key: 'aerodatabox',
+    label: 'AeroDataBox',
+    capabilities: { futureSchedules: true, currentFlightStatus: true, routeSearch: true, flightNumberEnrichment: true },
+    async searchSchedules(request) {
+      if (safeApiKey == null || safeApiKey === '') return { provider: 'aerodatabox', results: [], requestCount: 0, status: 'skipped', warning: 'AeroDataBox API.Market key missing', detail: 'No AERODATABOX_API_KEY is configured.' }
+      const origin = String(request.origin || '').trim().toUpperCase()
+      const destination = String(request.destination || '').trim().toUpperCase()
+      const date = String(request.date || '').slice(0,10)
+      const maxResults = Math.max(1, request.maxResults || 100)
+      if (!origin || !date) return { provider: 'aerodatabox', results: [], requestCount: 0, status: 'skipped', detail: 'Origin and date are required.' }
+      const windows = [[date + 'T00:00', date + 'T12:00'], [date + 'T12:00', date + 'T23:59']]
+      const results: NormalizedScheduleResult[] = []
+      let requestCount = 0
+      for (const [fromLocal,toLocal] of windows) {
+        const url = 'https://prod.api.market/api/v1/aedbx/aerodatabox/flights/airports/Iata/' + encodeURIComponent(origin) + '/' + encodeURIComponent(fromLocal) + '/' + encodeURIComponent(toLocal) + '?direction=Departure&withLeg=true&withCancelled=true&withCodeshared=true&withCargo=false&withPrivate=false&withLocation=false'
+        requestCount += 1
+        const { response, data } = await fetchJsonWithProviderInfrastructure('aerodatabox', url, { headers: { accept: 'application/json', 'x-api-market-key': safeApiKey } })
+        if (!response.ok) continue
+        const departures = Array.isArray((data as any)?.departures) ? (data as any).departures : []
+        for (const f of departures) {
+          const dest = String(f?.arrival?.airport?.iata || f?.arrival?.airport?.icao || '').toUpperCase()
+          if (destination && dest !== destination) continue
+          const dep = normalizedInstant(f?.departure?.scheduledTime?.utc || f?.departure?.scheduledTime?.local)
+          const arr = normalizedInstant(f?.arrival?.scheduledTime?.utc || f?.arrival?.scheduledTime?.local)
+          const number = String(f?.number || '').trim()
+          const carrier = String(f?.airline?.iata || f?.airline?.icao || number.match(/^[A-Za-z0-9]{2,3}/)?.[0] || '').toUpperCase()
+          if (!number || !carrier || !dest || !dep || !arr) continue
+          results.push({ source: 'aerodatabox', carrier, flightNumber: number, origin, destination: dest, departureTime: dep, arrivalTime: arr, aircraft: f?.aircraft?.model || f?.aircraft?.reg || '', status: String(f?.status || 'Expected'), airlineCode: f?.airline?.iata || f?.airline?.icao, airlineName: f?.airline?.name, scheduledDeparture: dep, scheduledArrival: arr, aircraftRegistration: f?.aircraft?.reg, aircraftIata: f?.aircraft?.iata, aircraftIcao: f?.aircraft?.icao, retrievalTimestamp: new Date().toISOString(), dataFreshness: 'live provider lookup', dataStatus: 'live' })
+        }
+      }
+      const uniqueResults = uniqueScheduleResults(results).slice(0,maxResults)
+      return { provider: 'aerodatabox', results: uniqueResults, requestCount, status: uniqueResults.length ? 'success' : 'skipped', detail: uniqueResults.length ? uniqueResults.length + ' AeroDataBox schedule results returned.' : 'AeroDataBox returned no matching schedule rows.' }
+    }
+  }
+}
+
 export function createAviationstackScheduleProvider(apiKey = configuredSecret(process.env.AVIATIONSTACK_API_KEY)): LiveScheduleProvider {
   const safeApiKey = configuredSecret(apiKey)
   return {
@@ -833,16 +873,19 @@ function withOverride(base: ScheduleProviderReadiness, override?: ReadinessOverr
 export function getLiveScheduleProviderReadiness(options: ReadinessOptions = {}): ScheduleProviderReadiness[] {
   const env = options.env || process.env
   const aviationstack = createAviationstackScheduleProvider(env.AVIATIONSTACK_API_KEY)
+  const aerodatabox = createAerodataboxScheduleProvider(env.AERODATABOX_API_KEY)
   const flightAware = createFlightAwareScheduleProvider(env.FLIGHTAWARE_API_KEY)
   const amadeus = createAmadeusScheduleProvider()
   const ciriumOag = createCiriumOagScheduleProvider()
   const supabase = createSupabaseScheduleIngestionProvider()
   const supabaseConfigured = Boolean((env.SUPABASE_URL || env.NEXT_PUBLIC_SUPABASE_URL) && (env.SUPABASE_SERVICE_ROLE_KEY || env.NEXT_PUBLIC_SUPABASE_ANON_KEY))
   const aviationstackConfigured = Boolean(env.AVIATIONSTACK_API_KEY)
+  const aerodataboxConfigured = Boolean(env.AERODATABOX_API_KEY)
   const flightAwareConfigured = Boolean(env.FLIGHTAWARE_API_KEY)
 
   const supabaseCapabilities = capabilityList(supabase.capabilities)
   const aviationstackCapabilities = capabilityList(aviationstack.capabilities)
+  const aerodataboxCapabilities = capabilityList(aerodatabox.capabilities)
   const flightAwareCapabilities = capabilityList(flightAware.capabilities)
   const amadeusCapabilities = capabilityList(amadeus.capabilities)
   const ciriumOagCapabilities = capabilityList(ciriumOag.capabilities)
@@ -874,6 +917,19 @@ export function getLiveScheduleProviderReadiness(options: ReadinessOptions = {})
         ? 'Aviationstack credentials are present and the abstraction can call the existing fallback search safely.'
         : 'Aviationstack fallback will be skipped because its API key is missing.'
     }, options.overrides?.aviationstack),
+    withOverride({
+      key: 'aerodatabox',
+      label: aerodatabox.label,
+      status: aerodataboxConfigured ? 'Configured' : 'Missing',
+      whatItCanProvide: [...aerodataboxCapabilities.provides, 'live schedule search via AeroDataBox'],
+      whatItCannotProvide: [...aerodataboxCapabilities.cannotProvide, 'stored cache persistence unless Supabase ingestion is added downstream'],
+      recommendedNextAction: aerodataboxConfigured
+        ? 'Use AeroDataBox for primary live/future schedule lookup and keep fallback providers available.'
+        : 'Set AERODATABOX_API_KEY before using AeroDataBox schedule search.',
+      detail: aerodataboxConfigured
+        ? 'AeroDataBox credentials are present and live schedule search is available.'
+        : 'AeroDataBox will be skipped because its API key is missing.'
+    }, options.overrides?.aerodatabox),
     withOverride({
       key: 'flightaware',
       label: flightAware.label,

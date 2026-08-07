@@ -42,6 +42,7 @@ import {
 import {
   SearchExecutionEngine,
   type SearchExecutionItinerary,
+  type SearchExecutionSegment,
   type SearchExecutionProvider,
   type SearchExecutionProviderAttribution,
   type SearchExecutionProviderRun,
@@ -439,11 +440,53 @@ function missingDataForSearchItinerary(itinerary: SearchResultItinerary) {
   ])
 }
 
+function executionSegmentToBetaSegment(segment: SearchExecutionSegment, index: number): BetaItinerarySegment {
+  return {
+    id: `live-segment-${index + 1}`,
+    origin: segment.origin,
+    destination: segment.destination,
+    mode: segment.transportType === 'surface' ? 'car' : segment.transportType,
+    carrier: segment.carrier || segment.airlineCode || segment.airlineName,
+    schedule: {
+      flightNumber: segment.flightNumber || 'Unknown',
+      departureTime: segment.scheduledDeparture || segment.departureTime || 'Unknown',
+      arrivalTime: segment.scheduledArrival || segment.arrivalTime || 'Unknown',
+      seatCount: segment.seatCount || 'Unknown - live loads not attached'
+    },
+    estimatedDuration: segment.duration || 'Unknown',
+    notes: segment.flightStatus ? [`Flight status: ${segment.flightStatus}`] : []
+  }
+}
+
 function applyExecutionResultToItineraries(
   itineraries: SearchResultItinerary[],
   executionResult?: SearchExecutionResult
 ) {
   if (!executionResult?.itineraries.length) return itineraries
+  if (!itineraries.length) {
+    return executionResult.itineraries.map((executionItinerary, itineraryIndex) => {
+      const segments = executionItinerary.segments.map(executionSegmentToBetaSegment)
+      const first = segments[0]
+      const last = segments.at(-1)
+      return {
+        id: executionItinerary.id || `live-${itineraryIndex + 1}`,
+        recommendationLabel: "Plan A" as const,
+        recommendationRank: itineraryIndex + 1,
+        gateway: last?.destination || first?.destination || "Unknown",
+        confidence: executionItinerary.dataQuality === "high" ? 80 : executionItinerary.dataQuality === "medium" ? 65 : 50,
+        summary: first && last ? `${first.origin} to ${last.destination} live schedule option` : "Live schedule option",
+        detailedSummary: "Live provider itinerary. Schedule data is available; nonrev loads and final success scoring are not yet attached.",
+        segments,
+        timeline: [],
+        fallbacks: [],
+        providerAttribution: executionItinerary.providerAttribution || [],
+        weatherPlaceholder: "Weather intelligence not attached.",
+        missingData: [],
+        unknownScheduleIndicators: [],
+        journeys: first && last ? [{ direction: "outbound" as const, origin: first.origin, destination: last.destination, date: executionItinerary.segments[0]?.scheduledDeparture?.slice(0, 10), segments, timeline: [] }] : []
+      }
+    })
+  }
   return itineraries.map((itinerary) => {
     const matched = executionResult.itineraries.find((executionItinerary) => executionMatchesSearchItinerary(itinerary, executionItinerary))
     if (!matched) return itinerary

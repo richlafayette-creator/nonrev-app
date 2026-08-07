@@ -668,7 +668,7 @@ function recommendationSignals(options: SearchPipelineOptions): RecommendationSi
 
 function routeDedupeKey(itinerary: SearchResultItinerary) {
   return itinerary.journeys
-    .flatMap((journey) => journey.segments.map((segment) => `${journey.direction}:${segment.origin}-${segment.destination}-${segment.mode}-${segment.carrier || 'unknown'}`))
+    .flatMap((journey) => journey.segments.map((segment) => `${journey.direction}:${segment.origin}-${segment.destination}-${segment.mode}-${segment.carrier || 'unknown'}-${segment.schedule.flightNumber}-${segment.schedule.departureTime}`))
     .join('|')
 }
 
@@ -764,9 +764,9 @@ export function runSearchPipeline(request: NaturalSearchObject, options: SearchP
     pipelineTrace.push(trace('itinerary_assembly', 'failed', 'Itinerary assembly failed; search result returned without itineraries.'))
   }
 
-  const itineraries = applyExecutionResultToItineraries(dedupeSearchItineraries(betaItineraries.map((itinerary) =>
+  const itineraries = dedupeSearchItineraries(applyExecutionResultToItineraries(dedupeSearchItineraries(betaItineraries.map((itinerary) =>
     searchResultItinerary(itinerary, tripType, request, mission)
-  )), options.executionResult)
+  )), options.executionResult))
   const rankedRecommendations = recommendationResult.recommendations.map(recommendationSummary)
   const missingData = uniqueStrings([
     !mission.originAirports.length ? 'origin airports' : '',

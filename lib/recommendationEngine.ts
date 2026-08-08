@@ -77,7 +77,7 @@ export interface RecommendationOptions {
   now?: Date
 }
 
-type ZedAssessment = {
+export type ZedAssessment = {
   carrierCodes: string[]
   wholePartyZedEligible: boolean
   eligibleZedAirlines: string[]
@@ -124,7 +124,7 @@ function agreementIsFresh(agreement: ZedAgreementRecord, now?: Date) {
   return now.getTime() - verifiedAt <= 180 * 86400000
 }
 
-function assessZed(
+export function assessZed(
   plan: ItineraryPlan,
   profileInput: Partial<TravelerProfileScaffold>,
   now?: Date

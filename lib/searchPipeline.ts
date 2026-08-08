@@ -37,6 +37,9 @@ import {
   defaultTravelerProfile,
   normalizeTravelerProfile,
   travelerProfileAssumptions,
+  findActiveZedAgreement,
+  isEntireTravelingPartyEligible,
+  zedAgreementVerificationIsFresh,
   type TravelerProfileScaffold
 } from './travelerProfile'
 import {

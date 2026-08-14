@@ -37,6 +37,7 @@ import {
   defaultTravelerProfile,
   normalizeTravelerProfile,
   travelerProfileAssumptions,
+  normalizeAirlineCode,
   findActiveZedAgreement,
   isEntireTravelingPartyEligible,
   zedAgreementVerificationIsFresh,
@@ -158,6 +159,8 @@ export type SearchResultItinerary = {
   segments: BetaItinerarySegment[]
   timeline: TravelTimelineItem[]
   fallbacks: FallbackOption[]
+  requiredZedAirlines: string[]
+  revenueAirlines: string[]
   providerAttribution: SearchExecutionProviderAttribution[]
   weatherPlaceholder: string
   missingData: string[]
@@ -462,6 +465,8 @@ function executionSegmentToBetaSegment(segment: SearchExecutionSegment, index: n
 }
 
 function applyExecutionResultToItineraries(
+  mission: TripMission,
+  travelerProfile: TravelerProfileScaffold,
   itineraries: SearchResultItinerary[],
   executionResult?: SearchExecutionResult
 ) {
@@ -471,12 +476,17 @@ function applyExecutionResultToItineraries(
       const segments = executionItinerary.segments.map(executionSegmentToBetaSegment)
       const first = segments[0]
       const last = segments.at(-1)
+    const requiredZedAirlines = normalizeTripMission(mission).allowZed ? uniqueStrings(segments.filter((segment) => segment.mode === 'flight' && segment.carrier).map((segment) => normalizeAirlineCode(segment.carrier))) : []
+    const eligibleZedAirlines = requiredZedAirlines.filter((carrierCode) => isEntireTravelingPartyEligible(travelerProfile, carrierCode))
+    const revenueAirlines = normalizeTripMission(mission).allowRevenue ? requiredZedAirlines.filter((carrierCode) => !eligibleZedAirlines.includes(carrierCode)) : []
       return {
         id: executionItinerary.id || `live-${itineraryIndex + 1}`,
         recommendationLabel: "Plan A" as const,
         recommendationRank: itineraryIndex + 1,
         gateway: last?.destination || first?.destination || "Unknown",
         confidence: executionItinerary.dataQuality === "high" ? 80 : executionItinerary.dataQuality === "medium" ? 65 : 50,
+      requiredZedAirlines,
+      revenueAirlines,
         summary: first && last ? `${first.origin} to ${last.destination} live schedule option` : "Live schedule option",
         detailedSummary: "Live provider itinerary. Schedule data is available; nonrev loads and final success scoring are not yet attached.",
         segments,
@@ -588,6 +598,8 @@ function searchResultItinerary(
     segments: itinerary.segments,
     timeline: itinerary.travelTimeline,
     fallbacks: itinerary.fallbackOptions,
+    requiredZedAirlines: itinerary.requiredZedAirlines,
+    revenueAirlines: itinerary.revenueAirlines,
     providerAttribution: [],
     weatherPlaceholder: itinerary.weatherSummaryPlaceholder,
     missingData,
@@ -767,7 +779,7 @@ export function runSearchPipeline(request: NaturalSearchObject, options: SearchP
     pipelineTrace.push(trace('itinerary_assembly', 'failed', 'Itinerary assembly failed; search result returned without itineraries.'))
   }
 
-  const itineraries = dedupeSearchItineraries(applyExecutionResultToItineraries(dedupeSearchItineraries(betaItineraries.map((itinerary) =>
+  const itineraries = dedupeSearchItineraries(applyExecutionResultToItineraries(mission, travelerProfile, dedupeSearchItineraries(betaItineraries.map((itinerary) =>
     searchResultItinerary(itinerary, tripType, request, mission)
   )), options.executionResult))
   const rankedRecommendations = recommendationResult.recommendations.map(recommendationSummary)

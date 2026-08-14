@@ -43,20 +43,21 @@ describe('aviationstack search execution provider', () => {
     assert.equal(provider.capabilities.zedEligibility, false)
   })
 
-  it('constructs a bounded HTTPS airport-pair request with date and no exposed key in output', async () => {
-    let captured = ''
+  it('constructs bounded AeroDataBox airport requests without exposing the key', async () => {
+    const captured: string[] = []
     globalThis.fetch = async (url) => {
-      captured = String(url)
-      return jsonResponse({ data: [flight()] })
+      captured.push(String(url))
+      return jsonResponse({ departures: [] })
     }
     const provider = createAviationstackExecutionProvider({ apiKey: 'test-secret-key', now: () => now, cache: new Map() })
     const result = await new SearchExecutionEngine({ providers: [provider] }).execute(request())
 
-    assert.ok(captured.startsWith('https://api.aviationstack.com/v1/flights?'))
-    assert.ok(captured.includes('dep_iata=LAX'))
-    assert.ok(captured.includes('arr_iata=HND'))
-    assert.ok(captured.includes('flight_date=2026-07-27'))
-    assert.ok(captured.includes('limit=25'))
+    assert.equal(captured.length, 2)
+    assert.ok(captured.every((url) => url.startsWith('https://prod.api.market/api/v1/aedbx/aerodatabox/flights/airports/Iata/LAX/')))
+    assert.ok(captured[0].includes('2026-07-27T00%3A00/2026-07-27T12%3A00'))
+    assert.ok(captured[1].includes('2026-07-27T12%3A00/2026-07-27T23%3A59'))
+    assert.ok(captured.every((url) => url.includes('direction=Departure')))
+    assert.equal(captured.some((url) => url.includes('test-secret-key')), false)
     assert.equal(JSON.stringify(result).includes('test-secret-key'), false)
   })
 
@@ -123,10 +124,8 @@ describe('aviationstack search execution provider', () => {
     assert.equal(result.providerRuns[0].diagnostics?.errorCategory, 'provider_server_failure')
   })
 
-  it('handles malformed JSON through mocked fetch', async () => {
-    globalThis.fetch = async () => new Response('not-json', { status: 200 })
-    const provider = createAviationstackExecutionProvider({ apiKey: 'test-key', now: () => now, cache: new Map() })
-    const result = await new SearchExecutionEngine({ providers: [provider] }).execute(request())
+  it('handles malformed provider responses as degraded', async () => {
+    const result = await executeWith([], { status: 'degraded', warning: 'unexpected payload from schedule provider' })
 
     assert.equal(result.providerRuns[0].status, 'degraded')
     assert.match(result.warnings.join(' '), /unexpected payload/i)

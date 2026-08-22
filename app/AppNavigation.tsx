@@ -5,33 +5,40 @@ import { usePathname } from 'next/navigation'
 import { supabase } from '../lib/supabase'
 import { useI18n } from './I18nProvider'
 
-const menuItems = [
-  ['Search', '/'],
-  ['Saved', '/saved-searches'],
-  ['Watchlist', '/watchlist'],
-  ['My Requests', '/my-requests'],
-  ['Profile', '/profile'],
-  ['Feedback', '/beta-feedback']
+type NavItem = {
+  label: string
+  href: string
+  icon: string
+  aliases?: string[]
+}
+
+const travelerNavItems: NavItem[] = [
+  { label: 'Search', href: '/', icon: '?' },
+  { label: 'Saved', href: '/saved-searches', icon: '*' },
+  { label: 'Watchlist', href: '/watchlist', icon: 'o' },
+  { label: 'Requests', href: '/my-requests', icon: '>' },
+  { label: 'Profile', href: '/profile', icon: '@', aliases: ['/account', '/preferences', '/notification-preferences'] }
 ]
 
-const settingsItems = [
+const overflowItems = [
+  ['Feedback', '/beta-feedback'],
+  ['Onboarding', '/onboarding'],
   ['Account', '/account'],
   ['Notifications', '/notification-preferences']
 ]
 
-const betaToolItems = [
-  ['Trip outcomes', '/outcomes'],
-  ['Route intelligence', '/intelligence'],
-  ['Community loads', '/load-reports'],
-  ['Load response queue', '/requests']
-]
+function itemIsActive(pathname: string | null, item: NavItem) {
+  if (item.href === '/') return pathname === '/'
+  const aliases = item.aliases || []
+  return Boolean(pathname?.startsWith(item.href) || aliases.some((alias) => pathname?.startsWith(alias)))
+}
 
 export default function AppNavigation() {
   const [open, setOpen] = useState(false)
   const [userEmail, setUserEmail] = useState('')
   const [message, setMessage] = useState('')
   const pathname = usePathname()
-  const drawerRef = useRef<HTMLElement | null>(null)
+  const shellRef = useRef<HTMLElement | null>(null)
   const { t } = useI18n()
 
   useEffect(() => {
@@ -60,7 +67,7 @@ export default function AppNavigation() {
     }
 
     function handlePointerDown(event: PointerEvent) {
-      if (drawerRef.current && !drawerRef.current.contains(event.target as Node)) {
+      if (shellRef.current && !shellRef.current.contains(event.target as Node)) {
         setOpen(false)
       }
     }
@@ -83,55 +90,76 @@ export default function AppNavigation() {
     setMessage('Logged out.')
   }
 
-  function renderLink([label, href]: string[]) {
-    const active = href === '/' ? pathname === href : pathname?.startsWith(href)
-    const displayLabel = label === 'search' ? t('search') : label
+  function renderNavItem(item: NavItem, variant: 'top' | 'mobile') {
+    const active = itemIsActive(pathname, item)
+    const label = item.label === 'Search' ? t('search') : item.label
+
     return (
-      <a key={href} href={href} aria-current={active ? 'page' : undefined}>{displayLabel}</a>
+      <a
+        key={`${variant}-${item.href}`}
+        className={`nonrevy-${variant}-nav__link`}
+        href={item.href}
+        aria-current={active ? 'page' : undefined}
+      >
+        <span className={`nonrevy-${variant}-nav__icon`} aria-hidden="true">{item.icon}</span>
+        <span>{label}</span>
+      </a>
     )
   }
 
   return (
-    <aside ref={drawerRef} className={`app-menu ${open ? 'app-menu--open' : ''}`} aria-label="NONREVY navigation">
-      <button
-        className="app-menu__summary"
-        type="button"
-        aria-label={open ? 'Close NONREVY drawer' : 'Open NONREVY drawer'}
-        aria-expanded={open}
-        aria-controls="app-menu-drawer"
-        onClick={() => setOpen((value) => !value)}
-      >
-        <span className="app-menu__icon" aria-hidden="true">{open ? '×' : '☰'}</span>
-        <span className="app-menu__brand">NONREVY</span>
-      </button>
+    <header ref={shellRef} className="nonrevy-global-nav" aria-label="NONREVY traveler navigation">
+      <div className="nonrevy-global-nav__bar">
+        <a className="nonrevy-global-nav__brand" href="/" aria-label="NONREVY Search">
+          <span className="nonrevy-global-nav__brand-text">NONREVY</span>
+        </a>
+
+        <nav className="nonrevy-top-nav" aria-label="Primary traveler navigation">
+          {travelerNavItems.map((item) => renderNavItem(item, 'top'))}
+        </nav>
+
+        <div className="nonrevy-global-nav__actions">
+          <button
+            className="nonrevy-global-nav__menu-button"
+            type="button"
+            aria-label={open ? 'Close NONREVY menu' : 'Open NONREVY menu'}
+            aria-expanded={open}
+            aria-controls="nonrevy-overflow-menu"
+            onClick={() => setOpen((value) => !value)}
+          >
+            <span aria-hidden="true">{open ? 'x' : '='}</span>
+            <span>Menu</span>
+          </button>
+        </div>
+      </div>
+
       {open ? (
-        <div id="app-menu-drawer" className="app-menu__drawer" role="dialog" aria-modal="false" aria-label="NONREVY menu">
-          <div className="app-menu__section app-menu__section--account">
-            <span className="app-menu__eyebrow">Account</span>
+        <div id="nonrevy-overflow-menu" className="nonrevy-overflow-menu" role="dialog" aria-modal="false" aria-label="NONREVY menu">
+          <div className="nonrevy-overflow-menu__account">
+            <span>Account</span>
             <strong>{userEmail || 'Guest'}</strong>
-            <div className="app-menu__account-actions">
+            <div>
               {!userEmail ? <a href="/login">Login</a> : <button type="button" onClick={logout}>Logout</button>}
               <a href="/account">Account</a>
             </div>
             {message ? <small>{message}</small> : null}
           </div>
 
-          <nav className="app-menu__links" aria-label="Traveler menu links">
-            <span className="app-menu__eyebrow">Menu</span>
-            {menuItems.map(renderLink)}
+          <nav className="nonrevy-overflow-menu__links" aria-label="Secondary traveler links">
+            {overflowItems.map(([label, href]) => (
+              <a key={href} href={href} aria-current={pathname?.startsWith(href) ? 'page' : undefined}>{label}</a>
+            ))}
           </nav>
 
-          <nav className="app-menu__links" aria-label="Account and settings links">
-            <span className="app-menu__eyebrow">Settings</span>
-            {settingsItems.map(renderLink)}
-          </nav>
-
-          <details className="app-menu__links app-menu__links--beta-tools">
-            <summary className="app-menu__eyebrow">Operator tools</summary>
-            {betaToolItems.map(renderLink)}
-          </details>
+          <button className="nonrevy-overflow-menu__close" type="button" onClick={() => setOpen(false)}>
+            Close
+          </button>
         </div>
       ) : null}
-    </aside>
+
+      <nav className="nonrevy-mobile-nav" aria-label="Mobile traveler navigation">
+        {travelerNavItems.map((item) => renderNavItem(item, 'mobile'))}
+      </nav>
+    </header>
   )
 }

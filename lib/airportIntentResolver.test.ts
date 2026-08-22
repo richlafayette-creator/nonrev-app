@@ -63,14 +63,15 @@ describe('private beta visual system tokens', () => {
   const css = readFileSync(new URL('../app/globals.css', import.meta.url), 'utf8')
 
   it('keeps the simplified light palette and high-contrast primary text tokens', () => {
-    assert.match(css, /--nonrevy-bg:\s*#f4f7fb/)
+    assert.match(css, /--nonrevy-page-bg:\s*#f7faff/)
+    assert.match(css, /--nonrevy-bg:\s*#f7faff/)
     assert.match(css, /--nonrevy-text:\s*#111827/)
     assert.match(css, /--nonrevy-accent-blue:\s*#2563eb/)
   })
 
   it('keeps the masthead smaller than the legacy oversized mobile logo', () => {
-    assert.match(css, /\.nonrevy-home__logo\.nonrevy-logo\s*{[^}]*font-size:\s*3\.6rem/i)
-    assert.match(css, /@media \(max-width: 720px\)[\s\S]*\.nonrevy-home__logo\.nonrevy-logo\s*{[^}]*font-size:\s*2\.6rem/i)
+    assert.match(css, /\.nonrevy-home__logo\.nonrevy-logo\s*{[^}]*font-size:\s*clamp\(2\.15rem,\s*8vw,\s*3rem\)/i)
+    assert.match(css, /@media \(max-width: 760px\)[\s\S]*\.nonrevy-home__logo\.nonrevy-logo\s*{[^}]*font-size:\s*clamp\(1\.95rem,\s*12vw,\s*2\.45rem\)/i)
   })
 
   it('preserves compact result rows with dark flight text', () => {
@@ -80,7 +81,7 @@ describe('private beta visual system tokens', () => {
   })
 
   it('keeps navigation and airline fallbacks in the same light visual system', () => {
-    assert.match(css, /\.app-menu,[\s\S]*background:\s*rgba\(255,\s*255,\s*255,\s*0\.96\)/i)
+    assert.match(css, /\.nonrevy-global-nav\s*{[\s\S]*background:\s*rgba\(247,\s*250,\s*255,\s*0\.94\)/i)
     assert.match(css, /\.nonrevy-itinerary-row__airline-code\s*{[\s\S]*border-radius:\s*999px/i)
   })
 

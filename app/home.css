@@ -1186,3 +1186,41 @@ html body main.nonrevy-home .nonrevy-home__primary {
 html body main.nonrevy-results-page a.nonrevy-primary-action--search {
   color: #ffffff !important;
 }
+
+/* Global shell import-order guard: home.css loads after globals.css. */
+html body .nonrevy-global-nav__brand {
+  color: var(--nonrevy-text, #111827) !important;
+}
+
+html body .nonrevy-global-nav__brand-text {
+  color: var(--nonrevy-text, #111827) !important;
+}
+
+html body .nonrevy-conversation__header {
+  padding-top: clamp(0.35rem, 2vh, 1.2rem) !important;
+}
+
+html body .nonrevy-conversation__brand {
+  font-size: clamp(2rem, 8vw, 3rem) !important;
+  line-height: 0.95 !important;
+}
+
+html body main.nonrevy-home .nonrevy-home__hero {
+  padding-top: clamp(1rem, 3vw, 1.6rem) !important;
+  padding-bottom: clamp(1rem, 3vw, 1.6rem) !important;
+}
+
+html body main.nonrevy-home .nonrevy-home__masthead {
+  margin-bottom: 0.85rem !important;
+}
+
+html body main.nonrevy-home .nonrevy-home__logo {
+  font-size: clamp(2.15rem, 8vw, 3rem) !important;
+  letter-spacing: 0 !important;
+}
+
+@media (max-width: 760px) {
+  html body main.nonrevy-home .nonrevy-home__logo {
+    font-size: clamp(1.95rem, 12vw, 2.45rem) !important;
+  }
+}

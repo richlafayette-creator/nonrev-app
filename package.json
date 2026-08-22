@@ -4,13 +4,16 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "test": "node --loader ./scripts/ts-extension-loader.mjs --test lib/coreItineraryEngine.test.ts lib/scheduleProviderAdapter.test.ts lib/canonicalItineraryEndpoint.test.ts lib/providerInfrastructure.test.ts lib/providerScheduleIngestion.test.ts lib/loadAvailability.test.ts lib/conversationalTripWorkspace.test.ts lib/conversationalMobileViewport.test.ts lib/itineraryProviderHealthReport.test.ts lib/travelerProfile.test.ts lib/tripMission.test.ts lib/naturalLanguageDate.test.ts lib/searchExecutionEngine.test.ts lib/aviationstackExecutionProvider.test.ts lib/providerManager.test.ts lib/gatewayDiscovery.test.ts lib/itineraryStrategy.test.ts lib/recommendationEngine.test.ts lib/itineraryAssembler.test.ts lib/searchPipeline.test.ts lib/searchApi.test.ts lib/betaSearchClient.test.ts lib/searchResultsViewModel.test.ts",
+    "test": "node --loader ./scripts/ts-extension-loader.mjs --test lib/coreItineraryEngine.test.ts lib/scheduleProviderAdapter.test.ts lib/canonicalItineraryEndpoint.test.ts lib/providerInfrastructure.test.ts lib/providerScheduleIngestion.test.ts lib/loadAvailability.test.ts lib/conversationalTripWorkspace.test.ts lib/conversationalMobileViewport.test.ts lib/itineraryProviderHealthReport.test.ts lib/travelerProfile.test.ts lib/tripMission.test.ts lib/naturalLanguageDate.test.ts lib/searchExecutionEngine.test.ts lib/aviationstackExecutionProvider.test.ts lib/providerManager.test.ts lib/gatewayDiscovery.test.ts lib/itineraryStrategy.test.ts lib/recommendationEngine.test.ts lib/itineraryAssembler.test.ts lib/searchPipeline.test.ts lib/searchApi.test.ts lib/betaSearchClient.test.ts lib/searchResultsViewModel.test.ts lib/airportTimeZones.test.ts lib/airportIntentResolver.test.ts lib/resultWorkflowActions.test.ts lib/loadRequestAccountStore.test.ts lib/accountBetaStore.test.ts",
     "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint"
   },
   "dependencies": {
+    "@nwpr/airport-codes": "^3.0.3",
     "@supabase/supabase-js": "^2.106.1",
+    "airport-timezone": "^1.1.1",
+    "city-timezones": "^1.3.4",
     "next": "16.2.6",
     "react": "19.2.4",
     "react-dom": "19.2.4"

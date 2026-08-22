@@ -4625,46 +4625,39 @@ function renderFlightBoardRow(comparison: ItineraryComparison) {
             {logoUrl ? <img src={logoUrl} alt="" loading="lazy" /> : null}
             <span>{carrierCode}</span>
           </div>
-          <div className="nonrevy-ranked-result-card__field nonrevy-ranked-result-card__airline">
-            <span>Airline</span>
-            <strong>{airlineName}</strong>
-          </div>
-          <div className="nonrevy-ranked-result-card__field">
-            <span>Flights</span>
-            <strong>{flightNumbers}</strong>
-          </div>
-          <div className="nonrevy-ranked-result-card__field">
-            <span>Departs</span>
-            <strong>{depTime}</strong>
-          </div>
-          <div className="nonrevy-ranked-result-card__field">
-            <span>Origin</span>
-            <strong>{originAirport}</strong>
-          </div>
-          <div className="nonrevy-ranked-result-card__field">
-            <span>Connect</span>
-            <strong>{connectionAirport}</strong>
-          </div>
-          <div className="nonrevy-ranked-result-card__field">
-            <span>Arrives</span>
-            <strong>{arrivalDisplay}{arrivalOffset > 0 ? <em>+{arrivalOffset}</em> : null}</strong>
-          </div>
-          <div className="nonrevy-ranked-result-card__field">
-            <span>Destination</span>
-            <strong>{destinationAirport}</strong>
-          </div>
-          <div className="nonrevy-ranked-result-card__field">
-            <span>Duration</span>
-            <strong>{durationLabel}</strong>
-          </div>
-          <div className="nonrevy-ranked-result-card__field">
-            <span>Stops</span>
-            <strong>{compactStopsLabel(comparison.connections)}</strong>
-          </div>
-          <div className="nonrevy-ranked-result-card__confidence" title={`Secondary score ${confidenceScore} out of 100`}>
-            <span>Secondary score</span>
-            <strong>{scoreLabel}</strong>
-          </div>
+                        <div className="nonrevy-flight-result-main">
+                          <div className="nonrevy-flight-result-head">
+                            <div>
+                              <span className="nonrevy-flight-result-airline">{airlineName}</span>
+                              <strong className="nonrevy-flight-result-number">{flightNumbers}</strong>
+                            </div>
+                            <div className="nonrevy-flight-result-score">
+                              <span>Score</span>
+                              <strong>{scoreLabel}</strong>
+                            </div>
+                          </div>
+
+                          <div className="nonrevy-flight-result-route">
+                            <div>
+                              <strong>{originAirport}</strong>
+                              <span>{depTime}</span>
+                            </div>
+                            <div className="nonrevy-flight-result-arrow">
+                              <span>{compactStopsLabel(comparison.connections)}</span>
+                              <strong>→</strong>
+                              {connectionAirport && connectionAirport !== '—' ? <small>via {connectionAirport}</small> : null}
+                            </div>
+                            <div>
+                              <strong>{destinationAirport}</strong>
+                              <span>{arrivalDisplay}{arrivalOffset > 0 ? <em>+{arrivalOffset}</em> : null}</span>
+                            </div>
+                          </div>
+
+                          <div className="nonrevy-flight-result-meta">
+                            <span>{durationLabel}</span>
+                            <span>{compactStopsLabel(comparison.connections)}</span>
+                          </div>
+                        </div>
         </article>
         <details className="nonrevy-route-details">
           <summary>Route details</summary>
@@ -4897,7 +4890,9 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
   async function runItinerarySearch(searchText: string, overrides: ItinerarySearchOverrides = {}) {
     const trimmedSearch = searchText.trim()
     const originAirport = (overrides.homeAirport ?? homeAirport).trim().toUpperCase()
-    const parsedSearchDate = parseItineraryPrompt(trimmedSearch).date
+    const parsedSearchPrompt = parseItineraryPrompt(trimmedSearch)
+    const parsedSearchDate = parsedSearchPrompt.date
+    const parsedDestination = parsedSearchPrompt.destination
     const requestedTravelWindow = (parsedSearchDate || overrides.travelWindow || travelWindow).trim()
     if (parsedSearchDate && parsedSearchDate !== travelWindow) setTravelWindow(parsedSearchDate)
     const requestedCarrier = overrides.carrier ?? carrier
@@ -4962,7 +4957,7 @@ export function PlanPage({ compactResultsMode = false }: { compactResultsMode?: 
     }))
 
     try {
-      const response = await fetch(`/api/itinerary/search?${params.toString()}`)
+      const response = await fetch("/api/search", {         method: "POST",         headers: { "Content-Type": "application/json" },         body: JSON.stringify({           origin: originAirport,           destination: parsedDestination,           departureDate: requestedTravelWindow,           travelerCount: Number(travelerCount) || 1,           tripMission: trimmedSearch,           travelerProfile: {},           preferences: {}         })       })
       const data = await response.json().catch(() => ({}))
       if (!response.ok) {
         throw new Error(data?.errorMessage || data?.message || `Search failed with HTTP ${response.status}`)

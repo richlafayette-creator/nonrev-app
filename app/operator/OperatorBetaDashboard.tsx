@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import type { BetaFeedbackRecord } from '../../lib/betaFeedback'
 
 type ProviderStatus = 'Ready' | 'Warning' | 'Missing'
 type LoadState = 'loading' | 'ready' | 'error'
@@ -49,7 +50,7 @@ type HealthResponse = {
 }
 
 type CountResponse = {
-  records?: unknown[]
+  records?: BetaFeedbackRecord[]
   outcomes?: unknown[]
   reports?: unknown[]
   watches?: unknown[]
@@ -118,6 +119,16 @@ function countStatus(response: CountResponse | null) {
 function countDetail(response: CountResponse | null) {
   if (!response) return 'API could not be read during this snapshot.'
   return response.detail || `Storage mode: ${response.storageMode || 'not reported'}.`
+}
+
+function formatFeedbackPage(value?: string) {
+  if (!value) return 'Page not captured'
+  try {
+    const url = new URL(value)
+    return url.pathname || '/'
+  } catch {
+    return value.length > 80 ? `${value.slice(0, 77)}...` : value
+  }
 }
 
 function quietCardStyle() {
@@ -210,6 +221,7 @@ export default function OperatorBetaDashboard({ buildVersion, commitHash }: { bu
   const providerRows = snapshot.health?.providerReadiness || []
   const dataFreshness = snapshot.health?.flightFreshnessSchema
   const liveStatus = snapshot.health?.liveItineraryReadiness
+  const recentFeedback = (snapshot.betaFeedback?.records || []).slice(0, 5)
 
   return (
     <main style={{ minHeight: '100vh', background: '#020617', color: '#e2e8f0', padding: 16, fontFamily: 'Arial, sans-serif' }}>
@@ -302,6 +314,25 @@ export default function OperatorBetaDashboard({ buildVersion, commitHash }: { bu
               <p style={{ margin: '6px 0 0', color: '#94a3b8', fontSize: 13 }}>{card.detail}</p>
             </div>
           ))}
+        </section>
+
+        <section style={quietCardStyle()}>
+          <h2 style={{ margin: '0 0 8px', fontSize: 20 }}>Newest feedback</h2>
+          <p style={{ margin: '0 0 8px', color: '#94a3b8', fontSize: 13 }}>
+            Read-only triage summary for this operator scope. Message text and contact details are kept out of this snapshot.
+          </p>
+          {recentFeedback.map((item) => (
+            <div key={item.id} style={rowStyle()}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'baseline', flexWrap: 'wrap' }}>
+                <strong>{item.category}</strong>
+                <span style={{ color: item.status === 'reviewed' ? '#86efac' : '#facc15', fontWeight: 700 }}>{item.status === 'reviewed' ? 'Resolved' : 'New'}</span>
+              </div>
+              <p style={{ margin: '6px 0 0', color: '#94a3b8', fontSize: 13 }}>
+                {item.deviceClass || 'Device not captured'} · {formatFeedbackPage(item.pageUrl)} · {formatCheckedAt(item.createdAt)}
+              </p>
+            </div>
+          ))}
+          {!recentFeedback.length ? <p style={{ color: '#94a3b8' }}>No feedback is available in this operator scope yet.</p> : null}
         </section>
       </section>
     </main>

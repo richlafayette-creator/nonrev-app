@@ -2,7 +2,7 @@ import { accountPersistenceFetch } from './accountPersistenceClient'
 
 export const betaFeedbackStorageKey = 'nonrevy.betaFeedback'
 
-export type BetaFeedbackCategory = 'Wrong result' | 'Confusing UI' | 'Missing feature' | 'Bug' | 'Praise' | 'Other'
+export type BetaFeedbackCategory = 'Wrong flight/time' | 'Missing itinerary' | 'ZED issue' | 'Load request issue' | 'UI problem' | 'Other' | 'Bug report' | 'Incorrect flight/schedule data' | 'Confusing recommendation' | 'Missing airline/route' | 'Feature request' | 'General feedback' | 'Wrong result' | 'Confusing UI' | 'Missing feature' | 'Bug' | 'Praise'
 export type BetaFeedbackSentiment = 'Positive' | 'Neutral' | 'Blocked'
 export type BetaFeedbackStatus = 'new' | 'reviewed'
 
@@ -13,6 +13,7 @@ export type BetaFeedbackRecord = {
   message: string
   contact: string
   pageUrl: string
+  deviceClass?: string
   createdAt: string
   status: BetaFeedbackStatus
 }
@@ -23,9 +24,24 @@ export type BetaFeedbackDraft = {
   message: string
   contact?: string
   pageUrl?: string
+  deviceClass?: string
 }
 
-export const betaFeedbackCategories: BetaFeedbackCategory[] = ['Wrong result', 'Confusing UI', 'Missing feature', 'Bug', 'Praise', 'Other']
+export const betaFeedbackCategories: BetaFeedbackCategory[] = ['Wrong flight/time', 'Missing itinerary', 'ZED issue', 'Load request issue', 'UI problem', 'Other']
+const acceptedBetaFeedbackCategories: BetaFeedbackCategory[] = [
+  ...betaFeedbackCategories,
+  'Bug report',
+  'Incorrect flight/schedule data',
+  'Confusing recommendation',
+  'Missing airline/route',
+  'Feature request',
+  'General feedback',
+  'Wrong result',
+  'Confusing UI',
+  'Missing feature',
+  'Bug',
+  'Praise'
+]
 export const betaFeedbackSentiments: BetaFeedbackSentiment[] = ['Positive', 'Neutral', 'Blocked']
 
 function isBrowser() {
@@ -45,11 +61,12 @@ function normalizeFeedback(value: Partial<BetaFeedbackRecord> | null | undefined
   if (!value?.message || typeof value.message !== 'string') return null
   return {
     id: value.id || feedbackId(),
-    category: betaFeedbackCategories.includes(value.category as BetaFeedbackCategory) ? value.category as BetaFeedbackCategory : 'Other',
+    category: acceptedBetaFeedbackCategories.includes(value.category as BetaFeedbackCategory) ? value.category as BetaFeedbackCategory : 'Other',
     sentiment: betaFeedbackSentiments.includes(value.sentiment as BetaFeedbackSentiment) ? value.sentiment as BetaFeedbackSentiment : 'Neutral',
     message: value.message.trim(),
     contact: typeof value.contact === 'string' ? value.contact.trim() : '',
     pageUrl: typeof value.pageUrl === 'string' ? value.pageUrl : '',
+    ...(typeof value.deviceClass === 'string' && value.deviceClass.trim() ? { deviceClass: value.deviceClass.trim().slice(0, 80) } : {}),
     createdAt: value.createdAt || nowIso(),
     status: value.status === 'reviewed' ? 'reviewed' : 'new'
   }
@@ -95,6 +112,7 @@ export function submitBetaFeedback(draft: BetaFeedbackDraft) {
     id: feedbackId(),
     contact: draft.contact || '',
     pageUrl: draft.pageUrl || (isBrowser() ? window.location.href : ''),
+    deviceClass: draft.deviceClass,
     createdAt: nowIso(),
     status: 'new'
   })
@@ -146,6 +164,7 @@ export function betaFeedbackExportText(records = loadBetaFeedback()) {
     `${item.category} · ${item.sentiment} · ${item.status}`,
     `When: ${item.createdAt}`,
     item.pageUrl ? `Page: ${item.pageUrl}` : '',
+    item.deviceClass ? `Device: ${item.deviceClass}` : '',
     item.contact ? `Contact: ${item.contact}` : '',
     `Feedback: ${item.message}`
   ].filter(Boolean).join('\n')).join('\n\n---\n\n')

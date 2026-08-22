@@ -6,23 +6,24 @@ import { supabase } from '../lib/supabase'
 import { useI18n } from './I18nProvider'
 
 const menuItems = [
-  ['Home', '/'],
-  ['search', '/results'],
-  ['Plan', '/plan']
+  ['Search', '/'],
+  ['Saved', '/saved-searches'],
+  ['Watchlist', '/watchlist'],
+  ['My Requests', '/my-requests'],
+  ['Profile', '/profile'],
+  ['Feedback', '/beta-feedback']
 ]
 
-const drawerItems = [
-  ['Watchlist', '/watchlist'],
-  ['Alerts', '/alerts'],
-  ['Trips', '/outcomes'],
-  ['Community', '/load-reports'],
-  ['Route Intelligence', '/intelligence'],
-  ['Settings', '/notification-preferences'],
-  ['AI Search', '/agent'],
-  ['Beta Feedback', '/beta-feedback'],
-  ['Saved Searches', '/saved-searches'],
-  ['Profile', '/profile'],
-  ['Account', '/account']
+const settingsItems = [
+  ['Account', '/account'],
+  ['Notifications', '/notification-preferences']
+]
+
+const betaToolItems = [
+  ['Trip outcomes', '/outcomes'],
+  ['Route intelligence', '/intelligence'],
+  ['Community loads', '/load-reports'],
+  ['Load response queue', '/requests']
 ]
 
 export default function AppNavigation() {
@@ -115,15 +116,20 @@ export default function AppNavigation() {
             {message ? <small>{message}</small> : null}
           </div>
 
-          <nav className="app-menu__links" aria-label="Menu links">
+          <nav className="app-menu__links" aria-label="Traveler menu links">
             <span className="app-menu__eyebrow">Menu</span>
             {menuItems.map(renderLink)}
           </nav>
 
           <nav className="app-menu__links" aria-label="Account and settings links">
-            <span className="app-menu__eyebrow">Tools</span>
-            {drawerItems.map(renderLink)}
+            <span className="app-menu__eyebrow">Settings</span>
+            {settingsItems.map(renderLink)}
           </nav>
+
+          <details className="app-menu__links app-menu__links--beta-tools">
+            <summary className="app-menu__eyebrow">Operator tools</summary>
+            {betaToolItems.map(renderLink)}
+          </details>
         </div>
       ) : null}
     </aside>

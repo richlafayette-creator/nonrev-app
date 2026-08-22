@@ -4,6 +4,7 @@ import {
   type LiveScheduleProvider,
   type NormalizedScheduleResult
 } from './liveScheduleProviders'
+import { providerDateTimeToUtcIso } from './airportTimeZones'
 import {
   type SearchExecutionItinerary,
   type SearchExecutionProvider,
@@ -29,10 +30,10 @@ export type AviationstackExecutionProviderOptions = {
   cache?: Map<string, CacheEntry>
 }
 
-const providerId = 'aviationstack'
-const providerName = 'Aviationstack'
-const defaultMaxAirportPairs = 4
-const defaultMaxResultsPerPair = 25
+const providerId = 'aerodatabox'
+const providerName = 'AeroDataBox'
+const defaultMaxAirportPairs = 16
+const defaultMaxResultsPerPair = 300
 const defaultCache = new Map<string, CacheEntry>()
 
 function configuredSecret(value?: string) {
@@ -71,18 +72,18 @@ function normalizedAirport(value?: string) {
   return iata(value) || undefined
 }
 
-function normalizedInstant(value?: string) {
+function normalizedInstant(value?: string, timeZone?: string) {
   if (!known(value)) return undefined
-  const parsed = Date.parse(value!)
-  return Number.isFinite(parsed) ? new Date(parsed).toISOString() : undefined
+  return providerDateTimeToUtcIso(value, timeZone)
 }
 
 function localDateFromResult(result: NormalizedScheduleResult) {
   return result.operatingDate || normalizedInstant(result.scheduledDeparture || result.departureTime)?.slice(0, 10)
 }
 
-function resultMatchesRequest(result: NormalizedScheduleResult, pair: { origin: string; destination: string; date?: string }) {
-  if (iata(result.origin) !== pair.origin || iata(result.destination) !== pair.destination) return false
+function resultMatchesRequest(result: NormalizedScheduleResult, pair: { origin: string; destination?: string; date?: string }) {
+  if (iata(result.origin) !== pair.origin) return false
+  if (pair.destination && iata(result.destination) !== pair.destination) return false
   if (!pair.date) return true
   return localDateFromResult(result) === pair.date
 }
@@ -119,8 +120,8 @@ function suppliedFields(result: NormalizedScheduleResult) {
 
 function durationIfComplete(result: NormalizedScheduleResult) {
   if (known(result.duration)) return result.duration
-  const departure = normalizedInstant(result.scheduledDeparture)
-  const arrival = normalizedInstant(result.scheduledArrival)
+  const departure = normalizedInstant(result.scheduledDeparture, result.departureTimeZone)
+  const arrival = normalizedInstant(result.scheduledArrival, result.arrivalTimeZone)
   if (!departure || !arrival) return undefined
   const minutes = Math.round((Date.parse(arrival) - Date.parse(departure)) / 60000)
   if (!Number.isFinite(minutes) || minutes <= 0) return undefined
@@ -132,8 +133,8 @@ function durationIfComplete(result: NormalizedScheduleResult) {
 function segmentFromResult(result: NormalizedScheduleResult, fetchedAt: string): SearchExecutionSegment {
   const fields = suppliedFields(result)
   const flightNumber = normalizedFlight(result.operatingFlightNumber || result.flightNumber)
-  const scheduledDeparture = normalizedInstant(result.scheduledDeparture || result.departureTime)
-  const scheduledArrival = normalizedInstant(result.scheduledArrival || result.arrivalTime)
+  const scheduledDeparture = normalizedInstant(result.scheduledDeparture || result.departureTime, result.departureTimeZone)
+  const scheduledArrival = normalizedInstant(result.scheduledArrival || result.arrivalTime, result.arrivalTimeZone)
   return {
     origin: iata(result.origin),
     destination: iata(result.destination),
@@ -148,10 +149,16 @@ function segmentFromResult(result: NormalizedScheduleResult, fetchedAt: string):
     arrivalTime: scheduledArrival,
     scheduledDeparture,
     scheduledArrival,
-    estimatedDeparture: normalizedInstant(result.estimatedDeparture),
-    estimatedArrival: normalizedInstant(result.estimatedArrival),
-    actualDeparture: normalizedInstant(result.actualDeparture),
-    actualArrival: normalizedInstant(result.actualArrival),
+    scheduledDepartureUtc: scheduledDeparture,
+    scheduledArrivalUtc: scheduledArrival,
+    departureTimeZone: normalizedText(result.departureTimeZone),
+    arrivalTimeZone: normalizedText(result.arrivalTimeZone),
+    departureAirportTimeZone: normalizedText(result.departureTimeZone),
+    arrivalAirportTimeZone: normalizedText(result.arrivalTimeZone),
+    estimatedDeparture: normalizedInstant(result.estimatedDeparture, result.departureTimeZone),
+    estimatedArrival: normalizedInstant(result.estimatedArrival, result.arrivalTimeZone),
+    actualDeparture: normalizedInstant(result.actualDeparture, result.departureTimeZone),
+    actualArrival: normalizedInstant(result.actualArrival, result.arrivalTimeZone),
     duration: durationIfComplete(result),
     scheduleStatus: normalizedText(result.status) ? `Flight status: ${result.status}` : 'Schedule data supplied by Aviationstack',
     flightStatus: normalizedText(result.status),
@@ -170,7 +177,7 @@ function segmentFromResult(result: NormalizedScheduleResult, fetchedAt: string):
       'Schedule data: Aviationstack',
       `Last updated: ${fetchedAt}`,
       'Live load unavailable',
-      'Aviationstack does not provide nonrev standby loads, fares, or ZED eligibility.'
+      'AeroDataBox does not provide nonrev standby loads, fares, or ZED eligibility.'
     ]
   }
 }
@@ -189,20 +196,21 @@ function itineraryFromResult(result: NormalizedScheduleResult, fetchedAt: string
       freshnessAgeMs: 0
     }],
     segments: [segment],
-    warnings: ['Aviationstack schedule/status data does not include live nonrev load availability, fares, or ZED eligibility.']
+    warnings: ['AeroDataBox schedule/status data does not include live nonrev load availability, fares, or ZED eligibility.']
   }
 }
 
 function routePairs(request: SearchExecutionRequest, maxPairs: number) {
-  const pairs = new Map<string, { origin: string; destination: string; date?: string }>()
+  const pairs = new Map<string, { origin: string; destination?: string; date?: string }>()
   const missionDate = isoDate(request.mission.departureDate)
   ;(request.routeSegments || []).forEach((segment) => {
     if (segment.transportType !== 'flight') return
     const origin = iata(segment.origin)
     const destination = iata(segment.destination)
-    if (!origin || !destination) return
+    const isOriginDepartureDiscovery = segment.destination === '*' || segment.destination === ''
+    if (!origin || (!destination && !isOriginDepartureDiscovery)) return
     const date = isoDate(segment.journeyDate) || missionDate
-    pairs.set(`${origin}-${destination}-${date || 'any'}`, { origin, destination, date })
+    pairs.set(`${origin}-${destination || 'any-destination'}-${date || 'any'}`, { origin, ...(destination ? { destination } : {}), date })
   })
 
   if (!pairs.size) {
@@ -214,8 +222,8 @@ function routePairs(request: SearchExecutionRequest, maxPairs: number) {
   return [...pairs.values()].slice(0, maxPairs)
 }
 
-function cacheKey(pair: { origin: string; destination: string; date?: string }, limit: number) {
-  return [providerId, 'flights', pair.origin, pair.destination, pair.date || 'any-date', 'offset-0', `limit-${limit}`].join(':')
+function cacheKey(pair: { origin: string; destination?: string; date?: string }, limit: number) {
+  return [providerId, 'flights', pair.origin, pair.destination || 'any-destination', pair.date || 'any-date', 'offset-0', `limit-${limit}`].join(':')
 }
 
 function ttlMs(pair: { date?: string }, now: Date, status: string) {
@@ -226,8 +234,8 @@ function ttlMs(pair: { date?: string }, now: Date, status: string) {
 
 function readinessFor(apiKey?: string): SearchExecutionProviderReadiness {
   return configuredSecret(apiKey)
-    ? { enabled: true, status: 'ready', message: 'Aviationstack is configured for server-side schedule/status lookup.' }
-    : { enabled: false, status: 'credential_missing', message: 'Aviationstack API key missing; live schedule/status lookup skipped safely.' }
+    ? { enabled: true, status: 'ready', message: 'AeroDataBox is configured for server-side schedule/status lookup.' }
+    : { enabled: false, status: 'credential_missing', message: 'AeroDataBox API key missing; live schedule/status lookup skipped safely.' }
 }
 
 function capabilities(): SearchExecutionProviderCapabilities {
@@ -282,7 +290,7 @@ export function createAviationstackExecutionProvider(options: AviationstackExecu
         return {
           itineraries: [],
           status: 'unsupported_request',
-          warnings: ['Aviationstack skipped: no valid airport-pair flight segment could be formed from the normalized search.'],
+          warnings: ['AeroDataBox skipped: no valid airport-pair flight segment could be formed from the normalized search.'],
           diagnostics: {
             lastRequestStatus: 'unsupported_request',
             responseLatencyMs: 0,
@@ -347,10 +355,10 @@ export function createAviationstackExecutionProvider(options: AviationstackExecu
 
       const providerStatus = warnings.length && !itineraries.length ? statusFromWarning(warnings.join(' ')) : itineraries.length ? 'success' : 'skipped'
       if (!itineraries.length && pairs.some((pair) => pair.date) && !warnings.length) {
-        warnings.push('Aviationstack did not return future schedule data for this request.')
+        warnings.push('AeroDataBox did not return future schedule data for this request.')
       }
       if (!itineraries.length && recordsReceived > 0) {
-        warnings.push('Aviationstack returned records, but none matched the requested direction and travel date.')
+        warnings.push('AeroDataBox returned records, but none matched the requested direction and travel date.')
       }
 
       return {

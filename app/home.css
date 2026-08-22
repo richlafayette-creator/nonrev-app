@@ -902,6 +902,39 @@ html body .nonrevy-home__logo {
   text-transform: uppercase;
 }
 
+.nonrevy-home__intro,
+.nonrevy-home__expectation {
+  max-width: 680px;
+  margin: 12px auto 0;
+  color: #4b5563;
+  font-size: clamp(0.95rem, 2.8vw, 1.05rem);
+  line-height: 1.55;
+}
+
+.nonrevy-home__expectation {
+  max-width: 560px;
+  margin-top: 14px;
+  color: #64748b;
+  font-size: 0.92rem;
+}
+
+.nonrevy-home__examples {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.nonrevy-home__examples button {
+  min-height: 38px;
+  padding: 8px 12px;
+  border: 1px solid rgba(15, 23, 42, 0.1) !important;
+  background: #ffffff !important;
+  color: #334155 !important;
+  box-shadow: none !important;
+}
+
 .nonrevy-home__search-card {
   display: grid !important;
   grid-template-columns: 1fr;
@@ -1148,4 +1181,8 @@ html body main.nonrevy-home .nonrevy-home__primary {
   background: linear-gradient(135deg, #111827 0%, #2563EB 58%, #7C3AED 100%) !important;
   color: #ffffff !important;
   box-shadow: 0 14px 34px rgba(37, 99, 235, 0.20) !important;
+}
+
+html body main.nonrevy-results-page a.nonrevy-primary-action--search {
+  color: #ffffff !important;
 }

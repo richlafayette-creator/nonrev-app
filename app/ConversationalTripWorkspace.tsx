@@ -142,7 +142,7 @@ export default function ConversationalTripWorkspace({ initialPrompt = '' }: { in
     {
       id: 'assistant-welcome',
       role: 'assistant',
-      text: 'Tell me where you need to go. I’ll keep answers short and use only returned itinerary, source, freshness, coverage, and load-status data.'
+      text: 'Tell me where you need to go. I’ll search real schedules, keep standby loads separate from schedule data, and use your profile when it helps.'
     }
   ])
   const [prompt, setPrompt] = useState(initialPrompt)
@@ -367,7 +367,7 @@ export default function ConversationalTripWorkspace({ initialPrompt = '' }: { in
       <section className="nonrevy-conversation__chat" aria-label="Conversational trip workspace">
         <header className="nonrevy-conversation__header">
           <a href="/" className="nonrevy-conversation__brand nonrevy-logo">NONREVY</a>
-          <p>Fly Smarter</p>
+          <p>Private Beta</p>
         </header>
 
         <ContextStrip context={context} />

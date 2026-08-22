@@ -4,6 +4,7 @@ export const savedItineraryComparisonsStorageKey = 'nonrevy.savedItineraryCompar
 
 export type SavedItineraryComparison = {
   id: string
+  itineraryIdentity?: string
   route: string
   carrier: string
   score: number
@@ -19,6 +20,14 @@ export type SavedItineraryComparison = {
   travelDate?: string
   why: string[]
   sourceLabel: string
+  segments?: Array<{
+    flightNumber: string
+    carrier: string
+    origin: string
+    destination: string
+    departureTime: string
+    departureDate: string
+  }>
   savedAt: string
 }
 
@@ -51,14 +60,21 @@ function sameMarket(a: string, b: string) {
 
 export function saveItineraryComparison(comparison: Omit<SavedItineraryComparison, 'id' | 'savedAt'>) {
   if (typeof window === 'undefined') return null
+  const stableIdentity = comparison.itineraryIdentity || `${comparison.carrier}-${comparison.route}-${comparison.travelDate || 'Flexible'}`
 
   const nextComparison: SavedItineraryComparison = {
     ...comparison,
-    id: `${comparison.carrier}-${comparison.route}-${Date.now()}`,
+    itineraryIdentity: stableIdentity,
+    id: `saved-itinerary-${stableIdentity.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}`,
     savedAt: new Date().toISOString()
   }
   const existing = loadSavedItineraryComparisons()
-  const deduped = existing.filter((item) => !(item.route === nextComparison.route && item.carrier === nextComparison.carrier))
+  const deduped = existing.filter((item) =>
+    !(
+      (item.itineraryIdentity && item.itineraryIdentity === nextComparison.itineraryIdentity) ||
+      (!item.itineraryIdentity && item.route === nextComparison.route && item.carrier === nextComparison.carrier && item.travelDate === nextComparison.travelDate)
+    )
+  )
   const comparisons = [nextComparison, ...deduped]
   window.localStorage.setItem(savedItineraryComparisonsStorageKey, JSON.stringify(comparisons))
 

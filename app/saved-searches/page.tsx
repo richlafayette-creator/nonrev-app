@@ -31,7 +31,7 @@ export default function SavedSearchesPage() {
   const [query, setQuery] = useState('LAX to HNL tomorrow')
   const [label, setLabel] = useState('')
   const [carrier, setCarrier] = useState('all')
-  const [status, setStatus] = useState('Saved searches sync to your beta account when available, with local fallback.')
+  const [status, setStatus] = useState('Saved searches are stored in your beta account when available. This browser keeps a backup if account saving is unavailable.')
   const [editingId, setEditingId] = useState('')
   const [editingLabel, setEditingLabel] = useState('')
 
@@ -43,7 +43,7 @@ export default function SavedSearchesPage() {
     refreshSavedSearches()
     void syncSavedSearches().then((result) => {
       setSavedSearches(result.searches)
-      setStatus(result.storageMode === 'supabase' ? 'Saved searches synced to beta account.' : result.detail)
+      setStatus(result.storageMode === 'supabase' ? 'Saved searches are stored in your beta account.' : 'Saved searches are available in this browser until account saving is available again.')
     })
     window.addEventListener('nonrevy-saved-searches-updated', refreshSavedSearches)
     window.addEventListener('storage', refreshSavedSearches)
@@ -103,18 +103,18 @@ export default function SavedSearchesPage() {
   return (
     <main className="app-shell" style={{ minHeight: '100vh', background: '#020617', color: 'white', padding: 40, fontFamily: 'Arial' }}>
       <nav className="top-nav" style={{ marginBottom: 24 }}>
-        <a href="/" style={{ marginRight: 16, color: '#38bdf8' }}>Home</a>
-        <a href="/plan" style={{ marginRight: 16, color: '#fb7185' }}>Plan</a>
-        <a href="/saved-searches" style={{ marginRight: 16, color: '#67e8f9' }}>Saved Searches</a>
+        <a href="/" style={{ marginRight: 16, color: '#38bdf8' }}>Search</a>
+        <a href="/saved-searches" style={{ marginRight: 16, color: '#67e8f9' }}>Saved</a>
         <a href="/watchlist" style={{ marginRight: 16, color: '#facc15' }}>Watchlist</a>
-        <a href="/alerts" style={{ color: '#f472b6' }}>Alerts</a>
+        <a href="/my-requests" style={{ marginRight: 16, color: '#facc15' }}>My Requests</a>
+        <a href="/beta-feedback" style={{ color: '#c084fc' }}>Feedback</a>
       </nav>
 
       <section style={{ maxWidth: 1120, margin: '0 auto' }}>
         <p style={{ color: '#67e8f9', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1 }}>Saved searches</p>
         <h1 style={{ fontSize: 44, margin: '8px 0 12px' }}>Rerun your frequent nonrev searches.</h1>
         <p style={{ color: '#94a3b8', fontSize: 18, maxWidth: 820 }}>
-          Save common routes, flight-number checks, and AI trip prompts so you can relaunch planning quickly. This is local-only browser storage and does not change provider APIs or backend behavior.
+          Save common routes, flight-number checks, and trip prompts so you can relaunch planning quickly. Your beta account keeps them available across sessions when account saving is available.
         </p>
 
         <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14, margin: '24px 0' }}>
@@ -172,7 +172,8 @@ export default function SavedSearchesPage() {
           {savedSearches.length === 0 ? (
             <article style={{ border: '1px dashed #475569', borderRadius: 20, padding: 22, background: '#0f172a' }}>
               <h2 style={{ marginTop: 0 }}>No saved searches yet</h2>
-              <p style={{ color: '#cbd5e1' }}>Save a frequent route or AI prompt here, or use the save buttons on the home search.</p>
+              <p style={{ color: '#cbd5e1' }}>Save a frequent route here, or run a search and save the itinerary that looks useful.</p>
+              <a href="/" style={{ color: '#38bdf8', fontWeight: 'bold' }}>Start a search</a>
             </article>
           ) : null}
           {savedSearches.map((search) => (

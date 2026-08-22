@@ -7,7 +7,6 @@ import {
   normalizeTravelerProfile,
   parseAirportList,
   saveTravelerProfileToStorage,
-  travelerProfileStorageKey,
   type TravelerType
 } from '../../lib/travelerProfile'
 import OutcomeHistorySection from '../OutcomeHistorySection'
@@ -24,7 +23,7 @@ export default function ProfilePage() {
   const [passPriority, setPassPriority] = useState(defaultTravelerProfile.passPriority)
   const [homeAirport, setHomeAirport] = useState(defaultTravelerProfile.homeAirport)
   const [preferredAirports, setPreferredAirports] = useState(defaultTravelerProfile.preferredAirports.join(', '))
-  const [saveStatus, setSaveStatus] = useState('Local profile ready.')
+  const [saveStatus, setSaveStatus] = useState('Profile ready. Update these details whenever your travel access changes.')
 
   useEffect(() => {
     const storedProfile = loadTravelerProfileFromStorage()
@@ -50,7 +49,7 @@ export default function ProfilePage() {
   function saveProfile(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     saveTravelerProfileToStorage(profilePreview)
-    setSaveStatus(`Saved locally to ${travelerProfileStorageKey}.`)
+    setSaveStatus('Profile saved for this browser. Searches will use these traveler details when available.')
   }
 
   function resetProfile() {
@@ -60,31 +59,28 @@ export default function ProfilePage() {
     setPassPriority(defaultTravelerProfile.passPriority)
     setHomeAirport(defaultTravelerProfile.homeAirport)
     setPreferredAirports(defaultTravelerProfile.preferredAirports.join(', '))
-    setSaveStatus('Reset local profile defaults.')
+    setSaveStatus('Profile reset to beta defaults.')
   }
 
   return (
     <main className="app-shell" style={{ minHeight: '100vh', background: '#020617', color: 'white', padding: 32, fontFamily: 'Arial' }}>
       <nav className="top-nav" style={{ marginBottom: 24 }}>
-        <a href="/" style={{ marginRight: 16, color: '#38bdf8' }}>Home</a>
-        <a href="/plan" style={{ marginRight: 16, color: '#fb7185' }}>Plan</a>
-        <a href="/onboarding" style={{ marginRight: 16, color: '#38bdf8' }}>Onboarding</a>
+        <a href="/" style={{ marginRight: 16, color: '#38bdf8' }}>Search</a>
+        <a href="/onboarding" style={{ marginRight: 16, color: '#38bdf8' }}>Setup</a>
         <a href="/profile" style={{ marginRight: 16, color: '#22c55e' }}>Profile</a>
-        <a href="/account" style={{ marginRight: 16, color: '#fbbf24' }}>Account</a>
-        <a href="/referrals" style={{ marginRight: 16, color: '#38bdf8' }}>Referrals</a>
-        <a href="/load-reports" style={{ marginRight: 16, color: '#facc15' }}>Load Reports</a>
-        <a href="/requests" style={{ color: '#c084fc' }}>Open Requests</a>
+        <a href="/my-requests" style={{ marginRight: 16, color: '#facc15' }}>My Requests</a>
+        <a href="/beta-feedback" style={{ color: '#c084fc' }}>Feedback</a>
       </nav>
 
       <section style={{ maxWidth: 1120, margin: '0 auto' }}>
         <p style={{ color: '#22c55e', fontWeight: 'bold', letterSpacing: 1, textTransform: 'uppercase' }}>
-          Traveler profile engine
+          Traveler profile
         </p>
         <h1 style={{ fontSize: 44, lineHeight: 1.05, margin: '8px 0 12px' }}>
-          Profile assumptions
+          Your travel access
         </h1>
         <p style={{ color: '#94a3b8', maxWidth: 760, fontSize: 18 }}>
-          Local profile settings that feed the planner success probability placeholder. Account sync can plug in later.
+          Keep your employee airline, pass type, home airport, and preferred airports current. Nonrevy uses this to label ZED eligibility as confirmed, partial, unavailable, or unknown.
         </p>
 
         <div style={{ marginTop: 24 }}>
@@ -101,7 +97,7 @@ export default function ProfilePage() {
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 18, marginTop: 28 }}>
           <form onSubmit={saveProfile} style={{ border: '1px solid #334155', borderRadius: 22, padding: 22, background: '#0f172a' }}>
-            <h2 style={{ marginTop: 0 }}>Traveler fields</h2>
+            <h2 style={{ marginTop: 0 }}>Traveler details</h2>
             <label style={{ display: 'block', color: '#cbd5e1', marginBottom: 12 }}>
               Employee airline
               <select
@@ -159,7 +155,7 @@ export default function ProfilePage() {
                 type="submit"
                 style={{ padding: 12, borderRadius: 10, border: 'none', background: '#38bdf8', color: '#020617', fontWeight: 'bold' }}
               >
-                Save local profile
+                Save profile
               </button>
               <button
                 type="button"
@@ -190,18 +186,21 @@ export default function ProfilePage() {
             </div>
             <section style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#020617', marginTop: 14 }}>
               <strong style={{ color: '#38bdf8' }}>Supported carrier eligibility</strong>
+              <p style={{ color: '#94a3b8', margin: '8px 0 0' }}>
+                Agreements you enter here only. Missing carriers remain eligibility unknown until you review your profile.
+              </p>
               {Object.entries(profilePreview.supportedCarrierEligibility).map(([carrier, eligibility]) => (
                 <p key={carrier} style={{ color: '#cbd5e1', margin: '8px 0 0' }}>
                   {carrier.replace('-', ' ')}: {eligibility}
                 </p>
               ))}
             </section>
-            <a href="/plan" style={{ display: 'inline-block', color: '#38bdf8', marginTop: 16 }}>
-              View planner probability assumptions
+            <a href="/" style={{ display: 'inline-block', color: '#38bdf8', marginTop: 16 }}>
+              Search with this profile
             </a>
             <br />
-            <a href="/load-reports" style={{ display: 'inline-block', color: '#facc15', marginTop: 10 }}>
-              Verify community load report
+            <a href="/beta-feedback" style={{ display: 'inline-block', color: '#facc15', marginTop: 10 }}>
+              Send beta feedback
             </a>
           </aside>
         </div>

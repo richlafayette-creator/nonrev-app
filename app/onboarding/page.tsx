@@ -20,7 +20,7 @@ export default function OnboardingPage() {
   const [passPriority, setPassPriority] = useState(defaultOnboardingState.passPriority)
   const [homeAirport, setHomeAirport] = useState(defaultOnboardingState.homeAirport)
   const [preferredDestinations, setPreferredDestinations] = useState(defaultOnboardingState.preferredDestinations.join(', '))
-  const [status, setStatus] = useState('First-run setup is ready.')
+  const [status, setStatus] = useState('Setup is optional. Save what you know now and update it later.')
   const [completedAt, setCompletedAt] = useState<string | undefined>()
 
   useEffect(() => {
@@ -49,7 +49,7 @@ export default function OnboardingPage() {
   function saveDraft() {
     const saved = saveOnboardingState(onboardingPreview, false)
     setCompletedAt(saved.completedAt)
-    setStatus(`Saved onboarding draft locally and refreshed ${travelerProfileStorageKey}.`)
+    setStatus('Saved draft. You can search now and finish profile details later.')
   }
 
   function completeOnboarding(event: FormEvent<HTMLFormElement>) {
@@ -61,24 +61,23 @@ export default function OnboardingPage() {
 
     const saved = saveOnboardingState(onboardingPreview, true)
     setCompletedAt(saved.completedAt)
-    setStatus(`Onboarding complete. Traveler profile populated locally at ${travelerProfileStorageKey}.`)
+    setStatus('Traveler profile saved. Your searches can now use these profile details.')
   }
 
   return (
     <main className="app-shell" style={{ minHeight: '100vh', background: '#020617', color: 'white', padding: 32, fontFamily: 'Arial' }}>
       <nav className="top-nav" style={{ marginBottom: 24 }}>
-        <a href="/" style={{ marginRight: 16, color: '#38bdf8' }}>Home</a>
-        <a href="/plan" style={{ marginRight: 16, color: '#fb7185' }}>Plan</a>
-        <a href="/watchlist" style={{ marginRight: 16, color: '#facc15' }}>Watchlist</a>
-        <a href="/notification-preferences" style={{ marginRight: 16, color: '#f472b6' }}>Notifications</a>
-        <a href="/profile" style={{ color: '#22c55e' }}>Profile</a>
+        <a href="/" style={{ marginRight: 16, color: '#38bdf8' }}>Search</a>
+        <a href="/profile" style={{ marginRight: 16, color: '#22c55e' }}>Profile</a>
+        <a href="/my-requests" style={{ marginRight: 16, color: '#facc15' }}>My Requests</a>
+        <a href="/beta-feedback" style={{ color: '#c084fc' }}>Feedback</a>
       </nav>
 
       <section style={{ maxWidth: 1120, margin: '0 auto' }}>
-        <p style={{ color: '#38bdf8', fontWeight: 'bold', letterSpacing: 1, textTransform: 'uppercase' }}>First-run onboarding</p>
-        <h1 style={{ fontSize: 44, lineHeight: 1.05, margin: '8px 0 12px' }}>Set up your nonrev baseline.</h1>
+        <p style={{ color: '#38bdf8', fontWeight: 'bold', letterSpacing: 1, textTransform: 'uppercase' }}>Private beta setup</p>
+        <h1 style={{ fontSize: 44, lineHeight: 1.05, margin: '8px 0 12px' }}>Set up your traveler profile.</h1>
         <p style={{ color: '#94a3b8', maxWidth: 820, fontSize: 18 }}>
-          NONREVY uses these local assumptions to seed traveler profile, route confidence, planning defaults, and activation progress. Account sync can plug in later.
+          Add the basics that affect nonrev planning. You can skip this and search first; profile and ZED details simply make recommendations more relevant.
         </p>
 
         <div className="nonrevy-onboarding__grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.1fr) minmax(280px, 0.9fr)', gap: 18, marginTop: 28 }}>
@@ -111,7 +110,7 @@ export default function OnboardingPage() {
             <label style={{ display: 'block', color: '#cbd5e1', marginTop: 14 }}>
               Preferred destinations
               <input value={preferredDestinations} onChange={(event) => setPreferredDestinations(event.target.value)} placeholder="HNL, OGG, NRT" style={{ boxSizing: 'border-box', width: '100%', marginTop: 6, padding: 12, borderRadius: 12, border: '1px solid #475569', background: '#020617', color: 'white' }} />
-              <small style={{ color: '#94a3b8' }}>Use airport codes for now. These populate traveler profile preferred airports.</small>
+              <small style={{ color: '#94a3b8' }}>Use airport codes. You can change these any time from Profile.</small>
             </label>
 
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 18 }}>
@@ -123,6 +122,9 @@ export default function OnboardingPage() {
               </button>
             </div>
             <p style={{ color: formReady ? '#22c55e' : '#facc15', marginBottom: 0 }}>{status}</p>
+            <p style={{ color: '#94a3b8' }}>
+              ZED agreements are never guessed. If eligibility is missing or unknown, results will say so instead of treating a flight as confirmed.
+            </p>
           </form>
 
           <aside style={{ display: 'grid', gap: 18 }}>

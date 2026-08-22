@@ -2,33 +2,35 @@
 
 import { useEffect, useState } from 'react'
 import { ANSWER_REWARD_CREDITS, rewardResponder } from '../../lib/monetization'
+import { answerAccountLoadRequest, listOpenResponderLoadRequests } from '../../lib/loadRequestClient'
+import type { AccountLoadRequest } from '../../lib/loadRequestAccountStore'
 import { supabase } from '../../lib/supabase'
 
 export default function RequestsPage() {
-  const [requests, setRequests] = useState<any[]>([])
+  const [requests, setRequests] = useState<AccountLoadRequest[]>([])
   const [message, setMessage] = useState('')
   const [lastUpdated, setLastUpdated] = useState('')
-  const [pendingIds, setPendingIds] = useState<number[]>([])
+  const [pendingIds, setPendingIds] = useState<Array<string | number>>([])
   const [rewardBalance, setRewardBalance] = useState({ available: 0, reserved: 0, earned: 0 })
+  const [responderToken, setResponderToken] = useState('')
 
   async function loadRequests(showMessage = false) {
-    const res = await fetch(
-      `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/load_requests?select=*,flights(*)&status=eq.open&order=created_at.desc&limit=50`,
-      { headers: { apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '' } }
-    )
-
-    const data = await res.json()
-
-    if (Array.isArray(data)) {
-      setRequests(data)
+    const data = await listOpenResponderLoadRequests()
+    if (data.error) {
+      setMessage(data.error)
+    } else {
+      setRequests(data.requests || [])
       setLastUpdated(new Date().toLocaleTimeString())
       if (showMessage) setMessage('Open requests refreshed.')
-    } else {
-      setMessage(JSON.stringify(data))
     }
   }
 
   useEffect(() => {
+    try {
+      setResponderToken(window.localStorage.getItem('nonrevy.responderAccessCode') || '')
+    } catch {
+      setResponderToken('')
+    }
     loadRequests()
     const refresh = window.setInterval(() => loadRequests(), 20000)
     const requestChannel = supabase
@@ -46,7 +48,16 @@ export default function RequestsPage() {
     }
   }, [])
 
-  async function answerRequest(requestId: number) {
+  function saveResponderToken(value: string) {
+    setResponderToken(value)
+    try {
+      window.localStorage.setItem('nonrevy.responderAccessCode', value)
+    } catch {
+      // Responder can still use this session even if storage is unavailable.
+    }
+  }
+
+  async function answerRequest(requestId: string | number) {
     if (pendingIds.includes(requestId)) {
       setMessage('Pending load submission by agent.')
       return
@@ -54,58 +65,25 @@ export default function RequestsPage() {
 
     const intel = prompt('Load notes?')
     if (!intel) return
-
-    setPendingIds((ids) => [...ids, requestId])
-
-    const responseRes = await fetch(
-      `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/load_responses`,
-      {
-        method: 'POST',
-        headers: {
-          apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
-          Authorization: `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY}`,
-          'Content-Type': 'application/json',
-          Prefer: 'return=minimal'
-        },
-        body: JSON.stringify({
-          request_id: requestId,
-          intel,
-          trust_score: 0
-        })
-      }
-    )
-
-    if (!responseRes.ok) {
-      setMessage(`Failed to submit response: ${responseRes.status}`)
-      setPendingIds((ids) => ids.filter((id) => id !== requestId))
+    const accessCode = responderToken || prompt('Responder access code?') || ''
+    if (!accessCode) {
+      setMessage('Responder access code is required.')
       return
     }
+    saveResponderToken(accessCode)
 
-    const closeRes = await fetch(
-      `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/load_requests?id=eq.${requestId}`,
-      {
-        method: 'PATCH',
-        headers: {
-          apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
-          Authorization: `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY}`,
-          'Content-Type': 'application/json',
-          Prefer: 'return=minimal'
-        },
-        body: JSON.stringify({
-          status: 'answered'
-        })
-      }
-    )
-
-    if (!closeRes.ok) {
-      setMessage(`Response saved, but failed to close request: ${closeRes.status}`)
+    setPendingIds((ids) => [...ids, requestId])
+    const result = await answerAccountLoadRequest(requestId, intel, accessCode)
+    if (result.error) {
+      setMessage(result.error)
       setPendingIds((ids) => ids.filter((id) => id !== requestId))
       return
     }
 
     setRewardBalance((balance) => rewardResponder(balance, ANSWER_REWARD_CREDITS))
-    setMessage('Response submitted and request closed.')
+    setMessage(result.detail || 'Response submitted and request closed.')
     setRequests((items) => items.filter((item) => item.id !== requestId))
+    setPendingIds((ids) => ids.filter((id) => id !== requestId))
   }
 
   return (
@@ -133,15 +111,25 @@ export default function RequestsPage() {
           Refresh requests
         </button>
       </section>
+      <label style={{ display: 'block', color: '#cbd5e1', marginBottom: 16 }}>
+        Responder access code{' '}
+        <input
+          type="password"
+          value={responderToken}
+          onChange={(event) => saveResponderToken(event.target.value)}
+          placeholder="Required to answer"
+          style={{ padding: 10, borderRadius: 10, marginLeft: 8 }}
+        />
+      </label>
       {message && <p style={{ color: '#38bdf8' }}>{message}</p>}
 
       {requests.map((request) => (
         <div className="flight-card" key={request.id} style={{ border: '1px solid #334155', borderRadius: 18, padding: 18, marginBottom: 14, background: '#0f172a' }}>
-          <h2>{request.flights?.flight_number || 'Unknown Flight'}</h2>
-          <p>{request.flights?.origin} → {request.flights?.destination}</p>
-          <p>Status: {request.status}</p>
-          <p>Credits spent: {request.credits_spent}</p>
-          {request.flights?.id && <a href={`/flights/${request.flights.id}`} style={{ color: '#38bdf8', display: 'inline-block', marginBottom: 10 }}>View flight detail</a>}
+          <h2>{request.flightNumber || 'Unknown Flight'}</h2>
+          <p>{request.origin} → {request.destination}</p>
+          <p>Status: {request.statusLabel}</p>
+          <p>Requested: {new Date(request.createdAt).toLocaleString()}</p>
+          {request.flightId && <a href={`/flights/${request.flightId}`} style={{ color: '#38bdf8', display: 'inline-block', marginBottom: 10 }}>View flight detail</a>}
 
           <button
             disabled={pendingIds.includes(request.id)}

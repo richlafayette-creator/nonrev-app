@@ -30,13 +30,13 @@ describe('provider manager', () => {
     const metadata = createDefaultProviderManager({ apiKey: 'key' }).providerMetadata()
 
     assert.deepEqual(metadata.map((provider) => provider.id), [
-      'aviationstack',
+      'aerodatabox',
       'google-flights-parser',
       'stafftraveler',
       'myidtravel',
       'zed'
     ])
-    assert.equal(metadata.find((provider) => provider.id === 'aviationstack')?.enabled, true)
+    assert.equal(metadata.find((provider) => provider.id === 'aerodatabox')?.enabled, true)
     assert.equal(metadata.filter((provider) => provider.placeholder).every((provider) => provider.enabled === false), true)
   })
 

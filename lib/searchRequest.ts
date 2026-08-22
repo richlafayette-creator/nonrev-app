@@ -47,8 +47,8 @@ export async function readSearchRequestBody(request: Request): Promise<SearchReq
 function destinationRegionForAirport(destination: string) {
   const code = destination.toUpperCase()
   if (['HND', 'NRT', 'KIX', 'ITM', 'OKA'].includes(code)) return 'Japan'
-  if (['FCO', 'FRA', 'MUC', 'ZRH', 'AMS', 'CDG', 'MAD', 'LHR', 'VIE', 'BRU', 'DUB'].includes(code)) return 'Europe'
-  if (['ICN', 'TPE', 'SIN', 'HKG', 'BKK'].includes(code)) return 'Asia'
+  if (['FCO', 'CIA', 'NAP', 'MXP', 'VCE', 'FRA', 'MUC', 'ZRH', 'AMS', 'CDG', 'ORY', 'MAD', 'LHR', 'LGW', 'VIE', 'BRU', 'DUB'].includes(code)) return 'Europe'
+  if (['ICN', 'TPE', 'SIN', 'HKG', 'BKK', 'MLE', 'DXB', 'DEL'].includes(code)) return 'Asia'
   if (['AUA', 'NAS', 'CUN', 'SJU'].includes(code)) return 'Caribbean'
   return undefined
 }

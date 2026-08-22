@@ -102,7 +102,7 @@ function AlertPreferenceChecklist({ preference, onToggle }: { preference: TripAl
         ))}
       </div>
       <p style={{ color: '#94a3b8', marginBottom: 0 }}>
-        Enabled: {enabledTripAlertLabels(preference).join(', ') || 'No alerts enabled'} · Saved locally
+        Enabled: {enabledTripAlertLabels(preference).join(', ') || 'No alerts enabled'} · Saved on this device
       </p>
     </div>
   )
@@ -120,7 +120,7 @@ export default function WatchlistPage() {
   const [routeText, setRouteText] = useState('')
   const [travelDate, setTravelDate] = useState('')
   const [carrier, setCarrier] = useState('United')
-  const [saveStatus, setSaveStatus] = useState('Saved trip watchlist syncs across signed-in devices when Supabase persistence is configured.')
+  const [saveStatus, setSaveStatus] = useState('Watchlist items are saved on this device. Account saving is used when available.')
 
   useEffect(() => {
     function refreshWatchlist(trigger: ConfidenceUpdateTrigger = 'watchlist-viewed') {
@@ -136,7 +136,7 @@ export default function WatchlistPage() {
     refreshWatchlist()
     syncPersistentWatchlist(loadSavedTripWatchlist()).then((syncedWatchlist) => {
       setWatchlist(syncedWatchlist)
-      if (syncedWatchlist.length) setSaveStatus('Watchlist synced for this device.')
+      if (syncedWatchlist.length) setSaveStatus('Watchlist refreshed.')
     })
     const refreshForViewed = () => refreshWatchlist('watchlist-viewed')
     const refreshForWeather = () => refreshWatchlist('weather-risk-changed')
@@ -271,13 +271,11 @@ export default function WatchlistPage() {
   return (
     <main className="app-shell" style={{ minHeight: '100vh', background: '#020617', color: 'white', padding: 40, fontFamily: 'Arial' }}>
       <nav className="top-nav" style={{ marginBottom: 24 }}>
-        <a href="/" style={{ marginRight: 16, color: '#38bdf8' }}>Flights</a>
-        <a href="/best-routes" style={{ marginRight: 16, color: '#fb7185' }}>Best Routes</a>
-        <a href="/plan" style={{ marginRight: 16, color: '#fb7185' }}>Plan</a>
+        <a href="/" style={{ marginRight: 16, color: '#38bdf8' }}>Search</a>
+        <a href="/saved-searches" style={{ marginRight: 16, color: '#67e8f9' }}>Saved</a>
         <a href="/watchlist" style={{ marginRight: 16, color: '#facc15' }}>Watchlist</a>
-        <a href="/intelligence" style={{ marginRight: 16, color: '#c084fc' }}>Intelligence</a>
-        <a href="/reminders" style={{ marginRight: 16, color: '#f472b6' }}>Reminders</a>
-        <a href="/agent" style={{ color: '#a78bfa' }}>Agent</a>
+        <a href="/my-requests" style={{ marginRight: 16, color: '#facc15' }}>My Requests</a>
+        <a href="/beta-feedback" style={{ color: '#c084fc' }}>Feedback</a>
       </nav>
 
       <section style={{ maxWidth: 1120, margin: '0 auto' }}>
@@ -421,11 +419,11 @@ export default function WatchlistPage() {
           <p style={{ color: '#f472b6', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1, marginTop: 0 }}>Saved itinerary alert preferences</p>
           <h2 style={{ margin: '8px 0' }}>Alerts for saved itinerary comparisons</h2>
           <p style={{ color: '#94a3b8' }}>
-            These preferences apply to itinerary options saved from /plan. Watchlist alerts are persisted when Supabase sync is configured.
+            These preferences apply to saved itinerary options. Watchlist alerts use account saving when available.
           </p>
           {savedItineraries.length === 0 ? (
             <article style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#020617' }}>
-              <p style={{ color: '#cbd5e1', margin: 0 }}>No saved itinerary comparisons yet. Save options from /plan to configure itinerary-specific alerts.</p>
+              <p style={{ color: '#cbd5e1', margin: 0 }}>No saved itinerary comparisons yet. Save a scheduled result first, then return here to tune alerts.</p>
             </article>
           ) : (
             <div style={{ display: 'grid', gap: 14 }}>
@@ -446,7 +444,7 @@ export default function WatchlistPage() {
                         {routeConfidence.badge} · {routeConfidence.trend}
                       </span>
                       <br />
-                      <a href="/plan" style={{ color: '#38bdf8', fontWeight: 'bold' }}>Open planner</a>
+                      <a href="/" style={{ color: '#38bdf8', fontWeight: 'bold' }}>Search flights</a>
                     </div>
                   </div>
               <AlertPreferenceChecklist

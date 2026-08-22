@@ -16,6 +16,12 @@ export type ItinerarySegmentSchedule = {
   departureTime: string
   arrivalTime: string
   seatCount: string
+  scheduledDepartureUtc?: string
+  scheduledArrivalUtc?: string
+  departureTimeZone?: string
+  arrivalTimeZone?: string
+  departureAirportTimeZone?: string
+  arrivalAirportTimeZone?: string
 }
 
 export type BetaItinerarySegment = {

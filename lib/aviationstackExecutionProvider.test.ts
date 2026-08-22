@@ -10,7 +10,13 @@ import { executeSearchApiAsync } from './searchResponse.ts'
 import { normalizeTravelerProfile } from './travelerProfile.ts'
 // @ts-expect-error Node's experimental TypeScript test runner resolves the .ts extension directly.
 import { normalizeTripMission } from './tripMission.ts'
-import type { LiveScheduleProvider, LiveScheduleProviderResponse, NormalizedScheduleResult } from './liveScheduleProviders'
+import {
+  createAerodataboxScheduleProvider,
+  normalizeAviationstackScheduleResult,
+  type LiveScheduleProvider,
+  type LiveScheduleProviderResponse,
+  type NormalizedScheduleResult
+} from './liveScheduleProviders'
 
 const originalFetch = globalThis.fetch
 const originalKey = process.env.AVIATIONSTACK_API_KEY
@@ -59,6 +65,22 @@ describe('aviationstack search execution provider', () => {
     assert.ok(captured.every((url) => url.includes('direction=Departure')))
     assert.equal(captured.some((url) => url.includes('test-secret-key')), false)
     assert.equal(JSON.stringify(result).includes('test-secret-key'), false)
+  })
+
+  it('reports partial AeroDataBox window failures without dropping successful rows silently', async () => {
+    let calls = 0
+    globalThis.fetch = async () => {
+      calls += 1
+      if (calls === 1) return jsonResponse({ message: 'temporary upstream failure' }, { status: 503 })
+      return jsonResponse({ departures: [aerodataboxFlight()] })
+    }
+    const provider = createAviationstackExecutionProvider({ apiKey: 'test-secret-key', now: () => now, cache: new Map() })
+    const result = await new SearchExecutionEngine({ providers: [provider] }).execute(request())
+
+    assert.equal(result.providerRuns[0].status, 'success')
+    assert.equal(result.providerRuns[0].diagnostics?.requestCount, 2)
+    assert.equal(result.itineraries.length, 1)
+    assert.match(result.warnings.join(' '), /AeroDataBox service unavailable/i)
   })
 
   it('normalizes a successful airport-pair result with attribution', async () => {
@@ -200,6 +222,69 @@ describe('aviationstack search execution provider', () => {
     assert.match(result.warnings.join(' '), /none matched/i)
   })
 
+  it('keeps international departures whose UTC date is next day but provider-local date matches', async () => {
+    const result = await executeWith([
+      schedule({
+        flightNumber: 'NH125',
+        operatingFlightNumber: 'NH125',
+        providerRecordId: 'NH125-20260727',
+        airlineCode: 'NH',
+        carrier: 'NH',
+        operatingCarrier: 'NH',
+        departureTime: '2026-07-28T00:15:00.000Z',
+        scheduledDeparture: '2026-07-28T00:15:00.000Z',
+        arrivalTime: '2026-07-28T12:00:00.000Z',
+        scheduledArrival: '2026-07-28T12:00:00.000Z',
+        operatingDate: '2026-07-27',
+        arrivalOperatingDate: '2026-07-28'
+      })
+    ])
+
+    assert.equal(result.itineraries.length, 1)
+    assert.equal(result.itineraries[0].segments[0].flightNumber, 'NH125')
+    assert.equal(result.providerRuns[0].diagnostics?.recordsUnmatched, 0)
+  })
+
+  it('normalizes AeroDataBox provider-local dates before execution date matching', async () => {
+    globalThis.fetch = async () => jsonResponse({
+      departures: [aerodataboxFlight({
+        number: 'NH 125',
+        airline: { iata: 'NH', name: 'All Nippon Airways' },
+        departure: { scheduledTime: { utc: '2026-07-28 00:15Z', local: '2026-07-27 17:15-07:00' } },
+        arrival: { airport: { iata: 'HND' }, scheduledTime: { utc: '2026-07-28 12:00Z', local: '2026-07-28 21:00+09:00' } }
+      })]
+    })
+    const liveProvider = createAerodataboxScheduleProvider('key')
+    const response = await liveProvider.searchSchedules({ origin: 'LAX', destination: 'HND', date: '2026-07-27', maxResults: 50 })
+
+    assert.equal(response.results.length, 1)
+    assert.equal(response.results[0].flightNumber, 'NH 125')
+    assert.equal(response.results[0].operatingDate, '2026-07-27')
+    assert.equal(response.results[0].arrivalOperatingDate, '2026-07-28')
+
+    const provider = createAviationstackExecutionProvider({ apiKey: 'key', now: () => now, cache: new Map(), provider: liveProvider })
+    const result = await new SearchExecutionEngine({ providers: [provider] }).execute(request())
+
+    assert.equal(result.itineraries.length, 1)
+    assert.equal(result.itineraries[0].segments[0].flightNumber, 'NH125')
+  })
+
+  it('converts Aviationstack local scheduled strings with timezone metadata into UTC instants', async () => {
+    const normalized = normalizeAviationstackScheduleResult({
+      departure: { airport: 'Los Angeles', timezone: 'America/Los_Angeles', iata: 'LAX', scheduled: '2026-07-27T10:40:00' },
+      arrival: { airport: 'Haneda', timezone: 'Asia/Tokyo', iata: 'HND', scheduled: '2026-07-28T14:00:00' },
+      airline: { name: 'Delta Air Lines', iata: 'DL' },
+      flight: { number: '7', iata: 'DL7', icao: 'DAL7' }
+    })
+    const result = await executeWith([normalized])
+    const segment = result.itineraries[0].segments[0]
+
+    assert.equal(segment.scheduledDeparture, '2026-07-27T17:40:00.000Z')
+    assert.equal(segment.scheduledArrival, '2026-07-28T05:00:00.000Z')
+    assert.equal(segment.departureTimeZone, 'America/Los_Angeles')
+    assert.equal(segment.arrivalTimeZone, 'Asia/Tokyo')
+  })
+
   it('overlays a matching segment in the beta pipeline while leaving loads unknown', async () => {
     const result = await executeSearchApiAsync({
       origin: 'LAX',
@@ -331,6 +416,31 @@ describe('aviationstack search execution provider', () => {
     }))
 
     assert.deepEqual(searched, ['SBP-FRA', 'SBP-AMS', 'SBP-MUC', 'SBP-CDG'])
+  })
+
+  it('uses a broader default matched-result cap for dense direct routes', async () => {
+    const requestedLimits: number[] = []
+    const results = Array.from({ length: 30 }, (_, index) => schedule({
+      flightNumber: `AA${100 + index}`,
+      operatingFlightNumber: `AA${100 + index}`,
+      providerRecordId: `AA${100 + index}-20260727`,
+      airlineCode: 'AA',
+      carrier: 'AA',
+      operatingCarrier: 'AA',
+      departureTime: `2026-07-27T${String(8 + Math.floor(index / 2)).padStart(2, '0')}:${index % 2 ? '30' : '00'}:00.000Z`,
+      scheduledDeparture: `2026-07-27T${String(8 + Math.floor(index / 2)).padStart(2, '0')}:${index % 2 ? '30' : '00'}:00.000Z`
+    }))
+    const provider = createAviationstackExecutionProvider({
+      apiKey: 'key',
+      now: () => now,
+      cache: new Map(),
+      provider: stubProvider(results, { onRequest: (request) => requestedLimits.push(request.maxResults || 0) })
+    })
+
+    const result = await new SearchExecutionEngine({ providers: [provider] }).execute(request())
+
+    assert.equal(result.itineraries.length, 30)
+    assert.deepEqual(requestedLimits, [300])
   })
 
   it('skips unsupported requests when no valid airport pair exists', async () => {
@@ -529,6 +639,24 @@ function flight(overrides: Record<string, unknown> = {}) {
     airline: { name: 'Japan Airlines', iata: 'JL' },
     flight: { number: '15', iata: 'JL15', icao: 'JAL15' },
     aircraft: { registration: 'JA123J', iata: '789', icao: 'B789' },
+    ...overrides
+  }
+}
+
+function aerodataboxFlight(overrides: Record<string, unknown> = {}) {
+  return {
+    number: 'JL 15',
+    status: 'Expected',
+    airline: { iata: 'JL', name: 'Japan Airlines' },
+    departure: {
+      airport: { iata: 'LAX' },
+      scheduledTime: { utc: '2026-07-27 13:00Z', local: '2026-07-27 06:00-07:00' }
+    },
+    arrival: {
+      airport: { iata: 'HND' },
+      scheduledTime: { utc: '2026-07-28 04:30Z', local: '2026-07-28 13:30+09:00' }
+    },
+    aircraft: { model: 'Boeing 787-9', reg: 'JA123J', iata: '789', icao: 'B789' },
     ...overrides
   }
 }

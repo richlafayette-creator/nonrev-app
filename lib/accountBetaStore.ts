@@ -58,12 +58,10 @@ function headers(config: SupabaseConfig, extra: HeadersInit = {}): HeadersInit {
   }
 }
 
-function safeMessage(value: unknown) {
-  const raw = typeof value === 'string' ? value : value instanceof Error ? value.message : 'Request failed'
-  return raw
-    .replace(/apikey[=:]\s*[^&\s]+/gi, 'apikey=[hidden]')
-    .replace(/Bearer\s+[^\s]+/gi, 'Bearer [hidden]')
-    .slice(0, 180)
+function fallbackDetail(kind: AccountBetaRecordKind) {
+  if (kind === 'beta-feedback') return 'Feedback account sync is unavailable right now. Feedback remains saved in this browser.'
+  if (kind === 'saved-searches') return 'Saved-search account sync is unavailable right now. Saved searches remain saved in this browser.'
+  return 'Account sync is unavailable right now. Your beta data remains saved in this browser.'
 }
 
 function missingConfig<T>(data: T): AccountBetaStoreResult<T> {
@@ -140,7 +138,7 @@ export async function listAccountBetaRecords<K extends AccountBetaRecordKind>(ki
       detail: `${kind} loaded from Supabase.`
     }
   } catch (error) {
-    return { status: 'unreachable', storageMode: 'local-fallback', data: [], detail: `${kind} persistence unavailable. ${safeMessage(error)}` }
+    return { status: 'unreachable', storageMode: 'local-fallback', data: [], detail: fallbackDetail(kind) }
   }
 }
 
@@ -174,7 +172,7 @@ export async function upsertAccountBetaRecords<K extends AccountBetaRecordKind>(
       detail: `${kind} persisted to Supabase.`
     }
   } catch (error) {
-    return { status: 'unreachable', storageMode: 'local-fallback', data: [], detail: `${kind} persistence unavailable. ${safeMessage(error)}` }
+    return { status: 'unreachable', storageMode: 'local-fallback', data: [], detail: fallbackDetail(kind) }
   }
 }
 
@@ -185,7 +183,7 @@ export async function deleteAccountBetaRecord(kind: AccountBetaRecordKind, userI
     await supabaseFetch(config, `${tableByKind[kind]}?id=eq.${encodeFilterValue(rowId(userId, id))}`, { method: 'DELETE' })
     return { status: 'ready', storageMode: 'supabase', data: true, detail: `${kind} record removed from Supabase.` }
   } catch (error) {
-    return { status: 'unreachable', storageMode: 'local-fallback', data: false, detail: `${kind} removal unavailable. ${safeMessage(error)}` }
+    return { status: 'unreachable', storageMode: 'local-fallback', data: false, detail: fallbackDetail(kind) }
   }
 }
 
@@ -196,6 +194,6 @@ export async function clearAccountBetaRecords(kind: AccountBetaRecordKind, userI
     await supabaseFetch(config, `${tableByKind[kind]}?user_id=eq.${encodeFilterValue(userId)}`, { method: 'DELETE' })
     return { status: 'ready', storageMode: 'supabase', data: true, detail: `${kind} records cleared from Supabase.` }
   } catch (error) {
-    return { status: 'unreachable', storageMode: 'local-fallback', data: false, detail: `${kind} clear unavailable. ${safeMessage(error)}` }
+    return { status: 'unreachable', storageMode: 'local-fallback', data: false, detail: fallbackDetail(kind) }
   }
 }

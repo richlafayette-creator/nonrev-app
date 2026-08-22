@@ -13,6 +13,8 @@ import {
 } from './betaSearchClient.ts'
 // @ts-expect-error Node's experimental TypeScript test runner resolves the .ts extension directly.
 import { normalizeTravelerProfile, type TravelerProfileScaffold, type ZedAgreementRecord } from './travelerProfile.ts'
+// @ts-expect-error Node's experimental TypeScript test runner resolves the .ts extension directly.
+import { type SearchApiSuccessResponse } from './searchResponse.ts'
 
 const now = new Date('2026-07-22T00:00:00Z')
 const europePrompt = 'Family of 5 leaving SBP July 27. Anywhere in Europe. Eventually Montenegro, Albania, or Greece. We can position through SFO or LAX. Use ZED or revenue backups.'
@@ -80,6 +82,77 @@ describe('beta search client', () => {
     assert.equal(built.destination.mode, 'airport')
     assert.equal(built.destination.label, 'HND')
     assert.equal(built.request.destination, 'HND')
+  })
+
+  it('constructs broad airport-pair searches such as SBP to FCO', () => {
+    const built = buildBetaSearchRequest('SBP to FCO July 27', profile(), { now })
+
+    assert.equal(built.ok, true)
+    if (!built.ok) return
+    assert.equal(built.request.origin, 'SBP')
+    assert.equal(built.request.destination, 'FCO')
+    assert.equal(built.destination.mode, 'airport')
+    assert.equal(built.destination.label, 'FCO')
+    assert.equal(built.request.departureDate, '2026-07-27')
+
+    const apiResult = executeSearchApi({
+      origin: built.request.origin,
+      destination: built.request.destination,
+      departureDate: built.request.departureDate,
+      travelerCount: built.request.travelerCount
+    }, { now })
+
+    assert.notEqual(apiResult.status, 422)
+  })
+
+  it('constructs airport-set searches from metro codes such as NYC to CDG', () => {
+    const built = buildBetaSearchRequest('NYC to CDG', profile(), { now })
+
+    assert.equal(built.ok, true)
+    if (!built.ok) return
+    assert.equal(built.request.origin, 'JFK')
+    assert.equal(built.request.destination, 'CDG')
+    assert.deepEqual((built.request.preferences.preferredDepartureAirports || []).slice(0, 3), ['JFK', 'EWR', 'LGA'])
+    assert.equal(built.request.departureDate, '2026-07-22')
+    assert.equal(built.originResolution?.type, 'metro')
+  })
+
+  it('constructs city-name searches such as San Luis Obispo to Rome', () => {
+    const built = buildBetaSearchRequest('San Luis Obispo to Rome', profile(), { now })
+
+    assert.equal(built.ok, true)
+    if (!built.ok) return
+    assert.equal(built.request.origin, 'SBP')
+    assert.equal(built.request.destination, 'FCO')
+    assert.ok((built.request.preferences.preferredDestinations || []).includes('FCO'))
+  })
+
+  it('constructs closest-airport and country searches without requiring airport codes', () => {
+    const closest = buildBetaSearchRequest('SBP to closest airport to Longview, WA', profile(), { now })
+    const maldives = buildBetaSearchRequest('FCO to Maldives', profile(), { now })
+
+    assert.equal(closest.ok, true)
+    if (closest.ok) {
+      assert.equal(closest.request.origin, 'SBP')
+      assert.equal(closest.request.destination, 'PDX')
+      assert.equal(closest.destination.resolution?.type, 'place')
+    }
+    assert.equal(maldives.ok, true)
+    if (maldives.ok) {
+      assert.equal(maldives.request.origin, 'FCO')
+      assert.equal(maldives.request.destination, 'MLE')
+      assert.equal(maldives.destination.resolution?.type, 'country')
+    }
+  })
+
+  it('constructs multi-airport destination searches such as LAX to Tokyo', () => {
+    const built = buildBetaSearchRequest('LAX to Tokyo', profile(), { now })
+
+    assert.equal(built.ok, true)
+    if (!built.ok) return
+    assert.equal(built.request.origin, 'LAX')
+    assert.equal(built.request.destination, 'HND')
+    assert.ok((built.request.preferences.preferredDestinations || []).includes('NRT'))
   })
 
   it('maps ZED preference from the mission parser', () => {
@@ -259,6 +332,77 @@ describe('beta search client', () => {
     assert.ok(loadStoredBetaSearchResult(storage))
   })
 
+  it('overwrites stale persisted results with a fresh complete composed itinerary response', async () => {
+    const storage = memoryStorage()
+    storage.setItem(betaSearchResultStorageKey, JSON.stringify({
+      version: 1,
+      prompt: 'old SBP to FCO',
+      createdAt: '2026-08-20T00:00:00.000Z',
+      request: { origin: 'SBP', destination: 'FCO', departureDate: '2026-08-21', travelerCount: 1, tripMission: {}, travelerProfile: {}, preferences: { tripType: 'one_way' } },
+      destination: { mode: 'airport', label: 'FCO', preferredDestinations: [] },
+      positioningAirports: [],
+      result: completeSbpFcoResponse('stale-framework', ['SBP', 'FRA', 'FCO'])
+    }))
+
+    const result = await runBetaSearchFromPrompt({
+      prompt: 'SBP to FCO',
+      profile: profile(),
+      explicitDepartureDate: '2026-08-22',
+      fetchImpl: responseFetch(200, completeSbpFcoResponse('complete-sbp-den-fco')),
+      storage,
+      now
+    })
+
+    assert.equal(result.ok, true)
+    if (!result.ok) return
+    const stored = loadStoredBetaSearchResult(storage)
+    assert.ok(stored)
+    assert.equal(stored.request.departureDate, '2026-08-22')
+    assert.equal(stored.result.itineraries[0].id, 'complete-sbp-den-fco')
+    assert.deepEqual(stored.result.itineraries[0].segments.map((segment) => `${segment.schedule.flightNumber} ${segment.origin}-${segment.destination}`), [
+      'UA2329 SBP-DEN',
+      'UA177 DEN-FCO'
+    ])
+  })
+
+  it('stores provider-composed scheduled itineraries even when static recommendations are empty', async () => {
+    const storage = memoryStorage()
+    const result = await runBetaSearchFromPrompt({
+      prompt: 'SBA to HNL',
+      profile: profile(),
+      explicitDepartureDate: '2026-08-22',
+      fetchImpl: responseFetch(200, completeSbaHnlResponseWithoutRecommendations()),
+      storage,
+      now
+    })
+
+    assert.equal(result.ok, true)
+    if (!result.ok) return
+    assert.equal(result.storedResult.request.origin, 'SBA')
+    assert.equal(result.storedResult.request.destination, 'HNL')
+    assert.deepEqual(result.storedResult.result.itineraries[0].segments.map((segment) => `${segment.schedule.flightNumber} ${segment.origin}-${segment.destination}`), [
+      'UA2865 SBA-DEN',
+      'UA384 DEN-HNL'
+    ])
+    assert.ok(loadStoredBetaSearchResult(storage))
+  })
+
+  it('returns recognized-airport no-result copy only when no recommendations or itineraries exist', async () => {
+    const result = await runBetaSearchFromPrompt({
+      prompt: 'SBA to HNL',
+      profile: profile(),
+      explicitDepartureDate: '2026-08-22',
+      fetchImpl: responseFetch(200, emptySearchResponse()),
+      storage: memoryStorage(),
+      now
+    })
+
+    assert.equal(result.ok, false)
+    if (result.ok) return
+    assert.equal(result.state, 'no-viable-plans')
+    assert.match(result.message, /recognized airports/i)
+  })
+
   it('covers the manual beta fixture without fabricating live fields', async () => {
     const result = await runBetaSearchFromPrompt({
       prompt: europePrompt,
@@ -324,6 +468,163 @@ function apiBackedFetch(): FetchLike {
       status: result.status,
       json: async () => result.body
     }
+  }
+}
+
+function completeSbpFcoResponse(id: string, route: string[] = ['SBP', 'DEN', 'FCO']): SearchApiSuccessResponse {
+  const segments = route.length === 3 && route[1] === 'DEN'
+    ? [
+      scheduledResponseSegment('sbp-den', 'UA2329', 'UA', 'SBP', 'DEN', '2026-08-22T12:20:00.000Z', '2026-08-22T15:45:00.000Z'),
+      scheduledResponseSegment('den-fco', 'UA177', 'UA', 'DEN', 'FCO', '2026-08-22T17:30:00.000Z', '2026-08-23T03:20:00.000Z')
+    ]
+    : [
+      unscheduledResponseSegment('sbp-fra', 'SBP', 'FRA'),
+      unscheduledResponseSegment('fra-fco', 'FRA', 'FCO')
+    ]
+
+  return {
+    id: 'search-sbp-fco',
+    generatedAt: '2026-08-21T00:00:00.000Z',
+    tripType: 'one_way',
+    planA: { label: 'Plan A', rank: 1, status: 'viable', gateway: route[1], finalScore: 91, confidence: 84, estimatedSuccess: 80, summary: 'SBP to FCO', warnings: [] },
+    warnings: [],
+    confidence: { score: 84, label: 'high', reason: 'Fixture' },
+    recommendations: {
+      planA: { label: 'Plan A', rank: 1, status: 'viable', gateway: route[1], finalScore: 91, confidence: 84, estimatedSuccess: 80, summary: 'SBP to FCO', warnings: [] },
+      ranked: [{ label: 'Plan A', rank: 1, status: 'viable', gateway: route[1], finalScore: 91, confidence: 84, estimatedSuccess: 80, summary: 'SBP to FCO', warnings: [] }]
+    },
+    recommendationDetails: [],
+    dataQuality: 'medium',
+    segments,
+    timeline: [],
+    summary: 'SBP to FCO fixture',
+    fallbacks: [],
+    providerReadiness: { schedule: [], groundTransport: [], hotel: [], weather: { readinessLevel: 'disabled', advisoryOnly: true, clientLiveCallsAllowed: false, appliesToScoring: false, unknownWeatherNeutral: true, gates: [], enabledFlags: [], disabledFlags: [], diagnostics: [], limitations: [] }, limitations: [] },
+    providerHealth: [],
+    unknownScheduleIndicators: [],
+    itineraries: [{
+      id,
+      recommendationLabel: 'Plan A',
+      recommendationRank: 1,
+      gateway: route[1],
+      confidence: 84,
+      summary: 'SBP to FCO',
+      detailedSummary: 'Complete provider-backed fixture when DEN is the hub.',
+      segments,
+      timeline: [],
+      fallbacks: [],
+      requiredZedAirlines: ['UA'],
+      eligibleZedAirlines: [],
+      revenueAirlines: [],
+      providerAttribution: [{ provider: 'test-provider', recordCount: segments.length }],
+      weatherPlaceholder: 'Weather not evaluated yet.',
+      missingData: ['live loads'],
+      unknownScheduleIndicators: [],
+      journeys: []
+    }],
+    pipelineTrace: [],
+    missingData: ['live loads']
+  } as SearchApiSuccessResponse
+}
+
+function completeSbaHnlResponseWithoutRecommendations(): SearchApiSuccessResponse {
+  const segments = [
+    scheduledResponseSegment('sba-den', 'UA2865', 'UA', 'SBA', 'DEN', '2026-08-22T12:00:00.000Z', '2026-08-22T14:30:00.000Z'),
+    scheduledResponseSegment('den-hnl', 'UA384', 'UA', 'DEN', 'HNL', '2026-08-22T18:00:00.000Z', '2026-08-23T01:16:00.000Z')
+  ]
+  return {
+    ...emptySearchResponse(),
+    summary: 'Provider-composed SBA to HNL fixture',
+    dataQuality: 'medium',
+    segments,
+    itineraries: [{
+      id: 'origin-first-composed-sba-den-hnl',
+      recommendationLabel: 'Plan A',
+      recommendationRank: 1,
+      gateway: 'HNL',
+      confidence: 65,
+      summary: 'SBA to HNL live schedule option',
+      detailedSummary: 'Complete provider-backed fixture.',
+      segments,
+      timeline: [],
+      fallbacks: [],
+      requiredZedAirlines: [],
+      eligibleZedAirlines: [],
+      revenueAirlines: [],
+      providerAttribution: [{ provider: 'test-provider', recordCount: segments.length }],
+      weatherPlaceholder: 'Weather not evaluated yet.',
+      missingData: [],
+      unknownScheduleIndicators: [],
+      journeys: []
+    }]
+  } as SearchApiSuccessResponse
+}
+
+function emptySearchResponse(): SearchApiSuccessResponse {
+  return {
+    id: 'search-empty',
+    generatedAt: '2026-08-21T00:00:00.000Z',
+    tripType: 'one_way',
+    warnings: [],
+    confidence: { score: 0, label: 'low', reason: 'No fixture data' },
+    recommendations: { ranked: [] },
+    recommendationDetails: [],
+    dataQuality: 'low',
+    segments: [],
+    timeline: [],
+    summary: 'No scheduled options were found.',
+    fallbacks: [],
+    providerReadiness: { schedule: [], groundTransport: [], hotel: [], weather: { readinessLevel: 'disabled', advisoryOnly: true, clientLiveCallsAllowed: false, appliesToScoring: false, unknownWeatherNeutral: true, gates: [], enabledFlags: [], disabledFlags: [], diagnostics: [], limitations: [] }, limitations: [] },
+    providerHealth: [],
+    unknownScheduleIndicators: [],
+    itineraries: [],
+    pipelineTrace: [],
+    missingData: ['operating schedules']
+  } as SearchApiSuccessResponse
+}
+
+function scheduledResponseSegment(
+  id: string,
+  flightNumber: string,
+  carrier: string,
+  origin: string,
+  destination: string,
+  departureTime: string,
+  arrivalTime: string
+): SearchApiSuccessResponse['segments'][number] {
+  return {
+    id,
+    origin,
+    destination,
+    mode: 'flight',
+    carrier,
+    schedule: {
+      flightNumber,
+      departureTime,
+      arrivalTime,
+      scheduledDepartureUtc: departureTime,
+      scheduledArrivalUtc: arrivalTime,
+      seatCount: 'Unknown - live load data not attached'
+    },
+    estimatedDuration: '2h',
+    notes: ['Schedule data: test provider']
+  }
+}
+
+function unscheduledResponseSegment(id: string, origin: string, destination: string): SearchApiSuccessResponse['segments'][number] {
+  return {
+    id,
+    origin,
+    destination,
+    mode: 'flight',
+    schedule: {
+      flightNumber: 'Unknown - not provided by route framework',
+      departureTime: 'Unknown - provider schedule validation required',
+      arrivalTime: 'Unknown - provider schedule validation required',
+      seatCount: 'Unknown - live load data not attached'
+    },
+    estimatedDuration: 'Unknown - provider schedule validation required',
+    notes: ['Flight number, departure time, arrival time, and live loads are not attached.']
   }
 }
 

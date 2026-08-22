@@ -528,18 +528,31 @@ export function loadCommunityLoadRequests() {
 export function saveCommunityLoadRequest(input: Omit<CommunityLoadRequest, 'id' | 'status' | 'createdAt'>) {
   if (typeof window === 'undefined') return null
   const flightNumber = normalizeCommunityFlightNumber(input.flightNumber)
+  const origin = input.origin.trim().toUpperCase()
+  const destination = input.destination.trim().toUpperCase()
+  const date = input.date.trim()
+  if (!flightNumber || !date || !origin || !destination) return null
+  const route = input.route.trim().toUpperCase() || `${origin} → ${destination}`
+  const existing = loadCommunityLoadRequests()
+  const duplicate = existing.find((request) =>
+    request.flightNumber === flightNumber &&
+    request.date === date &&
+    request.origin === origin &&
+    request.destination === destination
+  )
+  if (duplicate) return duplicate
   const request: CommunityLoadRequest = {
-    id: `community-load-request-${flightNumber}-${input.date}-${Date.now()}`,
+    id: `community-load-request-${flightNumber}-${date}-${origin}-${destination}`,
     flightNumber,
     carrier: input.carrier.trim() || flightNumber.match(/^[A-Z]{2,3}/)?.[0] || 'Unknown',
-    route: input.route.trim().toUpperCase(),
-    origin: input.origin.trim().toUpperCase(),
-    destination: input.destination.trim().toUpperCase(),
-    date: input.date,
+    route,
+    origin,
+    destination,
+    date,
     status: 'Open',
     createdAt: new Date().toISOString()
   }
-  writeJson(communityLoadRequestsStorageKey, [request, ...loadCommunityLoadRequests()])
+  writeJson(communityLoadRequestsStorageKey, [request, ...existing])
   window.dispatchEvent(new Event('nonrevy-community-load-requests-updated'))
   return request
 }

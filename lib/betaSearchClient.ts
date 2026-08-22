@@ -3,6 +3,7 @@ import { type BetaSearchRequest } from './searchRequest'
 import { validateSearchRequest, type SearchValidationIssue } from './searchValidation'
 import { resolveNaturalLanguageDate } from './naturalLanguageDate'
 import { parseMissionFromPrompt, type TripMission } from './tripMission'
+import { resolveRouteIntent, type RouteIntentResolution } from './airportIntentResolver'
 import {
   normalizeTravelerProfile,
   travelerProfileStorageKey,
@@ -24,8 +25,10 @@ export type BetaSearchStoredResult = {
     label: string
     placeholderAirport?: string
     preferredDestinations: string[]
+    resolution?: RouteIntentResolution['destination']
   }
   positioningAirports: string[]
+  originResolution?: RouteIntentResolution['origin']
 }
 
 export type StorageLike = {
@@ -46,6 +49,7 @@ export type BuildBetaSearchRequestResult =
     request: BetaSearchRequest
     destination: BetaSearchStoredResult['destination']
     positioningAirports: string[]
+    originResolution?: BetaSearchStoredResult['originResolution']
     mission: TripMission
   }
   | {
@@ -118,6 +122,10 @@ function destinationAirportFromPrompt(prompt: string, origin: string, positionin
   return ''
 }
 
+function candidateCodes(resolution?: RouteIntentResolution['origin'] | RouteIntentResolution['destination']) {
+  return uniqueStrings((resolution?.candidates || []).map((candidate) => normalizeAirportCode(candidate.code)).filter(Boolean))
+}
+
 function positioningAirportsFromPrompt(prompt: string, origin: string) {
   const matches = [...prompt.matchAll(/\b(?:through|via|position(?:ing)?\s+(?:through|via))\s+([A-Za-z]{3}(?:\s*(?:,|\/|or|and)\s*[A-Za-z]{3})*)/gi)]
   return uniqueStrings(matches
@@ -179,11 +187,19 @@ function departureDateIssue(prompt: string, options: BuildBetaSearchRequestOptio
   return { field: 'departureDate', message: 'Add a departure date.' }
 }
 
+function invalidDepartureDateIssue(prompt: string, options: BuildBetaSearchRequestOptions) {
+  const resolved = resolveNaturalLanguageDate(prompt, { now: options.now })
+  return resolved.warnings.some((warning) => warning.includes('month/day format') || warning.includes('not valid'))
+    ? departureDateIssue(prompt, options)
+    : undefined
+}
+
 function departureDateFor(mission: TripMission, options: BuildBetaSearchRequestOptions) {
   return normalizeIsoDate(options.explicitDepartureDate) ||
     mission.departureDate ||
     normalizeIsoDate(options.previousMission?.departureDate) ||
-    normalizeIsoDate(options.existingDepartureDate)
+    normalizeIsoDate(options.existingDepartureDate) ||
+    (options.now || new Date()).toISOString().slice(0, 10)
 }
 
 export function readTravelerProfileFromStorage(storage?: StorageLike) {
@@ -218,20 +234,28 @@ export function buildBetaSearchRequest(
     ...(selectedDepartureDate ? { departureDate: selectedDepartureDate } : {})
   }
   const profile = normalizeTravelerProfile(profileInput)
-  const origin = originFromPrompt(trimmed, mission)
+  const routeResolution = resolveRouteIntent(trimmed)
+  const resolvedOriginCandidates = candidateCodes(routeResolution?.origin)
+  const resolvedDestinationCandidates = candidateCodes(routeResolution?.destination)
+  const origin = resolvedOriginCandidates[0] || originFromPrompt(trimmed, mission)
   const positioningAirports = positioningAirportsFromPrompt(trimmed, origin)
-  const destinationAirport = destinationAirportFromPrompt(trimmed, origin, positioningAirports)
+  const destinationAirport = resolvedDestinationCandidates.find((candidate) => candidate !== origin && !positioningAirports.includes(candidate)) ||
+    destinationAirportFromPrompt(trimmed, origin, positioningAirports)
   const preferredDestinations = preferredDestinationsFromPrompt(trimmed, mission)
   const destinationRegion = destinationRegionFromPrompt(trimmed, mission, preferredDestinations)
-  const destinationMode: BetaSearchDestinationMode = destinationAirport ? 'airport' : 'region'
+  const destinationMode: BetaSearchDestinationMode = destinationAirport && routeResolution?.destination?.type !== 'region' ? 'airport' : 'region'
   const placeholderAirport = destinationMode === 'region' && destinationRegion ? regionPlaceholders[destinationRegion] : undefined
   const destination = destinationAirport || placeholderAirport || ''
+  const preferredDepartureAirports = uniqueStrings([origin, ...resolvedOriginCandidates])
+  const preferredDestinationAirports = uniqueStrings([destination, ...resolvedDestinationCandidates])
   const travelerCount = travelerCountFor(mission, profile)
   const tripType = normalizedTripType(mission)
 
   const issues: SearchValidationIssue[] = []
   if (!origin) issues.push({ field: 'origin', message: 'Add a three-letter origin airport code.' })
-  if (!mission.departureDate) issues.push(departureDateIssue(trimmed, options))
+  const dateIssue = invalidDepartureDateIssue(trimmed, options)
+  if (dateIssue) issues.push(dateIssue)
+  else if (!mission.departureDate) issues.push(departureDateIssue(trimmed, options))
   if (!destinationAirport && !destinationRegion) issues.push({ field: 'destination', message: 'Add a destination airport or supported destination region.' })
   if (tripType === 'round_trip' && !mission.returnDate) issues.push({ field: 'returnDate', message: 'Add a return date for round-trip searches.' })
   if (issues.length) return { ok: false, state: 'parsing', message: validationMessage(issues), issues }
@@ -244,9 +268,9 @@ export function buildBetaSearchRequest(
     travelerCount,
     tripMission: {
       ...mission,
-      originAirports: [origin],
-      preferredDepartureAirports: [origin],
-      preferredDestinations,
+      originAirports: preferredDepartureAirports,
+      preferredDepartureAirports,
+      preferredDestinations: uniqueStrings([...preferredDestinationAirports, ...preferredDestinations]),
       travelers: travelerCount,
       departureDate: mission.departureDate,
       ...(destinationRegion ? { destinationRegion } : {})
@@ -260,8 +284,8 @@ export function buildBetaSearchRequest(
       allowRail: mission.allowRail,
       allowFerry: mission.allowFerry,
       priority: mission.priority,
-      preferredDepartureAirports: [origin],
-      preferredDestinations,
+      preferredDepartureAirports,
+      preferredDestinations: uniqueStrings([...preferredDestinationAirports, ...preferredDestinations]),
       positioningAirports,
       ...(destinationRegion ? { destinationRegion } : {})
     }
@@ -282,11 +306,13 @@ export function buildBetaSearchRequest(
     request: validation.request,
     destination: {
       mode: destinationMode,
-      label: destinationAirport || destinationRegion,
+      label: routeResolution?.destination?.originalText || destinationAirport || destinationRegion,
       ...(placeholderAirport ? { placeholderAirport } : {}),
-      preferredDestinations
+      preferredDestinations,
+      ...(routeResolution?.destination ? { resolution: routeResolution.destination } : {})
     },
     positioningAirports,
+    ...(routeResolution?.origin ? { originResolution: routeResolution.origin } : {}),
     mission
   }
 }
@@ -337,9 +363,13 @@ export async function runBetaSearchFromPrompt(input: {
   fetchImpl?: FetchLike
   storage?: StorageLike
   now?: Date
+  explicitDepartureDate?: string
 }): Promise<RunBetaSearchResult> {
   const profile = normalizeTravelerProfile(input.profile || readTravelerProfileFromStorage(input.storage))
-  const built = buildBetaSearchRequest(input.prompt, profile, { now: input.now })
+  const built = buildBetaSearchRequest(input.prompt, profile, {
+    now: input.now,
+    explicitDepartureDate: input.explicitDepartureDate
+  })
   if (!built.ok) return built
 
   const fetchImpl = input.fetchImpl || (typeof fetch !== 'undefined' ? fetch : undefined)
@@ -391,12 +421,18 @@ export async function runBetaSearchFromPrompt(input: {
     request: built.request,
     result: body,
     destination: built.destination,
-    positioningAirports: built.positioningAirports
+    positioningAirports: built.positioningAirports,
+    ...(built.originResolution ? { originResolution: built.originResolution } : {})
   }
   storeBetaSearchResult(storedResult, input.storage)
 
-  if (!body.recommendations.ranked.length) {
-    return { ok: false, state: 'no-viable-plans', message: 'Search completed, but no viable plans were returned.', status: response.status }
+  if (!body.recommendations.ranked.length && !body.itineraries.length) {
+    return {
+      ok: false,
+      state: 'no-viable-plans',
+      message: 'Search completed, but no complete scheduled itineraries were returned for the recognized airports.',
+      status: response.status
+    }
   }
 
   return { ok: true, state: 'success', storedResult }

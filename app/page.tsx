@@ -52,9 +52,12 @@ export default function Home() {
             <h1 className="nonrevy-home__logo nonrevy-logo">NONREVY</h1>
             <div className="nonrevy-home__subtitle" aria-label="Fly Smarter">
               <span />
-              <p>Fly Smarter</p>
+              <p>Private Beta</p>
               <span />
             </div>
+            <p className="nonrevy-home__intro">
+              Search real schedules, compare standby-friendly options, and request load help when a flight is confirmed. Profile and ZED details improve recommendations, but you can search first.
+            </p>
           </header>
 
           <form onSubmit={submitSearch} className="nonrevy-home__search-card nonrevy-home__search-card--simple" aria-label="Search itineraries">
@@ -67,7 +70,7 @@ export default function Home() {
                   id="homepage-ai-search"
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
-                  placeholder="SBP to HND tomorrow"
+                  placeholder="LAX to HND tomorrow"
                   autoComplete="off"
                   className="nonrevy-home__input nonrevy-home__input--simple"
                 />
@@ -77,7 +80,7 @@ export default function Home() {
             </div>
 
             <details className="nonrevy-home__filters">
-              <summary>Filters</summary>
+              <summary>More options</summary>
               <div className="nonrevy-home__filters-panel">
                 <div className="nonrevy-home__field">
                   <label htmlFor="homepage-date" className="nonrevy-home__search-label">Date</label>
@@ -155,6 +158,14 @@ export default function Home() {
 
             {message ? <p className="nonrevy-home__message">{message}</p> : null}
           </form>
+          <div className="nonrevy-home__examples" aria-label="Example searches">
+            {['LAX to HND tomorrow', 'Get me to Europe Friday', 'SFO to NRT next week'].map((example) => (
+              <button key={example} type="button" onClick={() => setSearch(example)}>{example}</button>
+            ))}
+          </div>
+          <p className="nonrevy-home__expectation">
+            Schedules are not live standby loads. Use Request load when you need a current human answer.
+          </p>
         </div>
       </section>
     </main>

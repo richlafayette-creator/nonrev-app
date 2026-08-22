@@ -8,6 +8,8 @@ import { freshnessBadgeLabelFor, isCurrentLiveAvailability } from './liveAvailab
 import { ensureRouteFrameworkLabels } from './routeFrameworkLabels.ts'
 // @ts-expect-error Node's experimental TypeScript test runner resolves the .ts extension directly.
 import { savedTripWatchlistStorageKey, watchMatchesText, watchTargetLabel } from './watchlist.ts'
+// @ts-expect-error Node's experimental TypeScript test runner resolves the .ts extension directly.
+import { betaFeedbackCategories } from './betaFeedback.ts'
 
 type MockStorage = {
   readonly length: number
@@ -88,6 +90,17 @@ describe('private beta smoke coverage', () => {
     assert.equal(watch.watchLabel, 'BOS → SBP')
     assert.equal(watchMatchesText(watch, 'BOS → SBP route update'), true)
     assert.equal(watchMatchesText(watch, 'LAX → OGG'), false)
+  })
+
+  it('offers private beta feedback categories that match traveler reports', () => {
+    assert.deepEqual(betaFeedbackCategories, [
+      'Wrong flight/time',
+      'Missing itinerary',
+      'ZED issue',
+      'Load request issue',
+      'UI problem',
+      'Other'
+    ])
   })
 
   it('renders alert and watchlist activity feed items from local beta storage', async () => {

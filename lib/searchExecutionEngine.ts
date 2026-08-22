@@ -49,6 +49,12 @@ export type SearchExecutionSegment = {
   arrivalTime?: string
   scheduledDeparture?: string
   scheduledArrival?: string
+  scheduledDepartureUtc?: string
+  scheduledArrivalUtc?: string
+  departureTimeZone?: string
+  arrivalTimeZone?: string
+  departureAirportTimeZone?: string
+  arrivalAirportTimeZone?: string
   estimatedDeparture?: string
   estimatedArrival?: string
   actualDeparture?: string
@@ -179,6 +185,12 @@ function normalizeSegment(segment: SearchExecutionSegment): SearchExecutionSegme
     ...(known(segment.arrivalTime) ? { arrivalTime: String(segment.arrivalTime).trim() } : {}),
     ...(known(segment.scheduledDeparture) ? { scheduledDeparture: String(segment.scheduledDeparture).trim() } : {}),
     ...(known(segment.scheduledArrival) ? { scheduledArrival: String(segment.scheduledArrival).trim() } : {}),
+    ...(known(segment.scheduledDepartureUtc) ? { scheduledDepartureUtc: String(segment.scheduledDepartureUtc).trim() } : {}),
+    ...(known(segment.scheduledArrivalUtc) ? { scheduledArrivalUtc: String(segment.scheduledArrivalUtc).trim() } : {}),
+    ...(known(segment.departureTimeZone) ? { departureTimeZone: String(segment.departureTimeZone).trim() } : {}),
+    ...(known(segment.arrivalTimeZone) ? { arrivalTimeZone: String(segment.arrivalTimeZone).trim() } : {}),
+    ...(known(segment.departureAirportTimeZone) ? { departureAirportTimeZone: String(segment.departureAirportTimeZone).trim() } : {}),
+    ...(known(segment.arrivalAirportTimeZone) ? { arrivalAirportTimeZone: String(segment.arrivalAirportTimeZone).trim() } : {}),
     ...(known(segment.estimatedDeparture) ? { estimatedDeparture: String(segment.estimatedDeparture).trim() } : {}),
     ...(known(segment.estimatedArrival) ? { estimatedArrival: String(segment.estimatedArrival).trim() } : {}),
     ...(known(segment.actualDeparture) ? { actualDeparture: String(segment.actualDeparture).trim() } : {}),
@@ -259,6 +271,12 @@ function mergeSegments(first: SearchExecutionSegment, second: SearchExecutionSeg
     arrivalTime: mergeField(first.arrivalTime, second.arrivalTime),
     scheduledDeparture: mergeField(first.scheduledDeparture, second.scheduledDeparture),
     scheduledArrival: mergeField(first.scheduledArrival, second.scheduledArrival),
+    scheduledDepartureUtc: mergeField(first.scheduledDepartureUtc, second.scheduledDepartureUtc),
+    scheduledArrivalUtc: mergeField(first.scheduledArrivalUtc, second.scheduledArrivalUtc),
+    departureTimeZone: mergeField(first.departureTimeZone, second.departureTimeZone),
+    arrivalTimeZone: mergeField(first.arrivalTimeZone, second.arrivalTimeZone),
+    departureAirportTimeZone: mergeField(first.departureAirportTimeZone, second.departureAirportTimeZone),
+    arrivalAirportTimeZone: mergeField(first.arrivalAirportTimeZone, second.arrivalAirportTimeZone),
     estimatedDeparture: mergeField(first.estimatedDeparture, second.estimatedDeparture),
     estimatedArrival: mergeField(first.estimatedArrival, second.estimatedArrival),
     actualDeparture: mergeField(first.actualDeparture, second.actualDeparture),

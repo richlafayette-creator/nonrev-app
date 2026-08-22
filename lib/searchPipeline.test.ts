@@ -3,16 +3,19 @@ import { describe, it } from 'node:test'
 // @ts-expect-error Node's experimental TypeScript test runner resolves the .ts extension directly.
 import { type GatewayCandidate } from './gatewayDiscovery.ts'
 // @ts-expect-error Node's experimental TypeScript test runner resolves the .ts extension directly.
-import { type BetaItinerary } from './itineraryAssembler.ts'
+import { type BetaItinerary, type BetaItinerarySegment } from './itineraryAssembler.ts'
 // @ts-expect-error Node's experimental TypeScript test runner resolves the .ts extension directly.
 import { type ItineraryPlan, type StrategyLeg } from './itineraryStrategy.ts'
 // @ts-expect-error Node's experimental TypeScript test runner resolves the .ts extension directly.
 import {
   normalizeSearchMission,
   runSearchPipeline,
+  runSearchPipelineWithExecution,
   type NaturalSearchObject,
   type SearchPipelineAdapters
 } from './searchPipeline.ts'
+// @ts-expect-error Node's experimental TypeScript test runner resolves the .ts extension directly.
+import { type SearchExecutionProvider, type SearchExecutionResult, type SearchExecutionSegment } from './searchExecutionEngine.ts'
 // @ts-expect-error Node's experimental TypeScript test runner resolves the .ts extension directly.
 import { normalizeTravelerProfile, type TravelerProfileScaffold } from './travelerProfile.ts'
 
@@ -313,7 +316,971 @@ describe('search pipeline orchestrator', () => {
     assert.equal(serialized.includes('current live availability'), false)
     assert.ok(result.missingData.some((item) => item.includes('live loads')))
   })
+
+  it('composes a valid two-leg same-airport provider connection into the matching framework', () => {
+    const result = runSearchPipeline(compositionRequest(), {
+      now,
+      adapters: compositionAdapters([
+        frameworkSegment('LAX', 'SFO'),
+        frameworkSegment('SFO', 'HND')
+      ]),
+      executionResult: executionResult([
+        executionItinerary(executionSegment('LAX', 'SFO', 'AA100', '2026-07-27T10:00:00Z', '2026-07-27T12:00:00Z')),
+        executionItinerary(executionSegment('SFO', 'HND', 'JL1', '2026-07-27T14:00:00Z', '2026-07-28T02:00:00Z'))
+      ])
+    })
+    const framework = frameworkItinerary(result)
+
+    assert.deepEqual(framework?.segments.map((segment) => segment.schedule.flightNumber), ['AA100', 'JL1'])
+    assert.deepEqual(framework?.providerAttribution.map((item) => item.providerId), ['test-provider', 'nonrevy-itinerary-composer'])
+  })
+
+  it('rejects composed connections when the next segment departs before the first arrives', () => {
+    const result = runSearchPipeline(compositionRequest(), {
+      now,
+      adapters: compositionAdapters([
+        frameworkSegment('LAX', 'SFO'),
+        frameworkSegment('SFO', 'HND')
+      ]),
+      executionResult: executionResult([
+        executionItinerary(executionSegment('LAX', 'SFO', 'AA100', '2026-07-27T10:00:00Z', '2026-07-27T12:00:00Z')),
+        executionItinerary(executionSegment('SFO', 'HND', 'JL1', '2026-07-27T11:30:00Z', '2026-07-28T02:00:00Z'))
+      ])
+    })
+
+    assert.equal(frameworkItinerary(result)?.segments[1].schedule.flightNumber, 'Unknown - not provided by route framework')
+  })
+
+  it('rejects composed connections below the conservative minimum connection threshold', () => {
+    const result = runSearchPipeline(compositionRequest(), {
+      now,
+      adapters: compositionAdapters([
+        frameworkSegment('LAX', 'SFO'),
+        frameworkSegment('SFO', 'HND')
+      ]),
+      executionResult: executionResult([
+        executionItinerary(executionSegment('LAX', 'SFO', 'AA100', '2026-07-27T10:00:00Z', '2026-07-27T12:00:00Z')),
+        executionItinerary(executionSegment('SFO', 'HND', 'JL1', '2026-07-27T12:45:00Z', '2026-07-28T02:00:00Z'))
+      ])
+    })
+
+    assert.equal(frameworkItinerary(result)?.segments[1].schedule.departureTime, 'Unknown - provider schedule validation required')
+  })
+
+  it('keeps connection validation based on absolute UTC timestamps when airport time zones are present', () => {
+    const result = runSearchPipeline(compositionRequest(), {
+      now,
+      adapters: compositionAdapters([
+        frameworkSegment('LAX', 'SFO'),
+        frameworkSegment('SFO', 'HND')
+      ]),
+      executionResult: executionResult([
+        executionItinerary(executionSegment('LAX', 'SFO', 'AA100', '2026-07-27T10:00:00Z', '2026-07-27T12:00:00Z')),
+        executionItinerary(executionSegment('SFO', 'HND', 'JL1', '2026-07-27T12:30:00Z', '2026-07-28T02:00:00Z'))
+      ])
+    })
+
+    assert.equal(frameworkItinerary(result)?.segments[1].schedule.flightNumber, 'Unknown - not provided by route framework')
+  })
+
+
+  it('allows overnight provider connections when timestamps are coherent', () => {
+    const result = runSearchPipeline(compositionRequest(), {
+      now,
+      adapters: compositionAdapters([
+        frameworkSegment('LAX', 'SFO'),
+        frameworkSegment('SFO', 'HND')
+      ]),
+      executionResult: executionResult([
+        executionItinerary(executionSegment('LAX', 'SFO', 'AA100', '2026-07-27T20:00:00Z', '2026-07-27T23:00:00Z')),
+        executionItinerary(executionSegment('SFO', 'HND', 'JL1', '2026-07-28T01:00:00Z', '2026-07-28T13:00:00Z'))
+      ])
+    })
+
+    assert.equal(frameworkItinerary(result)?.segments[1].schedule.departureTime, '2026-07-28T01:00:00Z')
+  })
+
+  it('does not reuse the same provider segment twice in a composed itinerary', () => {
+    const reusable = executionItinerary(executionSegment('SFO', 'SFO', 'AA100', '2026-07-27T10:00:00Z', '2026-07-27T12:00:00Z'))
+    const result = runSearchPipeline(compositionRequest(), {
+      now,
+      adapters: compositionAdapters([
+        frameworkSegment('SFO', 'SFO'),
+        frameworkSegment('SFO', 'SFO')
+      ]),
+      executionResult: executionResult([reusable])
+    })
+
+    assert.equal(frameworkItinerary(result)?.segments[0].schedule.flightNumber, 'Unknown - not provided by route framework')
+  })
+
+  it('leaves a framework unresolved when provider candidates cannot form the requested route', () => {
+    const result = runSearchPipeline(compositionRequest(), {
+      now,
+      adapters: compositionAdapters([
+        frameworkSegment('LAX', 'SFO'),
+        frameworkSegment('SFO', 'HND')
+      ]),
+      executionResult: executionResult([
+        executionItinerary(executionSegment('LAX', 'SFO', 'AA100', '2026-07-27T10:00:00Z', '2026-07-27T12:00:00Z')),
+        executionItinerary(executionSegment('LAX', 'HND', 'AA169', '2026-07-27T14:00:00Z', '2026-07-28T02:00:00Z'))
+      ])
+    })
+
+    assert.deepEqual(frameworkItinerary(result)?.segments.map((segment) => segment.schedule.flightNumber), [
+      'Unknown - not provided by route framework',
+      'Unknown - not provided by route framework'
+    ])
+  })
+
+  it('preserves direct provider itinerary candidates while composing framework-shaped alternatives', () => {
+    const result = runSearchPipeline(compositionRequest(), {
+      now,
+      adapters: compositionAdapters([
+        frameworkSegment('LAX', 'SFO'),
+        frameworkSegment('SFO', 'HND')
+      ]),
+      executionResult: executionResult([
+        executionItinerary(executionSegment('LAX', 'HND', 'AA169', '2026-07-27T08:00:00Z', '2026-07-27T20:00:00Z')),
+        executionItinerary(executionSegment('LAX', 'SFO', 'AA100', '2026-07-27T10:00:00Z', '2026-07-27T12:00:00Z')),
+        executionItinerary(executionSegment('SFO', 'HND', 'JL1', '2026-07-27T14:00:00Z', '2026-07-28T02:00:00Z'))
+      ])
+    })
+
+    assert.ok(result.itineraries.some((itinerary) => itinerary.segments.length === 1 && itinerary.segments[0].schedule.flightNumber === 'AA169'))
+    assert.deepEqual(frameworkItinerary(result)?.segments.map((segment) => segment.schedule.flightNumber), ['AA100', 'JL1'])
+  })
+
+  it('retains provider-returned flight numbers and times on composed legs', () => {
+    const result = runSearchPipeline(compositionRequest(), {
+      now,
+      adapters: compositionAdapters([
+        frameworkSegment('LAX', 'SFO'),
+        frameworkSegment('SFO', 'HND')
+      ]),
+      executionResult: executionResult([
+        executionItinerary(executionSegment('LAX', 'SFO', 'AA100', '2026-07-27T10:00:00Z', '2026-07-27T12:00:00Z')),
+        executionItinerary(executionSegment('SFO', 'HND', 'JL1', '2026-07-27T14:00:00Z', '2026-07-28T02:00:00Z'))
+      ])
+    })
+
+    assert.deepEqual(frameworkItinerary(result)?.segments.map((segment) => ({
+      flightNumber: segment.schedule.flightNumber,
+      departureTime: segment.schedule.departureTime,
+      arrivalTime: segment.schedule.arrivalTime
+    })), [
+      { flightNumber: 'AA100', departureTime: '2026-07-27T10:00:00Z', arrivalTime: '2026-07-27T12:00:00Z' },
+      { flightNumber: 'JL1', departureTime: '2026-07-27T14:00:00Z', arrivalTime: '2026-07-28T02:00:00Z' }
+    ])
+  })
+
+  it('keeps framework-only routes unresolved when no provider schedules validate them', () => {
+    const result = runSearchPipeline(compositionRequest(), {
+      now,
+      adapters: compositionAdapters([
+        frameworkSegment('LAX', 'SFO'),
+        frameworkSegment('SFO', 'HND')
+      ]),
+      executionResult: executionResult([])
+    })
+
+    assert.equal(frameworkItinerary(result)?.segments[0].schedule.flightNumber, 'Unknown - not provided by route framework')
+  })
+
+  it('does not silently treat airport-transfer gaps as same-airport connections', () => {
+    const result = runSearchPipeline(compositionRequest(), {
+      now,
+      adapters: compositionAdapters([
+        frameworkSegment('LAX', 'NRT'),
+        frameworkSegment('HND', 'SFO')
+      ]),
+      executionResult: executionResult([
+        executionItinerary(executionSegment('LAX', 'NRT', 'JL61', '2026-07-27T10:00:00Z', '2026-07-27T22:00:00Z')),
+        executionItinerary(executionSegment('HND', 'SFO', 'JL2', '2026-07-28T01:00:00Z', '2026-07-28T12:00:00Z'))
+      ])
+    })
+
+    assert.equal(frameworkItinerary(result)?.segments[1].schedule.flightNumber, 'Unknown - not provided by route framework')
+  })
+
+  it('searches the direct market first before bounded connection expansion', async () => {
+    const calls: string[][] = []
+    const result = await runSearchPipelineWithExecution(compositionRequest(), {
+      now,
+      adapters: connectionCoverageAdapters(['SFO']),
+      executionProviders: [connectionExecutionProvider(calls, {
+        'LAX-HND': [executionSegment('LAX', 'HND', 'AA169', '2026-07-27T08:00:00Z', '2026-07-27T20:00:00Z')],
+        'LAX-SFO': [executionSegment('LAX', 'SFO', 'AA100', '2026-07-27T10:00:00Z', '2026-07-27T12:00:00Z')],
+        'SFO-HND': [executionSegment('SFO', 'HND', 'JL1', '2026-07-27T14:00:00Z', '2026-07-28T02:00:00Z')]
+      })]
+    })
+
+    assert.deepEqual(calls, [['LAX-HND']])
+    assert.ok(result.itineraries.some((itinerary) => itinerary.segments.length === 1 && itinerary.segments[0].schedule.flightNumber === 'AA169'))
+  })
+
+  it('expands to a valid same-airport connection market when direct coverage is insufficient', async () => {
+    const calls: string[][] = []
+    const result = await runSearchPipelineWithExecution(compositionRequest(), {
+      now,
+      adapters: connectionCoverageAdapters(['SFO']),
+      executionProviders: [connectionExecutionProvider(calls, {
+        'LAX-SFO': [executionSegment('LAX', 'SFO', 'AA100', '2026-07-27T10:00:00Z', '2026-07-27T12:00:00Z')],
+        'SFO-HND': [executionSegment('SFO', 'HND', 'JL1', '2026-07-27T14:00:00Z', '2026-07-28T02:00:00Z')]
+      })]
+    })
+
+    assert.deepEqual(calls, [['LAX-HND'], ['LAX-*'], ['LAX-SFO', 'SFO-HND']])
+    assert.ok(result.itineraries.some((itinerary) =>
+      itinerary.segments.map((segment) => segment.schedule.flightNumber).join('+') === 'AA100+JL1'
+    ))
+  })
+
+  it('bounds connection hubs and provider route-pair fanout', async () => {
+    const calls: string[][] = []
+    await runSearchPipelineWithExecution(compositionRequest(), {
+      now,
+      adapters: connectionCoverageAdapters(['SFO', 'SEA', 'DFW', 'ORD']),
+      executionProviders: [connectionExecutionProvider(calls, {})],
+      maxConnectionHubsSearched: 2,
+      maxProviderRoutePairs: 5
+    })
+
+    assert.deepEqual(calls, [['LAX-HND'], ['LAX-*'], ['LAX-SFO', 'SFO-HND', 'LAX-SEA', 'SEA-HND']])
+  })
+
+  it('does not exceed the configured provider route-pair cap during expansion', async () => {
+    const calls: string[][] = []
+    await runSearchPipelineWithExecution(compositionRequest(), {
+      now,
+      adapters: connectionCoverageAdapters(['SFO', 'SEA']),
+      executionProviders: [connectionExecutionProvider(calls, {})],
+      maxConnectionHubsSearched: 2,
+      maxProviderRoutePairs: 3
+    })
+
+    assert.deepEqual(calls, [['LAX-HND'], ['LAX-*'], ['LAX-SFO', 'SFO-HND']])
+  })
+
+  it('keeps direct options visible when connection options are also recovered', async () => {
+    const calls: string[][] = []
+    const result = await runSearchPipelineWithExecution(compositionRequest(), {
+      now,
+      adapters: connectionCoverageAdapters(['SFO']),
+      executionProviders: [connectionExecutionProvider(calls, {
+        'LAX-HND': [executionSegment('LAX', 'HND', 'AA169', '2026-07-27T08:00:00Z', '2026-07-27T20:00:00Z')],
+        'LAX-SFO': [executionSegment('LAX', 'SFO', 'AA100', '2026-07-27T10:00:00Z', '2026-07-27T12:00:00Z')],
+        'SFO-HND': [executionSegment('SFO', 'HND', 'JL1', '2026-07-27T14:00:00Z', '2026-07-28T02:00:00Z')]
+      })],
+      connectionSearchMinimumDirectItineraries: 2
+    })
+
+    assert.deepEqual(calls, [['LAX-HND'], ['LAX-*'], ['LAX-SFO', 'SFO-HND']])
+    assert.ok(result.itineraries.some((itinerary) => itinerary.segments.length === 1 && itinerary.segments[0].schedule.flightNumber === 'AA169'))
+    assert.ok(result.itineraries.some((itinerary) => itinerary.segments.map((segment) => segment.schedule.flightNumber).join('+') === 'AA100+JL1'))
+  })
+
+  it('uses origin-first departure discovery to compose a small-origin two-hop itinerary', async () => {
+    const calls: string[][] = []
+    const result = await runSearchPipelineWithExecution(airportPairRequest('SBP', 'FCO'), {
+      now,
+      adapters: airportConnectionCoverageAdapters('SBP', 'FCO', ['SFO']),
+      executionProviders: [connectionExecutionProvider(calls, {
+        'SBP-*': [executionSegment('SBP', 'SFO', 'UA500', '2026-07-27T14:00:00Z', '2026-07-27T15:20:00Z')],
+        'SFO-FCO': [executionSegment('SFO', 'FCO', 'UA40', '2026-07-27T18:00:00Z', '2026-07-28T08:30:00Z')]
+      })]
+    })
+
+    assert.deepEqual(calls, [['SBP-FCO'], ['SBP-*'], ['SBP-SFO', 'SFO-FCO']])
+    assert.ok(result.itineraries.some((itinerary) =>
+      itinerary.segments.map((segment) => `${segment.origin}-${segment.destination}-${segment.schedule.flightNumber}`).join('|') ===
+      'SBP-SFO-UA500|SFO-FCO-UA40'
+    ))
+  })
+
+  it('checks primary destinations across first-hop hubs before secondary airport candidates', async () => {
+    const calls: string[][] = []
+    const request = {
+      ...airportPairRequest('SBP', 'FCO'),
+      preferredDestinations: ['FCO', 'CIA']
+    }
+    const result = await runSearchPipelineWithExecution(request, {
+      now,
+      adapters: airportConnectionCoverageAdapters('SBP', 'FCO', ['FRA', 'AMS']),
+      executionProviders: [connectionExecutionProvider(calls, {
+        'SBP-*': [
+          executionSegment('SBP', 'PHX', 'AA6400', '2026-07-27T12:00:00Z', '2026-07-27T13:40:00Z'),
+          executionSegment('SBP', 'PHX', 'AA6402', '2026-07-27T14:00:00Z', '2026-07-27T15:40:00Z'),
+          executionSegment('SBP', 'DEN', 'UA2329', '2026-07-27T12:30:00Z', '2026-07-27T15:20:00Z')
+        ],
+        'DEN-FCO': [executionSegment('DEN', 'FCO', 'UA177', '2026-07-27T23:45:00Z', '2026-07-28T10:00:00Z')]
+      })],
+      maxConnectionHubsSearched: 2,
+      maxOriginFirstHubsSearched: 2,
+      maxProviderRoutePairs: 9
+    })
+
+    assert.deepEqual(calls, [
+      ['SBP-FCO', 'SBP-CIA'],
+      ['SBP-*'],
+      ['SBP-FRA', 'FRA-FCO', 'SBP-AMS', 'AMS-FCO'],
+      ['PHX-FCO', 'DEN-FCO']
+    ])
+    assert.ok(result.itineraries.some((itinerary) =>
+      itinerary.segments.map((segment) => `${segment.origin}-${segment.destination}-${segment.schedule.flightNumber}`).join('|') ===
+      'SBP-DEN-UA2329|DEN-FCO-UA177'
+    ))
+  })
+
+  it('uses the same origin-first discovery path for another regional origin', async () => {
+    const calls: string[][] = []
+    const result = await runSearchPipelineWithExecution(airportPairRequest('MRY', 'CDG'), {
+      now,
+      adapters: airportConnectionCoverageAdapters('MRY', 'CDG', ['SFO']),
+      executionProviders: [connectionExecutionProvider(calls, {
+        'MRY-*': [executionSegment('MRY', 'SFO', 'UA5678', '2026-07-27T13:30:00Z', '2026-07-27T14:20:00Z')],
+        'SFO-CDG': [executionSegment('SFO', 'CDG', 'AF83', '2026-07-27T17:00:00Z', '2026-07-28T07:10:00Z')]
+      })]
+    })
+
+    assert.deepEqual(calls, [['MRY-CDG'], ['MRY-*'], ['MRY-SFO', 'SFO-CDG']])
+    assert.ok(result.itineraries.some((itinerary) =>
+      itinerary.segments.map((segment) => `${segment.origin}-${segment.destination}`).join('>') === 'MRY-SFO>SFO-CDG'
+    ))
+  })
+
+  it('composes a bounded three-leg origin-first itinerary through provider-supported hubs', async () => {
+    const calls: string[][] = []
+    const result = await runSearchPipelineWithExecution(airportPairRequest('SBP', 'FCO'), {
+      now,
+      adapters: airportConnectionCoverageAdapters('SBP', 'FCO', ['FRA']),
+      executionProviders: [connectionExecutionProvider(calls, {
+        'SBP-*': [executionSegment('SBP', 'SFO', 'UA523', '2026-07-27T14:00:00Z', '2026-07-27T15:20:00Z')],
+        'SFO-FRA': [executionSegment('SFO', 'FRA', 'LH455', '2026-07-27T18:10:00Z', '2026-07-28T08:45:00Z')],
+        'FRA-FCO': [executionSegment('FRA', 'FCO', 'LH232', '2026-07-28T11:00:00Z', '2026-07-28T12:45:00Z')]
+      })]
+    })
+
+    assert.deepEqual(calls, [['SBP-FCO'], ['SBP-*'], ['SBP-FRA', 'FRA-FCO', 'SFO-FCO', 'SFO-FRA']])
+    assert.ok(result.itineraries.some((itinerary) =>
+      itinerary.segments.map((segment) => `${segment.origin}-${segment.destination}`).join('>') === 'SBP-SFO>SFO-FRA>FRA-FCO'
+    ))
+  })
+
+  it('discovers a three-leg arbitrary route from provider-backed onward hub departures', async () => {
+    const calls: string[][] = []
+    const result = await runSearchPipelineWithExecution(airportPairRequest('GEG', 'NAP'), {
+      now,
+      adapters: {
+        discoverGateways: () => [],
+        generateStrategies: () => [],
+        generateRecommendations: (_mission, _strategies, _profile, options) => ({
+          missionSummary: [],
+          generatedAt: (options.now || now).toISOString(),
+          dataQuality: 'low' as const,
+          warnings: [],
+          recommendations: []
+        }),
+        assembleItineraries: () => []
+      },
+      executionProviders: [connectionExecutionProvider(calls, {
+        'GEG-*': [executionSegment('GEG', 'SEA', 'AS710', '2026-07-27T12:12:00Z', '2026-07-27T13:30:00Z')],
+        'SEA-*': [executionSegment('SEA', 'CDG', 'DL80', '2026-07-27T18:00:00Z', '2026-07-28T08:30:00Z')],
+        'CDG-NAP': [executionSegment('CDG', 'NAP', 'AF1578', '2026-07-28T11:00:00Z', '2026-07-28T13:15:00Z')]
+      })],
+      maxProviderRoutePairs: 8
+    })
+
+    assert.deepEqual(calls, [['GEG-NAP'], ['GEG-*'], ['SEA-NAP'], ['SEA-*'], ['CDG-NAP', 'CDG-NAP']])
+    assert.ok(result.itineraries.some((itinerary) =>
+      itinerary.segments.map((segment) => `${segment.origin}-${segment.destination}-${segment.schedule.flightNumber}`).join('|') ===
+      'GEG-SEA-AS710|SEA-CDG-DL80|CDG-NAP-AF1578'
+    ))
+  })
+
+  it('caps airport-set direct provider fanout for metro searches', async () => {
+    const calls: string[][] = []
+    await runSearchPipelineWithExecution({
+      ...airportPairRequest('JFK', 'CDG'),
+      preferredDepartureAirports: ['JFK', 'EWR', 'LGA'],
+      preferredDestinations: ['CDG', 'ORY']
+    }, {
+      now,
+      executionProviders: [connectionExecutionProvider(calls, {})],
+      maxProviderRoutePairs: 4
+    })
+
+    assert.deepEqual(calls[0], ['JFK-CDG', 'JFK-ORY', 'EWR-CDG', 'EWR-ORY'])
+  })
+
+  it('does not treat downstream-only provider records as complete requested journeys', async () => {
+    const result = await runSearchPipelineWithExecution(airportPairRequest('SBP', 'FCO'), {
+      now,
+      adapters: airportConnectionCoverageAdapters('SBP', 'FCO', ['FRA']),
+      executionProviders: [connectionExecutionProvider([], {
+        'FRA-FCO': [executionSegment('FRA', 'FCO', 'LH232', '2026-07-28T11:00:00Z', '2026-07-28T12:45:00Z')]
+      })]
+    })
+
+    assert.equal(result.itineraries.some((itinerary) =>
+      itinerary.segments.length === 1 &&
+      itinerary.segments[0].origin === 'FRA' &&
+      itinerary.segments[0].destination === 'FCO' &&
+      itinerary.segments[0].schedule.flightNumber === 'LH232'
+    ), false)
+  })
+
+  it('rejects origin-first chains when timing is invalid', async () => {
+    const result = await runSearchPipelineWithExecution(airportPairRequest('SBP', 'FCO'), {
+      now,
+      adapters: airportConnectionCoverageAdapters('SBP', 'FCO', ['SFO']),
+      executionProviders: [connectionExecutionProvider([], {
+        'SBP-*': [executionSegment('SBP', 'SFO', 'UA500', '2026-07-27T14:00:00Z', '2026-07-27T15:20:00Z')],
+        'SFO-FCO': [executionSegment('SFO', 'FCO', 'UA40', '2026-07-27T15:45:00Z', '2026-07-28T08:30:00Z')]
+      })]
+    })
+
+    assert.equal(result.itineraries.some((itinerary) =>
+      itinerary.segments.map((segment) => segment.schedule.flightNumber).join('+') === 'UA500+UA40'
+    ), false)
+  })
+
+  it('deduplicates duplicate provider segments during origin-first composition', async () => {
+    const duplicate = executionSegment('SBP', 'SFO', 'UA500', '2026-07-27T14:00:00Z', '2026-07-27T15:20:00Z')
+    const result = await runSearchPipelineWithExecution(airportPairRequest('SBP', 'FCO'), {
+      now,
+      adapters: airportConnectionCoverageAdapters('SBP', 'FCO', ['SFO']),
+      executionProviders: [connectionExecutionProvider([], {
+        'SBP-*': [duplicate, { ...duplicate }],
+        'SFO-FCO': [executionSegment('SFO', 'FCO', 'UA40', '2026-07-27T18:00:00Z', '2026-07-28T08:30:00Z')]
+      })]
+    })
+
+    assert.equal(result.itineraries.filter((itinerary) =>
+      itinerary.segments.map((segment) => segment.schedule.flightNumber).join('+') === 'UA500+UA40'
+    ).length, 1)
+  })
+
+  it('preserves fanout caps for origin-first connection discovery', async () => {
+    const calls: string[][] = []
+    await runSearchPipelineWithExecution(airportPairRequest('SBP', 'FCO'), {
+      now,
+      adapters: airportConnectionCoverageAdapters('SBP', 'FCO', ['FRA', 'MUC']),
+      executionProviders: [connectionExecutionProvider(calls, {
+        'SBP-*': [
+          executionSegment('SBP', 'SFO', 'UA523', '2026-07-27T14:00:00Z', '2026-07-27T15:20:00Z'),
+          executionSegment('SBP', 'LAX', 'UA600', '2026-07-27T14:30:00Z', '2026-07-27T15:40:00Z')
+        ]
+      })],
+      maxConnectionHubsSearched: 2,
+      maxOriginFirstHubsSearched: 1,
+      maxProviderRoutePairs: 6
+    })
+
+    assert.deepEqual(calls, [['SBP-FCO'], ['SBP-*'], ['SBP-FRA', 'FRA-FCO', 'SBP-MUC', 'MUC-FCO']])
+  })
+
+  it('keeps framework routes secondary when real scheduled itineraries exist', async () => {
+    const result = await runSearchPipelineWithExecution(compositionRequest(), {
+      now,
+      adapters: connectionCoverageAdapters(['SFO']),
+      executionProviders: [connectionExecutionProvider([], {
+        'LAX-HND': [executionSegment('LAX', 'HND', 'AA169', '2026-07-27T08:00:00Z', '2026-07-27T20:00:00Z')]
+      })]
+    })
+
+    const scheduled = result.itineraries.filter((itinerary) => itinerary.segments.every((segment) => !segment.schedule.flightNumber.startsWith('Unknown')))
+    const framework = result.itineraries.filter((itinerary) => itinerary.segments.some((segment) => segment.schedule.flightNumber.startsWith('Unknown')))
+    assert.ok(scheduled.length > 0)
+    assert.ok(framework.length > 0)
+    assert.ok(result.itineraries.indexOf(scheduled[0]) < result.itineraries.indexOf(framework[0]))
+  })
+
+  it('promotes a provider-supported same-airport hub over a hub with only one supported leg', () => {
+    const result = runSearchPipeline(compositionRequest(), {
+      now,
+      adapters: multiConnectionAdapters(['SEA', 'SFO']),
+      executionResult: executionResult([
+        executionItinerary(executionSegment('LAX', 'SEA', 'AS200', '2026-07-27T07:00:00Z', '2026-07-27T10:00:00Z')),
+        executionItinerary(executionSegment('LAX', 'SFO', 'AA100', '2026-07-27T10:00:00Z', '2026-07-27T12:00:00Z')),
+        executionItinerary(executionSegment('SFO', 'HND', 'JL1', '2026-07-27T14:00:00Z', '2026-07-28T02:00:00Z'))
+      ])
+    })
+
+    assert.deepEqual(result.itineraries[0].segments.map((segment) => segment.schedule.flightNumber), ['AA100', 'JL1'])
+    assert.equal(result.itineraries[0].providerHubQuality?.hub, 'SFO')
+    assert.equal(result.itineraries[0].providerHubQuality?.feasible, true)
+  })
+
+  it('does not promote a hub when provider leg timing is impossible', () => {
+    const result = runSearchPipeline(compositionRequest(), {
+      now,
+      adapters: multiConnectionAdapters(['SFO']),
+      executionResult: executionResult([
+        executionItinerary(executionSegment('LAX', 'SFO', 'AA100', '2026-07-27T10:00:00Z', '2026-07-27T12:00:00Z')),
+        executionItinerary(executionSegment('SFO', 'HND', 'JL1', '2026-07-27T11:00:00Z', '2026-07-28T02:00:00Z'))
+      ])
+    })
+
+    assert.equal(result.itineraries.some((itinerary) =>
+      itinerary.providerHubQuality?.hub === 'SFO' && itinerary.providerHubQuality.feasible
+    ), false)
+    assert.equal(frameworkItinerary(result)?.segments[1].schedule.flightNumber, 'Unknown - not provided by route framework')
+  })
+
+  it('does not inflate provider hub quality from duplicate overlapping provider records', () => {
+    const firstLeg = executionItinerary(executionSegment('LAX', 'SFO', 'AA100', '2026-07-27T10:00:00Z', '2026-07-27T12:00:00Z'))
+    const duplicateFirstLeg = executionItinerary(executionSegment('LAX', 'SFO', 'AA100', '2026-07-27T10:00:00Z', '2026-07-27T12:00:00Z'))
+    duplicateFirstLeg.id = 'provider-aa100-duplicate'
+    const secondLeg = executionItinerary(executionSegment('SFO', 'HND', 'JL1', '2026-07-27T14:00:00Z', '2026-07-28T02:00:00Z'))
+    const duplicateSecondLeg = executionItinerary(executionSegment('SFO', 'HND', 'JL1', '2026-07-27T14:00:00Z', '2026-07-28T02:00:00Z'))
+    duplicateSecondLeg.id = 'provider-jl1-duplicate'
+    const result = runSearchPipeline(compositionRequest(), {
+      now,
+      adapters: multiConnectionAdapters(['SFO']),
+      executionResult: executionResult([firstLeg, duplicateFirstLeg, secondLeg, duplicateSecondLeg])
+    })
+    const composed = result.itineraries.find((itinerary) => itinerary.providerHubQuality?.hub === 'SFO')
+
+    assert.deepEqual(composed?.providerHubQuality?.legOptionCounts, [1, 1])
+  })
+
+  it('marks a fully eligible direct scheduled itinerary as ZED eligible', () => {
+    const result = runSearchPipeline(zedRequest({ travelerProfile: zedProfile(['AA']) }), {
+      now,
+      adapters: connectionCoverageAdapters([]),
+      executionResult: executionResult([
+        executionItinerary(executionSegment('LAX', 'HND', 'AA169', '2026-07-27T08:00:00Z', '2026-07-27T20:00:00Z'))
+      ])
+    })
+    const direct = scheduledItinerary(result, 'AA169')
+
+    assert.equal(direct?.zedEligibility?.status, 'eligible')
+    assert.deepEqual(direct?.zedEligibility?.eligibleCarriers, ['AA'])
+  })
+
+  it('marks a confirmed unavailable carrier as ZED not eligible', () => {
+    const result = runSearchPipeline(zedRequest({ travelerProfile: zedProfile(['UA']) }), {
+      now,
+      adapters: connectionCoverageAdapters([]),
+      executionResult: executionResult([
+        executionItinerary(executionSegment('LAX', 'HND', 'AA169', '2026-07-27T08:00:00Z', '2026-07-27T20:00:00Z'))
+      ])
+    })
+    const direct = scheduledItinerary(result, 'AA169')
+
+    assert.equal(direct?.zedEligibility?.status, 'not_eligible')
+    assert.deepEqual(direct?.zedEligibility?.ineligibleCarriers, ['AA'])
+  })
+
+  it('keeps ZED eligibility unknown when profile agreement data is missing', () => {
+    const result = runSearchPipeline(zedRequest({ travelerProfile: profile('Employee') }), {
+      now,
+      adapters: connectionCoverageAdapters([]),
+      executionResult: executionResult([
+        executionItinerary(executionSegment('LAX', 'HND', 'AA169', '2026-07-27T08:00:00Z', '2026-07-27T20:00:00Z'))
+      ])
+    })
+
+    assert.equal(scheduledItinerary(result, 'AA169')?.zedEligibility?.status, 'unknown')
+  })
+
+  it('marks a mixed multi-leg itinerary as partially eligible when one carrier is unknown', () => {
+    const unknownCarrierLeg = executionItinerary(executionSegment('SFO', 'HND', 'JL1', '2026-07-27T14:00:00Z', '2026-07-28T02:00:00Z'))
+    unknownCarrierLeg.segments[0] = {
+      ...unknownCarrierLeg.segments[0],
+      carrier: undefined,
+      airlineCode: undefined,
+      airlineName: undefined
+    }
+    const result = runSearchPipeline(zedRequest({ travelerProfile: zedProfile(['AA']) }), {
+      now,
+      adapters: compositionAdapters([
+        frameworkSegment('LAX', 'SFO'),
+        frameworkSegment('SFO', 'HND')
+      ]),
+      executionResult: executionResult([
+        executionItinerary(executionSegment('LAX', 'SFO', 'AA100', '2026-07-27T10:00:00Z', '2026-07-27T12:00:00Z')),
+        unknownCarrierLeg
+      ])
+    })
+
+    assert.equal(frameworkItinerary(result)?.zedEligibility?.status, 'partial')
+    assert.deepEqual(frameworkItinerary(result)?.zedEligibility?.eligibleCarriers, ['AA'])
+    assert.ok(frameworkItinerary(result)?.zedEligibility?.unknownCarriers.includes('carrier unknown'))
+  })
+
+  it('requires whole-party eligibility before labeling an itinerary ZED eligible', () => {
+    const result = runSearchPipeline(zedRequest({
+      travelerProfile: zedProfile(['AA'], ['Employee'], [
+        { id: 'employee', travelerType: 'employee' },
+        { id: 'spouse', travelerType: 'spouse' }
+      ])
+    }), {
+      now,
+      adapters: connectionCoverageAdapters([]),
+      executionResult: executionResult([
+        executionItinerary(executionSegment('LAX', 'HND', 'AA169', '2026-07-27T08:00:00Z', '2026-07-27T20:00:00Z'))
+      ])
+    })
+
+    assert.equal(scheduledItinerary(result, 'AA169')?.zedEligibility?.status, 'not_eligible')
+  })
+
+  it('does not infer ZED eligibility from a flight number when carrier is unknown', () => {
+    const unknownCarrier = executionItinerary(executionSegment('LAX', 'HND', 'AA169', '2026-07-27T08:00:00Z', '2026-07-27T20:00:00Z'))
+    unknownCarrier.segments[0] = {
+      ...unknownCarrier.segments[0],
+      carrier: undefined,
+      airlineCode: undefined,
+      airlineName: undefined
+    }
+    const result = runSearchPipeline(zedRequest({ travelerProfile: zedProfile(['AA']) }), {
+      now,
+      adapters: connectionCoverageAdapters([]),
+      executionResult: executionResult([unknownCarrier])
+    })
+
+    assert.equal(scheduledItinerary(result, 'AA169')?.zedEligibility?.status, 'unknown')
+  })
+
+  it('ranks an eligible scheduled itinerary ahead of a comparable confirmed ineligible itinerary', () => {
+    const result = runSearchPipeline(zedRequest({ travelerProfile: zedProfile(['AA']) }), {
+      now,
+      adapters: connectionCoverageAdapters([]),
+      executionResult: executionResult([
+        executionItinerary(executionSegment('LAX', 'HND', 'DL7', '2026-07-27T07:00:00Z', '2026-07-27T19:00:00Z')),
+        executionItinerary(executionSegment('LAX', 'HND', 'AA169', '2026-07-27T08:00:00Z', '2026-07-27T20:00:00Z'))
+      ])
+    })
+    const scheduled = result.itineraries.filter((itinerary) => itinerary.segments.every((segment) => !segment.schedule.flightNumber.startsWith('Unknown')))
+
+    assert.equal(scheduled[0].segments[0].schedule.flightNumber, 'AA169')
+    assert.equal(scheduled[0].zedEligibility?.status, 'eligible')
+  })
+
+  it('preserves confirmed ineligible revenue backups when revenue is allowed', () => {
+    const result = runSearchPipeline(zedRequest({ travelerProfile: zedProfile(['AA']), allowRevenue: true }), {
+      now,
+      adapters: connectionCoverageAdapters([]),
+      executionResult: executionResult([
+        executionItinerary(executionSegment('LAX', 'HND', 'DL7', '2026-07-27T07:00:00Z', '2026-07-27T19:00:00Z'))
+      ])
+    })
+    const backup = scheduledItinerary(result, 'DL7')
+
+    assert.equal(backup?.zedEligibility?.status, 'not_eligible')
+    assert.equal(backup?.zedEligibility?.revenueAlternative, true)
+    assert.deepEqual(backup?.revenueAirlines, ['DL'])
+  })
+
+  it('does not empty the result set when no eligible itinerary exists', () => {
+    const result = runSearchPipeline(zedRequest({ travelerProfile: zedProfile(['AA']) }), {
+      now,
+      adapters: connectionCoverageAdapters([]),
+      executionResult: executionResult([
+        executionItinerary(executionSegment('LAX', 'HND', 'DL7', '2026-07-27T07:00:00Z', '2026-07-27T19:00:00Z'))
+      ])
+    })
+
+    assert.ok(result.itineraries.length > 0)
+    assert.equal(scheduledItinerary(result, 'DL7')?.zedEligibility?.status, 'not_eligible')
+  })
+
+  it('does not crash and leaves eligibility unknown when the traveler profile is missing', () => {
+    const result = runSearchPipeline({ ...zedRequest(), travelerProfile: undefined }, {
+      now,
+      adapters: connectionCoverageAdapters([]),
+      executionResult: executionResult([
+        executionItinerary(executionSegment('LAX', 'HND', 'AA169', '2026-07-27T08:00:00Z', '2026-07-27T20:00:00Z'))
+      ])
+    })
+
+    assert.equal(scheduledItinerary(result, 'AA169')?.zedEligibility?.status, 'unknown')
+  })
 })
+
+function compositionRequest(): NaturalSearchObject {
+  return {
+    origin: 'LAX',
+    destination: 'HND',
+    departureDate: '2026-07-27',
+    travelerCount: 1,
+    travelerProfile: profile('Employee')
+  }
+}
+
+function airportPairRequest(origin: string, destination: string): NaturalSearchObject {
+  return {
+    ...compositionRequest(),
+    origin,
+    destination
+  }
+}
+
+function compositionAdapters(segments: BetaItinerarySegment[]): SearchPipelineAdapters {
+  return {
+    discoverGateways: () => [gateway('HND')],
+    generateStrategies: () => [],
+    generateRecommendations: (_mission, _strategies, _profile, options) => ({
+      missionSummary: [],
+      generatedAt: (options.now || now).toISOString(),
+      dataQuality: 'medium' as const,
+      warnings: [],
+      recommendations: [{
+        id: 'recommendation-composition',
+        rank: 1,
+        label: 'Plan A' as const,
+        status: 'viable' as const,
+        plan: plan('HND', segments.map((segment) => ({
+          origin: segment.origin,
+          destination: segment.destination,
+          transportType: segment.mode,
+          carrier: segment.carrier,
+          notes: 'Provider validation required'
+        }))),
+        finalScore: 80,
+        confidence: 76,
+        estimatedSuccess: 78,
+        wholePartyZedEligible: false,
+        eligibleZedAirlines: [],
+        risks: [],
+        explanation: {
+          summary: 'Composition fixture summary.',
+          strengths: ['provider candidates may attach'],
+          weaknesses: ['live loads unavailable'],
+          switchConditions: ['switch if schedule validation fails']
+        },
+        dataWarnings: []
+      }]
+    }),
+    assembleItineraries: () => [betaItineraryWithSegments(segments)]
+  }
+}
+
+function zedRequest(overrides: Partial<NaturalSearchObject> = {}): NaturalSearchObject {
+  return {
+    ...compositionRequest(),
+    allowZed: true,
+    ...overrides
+  }
+}
+
+function zedProfile(
+  airlineCodes: string[],
+  eligibleTravelerTypes: Array<TravelerProfileScaffold['travelingParty'][number]['travelerType']> = ['employee'],
+  travelingParty: TravelerProfileScaffold['travelingParty'] = [{ id: 'employee', travelerType: 'employee' }]
+) {
+  return normalizeTravelerProfile({
+    travelerType: 'Employee',
+    travelingParty,
+    zedAgreements: airlineCodes.map((airlineCode) => ({
+      id: `zed-${airlineCode.toLowerCase()}`,
+      airlineCode,
+      airlineName: airlineCode,
+      agreementType: 'ZED' as const,
+      bookingPlatform: 'myIDTravel' as const,
+      eligibleTravelerTypes,
+      cabinAccess: ['economy'],
+      verificationStatus: 'employer_verified' as const,
+      verifiedAt: now.toISOString(),
+      active: true
+    }))
+  } as Partial<TravelerProfileScaffold>)
+}
+
+function scheduledItinerary(result: ReturnType<typeof runSearchPipeline>, flightNumber: string) {
+  return result.itineraries.find((itinerary) =>
+    itinerary.segments.some((segment) => segment.schedule.flightNumber === flightNumber)
+  )
+}
+
+function connectionCoverageAdapters(hubCodes: string[]): SearchPipelineAdapters {
+  const segments = hubCodes.length
+    ? [frameworkSegment('LAX', hubCodes[0]), frameworkSegment(hubCodes[0], 'HND')]
+    : [frameworkSegment('LAX', 'HND')]
+  return {
+    ...compositionAdapters(segments),
+    discoverGateways: () => hubCodes.map((code, index) => ({
+      ...gateway(code),
+      score: 95 - index,
+      onwardConnectivityScore: 95 - index,
+      zedCoverageScore: 90 - index
+    }))
+  }
+}
+
+function airportConnectionCoverageAdapters(origin: string, destination: string, hubCodes: string[]): SearchPipelineAdapters {
+  const segments = hubCodes.length
+    ? [frameworkSegment(origin, hubCodes[0]), frameworkSegment(hubCodes[0], destination)]
+    : [frameworkSegment(origin, destination)]
+  return {
+    ...compositionAdapters(segments),
+    discoverGateways: () => hubCodes.map((code, index) => ({
+      ...gateway(code),
+      score: 95 - index,
+      onwardConnectivityScore: 95 - index,
+      zedCoverageScore: 90 - index
+    }))
+  }
+}
+
+function multiConnectionAdapters(hubCodes: string[]): SearchPipelineAdapters {
+  return {
+    ...compositionAdapters(hubCodes.length
+      ? [frameworkSegment('LAX', hubCodes[0]), frameworkSegment(hubCodes[0], 'HND')]
+      : [frameworkSegment('LAX', 'HND')]),
+    assembleItineraries: () => hubCodes.map((hubCode, index) => ({
+      ...betaItineraryWithSegments([frameworkSegment('LAX', hubCode), frameworkSegment(hubCode, 'HND')]),
+      id: index === 0 ? 'composition-framework' : `composition-framework-${hubCode.toLowerCase()}`,
+      gateway: hubCode,
+      recommendationRank: index + 1,
+      shortSummary: `Plan A: composition fixture framework via ${hubCode}.`,
+      detailedSummary: `Route framework via ${hubCode} requires provider schedule validation.`
+    }))
+  }
+}
+
+function connectionExecutionProvider(
+  calls: string[][],
+  schedulesByPair: Record<string, SearchExecutionSegment[]>
+): SearchExecutionProvider {
+  return {
+    id: 'connection-test-provider',
+    name: 'Connection Test Provider',
+    readiness: { enabled: true, status: 'ready' },
+    capabilities: { schedules: true, routeSearch: true, loads: false },
+    search: async (request) => {
+      const pairs = (request.routeSegments || []).map((segment) => `${segment.origin}-${segment.destination}`)
+      calls.push(pairs)
+      return {
+        itineraries: pairs.flatMap((pair) => (schedulesByPair[pair] || []).map(executionItinerary)),
+        status: pairs.some((pair) => schedulesByPair[pair]?.length) ? 'success' : 'skipped',
+        diagnostics: {
+          recordsReceived: pairs.reduce((total, pair) => total + (schedulesByPair[pair]?.length || 0), 0),
+          recordsNormalized: pairs.reduce((total, pair) => total + (schedulesByPair[pair]?.length || 0), 0),
+          recordsMatched: pairs.reduce((total, pair) => total + (schedulesByPair[pair]?.length || 0), 0),
+          recordsUnmatched: 0,
+          requestCount: pairs.length,
+          cached: false,
+          retryUsed: false,
+          fetchedAt: now.toISOString()
+        }
+      }
+    }
+  }
+}
+
+function frameworkItinerary(result: ReturnType<typeof runSearchPipeline>) {
+  return result.itineraries.find((itinerary) => itinerary.id === 'composition-framework')
+}
+
+function frameworkSegment(origin: string, destination: string, carrier?: string): BetaItinerarySegment {
+  return {
+    id: `framework-${origin}-${destination}`.toLowerCase(),
+    origin,
+    destination,
+    mode: 'flight',
+    ...(carrier ? { carrier } : {}),
+    schedule: {
+      flightNumber: 'Unknown - not provided by route framework',
+      departureTime: 'Unknown - provider schedule validation required',
+      arrivalTime: 'Unknown - provider schedule validation required',
+      seatCount: 'Unknown - live load data not attached'
+    },
+    estimatedDuration: 'Unknown - provider schedule validation required',
+    notes: ['Flight number, departure time, arrival time, and live loads are not attached.']
+  }
+}
+
+function betaItineraryWithSegments(segments: BetaItinerarySegment[]): BetaItinerary {
+  return {
+    ...betaItineraryFixture(),
+    id: 'composition-framework',
+    origin: segments[0]?.origin || 'LAX',
+    gateway: segments.at(-1)?.destination || 'HND',
+    destination: segments.at(-1)?.destination || 'HND',
+    segments,
+    connectionCount: Math.max(0, segments.length - 1),
+    recommendationRank: 1,
+    recommendationLabel: 'Plan A',
+    shortSummary: 'Plan A: composition fixture framework.',
+    detailedSummary: 'Route framework requires provider schedule validation.',
+    travelTimeline: segments.map((segment, index) => ({
+      step: index + 1,
+      title: `${segment.origin} to ${segment.destination}`,
+      description: 'flight; exact schedule is unknown.',
+      scheduleStatus: 'Flight number, departure time, arrival time, and load data unknown.'
+    }))
+  }
+}
+
+function executionSegment(
+  origin: string,
+  destination: string,
+  flightNumber: string,
+  departureTime: string,
+  arrivalTime: string
+): SearchExecutionSegment {
+  const carrier = flightNumber.match(/^[A-Z]+/)?.[0] || 'AA'
+  return {
+    origin,
+    destination,
+    transportType: 'flight',
+    carrier,
+    airlineCode: carrier,
+    flightNumber,
+    departureTime,
+    arrivalTime,
+    scheduledDeparture: departureTime,
+    scheduledArrival: arrivalTime,
+    scheduledDepartureUtc: departureTime,
+    scheduledArrivalUtc: arrivalTime,
+    departureTimeZone: origin === 'HND' || origin === 'NRT' ? 'Asia/Tokyo' : 'America/Los_Angeles',
+    arrivalTimeZone: destination === 'HND' || destination === 'NRT' ? 'Asia/Tokyo' : 'America/Los_Angeles',
+    departureAirportTimeZone: origin === 'HND' || origin === 'NRT' ? 'Asia/Tokyo' : 'America/Los_Angeles',
+    arrivalAirportTimeZone: destination === 'HND' || destination === 'NRT' ? 'Asia/Tokyo' : 'America/Los_Angeles',
+    scheduleStatus: 'Provider schedule candidate',
+    providerId: 'test-provider',
+    providerRecordId: `${flightNumber}-${origin}-${destination}-${departureTime}`,
+    fetchedAt: now.toISOString(),
+    sourceConfidence: 'provider_reported',
+    providerSuppliedFields: ['flightNumber', 'scheduledDeparture', 'scheduledArrival']
+  }
+}
+
+function executionItinerary(segment: SearchExecutionSegment): SearchExecutionResult['itineraries'][number] {
+  return {
+    id: `provider-${segment.flightNumber}`,
+    dataQuality: 'high',
+    providerAttribution: [{
+      providerId: 'test-provider',
+      providerName: 'Test provider',
+      providerRecordIds: segment.providerRecordId ? [segment.providerRecordId] : [],
+      fetchedAt: segment.fetchedAt,
+      fields: segment.providerSuppliedFields
+    }],
+    segments: [segment],
+    warnings: []
+  }
+}
+
+function executionResult(itineraries: SearchExecutionResult['itineraries']): SearchExecutionResult {
+  return {
+    request: {
+      mission: normalizeSearchMission(compositionRequest()),
+      tripType: 'one_way',
+      travelerCount: 1,
+      travelerProfile: profile('Employee'),
+      routeSegments: []
+    },
+    itineraries,
+    providerRuns: [],
+    providerHealth: [],
+    warnings: [],
+    dataQuality: itineraries.length ? 'high' : 'low'
+  }
+}
 
 function europeRequest(): NaturalSearchObject {
   return {

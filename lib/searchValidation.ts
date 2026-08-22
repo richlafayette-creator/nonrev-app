@@ -12,6 +12,7 @@ export type SearchValidationResult =
 
 const tripTypes: SearchTripType[] = ['one_way', 'round_trip', 'open_jaw']
 const airportCodeBlocklist = new Set(['ZED'])
+const metroCodeBlocklist = new Set(['NYC', 'LON', 'PAR', 'TYO', 'WAS', 'CHI'])
 
 function objectValue(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {}
@@ -68,6 +69,8 @@ export function validateSearchRequest(body: unknown): SearchValidationResult {
   const destination = normalizedAirport(record.destination)
   if (!origin) issues.push({ field: 'origin', message: 'origin must be a valid three-letter airport code.' })
   if (!destination) issues.push({ field: 'destination', message: 'destination must be a valid three-letter airport code.' })
+  if (metroCodeBlocklist.has(origin)) issues.push({ field: 'origin', message: 'origin must resolve to a physical airport, not a metro code.' })
+  if (metroCodeBlocklist.has(destination)) issues.push({ field: 'destination', message: 'destination must resolve to a physical airport, not a metro code.' })
   if (origin && destination && origin === destination) issues.push({ field: 'destination', message: 'destination must differ from origin.' })
 
   const departureDate = strictDate(record.departureDate)

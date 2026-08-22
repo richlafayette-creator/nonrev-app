@@ -117,6 +117,21 @@ describe('beta search client', () => {
     assert.equal(built.originResolution?.type, 'metro')
   })
 
+  it('keeps metro codes out of physical API route segments', () => {
+    const built = buildBetaSearchRequest('NYC to CDG', profile(), { now })
+
+    assert.equal(built.ok, true)
+    if (!built.ok) return
+    const apiResult = executeSearchApi(built.request, { now })
+
+    assert.equal(apiResult.status, 200)
+    if (apiResult.status !== 200) return
+    assert.equal(JSON.stringify(apiResult.body).includes('NYC'), false)
+    assert.ok(apiResult.body.itineraries.every((itinerary) =>
+      itinerary.segments.every((segment) => segment.origin !== 'NYC' && segment.destination !== 'NYC')
+    ))
+  })
+
   it('constructs city-name searches such as San Luis Obispo to Rome', () => {
     const built = buildBetaSearchRequest('San Luis Obispo to Rome', profile(), { now })
 
@@ -332,6 +347,49 @@ describe('beta search client', () => {
     assert.ok(loadStoredBetaSearchResult(storage))
   })
 
+  it('clears stale storage before a fresh search and does not inherit the previous origin', async () => {
+    const storage = memoryStorage()
+    const requests: unknown[] = []
+    storage.setItem(betaSearchResultStorageKey, JSON.stringify({
+      version: 1,
+      prompt: 'NYC to CDG',
+      createdAt: '2026-08-22T00:00:00.000Z',
+      request: { origin: 'JFK', destination: 'CDG', departureDate: '2026-08-22', travelerCount: 1, tripMission: {}, travelerProfile: {}, preferences: { tripType: 'one_way' } },
+      destination: { mode: 'airport', label: 'CDG', preferredDestinations: [] },
+      positioningAirports: [],
+      result: completeSbpFcoResponse('stale-nyc-cdg', ['JFK', 'CDG'])
+    }))
+
+    const result = await runBetaSearchFromPrompt({
+      prompt: 'FCO to Maldives',
+      profile: profile(),
+      explicitDepartureDate: '2026-08-22',
+      storage,
+      now,
+      fetchImpl: async (_input, init) => {
+        requests.push(JSON.parse(String(init?.body || '{}')))
+        return {
+          ok: true,
+          status: 200,
+          json: async () => completeFcoMaldivesResponse()
+        }
+      }
+    })
+
+    assert.equal(result.ok, true)
+    if (!result.ok) return
+    assert.equal((requests[0] as { origin: string }).origin, 'FCO')
+    assert.equal((requests[0] as { destination: string }).destination, 'MLE')
+    assert.equal(result.storedResult.request.origin, 'FCO')
+    assert.equal(result.storedResult.request.destination, 'MLE')
+    assert.deepEqual(result.storedResult.result.itineraries[0].segments.map((segment) => `${segment.schedule.flightNumber} ${segment.origin}-${segment.destination}`), [
+      'NO610 FCO-MLE'
+    ])
+    const stored = loadStoredBetaSearchResult(storage)
+    assert.equal(stored?.prompt, 'FCO to Maldives')
+    assert.equal(JSON.stringify(stored).includes('CDG'), false)
+  })
+
   it('overwrites stale persisted results with a fresh complete composed itinerary response', async () => {
     const storage = memoryStorage()
     storage.setItem(betaSearchResultStorageKey, JSON.stringify({
@@ -544,6 +602,42 @@ function completeSbaHnlResponseWithoutRecommendations(): SearchApiSuccessRespons
       gateway: 'HNL',
       confidence: 65,
       summary: 'SBA to HNL live schedule option',
+      detailedSummary: 'Complete provider-backed fixture.',
+      segments,
+      timeline: [],
+      fallbacks: [],
+      requiredZedAirlines: [],
+      eligibleZedAirlines: [],
+      revenueAirlines: [],
+      providerAttribution: [{ provider: 'test-provider', recordCount: segments.length }],
+      weatherPlaceholder: 'Weather not evaluated yet.',
+      missingData: [],
+      unknownScheduleIndicators: [],
+      journeys: []
+    }]
+  } as SearchApiSuccessResponse
+}
+
+function completeFcoMaldivesResponse(): SearchApiSuccessResponse {
+  const segments = [
+    scheduledResponseSegment('fco-mle', 'NO610', 'NO', 'FCO', 'MLE', '2026-08-22T21:15:00.000Z', '2026-08-23T06:25:00.000Z')
+  ]
+  return {
+    ...emptySearchResponse(),
+    summary: 'Provider-composed FCO to MLE fixture',
+    dataQuality: 'medium',
+    segments,
+    recommendations: {
+      planA: { label: 'Plan A', rank: 1, status: 'viable', gateway: 'MLE', finalScore: 95, confidence: 83, estimatedSuccess: 93, summary: 'FCO to MLE live schedule option', warnings: [] },
+      ranked: [{ label: 'Plan A', rank: 1, status: 'viable', gateway: 'MLE', finalScore: 95, confidence: 83, estimatedSuccess: 93, summary: 'FCO to MLE live schedule option', warnings: [] }]
+    },
+    itineraries: [{
+      id: 'direct-fco-mle',
+      recommendationLabel: 'Plan A',
+      recommendationRank: 1,
+      gateway: 'MLE',
+      confidence: 83,
+      summary: 'FCO to MLE live schedule option',
       detailedSummary: 'Complete provider-backed fixture.',
       segments,
       timeline: [],

@@ -75,6 +75,41 @@ describe('beta search results view model', () => {
     assert.equal(segment.arrivalRequestDate, '2026-07-28')
   })
 
+  it('shows natural-language airport resolution assumptions in the subtitle', () => {
+    const stored = storedFixture({ ranked: ['Plan A'] })
+    stored.prompt = 'SBP to closest airport to Longview, WA'
+    stored.request.origin = 'SBP'
+    stored.request.destination = 'PDX'
+    stored.destination = {
+      mode: 'airport',
+      label: 'closest airport to Longview, WA',
+      preferredDestinations: [],
+      resolution: {
+        originalText: 'closest airport to Longview, WA',
+        normalizedText: 'CLOSEST AIRPORT TO LONGVIEW WA',
+        type: 'place',
+        confidence: 'medium',
+        explanation: 'Using nearby commercial airports for Longview, WA.',
+        candidates: [
+          { code: 'PDX', name: 'Portland International Airport', city: 'Portland', country: 'United States', latitude: 45.58869934, longitude: -122.5979996, distanceMiles: 41.4 },
+          { code: 'SEA', name: 'Seattle Tacoma International Airport', city: 'Seattle', country: 'United States', latitude: 47.449001, longitude: -122.308998, distanceMiles: 95.3 }
+        ]
+      }
+    }
+    stored.originResolution = {
+      originalText: 'SBP',
+      normalizedText: 'SBP',
+      type: 'airport',
+      confidence: 'high',
+      explanation: 'SBP is an exact IATA airport match.',
+      candidates: [{ code: 'SBP', name: 'San Luis County Regional Airport', city: 'San Luis Obispo', country: 'United States', latitude: 35.236801147499996, longitude: -120.641998291 }]
+    }
+
+    const model = buildSearchResultsViewModel(stored)
+
+    assert.match(model.subtitle, /Resolved Using PDX for Longview, WA; alternatives SEA\./)
+  })
+
   it('builds a direct whole-itinerary collapsed summary', () => {
     const stored = storedFixture({ ranked: ['Plan A'] })
     stored.request.origin = 'LAX'
@@ -175,7 +210,7 @@ describe('beta search results view model', () => {
     assert.equal(model.cards.length, 0)
     assert.equal(card.resultClass, 'partial')
     assert.equal(summary.flightSummary, 'Partial schedule')
-    assert.equal(summary.routeSummary, 'SBP–FCO · FRA–FCO verified')
+    assert.equal(summary.routeSummary, 'SBP–FCO · FRA–FCO partly verified')
     assert.equal(summary.timeSummary, 'Full itinerary time pending')
     assert.match(card.resultClassSummary, /SBP to FCO/i)
   })
@@ -204,7 +239,7 @@ describe('beta search results view model', () => {
     const identity = buildExpandedItineraryIdentity(card)
 
     assert.equal(identity.requestedJourneyLabel, 'SBP → FCO')
-    assert.equal(identity.scheduleState, 'Full itinerary schedule pending')
+    assert.equal(identity.scheduleState, 'Partial schedule: some legs verified')
     assert.equal(identity.verifiedSegmentLabel, 'Verified segment(s)')
     assert.deepEqual(identity.verifiedSegments.map((segment) => `${segment.flight} ${segment.route}`), ['AC9156 FRA → FCO'])
     assert.equal(identity.unverifiedSummary, 'SBP → ... → FRA schedule not yet attached.')
@@ -261,6 +296,31 @@ describe('beta search results view model', () => {
       'LH455 SFO-FCO'
     ])
     assert.equal(buildCompactItinerarySummary(card, 1).routeSummary, 'SBP–SFO–FCO')
+  })
+
+  it('does not describe framework-only routes as complete scheduled itineraries', () => {
+    const stored = storedFixture({ ranked: ['Plan A'] })
+    stored.request.origin = 'GEG'
+    stored.request.destination = 'NAP'
+    stored.destination = {
+      mode: 'airport',
+      label: 'NAP',
+      preferredDestinations: []
+    }
+    stored.result.itineraries = [itinerary('framework-geg-nap', 'Plan A', [
+      unscheduledSegment('geg-fra-framework', { origin: 'GEG', destination: 'FRA' }),
+      unscheduledSegment('fra-nap-framework', { origin: 'FRA', destination: 'NAP' })
+    ])]
+
+    const card = buildSearchResultsViewModel(stored).secondaryCards[0]
+    const identity = buildExpandedItineraryIdentity(card)
+    const summary = buildCompactItinerarySummary(card, 1)
+
+    assert.equal(card.resultClass, 'framework')
+    assert.equal(identity.scheduleState, 'Route framework only: schedules not verified')
+    assert.equal(identity.verifiedSegmentLabel, 'Route concept segment(s)')
+    assert.equal(summary.routeSummary, 'GEG–NAP · GEG–FRA–NAP framework')
+    assert.equal(JSON.stringify({ identity, card }).includes('Complete scheduled itinerary'), false)
   })
 
   it('labels unknown schedules honestly', () => {
@@ -641,6 +701,17 @@ function segment(id: string): SearchApiSuccessResponse['segments'][number] {
     },
     estimatedDuration: 'Unknown - provider schedule validation required',
     notes: ['Flight number, departure time, arrival time, and live loads are not attached.']
+  }
+}
+
+function unscheduledSegment(id: string, overrides: {
+  origin?: string
+  destination?: string
+} = {}): SearchApiSuccessResponse['segments'][number] {
+  return {
+    ...segment(id),
+    origin: overrides.origin || 'SBP',
+    destination: overrides.destination || 'FRA'
   }
 }
 

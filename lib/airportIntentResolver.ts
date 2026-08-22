@@ -221,8 +221,14 @@ function distanceMiles(a: { latitude: number; longitude: number }, b: { lat: num
   return 2 * radius * Math.asin(Math.sqrt(h))
 }
 
+function practicalPlaceAirport(candidate: AirportCandidate) {
+  if (gatewayCodePriority(candidate.code) !== undefined) return true
+  if (/international/i.test(candidate.name)) return true
+  return airportRelevanceScore(candidate) >= 50
+}
+
 function nearestAirports(place: CityData, limit = 5) {
-  return searchableAirports
+  const nearby = searchableAirports
     .map((airport) => ({ ...airport, distanceMiles: Math.round(distanceMiles(airport, { lat: place.lat, lng: place.lng }) * 10) / 10 }))
     .filter((airport) => airport.distanceMiles !== undefined && airport.distanceMiles <= 260)
     .sort((a, b) => {
@@ -230,7 +236,8 @@ function nearestAirports(place: CityData, limit = 5) {
       const bPracticality = airportRelevanceScore(b) - (b.distanceMiles || 0)
       return bPracticality - aPracticality || (a.distanceMiles || 0) - (b.distanceMiles || 0)
     })
-    .slice(0, limit)
+  const practical = nearby.filter(practicalPlaceAirport)
+  return (practical.length ? practical : nearby).slice(0, limit)
 }
 
 function withResolution(originalText: string, type: AirportResolutionType, candidates: AirportCandidate[], explanation: string, confidence: AirportIntentResolution['confidence'] = 'high'): AirportIntentResolution {

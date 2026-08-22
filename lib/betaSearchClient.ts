@@ -377,6 +377,8 @@ export async function runBetaSearchFromPrompt(input: {
     return { ok: false, state: 'offline-network-error', message: 'Network search is unavailable in this environment.' }
   }
 
+  input.storage?.removeItem?.(betaSearchResultStorageKey)
+
   let response: Awaited<ReturnType<FetchLike>>
   try {
     response = await fetchImpl('/api/search', {

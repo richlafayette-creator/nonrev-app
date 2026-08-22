@@ -408,14 +408,36 @@ function resolutionCodes(resolution: BetaSearchStoredResult['originResolution'] 
   return uniqueStrings((resolution?.candidates || []).map((candidate) => candidate.code).filter(Boolean))
 }
 
+function resolutionSummary(
+  role: 'origin' | 'destination',
+  selectedCode: string,
+  resolution: BetaSearchStoredResult['originResolution'] | BetaSearchStoredResult['destination']['resolution'] | undefined
+) {
+  if (!resolution) return ''
+  const codes = resolutionCodes(resolution)
+  if (!codes.length) return ''
+  const original = resolution.originalText || selectedCode
+  const exactAirport = resolution.type === 'airport' && codes.length === 1 && codes[0] === selectedCode && original.toUpperCase() === selectedCode
+  if (exactAirport) return ''
+  const selected = codes.includes(selectedCode) ? selectedCode : codes[0]
+  const alternatives = codes.filter((code) => code !== selected)
+  const suffix = alternatives.length ? `; alternatives ${alternatives.join(', ')}` : ''
+  if (resolution.type === 'place') {
+    const place = original.replace(/^closest\s+airport\s+to\s+/i, '').trim() || original
+    return `Using ${selected} for ${place}${suffix}`
+  }
+  if (resolution.type === 'metro' || resolution.type === 'city' || resolution.type === 'region') {
+    return `${role} ${original} -> ${codes.join(', ')}`
+  }
+  return `${role} ${original} -> ${selected}${suffix}`
+}
+
 function routeResolutionSubtitle(stored: BetaSearchStoredResult) {
-  const originCodes = resolutionCodes(stored.originResolution)
-  const destinationCodes = resolutionCodes(stored.destination.resolution)
   const parts = [
-    originCodes.length > 1 ? `origin airports ${originCodes.join(', ')}` : originCodes.length === 1 && originCodes[0] !== stored.request.origin ? `origin ${originCodes[0]}` : '',
-    destinationCodes.length > 1 ? `destination airports ${destinationCodes.join(', ')}` : destinationCodes.length === 1 && destinationCodes[0] !== stored.request.destination ? `destination ${destinationCodes[0]}` : ''
+    resolutionSummary('origin', stored.request.origin, stored.originResolution),
+    resolutionSummary('destination', stored.request.destination, stored.destination.resolution)
   ].filter(Boolean)
-  return parts.length ? ` Using ${parts.join('; ')}.` : ''
+  return parts.length ? ` Resolved ${parts.join('; ')}.` : ''
 }
 
 function segmentsForPlan(result: SearchApiSuccessResponse, label: SearchPlanCardViewModel['label']): SearchSegmentViewModel[] {
@@ -681,17 +703,28 @@ export function buildCompactItinerarySummary(card: SearchPlanCardViewModel, disp
 export function buildExpandedItineraryIdentity(card: SearchPlanCardViewModel): ExpandedItineraryIdentity {
   const requestedJourneyLabel = requestedJourney(card)
   const complete = hasCompleteEndpoints(card)
+  const scheduled = card.resultClass === 'scheduled' && complete
+  const scheduleState = scheduled
+    ? 'Complete scheduled itinerary'
+    : card.resultClass === 'partial'
+      ? 'Partial schedule: some legs verified'
+      : 'Route framework only: schedules not verified'
+  const verifiedSegmentLabel = scheduled
+    ? 'Flight segments'
+    : card.resultClass === 'partial'
+      ? 'Verified segment(s)'
+      : 'Route concept segment(s)'
   return {
     requestedJourneyLabel,
-    scheduleState: complete ? 'Complete scheduled itinerary' : 'Full itinerary schedule pending',
-    verifiedSegmentLabel: card.resultClass === 'scheduled' ? 'Flight segments' : 'Verified segment(s)',
+    scheduleState,
+    verifiedSegmentLabel,
     verifiedSegments: card.segments.map((segment) => ({
       key: segment.key,
       route: `${segment.origin} → ${segment.destination}`,
       flight: segment.flightNumber,
       time: `${segment.departureTime} → ${segment.arrivalTime}`
     })),
-    unverifiedSummary: complete ? '' : unverifiedJourneySummary(card)
+    unverifiedSummary: scheduled ? '' : unverifiedJourneySummary(card)
   }
 }
 
@@ -742,7 +775,7 @@ function compactRouteSummary(card: SearchPlanCardViewModel) {
   if (!first) return endpoints || 'Route pending'
   const airports = uniqueConsecutive([first.origin, ...card.segments.map((segment) => segment.destination)])
   const route = airports.join('–')
-  if (card.resultClass !== 'scheduled' && endpoints && route !== endpoints) return `${endpoints} · ${route} verified`
+  if (card.resultClass !== 'scheduled' && endpoints && route !== endpoints) return `${endpoints} · ${route} ${card.resultClass === 'partial' ? 'partly verified' : 'framework'}`
   return route || endpoints || 'Route pending'
 }
 

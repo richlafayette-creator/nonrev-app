@@ -121,6 +121,14 @@ describe('/api/search beta search API', () => {
     assert.ok(response.body.issues?.some((issue) => issue.field === 'origin'))
   })
 
+  it('returns 422 when a metro code is submitted as a physical origin airport', () => {
+    const response = executeSearchApi({ ...validBody(), origin: 'NYC' }, { now })
+
+    assert.equal(response.status, 422)
+    if (response.status === 200) return
+    assert.ok(response.body.issues?.some((issue) => issue.field === 'origin' && /physical airport/i.test(issue.message)))
+  })
+
   it('returns 422 for an invalid destination airport', () => {
     const response = executeSearchApi({ ...validBody(), destination: 'Tokyo' }, { now })
 

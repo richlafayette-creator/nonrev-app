@@ -307,7 +307,9 @@ function PlanCard({ card, displayRank }: { card: SearchPlanCardViewModel; displa
           {card.resultClass !== 'scheduled' ? (
             <header className="nonrevy-itinerary-card__segments-head">
               <span>{expandedIdentity.verifiedSegmentLabel}</span>
-              <p>These are the provider-backed legs currently attached to this route idea.</p>
+              <p>{card.resultClass === 'partial'
+                ? 'These are the provider-backed legs currently attached to this route idea.'
+                : 'These are route concept legs only; operating flights and schedules have not been verified.'}</p>
             </header>
           ) : null}
           {card.segments.map((segment) => <SegmentCard key={segment.key} segment={segment} />)}

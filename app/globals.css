@@ -8502,3 +8502,257 @@ button {
     font-size: 0.64rem !important;
   }
 }
+
+/* Global beta visual-system finish: AI assistant layout, clean blue theme */
+:root {
+  --nonrevy-primary-blue: #2563eb;
+  --nonrevy-primary-blue-dark: #1d4ed8;
+  --nonrevy-primary-blue-soft: #eaf1ff;
+  --nonrevy-accent-gradient: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  --nonrevy-radius-sm: 0.5rem;
+  --nonrevy-radius-md: 0.75rem;
+  --nonrevy-radius-lg: 1rem;
+  --nonrevy-space-1: 0.25rem;
+  --nonrevy-space-2: 0.5rem;
+  --nonrevy-space-3: 0.75rem;
+  --nonrevy-space-4: 1rem;
+  --nonrevy-space-5: 1.25rem;
+  --nonrevy-shadow-soft: 0 10px 28px rgba(15, 23, 42, 0.08);
+}
+
+body,
+body * {
+  letter-spacing: 0 !important;
+}
+
+.app-shell,
+.nonrevy-home,
+.nonrevy-results-page,
+.nonrevy-beta-feedback,
+.nonrevy-community-loads {
+  background: var(--nonrevy-bg) !important;
+  color: var(--nonrevy-text) !important;
+}
+
+html,
+body {
+  max-width: 100% !important;
+  overflow-x: clip !important;
+}
+
+main.app-shell,
+.nonrevy-results-page,
+.nonrevy-results-page__shell,
+.nonrevy-results-search,
+.nonrevy-results-page .nonrevy-itinerary-results-list,
+.nonrevy-itinerary-row,
+.nonrevy-itinerary-row__summary,
+.nonrevy-itinerary-row__expanded,
+.nonrevy-itinerary-row .nonrevy-itinerary-card__segments,
+.nonrevy-itinerary-row .nonrevy-itinerary-segment {
+  box-sizing: border-box !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+}
+
+.nonrevy-results-page,
+.nonrevy-results-page__shell,
+.nonrevy-itinerary-row,
+.nonrevy-itinerary-row__expanded {
+  overflow-x: clip !important;
+}
+
+.app-menu,
+.account-menu {
+  top: 1rem !important;
+  left: 1rem !important;
+  width: min(18rem, calc(100vw - 2rem)) !important;
+  border: 1px solid var(--nonrevy-border) !important;
+  border-radius: var(--nonrevy-radius-lg) !important;
+  background: rgba(255, 255, 255, 0.96) !important;
+  color: var(--nonrevy-text) !important;
+  box-shadow: var(--nonrevy-shadow-soft) !important;
+  backdrop-filter: blur(18px) !important;
+  -webkit-backdrop-filter: blur(18px) !important;
+}
+
+.app-menu__summary,
+.account-menu__summary {
+  min-height: 2.75rem !important;
+  border: 0 !important;
+  border-radius: calc(var(--nonrevy-radius-lg) - 2px) !important;
+  background: transparent !important;
+  color: var(--nonrevy-text) !important;
+  box-shadow: none !important;
+}
+
+.app-menu__icon {
+  width: 1.8rem !important;
+  height: 1.8rem !important;
+  border-radius: 999px !important;
+  background: var(--nonrevy-primary-blue-soft) !important;
+  color: var(--nonrevy-primary-blue-dark) !important;
+}
+
+.app-menu__brand,
+.account-menu__identity {
+  color: var(--nonrevy-text) !important;
+  font-weight: 900 !important;
+}
+
+.app-menu__drawer,
+.app-menu__links,
+.account-menu__links {
+  background: #ffffff !important;
+  color: var(--nonrevy-text) !important;
+}
+
+.app-menu__eyebrow,
+.app-menu__links a,
+.app-menu__account-actions a,
+.app-menu__account-actions button,
+.account-menu a,
+.account-menu button {
+  color: var(--nonrevy-text) !important;
+}
+
+.app-menu__links a,
+.app-menu__account-actions a,
+.app-menu__account-actions button,
+.account-menu a,
+.account-menu button {
+  border: 1px solid transparent !important;
+  border-radius: var(--nonrevy-radius-md) !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.app-menu__links a:hover,
+.app-menu__links a:focus-visible,
+.app-menu__account-actions a:hover,
+.app-menu__account-actions button:hover,
+.account-menu a:hover,
+.account-menu button:hover,
+.app-menu__links a[aria-current="page"] {
+  border-color: #c7d8ff !important;
+  background: var(--nonrevy-primary-blue-soft) !important;
+  color: var(--nonrevy-primary-blue-dark) !important;
+}
+
+button:not(.app-menu__summary):not(.account-menu__summary),
+.nonrevy-primary-action,
+.nonrevy-results-page a.nonrevy-primary-action--search,
+.nonrevy-itinerary-card__actions a {
+  border: 1px solid transparent !important;
+  border-radius: var(--nonrevy-radius-md) !important;
+  background: var(--nonrevy-accent-gradient) !important;
+  color: #ffffff !important;
+  box-shadow: 0 8px 18px rgba(37, 99, 235, 0.18) !important;
+}
+
+button:not(.app-menu__summary):not(.account-menu__summary):disabled {
+  background: #e5e7eb !important;
+  color: #6b7280 !important;
+  box-shadow: none !important;
+}
+
+input,
+textarea,
+select {
+  border: 1px solid var(--nonrevy-border) !important;
+  border-radius: var(--nonrevy-radius-md) !important;
+  background: #ffffff !important;
+  color: var(--nonrevy-text) !important;
+  box-shadow: none !important;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: #7b8797 !important;
+}
+
+main article,
+.mini-card,
+.flight-card,
+.filter-panel,
+.mapbox-card,
+.nonrevy-results-page__shell,
+.nonrevy-results-search,
+.nonrevy-production-empty,
+.nonrevy-itinerary-row,
+.nonrevy-itinerary-row__expanded,
+.nonrevy-itinerary-segment,
+.nonrevy-route-details,
+.nonrevy-route-details__signal-card {
+  border-color: var(--nonrevy-border) !important;
+  background: var(--nonrevy-surface) !important;
+  color: var(--nonrevy-text) !important;
+  box-shadow: var(--nonrevy-shadow-soft) !important;
+}
+
+.nonrevy-results-search h1,
+.nonrevy-home h1,
+.nonrevy-home h2,
+.nonrevy-itinerary-row__flight,
+.nonrevy-itinerary-row__flight strong,
+.nonrevy-itinerary-row__route,
+.nonrevy-itinerary-row__times,
+.nonrevy-itinerary-segment__flight strong,
+.nonrevy-itinerary-segment__endpoint strong,
+.nonrevy-route-details strong,
+.nonrevy-ranked-result-card__field strong {
+  color: var(--nonrevy-text) !important;
+}
+
+.nonrevy-itinerary-row__airline-code {
+  width: 1.9rem !important;
+  min-width: 1.9rem !important;
+  height: 1.9rem !important;
+  padding: 0 !important;
+  border-radius: 999px !important;
+  border-color: #c7d8ff !important;
+  background: #ffffff !important;
+  color: var(--nonrevy-primary-blue-dark) !important;
+  box-shadow: inset 0 0 0 0.25rem var(--nonrevy-primary-blue-soft) !important;
+  font-size: 0.7rem !important;
+}
+
+.nonrevy-itinerary-row__score {
+  border-color: #c7d8ff !important;
+  background: var(--nonrevy-primary-blue-soft) !important;
+  color: var(--nonrevy-primary-blue-dark) !important;
+}
+
+.nonrevy-itinerary-row__zed,
+.nonrevy-itinerary-row__load {
+  color: #475569 !important;
+}
+
+.nonrevy-home__hero {
+  width: min(100%, 56rem) !important;
+  margin-inline: auto !important;
+}
+
+.nonrevy-home__masthead {
+  max-width: 42rem !important;
+}
+
+@media (max-width: 760px) {
+  .app-menu,
+  .account-menu {
+    position: sticky !important;
+    top: 0.5rem !important;
+    left: auto !important;
+    width: auto !important;
+    margin: 0.5rem 0.75rem 0 !important;
+  }
+
+  .nonrevy-home__hero,
+  .nonrevy-results-page__shell {
+    padding-inline: 0.85rem !important;
+  }
+
+  .nonrevy-home__masthead {
+    margin-bottom: 0.75rem !important;
+  }
+}

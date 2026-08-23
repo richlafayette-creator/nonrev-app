@@ -227,6 +227,7 @@ function PlanCard({ card, displayRank }: { card: SearchPlanCardViewModel; displa
   const summary = buildCompactItinerarySummary(card, displayRank)
   const expandedIdentity = buildExpandedItineraryIdentity(card)
   const legSummary = visibleLegSummary(card)
+  const stopsSummary = compactStopsSummary(card, summary.stopsLabel)
 
   function handleSave() {
     const result = saveResultItinerary(card)
@@ -260,16 +261,22 @@ function PlanCard({ card, displayRank }: { card: SearchPlanCardViewModel; displa
     <details className={`nonrevy-itinerary-row nonrevy-itinerary-row--${card.resultClass}`} aria-labelledby={`${card.key}-heading`}>
       <summary className="nonrevy-itinerary-row__summary">
         <span className="nonrevy-itinerary-row__option">{summary.optionLabel}</span>
-        <span className="nonrevy-itinerary-row__flight">
-          <AirlineCodeBadge code={summary.airlineCode} name={summary.airlineName} />
-          <strong id={`${card.key}-heading`}>{summary.flightSummary}</strong>
+        <span className="nonrevy-itinerary-row__primary">
+          <span className="nonrevy-itinerary-row__flight">
+            <AirlineCodeBadge code={summary.airlineCode} name={summary.airlineName} />
+            <strong id={`${card.key}-heading`} title={summary.flightSummary}>{summary.flightSummary}</strong>
+          </span>
+          <span className="nonrevy-itinerary-row__route-time">
+            <span className="nonrevy-itinerary-row__route">{summary.routeSummary}</span>
+            <span className="nonrevy-itinerary-row__times">{summary.timeSummary}</span>
+          </span>
         </span>
-        <span className="nonrevy-itinerary-row__route">{summary.routeSummary}</span>
-        <span className="nonrevy-itinerary-row__times">{summary.timeSummary}</span>
-        <span className="nonrevy-itinerary-row__duration">{summary.durationLabel}</span>
-        <span className="nonrevy-itinerary-row__legs">{summary.stopsLabel}</span>
-        <span className={`nonrevy-itinerary-row__zed nonrevy-itinerary-row__zed--${card.zedEligibilityStatus}`}>{summary.zedLabel}</span>
-        <span className="nonrevy-itinerary-row__load">{summary.loadLabel}</span>
+        <span className="nonrevy-itinerary-row__meta" aria-label={`${summary.durationLabel}, ${stopsSummary}, ${summary.zedLabel}, ${summary.loadLabel}`}>
+          <span className="nonrevy-itinerary-row__duration">{summary.durationLabel}</span>
+          <span className="nonrevy-itinerary-row__legs">{stopsSummary}</span>
+          <span className={`nonrevy-itinerary-row__zed nonrevy-itinerary-row__zed--${card.zedEligibilityStatus}`}>{summary.zedLabel}</span>
+          <span className="nonrevy-itinerary-row__load">{summary.loadLabel}</span>
+        </span>
         <span className="nonrevy-itinerary-row__score" aria-label={`Score ${card.finalScore} out of 100`}>{card.finalScore}</span>
         {legSummary ? <span className="nonrevy-itinerary-row__leg-summary">{legSummary}</span> : null}
       </summary>
@@ -377,6 +384,12 @@ function visibleLegSummary(card: SearchPlanCardViewModel) {
   return card.segments
     .map((segment) => `${segment.flightNumber}: ${segment.origin} -> ${segment.destination}`)
     .join(' · ')
+}
+
+function compactStopsSummary(card: SearchPlanCardViewModel, stopsLabel: string) {
+  if (card.resultClass !== 'scheduled' || card.segments.length <= 1) return stopsLabel
+  const viaAirports = card.segments.slice(0, -1).map((segment) => segment.destination).filter(Boolean)
+  return viaAirports.length ? `${stopsLabel} via ${viaAirports.join('/')}` : stopsLabel
 }
 
 function AirlineCodeBadge({ code, name }: { code: string; name: string }) {

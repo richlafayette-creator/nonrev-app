@@ -75,7 +75,7 @@ describe('private beta visual system tokens', () => {
   })
 
   it('preserves compact result rows with dark flight text', () => {
-    assert.match(css, /\.nonrevy-itinerary-row__summary\s*{[^}]*min-height:\s*3\.05rem/i)
+    assert.match(css, /\.nonrevy-itinerary-row__summary\s*{[\s\S]*grid-template-areas:\s*[\s\S]*"option primary score"/i)
     assert.match(css, /\.nonrevy-itinerary-row__flight[\s\S]*color:\s*var\(--nonrevy-text\)/i)
     assert.match(css, /\.nonrevy-itinerary-row__route,[\s\S]*color:\s*#1f2937/i)
   })
@@ -85,8 +85,9 @@ describe('private beta visual system tokens', () => {
     assert.match(css, /\.nonrevy-itinerary-row__airline-code\s*{[\s\S]*border-radius:\s*999px/i)
   })
 
-  it('contains mobile result rows without horizontal overflow', () => {
-    assert.match(css, /html,\s*body\s*{[\s\S]*overflow-x:\s*clip/i)
-    assert.match(css, /\.nonrevy-results-page__shell,[\s\S]*\.nonrevy-itinerary-row__expanded\s*{[\s\S]*overflow-x:\s*clip/i)
+  it('contains mobile result rows through shrinkable layout rules', () => {
+    assert.match(css, /\.nonrevy-itinerary-row__primary\s*{[\s\S]*grid-template-columns:\s*minmax\(0,\s*1\.05fr\)\s*minmax\(0,\s*1\.45fr\)/i)
+    assert.match(css, /@media \(max-width: 760px\)[\s\S]*\.nonrevy-itinerary-row__summary\s*{[\s\S]*grid-template-columns:\s*minmax\(0,\s*1fr\)\s*auto/i)
+    assert.match(css, /\.nonrevy-itinerary-row__meta\s*{[\s\S]*flex-wrap:\s*wrap/i)
   })
 })

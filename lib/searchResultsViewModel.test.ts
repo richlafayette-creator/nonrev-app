@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 // @ts-expect-error Node's experimental TypeScript test runner resolves the .ts extension directly.
-import { buildCompactItinerarySummary, buildExpandedItineraryIdentity, buildSearchResultsViewModel } from '../app/results/searchResultsViewModel.ts'
+import { buildCompactItinerarySummary, buildExpandedItineraryIdentity, buildSearchResultsViewModel, layoverLabelBetweenSegments } from '../app/results/searchResultsViewModel.ts'
 // @ts-expect-error Node's experimental TypeScript test runner resolves the .ts extension directly.
 import { type BetaSearchStoredResult } from './betaSearchClient.ts'
 // @ts-expect-error Node's experimental TypeScript test runner resolves the .ts extension directly.
@@ -322,6 +322,86 @@ describe('beta search results view model', () => {
       'LH455 SFO-FCO'
     ])
     assert.equal(buildCompactItinerarySummary(card, 1).routeSummary, 'SBP–SFO–FCO')
+  })
+
+  it('calculates positive same-airport layovers from absolute timestamps', () => {
+    const stored = storedFixture({ ranked: ['Plan A'] })
+    stored.request.origin = 'SBA'
+    stored.request.destination = 'HNL'
+    stored.destination = { mode: 'airport', label: 'HNL', preferredDestinations: [] }
+    stored.result.itineraries = [itinerary('sba-hnl-layover', 'Plan A', [
+      scheduledSegment('sba-den-layover', 'UA2865', {
+        carrier: 'UA',
+        origin: 'SBA',
+        destination: 'DEN',
+        departureTime: '2026-08-22T12:00:00.000Z',
+        arrivalTime: '2026-08-22T15:30:00.000Z',
+        departureTimeZone: 'America/Los_Angeles',
+        arrivalTimeZone: 'America/Denver',
+        estimatedDuration: '2h 30m'
+      }),
+      scheduledSegment('den-hnl-layover', 'UA384', {
+        carrier: 'UA',
+        origin: 'DEN',
+        destination: 'HNL',
+        departureTime: '2026-08-22T19:00:00.000Z',
+        arrivalTime: '2026-08-23T01:16:00.000Z',
+        departureTimeZone: 'America/Denver',
+        arrivalTimeZone: 'Pacific/Honolulu',
+        estimatedDuration: '7h 16m'
+      })
+    ])]
+
+    const card = buildSearchResultsViewModel(stored).cards[0]
+
+    assert.equal(layoverLabelBetweenSegments(card.segments[0], card.segments[1]), '3h30 layover in DEN')
+    assert.deepEqual(card.segments.map((segment) => `${segment.flightNumber} ${segment.origin}-${segment.destination}`), [
+      'UA2865 SBA-DEN',
+      'UA384 DEN-HNL'
+    ])
+  })
+
+  it('handles overnight layovers and suppresses impossible or airport-transfer layovers', () => {
+    const first = scheduledSegment('lax-sfo-overnight', 'UA100', {
+      carrier: 'UA',
+      origin: 'LAX',
+      destination: 'SFO',
+      departureTime: '2026-08-22T20:00:00.000Z',
+      arrivalTime: '2026-08-22T23:00:00.000Z',
+      departureTimeZone: 'America/Los_Angeles',
+      arrivalTimeZone: 'America/Los_Angeles'
+    })
+    const second = scheduledSegment('sfo-fco-overnight', 'UA507', {
+      carrier: 'UA',
+      origin: 'SFO',
+      destination: 'FCO',
+      departureTime: '2026-08-23T01:30:00.000Z',
+      arrivalTime: '2026-08-23T14:30:00.000Z',
+      departureTimeZone: 'America/Los_Angeles',
+      arrivalTimeZone: 'Europe/Rome'
+    })
+    const backwards = scheduledSegment('sfo-fco-backwards', 'UA507', {
+      carrier: 'UA',
+      origin: 'SFO',
+      destination: 'FCO',
+      departureTime: '2026-08-22T22:30:00.000Z',
+      arrivalTime: '2026-08-23T14:30:00.000Z'
+    })
+    const airportTransfer = scheduledSegment('sjc-fco-transfer', 'UA507', {
+      carrier: 'UA',
+      origin: 'SJC',
+      destination: 'FCO',
+      departureTime: '2026-08-23T01:30:00.000Z',
+      arrivalTime: '2026-08-23T14:30:00.000Z'
+    })
+    const firstSegment = buildSearchResultsViewModel(storedWithSegments([first, second])).cards[0].segments[0]
+    const secondSegment = buildSearchResultsViewModel(storedWithSegments([first, second])).cards[0].segments[1]
+    const backwardsSegment = buildSearchResultsViewModel(storedWithSegments([first, backwards])).cards[0].segments[1]
+    const transferSegment = buildSearchResultsViewModel(storedWithSegments([first, airportTransfer])).cards[0].segments[1]
+
+    assert.equal(layoverLabelBetweenSegments(firstSegment, secondSegment), '2h30 layover in SFO')
+    assert.equal(layoverLabelBetweenSegments(firstSegment, backwardsSegment), '')
+    assert.equal(layoverLabelBetweenSegments(firstSegment, transferSegment), '')
   })
 
   it('does not describe framework-only routes as complete scheduled itineraries', () => {
@@ -772,6 +852,21 @@ function scheduledSegment(id: string, flightNumber: string, overrides: {
     estimatedDuration: overrides.estimatedDuration || '15h 30m',
     notes: ['Schedule data: test provider']
   }
+}
+
+function storedWithSegments(segments: SearchApiSuccessResponse['segments']) {
+  const stored = storedFixture({ ranked: ['Plan A'] })
+  const first = segments[0]
+  const last = segments[segments.length - 1] || first
+  stored.request.origin = first?.origin || 'LAX'
+  stored.request.destination = last?.destination || 'HND'
+  stored.destination = {
+    mode: 'airport',
+    label: stored.request.destination,
+    preferredDestinations: []
+  }
+  stored.result.itineraries = [itinerary('layover-fixture', 'Plan A', segments)]
+  return stored
 }
 
 function itinerary(

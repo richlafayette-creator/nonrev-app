@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import {
   loadStoredBetaSearchResult,
   readTravelerProfileFromStorage,
@@ -15,7 +15,7 @@ import {
   scheduledResultActionAvailability,
   watchResultItinerary
 } from '../../lib/resultWorkflowActions'
-import { buildCompactItinerarySummary, buildExpandedItineraryIdentity, buildSearchResultsViewModel, type SearchPlanCardViewModel, type SearchSegmentViewModel } from './searchResultsViewModel'
+import { buildCompactItinerarySummary, buildExpandedItineraryIdentity, buildSearchResultsViewModel, layoverLabelBetweenSegments, type SearchPlanCardViewModel, type SearchSegmentViewModel } from './searchResultsViewModel'
 
 type ResultsState =
   | { status: 'loading' }
@@ -283,15 +283,23 @@ function PlanCard({ card, displayRank }: { card: SearchPlanCardViewModel; displa
 
       <div className="nonrevy-itinerary-row__expanded">
         <header className="nonrevy-itinerary-row__expanded-head">
-          <div>
-            <p className="nonrevy-production-empty__eyebrow">{summary.optionLabel} · {card.resultClassLabel}</p>
-            <h2>{expandedIdentity.requestedJourneyLabel}</h2>
-            <p className={`nonrevy-itinerary-card__zed nonrevy-itinerary-card__zed--${card.zedEligibilityStatus}`}>
-              {card.zedEligibilityLabel}
-              {card.zedEligibilityAction ? <> · <Link href="/profile">{card.zedEligibilityAction}</Link></> : null}
-            </p>
-            {card.resultClass !== 'scheduled' ? <p className="nonrevy-itinerary-card__classification">{card.resultClassSummary}</p> : null}
+          <div className="nonrevy-itinerary-row__expanded-title">
+            {summary.optionLabel === 'Best option' ? <span className="nonrevy-itinerary-row__expanded-badge">Best option</span> : null}
+            <AirlineCodeBadge code={summary.airlineCode} name={summary.airlineName} />
+            <h2 title={summary.flightSummary}>{summary.flightSummary}</h2>
           </div>
+          <div className="nonrevy-itinerary-row__expanded-meta" aria-label={`${expandedIdentity.requestedJourneyLabel}, ${summary.durationLabel}, ${stopsSummary}, score ${card.finalScore}`}>
+            <span>{expandedIdentity.requestedJourneyLabel}</span>
+            <span>{summary.durationLabel}</span>
+            <span>{stopsSummary}</span>
+            <strong aria-label={`Score ${card.finalScore} out of 100`}>{card.finalScore}</strong>
+            <span className={`nonrevy-itinerary-card__zed nonrevy-itinerary-card__zed--${card.zedEligibilityStatus}`}>
+              {expandedZedLabel(card)}
+              {card.zedEligibilityAction ? <> · <Link href="/profile">{card.zedEligibilityAction}</Link></> : null}
+            </span>
+            <span>{summary.loadLabel}</span>
+          </div>
+          {card.resultClass !== 'scheduled' ? <p className="nonrevy-itinerary-card__classification">{card.resultClassSummary}</p> : null}
         </header>
 
         {card.resultClass !== 'scheduled' ? (
@@ -319,7 +327,12 @@ function PlanCard({ card, displayRank }: { card: SearchPlanCardViewModel; displa
                 : 'These are route concept legs only; operating flights and schedules have not been verified.'}</p>
             </header>
           ) : null}
-          {card.segments.map((segment) => <SegmentCard key={segment.key} segment={segment} />)}
+          {card.segments.map((segment, index) => (
+            <Fragment key={segment.key}>
+              {index > 0 ? <Layover previous={card.segments[index - 1]} next={segment} /> : null}
+              <SegmentCard segment={segment} />
+            </Fragment>
+          ))}
         </section>
 
         {availability.canSave || availability.canWatch || availability.canRequestLoad ? (
@@ -343,28 +356,18 @@ function PlanCard({ card, displayRank }: { card: SearchPlanCardViewModel; displa
         <summary>Why this ranking?</summary>
 
         <dl className="nonrevy-route-details__snapshot">
-          <div className="nonrevy-ranked-result-card__field"><span>Gateway</span><strong>{card.gateway}</strong></div>
-          <div className="nonrevy-ranked-result-card__field"><span>Destination</span><strong>{card.destinationLabel}</strong></div>
-          <div className="nonrevy-ranked-result-card__field"><span>Final score</span><strong>{card.finalScore}/100</strong></div>
+          <div className="nonrevy-ranked-result-card__field"><span>Score</span><strong>{card.finalScore}/100</strong></div>
           <div className="nonrevy-ranked-result-card__field"><span>Confidence</span><strong>{card.confidence}/100</strong></div>
-          <div className="nonrevy-ranked-result-card__field"><span>Planning success score</span><strong>{card.planningSuccessScore}/100</strong></div>
-          <div className="nonrevy-ranked-result-card__field"><span>ZED</span><strong>{card.zedEligibilityLabel}</strong></div>
+          <div className="nonrevy-ranked-result-card__field"><span>Data quality</span><strong>{card.dataQualityLevel}</strong></div>
+          <div className="nonrevy-ranked-result-card__field"><span>ZED</span><strong>{expandedZedLabel(card)}</strong></div>
         </dl>
 
         <div className="nonrevy-route-details__grid">
-          <section className="nonrevy-route-details__signal-card">
-            <span>Planning context</span>
-            <strong>{card.shortSummary}</strong>
-            <small>{card.destinationContext}</small>
-            <small>{card.planningScoreNote}</small>
-            <small><strong>Eligible ZED airlines:</strong> {card.eligibleZedAirlinesLabel}{card.zedEligibilityAction ? <> · <Link href="/profile">{card.zedEligibilityAction}</Link></> : null}</small>
-          </section>
-          <CompactList title="Strengths" items={card.strengths} empty="No strengths were returned." />
-          <CompactList title="Weaknesses" items={card.weaknesses} empty="No weaknesses were returned." />
-          <CompactList title="Risks" items={card.risks} empty="No risks were returned." />
-          <CompactList title="Switch conditions" items={card.switchConditions} empty="No switch conditions were returned." />
-          <CompactList title="Fallbacks" items={card.fallbacks} empty="No fallbacks were returned." />
-          <CompactList title="Data warnings" items={card.dataWarnings} empty="No data warnings were returned." />
+          <RankingContext card={card} />
+          <CompactList title="Strengths" items={card.strengths} />
+          <CompactList title="Risks" items={uniqueDisplayItems([...card.weaknesses, ...card.risks, ...card.switchConditions])} />
+          <CompactList title="Data quality" items={card.dataWarnings} />
+          <CompactList title="Fallbacks" items={card.fallbacks} />
         </div>
 
         <details className="nonrevy-results-page__below">
@@ -377,6 +380,15 @@ function PlanCard({ card, displayRank }: { card: SearchPlanCardViewModel; displa
       </div>
     </details>
   )
+}
+
+function expandedZedLabel(card: SearchPlanCardViewModel) {
+  if (card.zedEligibilityStatus === 'unknown') return 'ZED eligibility not confirmed'
+  return card.zedEligibilityLabel
+}
+
+function uniqueDisplayItems(items: string[]) {
+  return [...new Set(items.map((item) => item.trim()).filter(Boolean))]
 }
 
 function visibleLegSummary(card: SearchPlanCardViewModel) {
@@ -407,12 +419,15 @@ function AirlineCodeBadge({ code, name }: { code: string; name: string }) {
 }
 
 function SegmentCard({ segment }: { segment: SearchSegmentViewModel }) {
-  const footnote = segmentFootnote(segment)
+  const scheduleWarning = segment.scheduleStatus === 'Schedule not yet verified' ? segment.scheduleStatus : ''
   return (
     <div className="nonrevy-itinerary-segment" role="group" aria-label={`${segment.origin} to ${segment.destination}`}>
-      <div className="nonrevy-itinerary-segment__flight">
-        <span>{segment.airlineName}</span>
-        <strong>{segment.flightNumber}</strong>
+      <div className="nonrevy-itinerary-segment__carrier">
+        <AirlineCodeBadge code={segment.airlineCode} name={segment.airlineName} />
+        <div>
+          <strong>{segment.flightNumber}</strong>
+          <span>{segment.airlineName}</span>
+        </div>
       </div>
 
       <div className="nonrevy-itinerary-segment__timeline">
@@ -431,12 +446,20 @@ function SegmentCard({ segment }: { segment: SearchSegmentViewModel }) {
         </div>
       </div>
 
-      <div className="nonrevy-itinerary-segment__status">
+      <div className="nonrevy-itinerary-segment__meta">
+        {segment.estimatedDuration ? <span>{segment.estimatedDuration}</span> : null}
+        {scheduleWarning ? <span>{scheduleWarning}</span> : null}
         <span>{segment.loadStatus}</span>
-        {footnote ? <small>{footnote}</small> : null}
+        {segmentFootnote(segment) ? <span>{segmentFootnote(segment)}</span> : null}
       </div>
     </div>
   )
+}
+
+function Layover({ previous, next }: { previous: SearchSegmentViewModel; next: SearchSegmentViewModel }) {
+  const label = layoverLabelBetweenSegments(previous, next)
+  if (!label) return null
+  return <div className="nonrevy-itinerary-layover">{label}</div>
 }
 
 function itineraryMetaChips(card: SearchPlanCardViewModel) {
@@ -453,15 +476,26 @@ function segmentFootnote(segment: SearchSegmentViewModel) {
   return /^flight$/i.test(segment.transportType.trim()) ? '' : segment.transportType
 }
 
-function CompactList({ title, items, empty }: { title: string; items: string[]; empty: string }) {
+function RankingContext({ card }: { card: SearchPlanCardViewModel }) {
+  const details = uniqueDisplayItems([
+    card.shortSummary,
+    card.planningScoreNote,
+    card.zedEligibilityAction ? `ZED: ${expandedZedLabel(card)}` : '',
+    card.eligibleZedAirlinesLabel && card.eligibleZedAirlinesLabel !== 'None carrier-confirmed' ? `Eligible ZED airlines: ${card.eligibleZedAirlinesLabel}` : ''
+  ])
+  if (!details.length) return null
+  return <CompactList title="Score" items={details} />
+}
+
+function CompactList({ title, items }: { title: string; items: string[] }) {
+  const displayItems = uniqueDisplayItems(items)
+  if (!displayItems.length) return null
   return (
     <section className="nonrevy-route-details__signal-card">
       <span>{title}</span>
-      {items.length ? (
-        <ul>
-          {items.map((item) => <li key={item}>{item}</li>)}
-        </ul>
-      ) : <p>{empty}</p>}
+      <ul>
+        {displayItems.map((item) => <li key={item}>{item}</li>)}
+      </ul>
     </section>
   )
 }

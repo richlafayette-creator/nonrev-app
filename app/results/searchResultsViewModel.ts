@@ -731,6 +731,15 @@ export function buildExpandedItineraryIdentity(card: SearchPlanCardViewModel): E
   }
 }
 
+export function layoverLabelBetweenSegments(previous: SearchSegmentViewModel, next: SearchSegmentViewModel) {
+  if (!previous.scheduledArrivalUtc || !next.scheduledDepartureUtc) return ''
+  if (previous.destination.toUpperCase() !== next.origin.toUpperCase()) return ''
+  const arrival = Date.parse(previous.scheduledArrivalUtc)
+  const departure = Date.parse(next.scheduledDepartureUtc)
+  if (!Number.isFinite(arrival) || !Number.isFinite(departure) || departure <= arrival) return ''
+  return `${formatDurationMinutes(Math.round((departure - arrival) / 60000))} layover in ${next.origin}`
+}
+
 function requestedJourney(card: SearchPlanCardViewModel) {
   const destination = card.searchDestination || card.destinationLabel
   return card.searchOrigin && destination ? `${card.searchOrigin} → ${destination}` : card.label

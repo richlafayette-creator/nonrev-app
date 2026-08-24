@@ -198,6 +198,36 @@ function cityLookup(text: string) {
   return cityOnly ? lookupViaCity(cityOnly) : []
 }
 
+function cityQualifierParts(text: string) {
+  const normalized = text.replace(/\s+/g, ' ').trim()
+  const commaParts = normalized.split(',').map((part) => part.trim()).filter(Boolean)
+  if (commaParts.length >= 2) return { city: commaParts[0], qualifier: commaParts.slice(1).join(' ') }
+
+  const words = normalized.split(' ').filter(Boolean)
+  if (words.length < 2) return undefined
+  const countryKeys = new Set([...Object.keys(countryGatewayMap), ...airportsByCountry.keys()])
+  for (let size = Math.min(3, words.length - 1); size >= 1; size -= 1) {
+    const qualifier = words.slice(-size).join(' ')
+    if (countryKeys.has(compactKey(qualifier))) {
+      return { city: words.slice(0, -size).join(' '), qualifier }
+    }
+  }
+  return undefined
+}
+
+function cityWithQualifierCandidates(text: string) {
+  const parts = cityQualifierParts(text)
+  if (!parts?.city || !parts.qualifier) return []
+  const qualifierKey = compactKey(parts.qualifier)
+  const cityMatches = cityCandidates(parts.city)
+  const countryMatches = cityMatches.filter((candidate) => compactKey(candidate.country) === qualifierKey)
+  if (countryMatches.length) return uniqueCandidates(countryMatches)
+
+  const place = bestPlaceMatch(text)
+  if (!place) return []
+  return nearestAirports(place, 5)
+}
+
 function stateHint(text: string) {
   return text.match(/,\s*([A-Za-z]{2})\b/)?.[1]?.toUpperCase() || text.match(/\b([A-Za-z]{2})$/)?.[1]?.toUpperCase()
 }
@@ -283,6 +313,11 @@ export function resolveAirportIntent(text: string): AirportIntentResolution {
 
   const country = countryCandidates(cleaned)
   if (country.length) return withResolution(originalText, 'country', country, `${cleaned} resolves to country gateway airports.`, country.length === 1 ? 'high' : 'medium')
+
+  const cityWithQualifier = cityWithQualifierCandidates(cleaned)
+  if (cityWithQualifier.length) {
+    return withResolution(originalText, 'city', cityWithQualifier, `${cleaned} resolves by city and country or region.`, cityWithQualifier.length === 1 ? 'high' : 'medium')
+  }
 
   const city = cityCandidates(cleaned)
   if (city.length) return withResolution(originalText, 'city', city, `${cleaned} resolves by airport city name.`, city.length === 1 ? 'high' : 'medium')

@@ -27,6 +27,19 @@ describe('airport intent resolver', () => {
     assert.deepEqual(resolved?.destination.candidates.map((airport) => airport.code), ['FCO', 'CIA'])
   })
 
+  it('resolves city and country punctuation to unambiguous airport candidates', () => {
+    const bari = resolveRouteIntent('SBP to Bari, Italy')
+    const naples = resolveRouteIntent('SBP to Naples, Italy')
+    const osaka = resolveRouteIntent('LAX to Osaka, Japan')
+    const portland = resolveRouteIntent('LAX to Portland, Oregon')
+
+    assert.equal(bari?.destination.type, 'city')
+    assert.equal(bari?.destination.candidates[0]?.code, 'BRI')
+    assert.equal(naples?.destination.candidates[0]?.code, 'NAP')
+    assert.ok(osaka?.destination.candidates.some((airport) => ['KIX', 'ITM'].includes(airport.code)))
+    assert.equal(portland?.destination.candidates[0]?.code, 'PDX')
+  })
+
   it('resolves country and island destination names to gateway airports', () => {
     const resolved = resolveRouteIntent('FCO to Maldives')
 

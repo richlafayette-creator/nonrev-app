@@ -275,7 +275,6 @@ export default function ConversationalTripWorkspace({ initialPrompt = '' }: { in
       }
 
       setSearchState(result.state)
-      setError(result.message)
       addAssistantMessageOnce(result.message)
     } finally {
       setLoading(false)
@@ -409,16 +408,19 @@ export default function ConversationalTripWorkspace({ initialPrompt = '' }: { in
         </div>
 
         <form className="nonrevy-conversation__composer" onSubmit={onSubmit}>
-          <label htmlFor="conversation-trip-prompt">Trip request</label>
+          <label className="nonrevy-conversation__composer-label" htmlFor="conversation-trip-prompt">Trip request</label>
           <div>
             <textarea
               id="conversation-trip-prompt"
               value={prompt}
               onChange={(event) => setPrompt(event.target.value)}
-              placeholder="Ask for a trip, then refine it: avoid SFO, one-stop only, earliest arrival..."
-              rows={2}
+              placeholder="Where do you need to go?"
+              rows={1}
             />
-            <button type="submit" disabled={loading}>{loading ? 'Searching' : 'Send'}</button>
+            <button type="submit" disabled={loading}>
+              <span>{loading ? 'Searching' : 'Send'}</span>
+              <SendIcon />
+            </button>
           </div>
         </form>
       </section>
@@ -477,6 +479,15 @@ export default function ConversationalTripWorkspace({ initialPrompt = '' }: { in
         </button>
       ) : null}
     </main>
+  )
+}
+
+function SendIcon() {
+  return (
+    <svg aria-hidden="true" focusable="false" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M22 2 11 13" />
+      <path d="m22 2-7 20-4-9-9-4z" />
+    </svg>
   )
 }
 

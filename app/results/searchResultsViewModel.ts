@@ -426,7 +426,10 @@ function resolutionSummary(
     const place = original.replace(/^closest\s+airport\s+to\s+/i, '').trim() || original
     return `Using ${selected} for ${place}${suffix}`
   }
-  if (resolution.type === 'metro' || resolution.type === 'city' || resolution.type === 'region') {
+  if (resolution.type === 'city') {
+    return `Using ${selected} for ${original}${suffix}`
+  }
+  if (resolution.type === 'metro' || resolution.type === 'region') {
     return `${role} ${original} -> ${codes.join(', ')}`
   }
   return `${role} ${original} -> ${selected}${suffix}`

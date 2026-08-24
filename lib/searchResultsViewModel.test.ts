@@ -110,6 +110,32 @@ describe('beta search results view model', () => {
     assert.match(model.subtitle, /Resolved Using PDX for Longview, WA; alternatives SEA\./)
   })
 
+  it('shows city-country destination assumptions in the result summary', () => {
+    const stored = storedFixture({ ranked: ['Plan A'] })
+    stored.prompt = 'SBP to Bari, Italy'
+    stored.request.origin = 'SBP'
+    stored.request.destination = 'BRI'
+    stored.destination = {
+      mode: 'airport',
+      label: 'Bari, Italy',
+      preferredDestinations: [],
+      resolution: {
+        originalText: 'Bari, Italy',
+        normalizedText: 'BARI ITALY',
+        type: 'city',
+        confidence: 'high',
+        explanation: 'Bari Italy resolves by city and country or region.',
+        candidates: [
+          { code: 'BRI', name: 'Bari Karol Wojtyla Airport', city: 'Bari', country: 'Italy', latitude: 41.138901, longitude: 16.760599 }
+        ]
+      }
+    }
+
+    const model = buildSearchResultsViewModel(stored)
+
+    assert.match(model.subtitle, /Resolved Using BRI for Bari, Italy\./)
+  })
+
   it('builds a direct whole-itinerary collapsed summary', () => {
     const stored = storedFixture({ ranked: ['Plan A'] })
     stored.request.origin = 'LAX'

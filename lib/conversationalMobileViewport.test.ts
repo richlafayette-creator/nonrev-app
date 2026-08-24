@@ -32,10 +32,29 @@ describe('conversational mobile viewport CSS', () => {
     assert.match(css, /\.nonrevy-itinerary-card\s*\{[\s\S]*max-width:\s*100%/)
   })
 
-  it('reserves safe-area spacing for the sticky composer without covering content', () => {
-    assert.match(css, /\.nonrevy-conversation\s*\{[\s\S]*padding:[\s\S]*calc\(148px \+ env\(safe-area-inset-bottom\)\)/)
-    assert.match(css, /\.nonrevy-conversation__composer\s*\{[\s\S]*bottom:\s*max\(12px,\s*env\(safe-area-inset-bottom\)\)/)
-    assert.match(css, /\.nonrevy-conversation__messages\s*\{[\s\S]*padding:[\s\S]*env\(safe-area-inset-bottom\)/)
+  it('reserves safe-area spacing for the docked composer and bottom navigation without covering content', () => {
+    assert.match(globals, /--nonrevy-chat-composer-height:\s*5\.2rem/)
+    assert.match(globals, /--nonrevy-mobile-nav-bottom-inset:\s*0\.45rem/)
+    assert.match(globals, /--nonrevy-mobile-dock-offset:\s*2rem/)
+    assert.match(globals, /--nonrevy-mobile-control-stack:\s*calc\(var\(--nonrevy-mobile-nav-height\) \+ var\(--nonrevy-mobile-nav-bottom-inset\) \+ var\(--nonrevy-mobile-dock-offset\) \+ var\(--nonrevy-chat-composer-height\) \+ \(var\(--nonrevy-mobile-control-gap\) \* 2\)\)/)
+    assert.match(css, /\.nonrevy-conversation\s*\{[\s\S]*padding:[\s\S]*var\(--nonrevy-mobile-control-stack/)
+    assert.match(css, /\.nonrevy-conversation__messages\s*\{[\s\S]*padding:[\s\S]*var\(--nonrevy-chat-composer-height/)
+    assert.match(css, /@media \(max-width: 720px\)[\s\S]*\.nonrevy-conversation__composer\s*{[\s\S]*position:\s*fixed[\s\S]*bottom:\s*calc\(var\(--nonrevy-mobile-nav-height, 4\.05rem\) \+ var\(--nonrevy-mobile-nav-bottom-inset, 0\.45rem\) \+ var\(--nonrevy-mobile-dock-offset, 2rem\)/)
+  })
+
+  it('keeps the composer compact with one visible input and a send icon', () => {
+    assert.match(component, /className="nonrevy-conversation__composer-label"/)
+    assert.match(component, /placeholder="Where do you need to go\?"/)
+    assert.match(component, /rows=\{1\}/)
+    assert.match(component, /function SendIcon/)
+    assert.match(css, /\.nonrevy-conversation__composer textarea\s*{[\s\S]*min-height:\s*42px/)
+    assert.match(css, /\.nonrevy-conversation__message\s*{[\s\S]*padding:\s*9px 11px/)
+  })
+
+  it('does not render provider validation failures twice as chat text and a large error panel', () => {
+    assert.match(component, /addAssistantMessageOnce\(result\.message\)/)
+    assert.doesNotMatch(component, /setError\(result\.message\)/)
+    assert.match(component, /\{error \? <p className="nonrevy-conversation__error"/)
   })
 
   it('keeps diagnostics hidden unless developer mode explicitly enables them', () => {
@@ -44,4 +63,3 @@ describe('conversational mobile viewport CSS', () => {
     assert.match(component, /Developer diagnostics/)
   })
 })
-

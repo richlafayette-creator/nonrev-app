@@ -340,6 +340,17 @@ function errorMessageFromApi(body: unknown, fallback: string) {
   return fallback
 }
 
+function noViablePlansMessage(built: Extract<BuildBetaSearchRequestResult, { ok: true }>) {
+  const destinationResolution = built.destination.resolution
+  const selectedDestination = built.request.destination
+  const originalDestination = destinationResolution?.originalText?.trim()
+  const exactDestinationCode = originalDestination?.toUpperCase() === selectedDestination
+  if (originalDestination && selectedDestination && !exactDestinationCode) {
+    return `${originalDestination} was recognized as ${selectedDestination}, but no complete scheduled itinerary was found for this date. Try nearby airports, flexible dates, or route ideas.`
+  }
+  return 'Search completed, but no complete scheduled itineraries were returned for the recognized airports. Try nearby airports, flexible dates, or route ideas.'
+}
+
 export function storeBetaSearchResult(result: BetaSearchStoredResult, storage?: StorageLike) {
   storage?.setItem(betaSearchResultStorageKey, JSON.stringify(result))
 }
@@ -432,7 +443,7 @@ export async function runBetaSearchFromPrompt(input: {
     return {
       ok: false,
       state: 'no-viable-plans',
-      message: 'Search completed, but no complete scheduled itineraries were returned for the recognized airports.',
+      message: noViablePlansMessage(built),
       status: response.status
     }
   }

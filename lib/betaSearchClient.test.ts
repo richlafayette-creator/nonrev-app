@@ -142,6 +142,20 @@ describe('beta search client', () => {
     assert.ok((built.request.preferences.preferredDestinations || []).includes('FCO'))
   })
 
+  it('constructs city-country searches such as SBP to Bari, Italy', () => {
+    const built = buildBetaSearchRequest('SBP to Bari, Italy', profile(), { now })
+
+    assert.equal(built.ok, true)
+    if (!built.ok) return
+    assert.equal(built.request.origin, 'SBP')
+    assert.equal(built.request.destination, 'BRI')
+    assert.equal(built.destination.mode, 'airport')
+    assert.equal(built.destination.label, 'Bari, Italy')
+    assert.equal(built.destination.resolution?.type, 'city')
+    assert.equal(built.destination.resolution?.candidates[0]?.code, 'BRI')
+    assert.ok((built.request.preferences.preferredDestinations || []).includes('BRI'))
+  })
+
   it('constructs closest-airport and country searches without requiring airport codes', () => {
     const closest = buildBetaSearchRequest('SBP to closest airport to Longview, WA', profile(), { now })
     const maldives = buildBetaSearchRequest('FCO to Maldives', profile(), { now })
@@ -459,6 +473,23 @@ describe('beta search client', () => {
     if (result.ok) return
     assert.equal(result.state, 'no-viable-plans')
     assert.match(result.message, /recognized airports/i)
+  })
+
+  it('returns recognized-place no-itinerary copy instead of destination-entry errors', async () => {
+    const result = await runBetaSearchFromPrompt({
+      prompt: 'SBP to Bari, Italy',
+      profile: profile(),
+      explicitDepartureDate: '2026-08-22',
+      fetchImpl: responseFetch(200, emptySearchResponse()),
+      storage: memoryStorage(),
+      now
+    })
+
+    assert.equal(result.ok, false)
+    if (result.ok) return
+    assert.equal(result.state, 'no-viable-plans')
+    assert.match(result.message, /Bari, Italy was recognized as BRI/i)
+    assert.doesNotMatch(result.message, /Add a destination airport/i)
   })
 
   it('covers the manual beta fixture without fabricating live fields', async () => {

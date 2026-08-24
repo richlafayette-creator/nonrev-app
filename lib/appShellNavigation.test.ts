@@ -20,6 +20,22 @@ describe('global traveler app shell navigation', () => {
     })
   })
 
+  it('uses inline vector icons instead of placeholder text symbols', () => {
+    assert.match(navigation, /function NavIcon/)
+    assert.match(navigation, /<NavIcon name=\{item\.icon\}/)
+    assert.match(navigation, /<svg \{\.\.\.common\}>/)
+    ;[
+      "icon: '?'",
+      "icon: '*'",
+      "icon: 'o'",
+      "icon: '>'",
+      "icon: '@'",
+      "{open ? 'x' : '='}"
+    ].forEach((placeholder) => {
+      assert.doesNotMatch(navigation, new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
+    })
+  })
+
   it('does not expose internal diagnostic or operator routes in normal navigation', () => {
     ;[
       "'/agent'",
@@ -40,12 +56,15 @@ describe('global traveler app shell navigation', () => {
     assert.match(navigation, /itemIsActive/)
   })
 
-  it('reserves mobile bottom-nav space and keeps the content safe-area aware', () => {
-    assert.match(css, /--nonrevy-mobile-nav-height:\s*4\.05rem/)
-    assert.match(css, /padding-bottom:\s*calc\(var\(--nonrevy-mobile-nav-height\) \+ env\(safe-area-inset-bottom/)
-    assert.match(css, /\.nonrevy-mobile-nav\s*{[\s\S]*display:\s*none/)
-    assert.match(css, /@media \(max-width: 760px\)[\s\S]*\.nonrevy-mobile-nav\s*{[\s\S]*position:\s*fixed/)
-  })
+    it('reserves mobile bottom-nav space and keeps the content safe-area aware', () => {
+      assert.match(css, /--nonrevy-mobile-nav-height:\s*4\.05rem/)
+      assert.match(css, /--nonrevy-mobile-nav-bottom-inset:\s*0\.45rem/)
+      assert.match(css, /--nonrevy-mobile-dock-offset:\s*2rem/)
+      assert.match(css, /--nonrevy-mobile-control-stack:\s*calc\(var\(--nonrevy-mobile-nav-height\) \+ var\(--nonrevy-mobile-nav-bottom-inset\) \+ var\(--nonrevy-mobile-dock-offset\) \+ var\(--nonrevy-chat-composer-height\) \+ \(var\(--nonrevy-mobile-control-gap\) \* 2\)\)/)
+      assert.match(css, /padding-bottom:\s*calc\(var\(--nonrevy-mobile-nav-height\) \+ var\(--nonrevy-mobile-nav-bottom-inset\) \+ var\(--nonrevy-mobile-control-gap\) \+ env\(safe-area-inset-bottom/)
+      assert.match(css, /\.nonrevy-mobile-nav\s*{[\s\S]*display:\s*none/)
+      assert.match(css, /@media \(max-width: 760px\)[\s\S]*\.nonrevy-mobile-nav\s*{[\s\S]*position:\s*fixed/)
+    })
 
   it('uses a dark primary text token and restrained blue active state', () => {
     assert.match(css, /--nonrevy-text:\s*#111827/)

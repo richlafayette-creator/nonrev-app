@@ -8798,6 +8798,11 @@ main article,
   --nonrevy-content-max-width: 1120px;
   --nonrevy-nav-height: 3.9rem;
   --nonrevy-mobile-nav-height: 4.05rem;
+  --nonrevy-mobile-nav-bottom-inset: 0.45rem;
+  --nonrevy-mobile-dock-offset: 2rem;
+  --nonrevy-chat-composer-height: 5.2rem;
+  --nonrevy-mobile-control-gap: 0.6rem;
+  --nonrevy-mobile-control-stack: calc(var(--nonrevy-mobile-nav-height) + var(--nonrevy-mobile-nav-bottom-inset) + var(--nonrevy-mobile-dock-offset) + var(--nonrevy-chat-composer-height) + (var(--nonrevy-mobile-control-gap) * 2));
   --background: var(--nonrevy-page-bg);
   --foreground: var(--nonrevy-text);
 }
@@ -9157,7 +9162,7 @@ select {
 
 @media (max-width: 760px) {
   body {
-    padding-bottom: calc(var(--nonrevy-mobile-nav-height) + env(safe-area-inset-bottom, 0px)) !important;
+    padding-bottom: calc(var(--nonrevy-mobile-nav-height) + var(--nonrevy-mobile-nav-bottom-inset) + var(--nonrevy-mobile-control-gap) + env(safe-area-inset-bottom, 0px)) !important;
   }
 
   .nonrevy-global-nav {
@@ -9188,7 +9193,7 @@ select {
     z-index: 121;
     left: max(0.65rem, env(safe-area-inset-left, 0px));
     right: max(0.65rem, env(safe-area-inset-right, 0px));
-    bottom: max(0.45rem, env(safe-area-inset-bottom, 0px));
+    bottom: max(var(--nonrevy-mobile-nav-bottom-inset), env(safe-area-inset-bottom, 0px));
     display: grid;
     grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: 0.15rem;
@@ -9216,6 +9221,13 @@ select {
   .nonrevy-mobile-nav__icon {
     width: 1.45rem;
     height: 1.45rem;
+  }
+
+  .nonrevy-mobile-nav__icon svg,
+  .nonrevy-global-nav__menu-button svg {
+    display: block;
+    width: 1rem;
+    height: 1rem;
   }
 
   .nonrevy-overflow-menu {

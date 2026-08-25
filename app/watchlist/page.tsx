@@ -102,7 +102,7 @@ function AlertPreferenceChecklist({ preference, onToggle }: { preference: TripAl
         ))}
       </div>
       <p style={{ color: '#94a3b8', marginBottom: 0 }}>
-        Enabled: {enabledTripAlertLabels(preference).join(', ') || 'No alerts enabled'} · Saved on this device
+        Enabled: {enabledTripAlertLabels(preference).join(', ') || 'No alerts enabled'}
       </p>
     </div>
   )
@@ -120,7 +120,7 @@ export default function WatchlistPage() {
   const [routeText, setRouteText] = useState('')
   const [travelDate, setTravelDate] = useState('')
   const [carrier, setCarrier] = useState('United')
-  const [saveStatus, setSaveStatus] = useState('Watchlist items are saved on this device. Account saving is used when available.')
+  const [saveStatus, setSaveStatus] = useState('Watchlist ready. Add trips, flights, or routes you want to revisit.')
 
   useEffect(() => {
     function refreshWatchlist(trigger: ConfidenceUpdateTrigger = 'watchlist-viewed') {
@@ -269,7 +269,7 @@ export default function WatchlistPage() {
   }
 
   return (
-    <main className="app-shell" style={{ minHeight: '100vh', background: '#020617', color: 'white', padding: 40, fontFamily: 'Arial' }}>
+    <main className="app-shell nonrevy-traveler-page nonrevy-watchlist-page" style={{ minHeight: '100vh', background: '#020617', color: 'white', padding: 40, fontFamily: 'Arial' }}>
       <nav className="top-nav" style={{ marginBottom: 24 }}>
         <a href="/" style={{ marginRight: 16, color: '#38bdf8' }}>Search</a>
         <a href="/saved-searches" style={{ marginRight: 16, color: '#67e8f9' }}>Saved</a>
@@ -278,14 +278,14 @@ export default function WatchlistPage() {
         <a href="/beta-feedback" style={{ color: '#c084fc' }}>Feedback</a>
       </nav>
 
-      <section style={{ maxWidth: 1120, margin: '0 auto' }}>
-        <p style={{ color: '#facc15', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1 }}>Saved trip watchlists</p>
+      <section className="nonrevy-traveler-page__inner" style={{ maxWidth: 1120, margin: '0 auto' }}>
+        <p className="nonrevy-traveler-page__eyebrow" style={{ color: '#facc15', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1 }}>Watchlist</p>
         <h1 style={{ fontSize: 44, margin: '8px 0 12px' }}>Route Watchlist</h1>
         <p style={{ color: '#94a3b8', fontSize: 18, maxWidth: 780 }}>
           Watch flight numbers, routes, destinations, airports, regions, or premium-cabin opportunities so NONREVY has something useful to monitor even when you are not actively searching.
         </p>
 
-        <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14, margin: '24px 0' }}>
+        <section className="nonrevy-traveler-metrics" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14, margin: '24px 0' }}>
           {[
             ['Saved Routes', watchlist.length, '#38bdf8'],
             ['Avg Current Score', summary.averageScore, '#facc15'],
@@ -293,14 +293,14 @@ export default function WatchlistPage() {
             ['Avg Route Confidence', `${summary.averageConfidence}/100`, summary.averageConfidence >= 72 ? '#38bdf8' : summary.averageConfidence >= 58 ? '#facc15' : '#f87171'],
             ['Enabled Alerts', summary.enabledAlertCount, '#f472b6']
           ].map(([label, value, color]) => (
-            <article key={label} className="mini-card" style={{ border: '1px solid #334155', borderRadius: 18, padding: 18, background: '#0f172a' }}>
+            <article key={label} className="mini-card nonrevy-traveler-metric" style={{ border: '1px solid #334155', borderRadius: 18, padding: 18, background: '#0f172a' }}>
               <strong style={{ color: String(color), fontSize: 32 }}>{value}</strong>
               <h2 style={{ fontSize: 18, marginBottom: 0 }}>{label}</h2>
             </article>
           ))}
         </section>
 
-        <form onSubmit={addRoute} style={{ border: '1px solid #334155', borderRadius: 22, padding: 20, background: '#0f172a', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginTop: 24 }}>
+        <form className="nonrevy-traveler-form nonrevy-traveler-card" onSubmit={addRoute} style={{ border: '1px solid #334155', borderRadius: 22, padding: 20, background: '#0f172a', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginTop: 24 }}>
           <label style={{ color: '#cbd5e1' }}>
             Watch type
             <select
@@ -345,10 +345,10 @@ export default function WatchlistPage() {
             Add watch
           </button>
         </form>
-        <p style={{ color: '#94a3b8' }}>{saveStatus}</p>
+        <p className="nonrevy-traveler-status" style={{ color: '#94a3b8' }}>{saveStatus}</p>
 
-        <div style={{ display: 'grid', gap: 14, marginTop: 24 }}>
-          <section style={{ border: '1px solid #334155', borderRadius: 18, padding: 16, background: '#020617' }}>
+        <div className="nonrevy-traveler-list" style={{ display: 'grid', gap: 14, marginTop: 24 }}>
+          <section className="nonrevy-traveler-card" style={{ border: '1px solid #334155', borderRadius: 18, padding: 16, background: '#020617' }}>
             <strong style={{ color: '#38bdf8' }}>Watchlist Center examples</strong>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
               {watchlistStarterExamples.map((example) => (
@@ -357,9 +357,9 @@ export default function WatchlistPage() {
             </div>
           </section>
           {watchlist.length === 0 && (
-            <article className="flight-card nonrevy-watchlist-empty" style={{ background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: 22, padding: 20, boxShadow: '0 14px 32px rgba(15, 23, 42, 0.08)' }}>
+            <article className="flight-card nonrevy-traveler-empty nonrevy-watchlist-empty" style={{ background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: 22, padding: 20, boxShadow: '0 14px 32px rgba(15, 23, 42, 0.08)' }}>
               <p style={{ color: '#4f46e5', fontWeight: 950, textTransform: 'uppercase', letterSpacing: 1, marginTop: 0 }}>Start monitoring</p>
-              <h2 style={{ margin: '6px 0 8px', color: '#111827' }}>No watched routes yet</h2>
+              <h2 style={{ margin: '6px 0 8px', color: '#111827' }}>No watched trips yet.</h2>
               <p style={{ color: '#4B5563', margin: '0 0 14px', maxWidth: 680, lineHeight: 1.55 }}>
                 Save a route, flight number, airport, destination, or premium-cabin opportunity. Nonrevy will keep the target ready for alert preferences and future refreshes without pretending it has live load data.
               </p>
@@ -375,7 +375,7 @@ export default function WatchlistPage() {
           {watchlist.map((route) => {
             const routeConfidence = confidenceForRoute(route, travelerProfile, loadReports, outcomes, confidenceUpdateTrigger)
             return (
-            <article key={route.id} className="flight-card" style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: 18, padding: 18 }}>
+            <article key={route.id} className="flight-card nonrevy-traveler-row nonrevy-watchlist-row" style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: 18, padding: 18 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap', alignItems: 'flex-start' }}>
                 <div>
                   <strong style={{ color: '#facc15', textTransform: 'uppercase', letterSpacing: 1 }}>{route.watchType || 'route'} watch · {route.carrier}</strong>
@@ -405,7 +405,7 @@ export default function WatchlistPage() {
                 ))}
               </div>
               <p style={{ color: '#cbd5e1', margin: '12px 0 0' }}>{routeConfidence.updateExplanation}</p>
-              <p style={{ color: '#94a3b8', margin: '6px 0 0' }}>Update trigger: {confidenceUpdateTriggerLabel(routeConfidence.updateTrigger)}</p>
+              <p style={{ color: '#94a3b8', margin: '6px 0 0' }}>Updated because: {confidenceUpdateTriggerLabel(routeConfidence.updateTrigger)}</p>
               <AlertPreferenceChecklist
                 preference={preferenceFor(route.id, 'watched-route', route.watchLabel || `${route.origin} → ${route.destination}`)}
                 onToggle={(key, enabled) => updatePreference(route.id, 'watched-route', route.watchLabel || `${route.origin} → ${route.destination}`, key, enabled)}
@@ -415,14 +415,14 @@ export default function WatchlistPage() {
           })}
         </div>
 
-        <section style={{ border: '1px solid #334155', borderRadius: 22, padding: 20, background: '#0f172a', marginTop: 28 }}>
+        <section className="nonrevy-traveler-card" style={{ border: '1px solid #334155', borderRadius: 22, padding: 20, background: '#0f172a', marginTop: 28 }}>
           <p style={{ color: '#f472b6', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1, marginTop: 0 }}>Saved itinerary alert preferences</p>
           <h2 style={{ margin: '8px 0' }}>Alerts for saved itinerary comparisons</h2>
           <p style={{ color: '#94a3b8' }}>
-            These preferences apply to saved itinerary options. Watchlist alerts use account saving when available.
+            These preferences apply to saved itinerary options and watched trips.
           </p>
           {savedItineraries.length === 0 ? (
-            <article style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#020617' }}>
+            <article className="nonrevy-traveler-empty nonrevy-traveler-empty--compact" style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#020617' }}>
               <p style={{ color: '#cbd5e1', margin: 0 }}>No saved itinerary comparisons yet. Save a scheduled result first, then return here to tune alerts.</p>
             </article>
           ) : (
@@ -430,7 +430,7 @@ export default function WatchlistPage() {
               {savedItineraries.map((itinerary) => {
                 const routeConfidence = confidenceForRoute(itinerary, travelerProfile, loadReports, outcomes, confidenceUpdateTrigger)
                 return (
-                <article key={itinerary.id} className="flight-card" style={{ background: '#020617', border: '1px solid #334155', borderRadius: 18, padding: 18 }}>
+                <article key={itinerary.id} className="flight-card nonrevy-traveler-row" style={{ background: '#020617', border: '1px solid #334155', borderRadius: 18, padding: 18 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
                     <div>
                       <strong style={{ color: '#c084fc', textTransform: 'uppercase', letterSpacing: 1 }}>{itinerary.sourceLabel}</strong>

@@ -15,7 +15,7 @@ function requestStatusLabel(request: AccountLoadRequest) {
   if (request.status === 'closed') return 'Closed'
   if (request.status === 'expired') return 'Expired'
   if (requestIsAnswered(request)) return 'Answered'
-  return 'Awaiting response'
+  return 'Open'
 }
 
 function formatRequestDate(request: AccountLoadRequest) {
@@ -46,9 +46,9 @@ export default function MyRequestsPage() {
     const result = await listAccountLoadRequests()
     setRequests(result.requests || [])
     if (result.error) {
-      setNotification("Couldn't refresh account requests right now. Requests saved on this device are still shown below.")
+      setNotification("Couldn't refresh account requests right now. Your request history below is still available.")
     } else if (result.status === 'missing-config' || result.status === 'unreachable') {
-      setNotification("Couldn't refresh account requests right now. Requests saved on this device are still shown below.")
+      setNotification("Couldn't refresh account requests right now. Your request history below is still available.")
     } else {
       setNotification('')
     }
@@ -114,7 +114,7 @@ export default function MyRequestsPage() {
   }
 
   return (
-    <main className="app-shell" style={{ minHeight: '100vh', background: '#020617', color: 'white', padding: 32, fontFamily: 'Arial' }}>
+    <main className="app-shell nonrevy-traveler-page nonrevy-my-requests-page" style={{ minHeight: '100vh', background: '#020617', color: 'white', padding: 32, fontFamily: 'Arial' }}>
       <nav className="top-nav" style={{ marginBottom: 24 }}>
         <a href="/" style={{ marginRight: 16, color: '#38bdf8' }}>Search</a>
         <a href="/watchlist" style={{ marginRight: 16, color: '#facc15' }}>Watchlist</a>
@@ -123,7 +123,7 @@ export default function MyRequestsPage() {
         <a href="/beta-feedback" style={{ color: '#c084fc' }}>Feedback</a>
       </nav>
 
-      <section className="hero-grid">
+      <section className="hero-grid nonrevy-traveler-page__inner">
         <div>
           <h1 style={{ fontSize: 40 }}>My Load Requests</h1>
           <p style={{ color: '#94a3b8' }}>Track requests you sent for real scheduled flights. Refreshes every 25s{lastUpdated ? ` · Last refresh ${lastUpdated}` : ''}</p>
@@ -132,20 +132,20 @@ export default function MyRequestsPage() {
           Refresh my requests
         </button>
       </section>
-      {notification && <p style={{ color: '#f472b6' }}>{notification}</p>}
+      {notification && <p className="nonrevy-traveler-status nonrevy-traveler-status--warning" style={{ color: '#f472b6' }}>{notification}</p>}
 
-      <section className="stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, margin: '18px 0' }}>
-        <div className="mini-card" style={{ border: '1px solid #334155', borderRadius: 16, padding: 14, background: '#0f172a' }}><strong>{requests.length + localRequests.length}</strong><p>Total requests</p></div>
-        <div className="mini-card" style={{ border: '1px solid #334155', borderRadius: 16, padding: 14, background: '#0f172a' }}><strong>{summary.waiting}</strong><p>Waiting</p></div>
-        <div className="mini-card" style={{ border: '1px solid #334155', borderRadius: 16, padding: 14, background: '#0f172a' }}><strong>{summary.answered}</strong><p>Answered</p></div>
-        <div className="mini-card" style={{ border: '1px solid #334155', borderRadius: 16, padding: 14, background: '#0f172a' }}><strong>{summary.closed}</strong><p>Closed</p></div>
+      <section className="stats-grid nonrevy-traveler-metrics" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, margin: '18px 0' }}>
+        <div className="mini-card nonrevy-traveler-metric" style={{ border: '1px solid #334155', borderRadius: 16, padding: 14, background: '#0f172a' }}><strong>{requests.length + localRequests.length}</strong><p>Total requests</p></div>
+        <div className="mini-card nonrevy-traveler-metric" style={{ border: '1px solid #334155', borderRadius: 16, padding: 14, background: '#0f172a' }}><strong>{summary.waiting}</strong><p>Open</p></div>
+        <div className="mini-card nonrevy-traveler-metric" style={{ border: '1px solid #334155', borderRadius: 16, padding: 14, background: '#0f172a' }}><strong>{summary.answered}</strong><p>Answered</p></div>
+        <div className="mini-card nonrevy-traveler-metric" style={{ border: '1px solid #334155', borderRadius: 16, padding: 14, background: '#0f172a' }}><strong>{summary.closed}</strong><p>History</p></div>
       </section>
 
-      <label style={{ display: 'block', color: '#cbd5e1', marginBottom: 16 }}>
+      <label className="nonrevy-traveler-filter" style={{ display: 'block', color: '#cbd5e1', marginBottom: 16 }}>
         Status filter{' '}
         <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} style={{ padding: 10, borderRadius: 10, marginLeft: 8 }}>
           <option value="all">All</option>
-          <option value="open">Waiting</option>
+          <option value="open">Active</option>
           <option value="answered">Answered</option>
           <option value="cancelled">Cancelled</option>
           <option value="closed">Closed</option>
@@ -154,10 +154,10 @@ export default function MyRequestsPage() {
       </label>
 
       {visibleRequests.map((request) => (
-        <article className="flight-card" key={request.id} style={{ border: '1px solid #334155', padding: 18, marginTop: 12, borderRadius: 18, background: '#0f172a' }}>
+        <article className="flight-card nonrevy-traveler-row nonrevy-request-row" key={request.id} style={{ border: '1px solid #334155', padding: 18, marginTop: 12, borderRadius: 18, background: '#0f172a' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
             <h2 style={{ marginTop: 0 }}>{request.flightNumber || 'Unknown Flight'}</h2>
-            <strong style={{ color: requestIsAnswered(request) ? '#22c55e' : request.status === 'cancelled' ? '#94a3b8' : '#facc15' }}>
+            <strong className="nonrevy-traveler-badge" style={{ color: requestIsAnswered(request) ? '#22c55e' : request.status === 'cancelled' ? '#94a3b8' : '#facc15' }}>
               {requestStatusLabel(request)}
             </strong>
           </div>
@@ -177,10 +177,10 @@ export default function MyRequestsPage() {
           ) : null}
 
           {(request.responses?.length || 0) > 0 ? (
-            <div style={{ marginTop: 12 }}>
+            <div className="nonrevy-request-response" style={{ marginTop: 12 }}>
               <strong>Load response</strong>
               {request.responses?.map((response) => (
-                <div key={response.id} style={{ background: '#020617', border: '1px solid #334155', padding: 12, marginTop: 8, borderRadius: 10, color: 'white' }}>
+                <div className="nonrevy-request-response__item" key={response.id} style={{ background: '#020617', border: '1px solid #334155', padding: 12, marginTop: 8, borderRadius: 10, color: 'white' }}>
                   <p style={{ marginTop: 0 }}>{response.intel}</p>
                   {response.createdAt ? <small style={{ color: '#94a3b8' }}>Answered {new Date(response.createdAt).toLocaleString()}</small> : null}
                 </div>
@@ -196,10 +196,10 @@ export default function MyRequestsPage() {
 
       {localRequests.length ? (
         <section style={{ marginTop: 24 }}>
-          <h2>Requests saved on this device</h2>
-          <p style={{ color: '#94a3b8' }}>Older beta requests are shown here if they were created before account history was available.</p>
+          <h2>Earlier requests</h2>
+          <p style={{ color: '#94a3b8' }}>Older beta requests are shown here for continuity.</p>
           {localRequests.map((request) => (
-            <article className="flight-card" key={request.id} style={{ border: '1px solid #334155', padding: 18, marginTop: 12, borderRadius: 18, background: '#0f172a' }}>
+            <article className="flight-card nonrevy-traveler-row nonrevy-request-row" key={request.id} style={{ border: '1px solid #334155', padding: 18, marginTop: 12, borderRadius: 18, background: '#0f172a' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
                 <h3 style={{ marginTop: 0 }}>{request.flightNumber}</h3>
                 <strong style={{ color: '#facc15' }}>{request.status}</strong>
@@ -213,8 +213,8 @@ export default function MyRequestsPage() {
       ) : null}
 
       {!visibleRequests.length && !localRequests.length ? (
-        <section className="flight-card" style={{ border: '1px dashed #334155', padding: 18, marginTop: 18, borderRadius: 18, background: '#0f172a' }}>
-          <h2 style={{ marginTop: 0 }}>No load requests yet</h2>
+        <section className="flight-card nonrevy-traveler-empty" style={{ border: '1px dashed #334155', padding: 18, marginTop: 18, borderRadius: 18, background: '#0f172a' }}>
+          <h2 style={{ marginTop: 0 }}>No load requests yet.</h2>
           <p style={{ color: '#cbd5e1', marginBottom: 12 }}>Open a scheduled search result and choose Request load when the flight number, route, and departure time are confirmed.</p>
           <a href="/" style={{ color: '#38bdf8', fontWeight: 'bold' }}>Search flights</a>
         </section>

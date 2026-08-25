@@ -45,7 +45,7 @@ export default function BetaFeedbackPage() {
   const [contact, setContact] = useState('')
   const [pageUrl, setPageUrl] = useState('')
   const [deviceClass, setDeviceClass] = useState('')
-  const [status, setStatus] = useState('Feedback is saved to your beta account when available. This browser keeps a copy if account saving is unavailable.')
+  const [status, setStatus] = useState('Feedback history is ready.')
 
   function refreshFeedback() {
     setRecords(loadBetaFeedback())
@@ -57,7 +57,7 @@ export default function BetaFeedbackPage() {
     setDeviceClass(`${window.innerWidth <= 640 ? 'mobile' : window.innerWidth <= 1024 ? 'tablet' : 'desktop'} · ${window.innerWidth}x${window.innerHeight}`)
     void syncBetaFeedback().then((result) => {
       setRecords(result.records)
-      setStatus(result.storageMode === 'supabase' ? 'Feedback is saved to your beta account.' : 'Feedback is saved in this browser until account saving is available again.')
+      setStatus(result.records.length ? 'Feedback history refreshed.' : 'No feedback captured yet.')
     })
     window.addEventListener('nonrevy-beta-feedback-updated', refreshFeedback)
     window.addEventListener('storage', refreshFeedback)
@@ -87,22 +87,22 @@ export default function BetaFeedbackPage() {
       await navigator.clipboard.writeText(betaFeedbackExportText(records))
       setStatus('Feedback copied. Paste it into email, chat, or an issue when ready.')
     } catch {
-      setStatus('Copy was blocked by the browser. Use email export instead.')
+      setStatus('Copy was blocked. Use email export instead.')
     }
   }
 
   function markReviewed(id: string) {
     setRecords(markBetaFeedbackReviewed(id))
-    setStatus('Marked feedback resolved for this browser.')
+    setStatus('Marked feedback resolved.')
   }
 
   function clearAll() {
     setRecords(clearBetaFeedback())
-    setStatus('Cleared feedback history from this browser.')
+    setStatus('Cleared feedback history.')
   }
 
   return (
-    <main className="app-shell" style={{ minHeight: '100vh', background: '#020617', color: 'white', padding: 40, fontFamily: 'Arial' }}>
+    <main className="app-shell nonrevy-traveler-page nonrevy-feedback-page" style={{ minHeight: '100vh', background: '#020617', color: 'white', padding: 40, fontFamily: 'Arial' }}>
       <nav className="top-nav" style={{ marginBottom: 24 }}>
         <a href="/" style={{ marginRight: 16, color: '#38bdf8' }}>Search</a>
         <a href="/saved-searches" style={{ marginRight: 16, color: '#67e8f9' }}>Saved</a>
@@ -136,7 +136,7 @@ export default function BetaFeedbackPage() {
       </section>
 
       <section className="nonrevy-beta-feedback__grid">
-        <form onSubmit={submitFeedback} className="nonrevy-beta-feedback__card">
+        <form onSubmit={submitFeedback} className="nonrevy-beta-feedback__card nonrevy-traveler-form">
           <h2>Send beta note</h2>
           <div className="nonrevy-beta-feedback__form-grid">
             <label>
@@ -158,7 +158,7 @@ export default function BetaFeedbackPage() {
           </label>
           <label>
             Page or route optional
-            <input value={pageUrl} onChange={(event) => setPageUrl(event.target.value)} placeholder="/results, route, flight, or browser URL" />
+            <input value={pageUrl} onChange={(event) => setPageUrl(event.target.value)} placeholder="/results, route, flight, or page URL" />
           </label>
           <label>
             Contact optional
@@ -173,7 +173,7 @@ export default function BetaFeedbackPage() {
           <div className="nonrevy-beta-feedback__actions">
             <button type="button" onClick={copyFeedback} disabled={!records.length}>Copy feedback</button>
             <a href={feedbackMailto(records)} aria-disabled={!records.length}>Export email</a>
-            <button type="button" onClick={clearAll} disabled={!records.length}>Clear browser history</button>
+            <button type="button" onClick={clearAll} disabled={!records.length}>Clear history</button>
           </div>
           <details className="nonrevy-beta-feedback__details">
             <summary>What to report</summary>
@@ -208,7 +208,7 @@ export default function BetaFeedbackPage() {
             ))}
           </div>
         ) : (
-          <article className="nonrevy-beta-feedback__empty">
+          <article className="nonrevy-beta-feedback__empty nonrevy-traveler-empty">
             <h3>No feedback captured yet</h3>
             <p>Use this whenever something blocks trust, looks wrong, or would make the beta easier to use.</p>
           </article>

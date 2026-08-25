@@ -31,7 +31,7 @@ export default function SavedSearchesPage() {
   const [query, setQuery] = useState('LAX to HNL tomorrow')
   const [label, setLabel] = useState('')
   const [carrier, setCarrier] = useState('all')
-  const [status, setStatus] = useState('Saved searches are stored in your beta account when available. This browser keeps a backup if account saving is unavailable.')
+  const [status, setStatus] = useState('Saved searches are ready. Add routes or trip prompts you rerun often.')
   const [editingId, setEditingId] = useState('')
   const [editingLabel, setEditingLabel] = useState('')
 
@@ -43,7 +43,7 @@ export default function SavedSearchesPage() {
     refreshSavedSearches()
     void syncSavedSearches().then((result) => {
       setSavedSearches(result.searches)
-      setStatus(result.storageMode === 'supabase' ? 'Saved searches are stored in your beta account.' : 'Saved searches are available in this browser until account saving is available again.')
+      setStatus(result.searches.length ? 'Saved searches refreshed.' : 'No saved searches yet.')
     })
     window.addEventListener('nonrevy-saved-searches-updated', refreshSavedSearches)
     window.addEventListener('storage', refreshSavedSearches)
@@ -101,7 +101,7 @@ export default function SavedSearchesPage() {
   }
 
   return (
-    <main className="app-shell" style={{ minHeight: '100vh', background: '#020617', color: 'white', padding: 40, fontFamily: 'Arial' }}>
+    <main className="app-shell nonrevy-traveler-page nonrevy-saved-searches-page" style={{ minHeight: '100vh', background: '#020617', color: 'white', padding: 40, fontFamily: 'Arial' }}>
       <nav className="top-nav" style={{ marginBottom: 24 }}>
         <a href="/" style={{ marginRight: 16, color: '#38bdf8' }}>Search</a>
         <a href="/saved-searches" style={{ marginRight: 16, color: '#67e8f9' }}>Saved</a>
@@ -110,30 +110,30 @@ export default function SavedSearchesPage() {
         <a href="/beta-feedback" style={{ color: '#c084fc' }}>Feedback</a>
       </nav>
 
-      <section style={{ maxWidth: 1120, margin: '0 auto' }}>
-        <p style={{ color: '#67e8f9', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1 }}>Saved searches</p>
+      <section className="nonrevy-traveler-page__inner" style={{ maxWidth: 1120, margin: '0 auto' }}>
+        <p className="nonrevy-traveler-page__eyebrow" style={{ color: '#67e8f9', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1 }}>Saved searches</p>
         <h1 style={{ fontSize: 44, margin: '8px 0 12px' }}>Rerun your frequent nonrev searches.</h1>
         <p style={{ color: '#94a3b8', fontSize: 18, maxWidth: 820 }}>
-          Save common routes, flight-number checks, and trip prompts so you can relaunch planning quickly. Your beta account keeps them available across sessions when account saving is available.
+          Save common routes, flight-number checks, and trip prompts so you can relaunch planning quickly.
         </p>
 
-        <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14, margin: '24px 0' }}>
+        <section className="nonrevy-traveler-metrics" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14, margin: '24px 0' }}>
           {[
             { labelText: 'Saved Searches', value: savedSearches.length, color: '#67e8f9' },
             { labelText: 'Route Searches', value: summary.routeSearches, color: '#38bdf8' },
             { labelText: 'AI Trip Prompts', value: summary.aiTrips, color: '#c084fc' },
             { labelText: 'Total Reruns', value: summary.totalRuns, color: '#22c55e' }
           ].map((metric) => (
-            <article key={metric.labelText} style={{ border: '1px solid #334155', borderRadius: 18, padding: 18, background: '#0f172a' }}>
+            <article className="nonrevy-traveler-metric" key={metric.labelText} style={{ border: '1px solid #334155', borderRadius: 18, padding: 18, background: '#0f172a' }}>
               <small style={{ color: '#94a3b8' }}>{metric.labelText}</small>
               <h2 style={{ color: metric.color, margin: '6px 0 0' }}>{metric.value}</h2>
             </article>
           ))}
         </section>
 
-        <section style={{ border: '1px solid #334155', borderRadius: 22, padding: 20, background: '#0f172a', marginBottom: 22 }}>
+        <section className="nonrevy-traveler-card" style={{ border: '1px solid #334155', borderRadius: 22, padding: 20, background: '#0f172a', marginBottom: 22 }}>
           <h2 style={{ marginTop: 0 }}>Add a saved search</h2>
-          <form onSubmit={addSavedSearch} style={{ display: 'grid', gap: 12 }}>
+          <form className="nonrevy-traveler-form" onSubmit={addSavedSearch} style={{ display: 'grid', gap: 12 }}>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
               <label style={{ color: '#cbd5e1' }}>
                 Search type
@@ -165,22 +165,22 @@ export default function SavedSearchesPage() {
               Save search
             </button>
           </form>
-          <p style={{ color: '#67e8f9', marginBottom: 0 }}>{status}</p>
+          <p className="nonrevy-traveler-status" style={{ color: '#67e8f9', marginBottom: 0 }}>{status}</p>
         </section>
 
-        <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
+        <section className="nonrevy-traveler-list" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
           {savedSearches.length === 0 ? (
-            <article style={{ border: '1px dashed #475569', borderRadius: 20, padding: 22, background: '#0f172a' }}>
-              <h2 style={{ marginTop: 0 }}>No saved searches yet</h2>
-              <p style={{ color: '#cbd5e1' }}>Save a frequent route here, or run a search and save the itinerary that looks useful.</p>
-              <a href="/" style={{ color: '#38bdf8', fontWeight: 'bold' }}>Start a search</a>
+            <article className="nonrevy-traveler-empty" style={{ border: '1px dashed #475569', borderRadius: 20, padding: 22, background: '#0f172a' }}>
+              <h2 style={{ marginTop: 0 }}>No saved searches yet.</h2>
+              <p style={{ color: '#cbd5e1' }}>Save a frequent route or trip prompt so it is ready for a quick rerun.</p>
+              <a className="nonrevy-traveler-link-action" href="/" style={{ color: '#38bdf8', fontWeight: 'bold' }}>Search</a>
             </article>
           ) : null}
           {savedSearches.map((search) => (
-            <article key={search.id} style={{ border: '1px solid #334155', borderRadius: 20, padding: 18, background: '#0f172a' }}>
+            <article className="nonrevy-traveler-row nonrevy-saved-search-row" key={search.id} style={{ border: '1px solid #334155', borderRadius: 20, padding: 18, background: '#0f172a' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start' }}>
                 <div>
-                  <small style={{ color: search.kind === 'ai-trip' ? '#c084fc' : '#67e8f9', fontWeight: 'bold' }}>{kindLabel(search.kind)}</small>
+                  <small className="nonrevy-traveler-badge" style={{ color: search.kind === 'ai-trip' ? '#c084fc' : '#67e8f9', fontWeight: 'bold' }}>{kindLabel(search.kind)}</small>
                   {editingId === search.id ? (
                     <input
                       value={editingLabel}
@@ -192,7 +192,7 @@ export default function SavedSearchesPage() {
                     <h2 style={{ margin: '6px 0', color: '#f8fafc', fontSize: 22 }}>{search.label}</h2>
                   )}
                 </div>
-                <span style={{ border: '1px solid #334155', borderRadius: 999, padding: '5px 10px', color: '#cbd5e1', whiteSpace: 'nowrap' }}>{search.runCount} run{search.runCount === 1 ? '' : 's'}</span>
+                <span className="nonrevy-traveler-badge" style={{ border: '1px solid #334155', borderRadius: 999, padding: '5px 10px', color: '#cbd5e1', whiteSpace: 'nowrap' }}>{search.runCount} run{search.runCount === 1 ? '' : 's'}</span>
               </div>
               <p style={{ color: '#e2e8f0' }}>{search.query}</p>
               <dl style={{ display: 'grid', gap: 8, margin: '0 0 16px' }}>

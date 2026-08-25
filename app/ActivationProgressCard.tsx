@@ -45,7 +45,7 @@ export default function ActivationProgressCard({ compact = false }: { compact?: 
           <p style={{ color: '#38bdf8', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1, margin: 0 }}>Activation progress</p>
           <h2 style={{ margin: '8px 0', fontSize: compact ? 24 : 30 }}>NONREVY setup is {progress.score}% complete</h2>
           <p style={{ color: '#94a3b8', margin: 0 }}>
-            {progress.completedCount}/{progress.totalCount} activation steps complete. Stored locally for now.
+            {progress.completedCount}/{progress.totalCount} activation steps complete.
           </p>
         </div>
         <a href="/onboarding" style={{ border: '1px solid #38bdf8', borderRadius: 999, padding: '10px 14px', color: '#38bdf8', textDecoration: 'none', fontWeight: 'bold' }}>

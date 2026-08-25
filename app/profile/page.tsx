@@ -49,7 +49,7 @@ export default function ProfilePage() {
   function saveProfile(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     saveTravelerProfileToStorage(profilePreview)
-    setSaveStatus('Profile saved for this browser. Searches will use these traveler details when available.')
+    setSaveStatus('Profile saved. Searches will use these traveler details when available.')
   }
 
   function resetProfile() {
@@ -63,7 +63,7 @@ export default function ProfilePage() {
   }
 
   return (
-    <main className="app-shell" style={{ minHeight: '100vh', background: '#020617', color: 'white', padding: 32, fontFamily: 'Arial' }}>
+    <main className="app-shell nonrevy-traveler-page nonrevy-profile-page" style={{ minHeight: '100vh', background: '#020617', color: 'white', padding: 32, fontFamily: 'Arial' }}>
       <nav className="top-nav" style={{ marginBottom: 24 }}>
         <a href="/" style={{ marginRight: 16, color: '#38bdf8' }}>Search</a>
         <a href="/onboarding" style={{ marginRight: 16, color: '#38bdf8' }}>Setup</a>
@@ -72,8 +72,8 @@ export default function ProfilePage() {
         <a href="/beta-feedback" style={{ color: '#c084fc' }}>Feedback</a>
       </nav>
 
-      <section style={{ maxWidth: 1120, margin: '0 auto' }}>
-        <p style={{ color: '#22c55e', fontWeight: 'bold', letterSpacing: 1, textTransform: 'uppercase' }}>
+      <section className="nonrevy-traveler-page__inner" style={{ maxWidth: 1120, margin: '0 auto' }}>
+        <p className="nonrevy-traveler-page__eyebrow" style={{ color: '#22c55e', fontWeight: 'bold', letterSpacing: 1, textTransform: 'uppercase' }}>
           Traveler profile
         </p>
         <h1 style={{ fontSize: 44, lineHeight: 1.05, margin: '8px 0 12px' }}>
@@ -95,9 +95,11 @@ export default function ProfilePage() {
           <BillingStatusCard />
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 18, marginTop: 28 }}>
-          <form onSubmit={saveProfile} style={{ border: '1px solid #334155', borderRadius: 22, padding: 22, background: '#0f172a' }}>
-            <h2 style={{ marginTop: 0 }}>Traveler details</h2>
+        <div className="nonrevy-traveler-page__grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 18, marginTop: 28 }}>
+          <details className="nonrevy-traveler-card nonrevy-traveler-disclosure">
+            <summary>Edit traveler details</summary>
+          <form className="nonrevy-traveler-form" onSubmit={saveProfile} style={{ border: '1px solid #334155', borderRadius: 22, padding: 22, background: '#0f172a' }}>
+            <h2 style={{ marginTop: 0 }}>Airline and travel access</h2>
             <label style={{ display: 'block', color: '#cbd5e1', marginBottom: 12 }}>
               Employee airline
               <select
@@ -165,12 +167,13 @@ export default function ProfilePage() {
                 Reset defaults
               </button>
             </div>
-            <p style={{ color: '#94a3b8', marginBottom: 0 }}>{saveStatus}</p>
+            <p className="nonrevy-traveler-status" style={{ color: '#94a3b8', marginBottom: 0 }}>{saveStatus}</p>
           </form>
+          </details>
 
-          <aside style={{ border: '1px solid #334155', borderRadius: 22, padding: 22, background: '#0f172a' }}>
+          <aside className="nonrevy-traveler-card" style={{ border: '1px solid #334155', borderRadius: 22, padding: 22, background: '#0f172a' }}>
             <h2 style={{ marginTop: 0 }}>Profile summary</h2>
-            <div style={{ display: 'grid', gap: 12 }}>
+            <div className="nonrevy-traveler-list" style={{ display: 'grid', gap: 12 }}>
               {[
                 ['Employee airline', profilePreview.employeeAirline],
                 ['Traveler type', profilePreview.travelerType],
@@ -178,22 +181,44 @@ export default function ProfilePage() {
                 ['Home airport', profilePreview.homeAirport],
                 ['Preferred airports', profilePreview.preferredAirports.join(', ')]
               ].map(([label, value]) => (
-                <article key={label} style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#020617' }}>
+                <article className="nonrevy-traveler-row" key={label} style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#020617' }}>
                   <small style={{ color: '#94a3b8' }}>{label}</small>
                   <h3 style={{ color: '#f8fafc', margin: '6px 0 0' }}>{value}</h3>
                 </article>
               ))}
             </div>
-            <section style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#020617', marginTop: 14 }}>
-              <strong style={{ color: '#38bdf8' }}>Supported carrier eligibility</strong>
+            <section className="nonrevy-traveler-card nonrevy-zed-profile" style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#020617', marginTop: 14 }}>
+              <strong style={{ color: '#38bdf8' }}>ZED agreements</strong>
               <p style={{ color: '#94a3b8', margin: '8px 0 0' }}>
-                Agreements you enter here only. Missing carriers remain eligibility unknown until you review your profile.
+                Current profile signals only. Missing carriers remain unconfirmed until reviewed.
               </p>
-              {Object.entries(profilePreview.supportedCarrierEligibility).map(([carrier, eligibility]) => (
-                <p key={carrier} style={{ color: '#cbd5e1', margin: '8px 0 0' }}>
-                  {carrier.replace('-', ' ')}: {eligibility}
-                </p>
-              ))}
+              <div className="nonrevy-zed-profile__badges" aria-label="Supported carrier eligibility">
+                {Object.entries(profilePreview.supportedCarrierEligibility).map(([carrier, eligibility]) => (
+                  <span className="nonrevy-traveler-badge" key={carrier} title={eligibility}>
+                    {carrier.replace('-', ' ')} · {eligibility}
+                  </span>
+                ))}
+              </div>
+              {profilePreview.zedAgreements.length ? (
+                <div className="nonrevy-zed-profile__agreements">
+                  {profilePreview.zedAgreements.map((agreement) => (
+                    <article className="nonrevy-traveler-row" key={agreement.id}>
+                      <div>
+                        <strong>{agreement.airlineCode}</strong>
+                        <span>{agreement.airlineName}</span>
+                      </div>
+                      <span className="nonrevy-traveler-badge">{agreement.active ? 'Active' : 'Inactive'}</span>
+                      <span className="nonrevy-traveler-badge">{agreement.verificationStatus.replaceAll('_', ' ')}</span>
+                      <small>{agreement.eligibleTravelerTypes.join(', ') || 'Eligibility not specified'} · {agreement.cabinAccess.join(', ') || 'Cabin not specified'}</small>
+                    </article>
+                  ))}
+                </div>
+              ) : (
+                <article className="nonrevy-traveler-empty nonrevy-traveler-empty--compact">
+                  <h3>No ZED agreements added yet.</h3>
+                  <p>Add agreement details when they are available so search results can show clearer eligibility.</p>
+                </article>
+              )}
             </section>
             <a href="/" style={{ display: 'inline-block', color: '#38bdf8', marginTop: 16 }}>
               Search with this profile

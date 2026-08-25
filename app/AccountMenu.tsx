@@ -40,10 +40,8 @@ export default function AccountMenu() {
         <div className="account-menu__links">
           {!userEmail && <a href="/login">Login</a>}
           <a href="/account">My Account</a>
+          <a href="/membership">Membership</a>
           <a href="/billing">Billing</a>
-          <a href="/membership">Upgrade Membership</a>
-          <a href="/data-health">Data Health</a>
-          <a href="/membership#cancel">Cancel Membership</a>
           {userEmail && <button onClick={logout}>Logout</button>}
         </div>
         {message && <small>{message}</small>}

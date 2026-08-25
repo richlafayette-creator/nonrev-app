@@ -30,9 +30,9 @@ export default function OutcomeHistorySection() {
           <p style={{ color: '#22c55e', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1, marginTop: 0 }}>
             Outcome History
           </p>
-          <h2 style={{ margin: '4px 0' }}>{repository.activeSource} trip outcomes</h2>
+          <h2 style={{ margin: '4px 0' }}>Trip outcomes</h2>
           <p style={{ color: '#94a3b8', marginBottom: 0 }}>
-            Stored through the outcome repository scaffold. Local fallback remains enabled until database sync is configured.
+            Keep track of past trip results so future planning can learn from what happened.
           </p>
           <a href="/outcomes" style={{ display: 'inline-block', color: '#38bdf8', marginTop: 10 }}>Open outcome dashboard</a>
         </div>
@@ -51,7 +51,7 @@ export default function OutcomeHistorySection() {
       <div style={{ display: 'grid', gap: 12, marginTop: 16 }}>
         {outcomes.length === 0 && (
           <article style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#020617' }}>
-            <p style={{ color: '#cbd5e1', margin: 0 }}>No local outcomes recorded yet.</p>
+            <p style={{ color: '#cbd5e1', margin: 0 }}>No trip outcomes recorded yet.</p>
           </article>
         )}
         {outcomes.slice(0, 8).map((outcome) => (
@@ -60,7 +60,7 @@ export default function OutcomeHistorySection() {
               <div>
                 <h3 style={{ color: '#f8fafc', margin: 0 }}>{outcome.title}</h3>
                 <p style={{ color: '#38bdf8', margin: '6px 0' }}>{outcome.route}</p>
-                <small style={{ color: outcome.source === 'Database' ? '#22c55e' : '#facc15' }}>Source: {outcome.source}</small>
+                <small style={{ color: '#64748b' }}>Recorded trip outcome</small>
               </div>
               <strong style={{ color: outcome.status === 'Yes, got on' ? '#22c55e' : outcome.status === 'Cancelled trip' ? '#facc15' : '#f87171' }}>
                 {outcome.status}

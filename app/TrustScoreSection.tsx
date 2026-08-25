@@ -32,13 +32,13 @@ export default function TrustScoreSection() {
   return (
     <section style={{ border: '1px solid #334155', borderRadius: 22, padding: 22, background: '#0f172a', marginTop: 24 }}>
       <p style={{ color: '#34d399', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1, marginTop: 0 }}>
-        Reputation scaffold
+        Trust profile
       </p>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 18, flexWrap: 'wrap', alignItems: 'flex-start' }}>
         <div>
           <h2 style={{ margin: '4px 0' }}>Trust Score</h2>
           <p style={{ color: '#94a3b8', marginBottom: 0 }}>
-            Local-only placeholder score based on verified outcomes and future load-report signals.
+            A beta trust profile based on verified trip outcomes and load-report signals.
           </p>
         </div>
         <strong style={{ color: '#34d399', fontSize: 44 }}>{trust.trustScore}/100</strong>

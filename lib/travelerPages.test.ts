@@ -9,9 +9,11 @@ const watchlist = readFileSync(new URL('../app/watchlist/page.tsx', import.meta.
 const requests = readFileSync(new URL('../app/my-requests/page.tsx', import.meta.url), 'utf8')
 const feedback = readFileSync(new URL('../app/beta-feedback/page.tsx', import.meta.url), 'utf8')
 const activationProgress = readFileSync(new URL('../app/ActivationProgressCard.tsx', import.meta.url), 'utf8')
+const outcomeHistory = readFileSync(new URL('../app/OutcomeHistorySection.tsx', import.meta.url), 'utf8')
+const trustScore = readFileSync(new URL('../app/TrustScoreSection.tsx', import.meta.url), 'utf8')
 
 const travelerPages = [profile, saved, watchlist, requests, feedback]
-const travelerFacingSource = [...travelerPages, activationProgress]
+const travelerFacingSource = [...travelerPages, activationProgress, outcomeHistory, trustScore]
 
 describe('traveler page presentation', () => {
   it('uses the shared traveler page shell on normal traveler pages', () => {

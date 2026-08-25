@@ -9262,6 +9262,9 @@ select {
 .nonrevy-traveler-page > label,
 .nonrevy-traveler-page > section:not(.nonrevy-beta-feedback__grid):not(.nonrevy-beta-feedback__history) {
   width: min(100%, var(--nonrevy-content-max-width));
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   margin-inline: auto;
 }
 
@@ -9287,6 +9290,7 @@ select {
 .nonrevy-traveler-metrics,
 .nonrevy-traveler-list {
   width: 100%;
+  max-width: 100%;
   min-width: 0;
 }
 

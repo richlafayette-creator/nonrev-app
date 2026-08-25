@@ -4,11 +4,12 @@ import { useEffect, useRef, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import { supabase } from '../lib/supabase'
 import { useI18n } from './I18nProvider'
+import { accountPersistenceHeaders } from '../lib/accountPersistenceClient'
 
 type NavItem = {
   label: string
   href: string
-  icon: 'search' | 'saved' | 'watchlist' | 'requests' | 'profile'
+  icon: 'search' | 'saved' | 'watchlist' | 'requests' | 'profile' | 'verify'
   aliases?: string[]
 }
 
@@ -22,9 +23,17 @@ const travelerNavItems: NavItem[] = [
 
 const overflowItems = [
   ['Feedback', '/beta-feedback'],
+  ['Verification', '/verify'],
   ['Onboarding', '/onboarding'],
   ['Account', '/account'],
   ['Notifications', '/notification-preferences']
+]
+
+const unverifiedNavItems: NavItem[] = [
+  { label: 'Verify', href: '/verify', icon: 'verify', aliases: ['/onboarding'] },
+  { label: 'Profile', href: '/profile', icon: 'profile', aliases: ['/account', '/preferences'] },
+  { label: 'Billing', href: '/billing', icon: 'saved', aliases: ['/membership', '/credits'] },
+  { label: 'Feedback', href: '/beta-feedback', icon: 'requests' }
 ]
 
 function itemIsActive(pathname: string | null, item: NavItem) {
@@ -37,6 +46,7 @@ export default function AppNavigation() {
   const [open, setOpen] = useState(false)
   const [userEmail, setUserEmail] = useState('')
   const [message, setMessage] = useState('')
+  const [verifiedTraveler, setVerifiedTraveler] = useState(false)
   const pathname = usePathname()
   const shellRef = useRef<HTMLElement | null>(null)
   const { t } = useI18n()
@@ -58,6 +68,27 @@ export default function AppNavigation() {
       listener.subscription.unsubscribe()
     }
   }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    async function loadVerification() {
+      try {
+        const response = await fetch('/api/employee-verification', {
+          headers: await accountPersistenceHeaders(),
+          cache: 'no-store'
+        })
+        if (!response.ok) return
+        const data = await response.json() as { verification?: { status?: string } }
+        if (!cancelled) setVerifiedTraveler(data.verification?.status === 'verified')
+      } catch {
+        if (!cancelled) setVerifiedTraveler(false)
+      }
+    }
+    loadVerification()
+    return () => {
+      cancelled = true
+    }
+  }, [pathname])
 
   useEffect(() => {
     if (!open) return
@@ -90,6 +121,8 @@ export default function AppNavigation() {
     setMessage('Logged out.')
   }
 
+  const visibleNavItems = verifiedTraveler ? travelerNavItems : unverifiedNavItems
+
   function renderNavItem(item: NavItem, variant: 'top' | 'mobile') {
     const active = itemIsActive(pathname, item)
     const label = item.label === 'Search' ? t('search') : item.label
@@ -115,7 +148,7 @@ export default function AppNavigation() {
         </a>
 
         <nav className="nonrevy-top-nav" aria-label="Primary traveler navigation">
-          {travelerNavItems.map((item) => renderNavItem(item, 'top'))}
+          {visibleNavItems.map((item) => renderNavItem(item, 'top'))}
         </nav>
 
         <div className="nonrevy-global-nav__actions">
@@ -158,7 +191,7 @@ export default function AppNavigation() {
       ) : null}
 
       <nav className="nonrevy-mobile-nav" aria-label="Mobile traveler navigation">
-        {travelerNavItems.map((item) => renderNavItem(item, 'mobile'))}
+        {visibleNavItems.map((item) => renderNavItem(item, 'mobile'))}
       </nav>
     </header>
   )
@@ -192,6 +225,9 @@ function NavIcon({ name }: { name: NavItem['icon'] | 'menu' | 'close' }) {
   }
   if (name === 'profile') {
     return <svg {...common}><circle cx="12" cy="8" r="4" /><path d="M5 20a7 7 0 0 1 14 0" /></svg>
+  }
+  if (name === 'verify') {
+    return <svg {...common}><path d="M12 3 5 6v5c0 4.5 3 8.5 7 10 4-1.5 7-5.5 7-10V6z" /><path d="m9 12 2 2 4-5" /></svg>
   }
   if (name === 'close') {
     return <svg {...common}><path d="M6 6l12 12" /><path d="M18 6 6 18" /></svg>

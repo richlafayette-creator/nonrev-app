@@ -14,6 +14,7 @@ import TrustScoreSection from '../TrustScoreSection'
 import ActivationProgressCard from '../ActivationProgressCard'
 import ReferralProgramCard from '../ReferralProgramCard'
 import BillingStatusCard from '../BillingStatusCard'
+import { accountPersistenceHeaders } from '../../lib/accountPersistenceClient'
 
 const travelerTypes: TravelerType[] = ['Employee', 'Retiree', 'Companion', 'Buddy Pass']
 
@@ -24,6 +25,14 @@ export default function ProfilePage() {
   const [homeAirport, setHomeAirport] = useState(defaultTravelerProfile.homeAirport)
   const [preferredAirports, setPreferredAirports] = useState(defaultTravelerProfile.preferredAirports.join(', '))
   const [saveStatus, setSaveStatus] = useState('Profile ready. Update these details whenever your travel access changes.')
+  const [verification, setVerification] = useState({
+    status: 'unverified',
+    airlineCode: '',
+    airlineName: '',
+    method: '',
+    verifiedAt: '',
+    submittedAt: ''
+  })
 
   useEffect(() => {
     const storedProfile = loadTravelerProfileFromStorage()
@@ -32,6 +41,28 @@ export default function ProfilePage() {
     setPassPriority(storedProfile.passPriority)
     setHomeAirport(storedProfile.homeAirport)
     setPreferredAirports(storedProfile.preferredAirports.join(', '))
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    async function loadVerification() {
+      try {
+        const response = await fetch('/api/employee-verification', {
+          headers: await accountPersistenceHeaders(),
+          cache: 'no-store'
+        })
+        if (!response.ok) return
+        const data = await response.json() as { verification?: typeof verification }
+        if (!cancelled && data.verification) setVerification({ ...verification, ...data.verification })
+      } catch {
+        // Profile remains usable for verification guidance even if account status cannot load.
+      }
+    }
+    loadVerification()
+    return () => {
+      cancelled = true
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const preferredAirportList = useMemo(() => parseAirportList(preferredAirports), [preferredAirports])
@@ -94,6 +125,29 @@ export default function ProfilePage() {
         <div style={{ marginTop: 18 }}>
           <BillingStatusCard />
         </div>
+
+        <section className="nonrevy-traveler-card nonrevy-employee-verification-card" style={{ border: '1px solid #dbe3ef', borderRadius: 18, padding: 18, background: '#ffffff', color: '#111827', marginTop: 18 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+            <div>
+              <small style={{ color: '#64748b', fontWeight: 800, textTransform: 'uppercase' }}>Airline employee verification</small>
+              <h2 style={{ margin: '4px 0 0' }}>
+                {verification.status === 'verified' ? 'Verified' : verification.status === 'pending' ? 'Pending review' : verification.status === 'rejected' ? 'Needs resubmission' : 'Verification required'}
+              </h2>
+            </div>
+            <span className="nonrevy-traveler-badge">{verification.airlineCode || 'Not verified'}</span>
+          </div>
+          <p style={{ color: '#334155', margin: '10px 0 0' }}>
+            {verification.status === 'verified'
+              ? `${verification.airlineName || verification.airlineCode} · ${verification.method.replaceAll('_', ' ') || 'verified'}${verification.verifiedAt ? ` · ${new Date(verification.verifiedAt).toLocaleDateString()}` : ''}`
+              : verification.status === 'pending'
+                ? `${verification.airlineName || 'Airline'} review is pending. Full product access unlocks after approval.`
+                : 'Verify airline affiliation before using search, results, saved trips, watchlist, or load-request tools.'}
+          </p>
+          <p style={{ color: '#475569', margin: '8px 0 0' }}>
+            Employment verification is separate from ZED agreement eligibility. ZED access still needs its own profile review.
+          </p>
+          <a href="/verify" style={{ display: 'inline-block', color: '#2563eb', fontWeight: 800, marginTop: 12 }}>Manage verification</a>
+        </section>
 
         <div className="nonrevy-traveler-page__grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 18, marginTop: 28 }}>
           <details className="nonrevy-traveler-card nonrevy-traveler-disclosure">

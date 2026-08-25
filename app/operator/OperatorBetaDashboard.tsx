@@ -61,6 +61,25 @@ type CountResponse = {
   detail?: string
 }
 
+type VerificationReviewRow = {
+  id: string
+  userId: string
+  status: string
+  airlineCode: string
+  airlineName: string
+  method: string
+  emailDomain?: string
+  submittedAt: string
+  reasonCategory?: string
+}
+
+type VerificationReviewResponse = {
+  requests?: VerificationReviewRow[]
+  storageMode?: string
+  status?: string
+  detail?: string
+}
+
 type CountCard = {
   label: string
   value: number | string
@@ -75,6 +94,7 @@ type OperatorSnapshot = {
   communityLoads: CountResponse | null
   watchlist: CountResponse | null
   alerts: CountResponse | null
+  verifications: VerificationReviewResponse | null
 }
 
 const emptySnapshot: OperatorSnapshot = {
@@ -83,7 +103,8 @@ const emptySnapshot: OperatorSnapshot = {
   outcomes: null,
   communityLoads: null,
   watchlist: null,
-  alerts: null
+  alerts: null,
+  verifications: null
 }
 
 function arrayCount(value: unknown[] | undefined, fallback?: number) {
@@ -159,16 +180,17 @@ export default function OperatorBetaDashboard({ buildVersion, commitHash }: { bu
       setLoadState('loading')
       setError('')
       try {
-        const [health, betaFeedback, outcomes, communityLoads, watchlist, alerts] = await Promise.all([
+        const [health, betaFeedback, outcomes, communityLoads, watchlist, alerts, verifications] = await Promise.all([
           fetchJson<HealthResponse>('/api/data-health'),
           fetchJson<CountResponse>('/api/beta-feedback'),
           fetchJson<CountResponse>('/api/outcomes'),
           fetchJson<CountResponse>('/api/community-loads'),
           fetchJson<CountResponse>('/api/watchlist'),
-          fetchJson<CountResponse>('/api/alerts')
+          fetchJson<CountResponse>('/api/alerts'),
+          fetchJson<VerificationReviewResponse>('/api/employee-verification?scope=pending')
         ])
         if (!cancelled) {
-          setSnapshot({ health, betaFeedback, outcomes, communityLoads, watchlist, alerts })
+          setSnapshot({ health, betaFeedback, outcomes, communityLoads, watchlist, alerts, verifications })
           setLoadState('ready')
         }
       } catch (loadError) {
@@ -222,6 +244,26 @@ export default function OperatorBetaDashboard({ buildVersion, commitHash }: { bu
   const dataFreshness = snapshot.health?.flightFreshnessSchema
   const liveStatus = snapshot.health?.liveItineraryReadiness
   const recentFeedback = (snapshot.betaFeedback?.records || []).slice(0, 5)
+  const pendingVerifications = snapshot.verifications?.requests || []
+
+  async function reviewVerification(row: VerificationReviewRow, action: 'approve' | 'reject' | 'request-resubmission') {
+    try {
+      await fetch('/api/employee-verification', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action,
+          targetUserId: row.userId,
+          airlineCode: row.airlineCode,
+          reasonCategory: action === 'approve' ? 'approved' : action
+        })
+      })
+      const refreshed = await fetchJson<VerificationReviewResponse>('/api/employee-verification?scope=pending')
+      setSnapshot((current) => ({ ...current, verifications: refreshed }))
+    } catch {
+      setError('Verification review action failed.')
+    }
+  }
 
   return (
     <main style={{ minHeight: '100vh', background: '#020617', color: '#e2e8f0', padding: 16, fontFamily: 'Arial, sans-serif' }}>
@@ -301,6 +343,30 @@ export default function OperatorBetaDashboard({ buildVersion, commitHash }: { bu
               <p style={{ margin: '8px 0 0', color: '#64748b', fontSize: 12 }}>Mode: {liveStatus?.activeDataMode || 'unknown'}</p>
             </div>
           </article>
+        </section>
+
+        <section style={quietCardStyle()}>
+          <h2 style={{ margin: '0 0 8px', fontSize: 20 }}>Employee verification review</h2>
+          <p style={{ margin: '0 0 8px', color: '#94a3b8', fontSize: 13 }}>
+            Operator-only review. Approve known beta testers or request resubmission without exposing uploaded evidence or unrelated profile data.
+          </p>
+          {!pendingVerifications.length ? <p style={{ color: '#94a3b8' }}>No pending verification requests.</p> : null}
+          {pendingVerifications.map((row) => (
+            <div key={row.id} style={rowStyle()}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'baseline', flexWrap: 'wrap' }}>
+                <strong>{row.airlineCode} · {row.airlineName}</strong>
+                <span style={{ color: '#facc15', fontWeight: 700 }}>{row.method.replaceAll('_', ' ')}</span>
+              </div>
+              <p style={{ margin: '6px 0', color: '#94a3b8', fontSize: 13 }}>
+                {row.emailDomain ? `Domain: ${row.emailDomain} · ` : ''}{row.reasonCategory || 'review requested'} · {formatCheckedAt(row.submittedAt)}
+              </p>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <button type="button" onClick={() => reviewVerification(row, 'approve')} style={{ border: 'none', borderRadius: 999, padding: '8px 12px', background: '#86efac', color: '#052e16', fontWeight: 800 }}>Approve</button>
+                <button type="button" onClick={() => reviewVerification(row, 'request-resubmission')} style={{ border: '1px solid #facc15', borderRadius: 999, padding: '8px 12px', background: '#0f172a', color: '#fde68a', fontWeight: 800 }}>Request resubmission</button>
+                <button type="button" onClick={() => reviewVerification(row, 'reject')} style={{ border: '1px solid #fca5a5', borderRadius: 999, padding: '8px 12px', background: '#0f172a', color: '#fecaca', fontWeight: 800 }}>Reject</button>
+              </div>
+            </div>
+          ))}
         </section>
 
         <section style={quietCardStyle()}>

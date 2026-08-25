@@ -20,7 +20,7 @@ export default function OnboardingPage() {
   const [passPriority, setPassPriority] = useState(defaultOnboardingState.passPriority)
   const [homeAirport, setHomeAirport] = useState(defaultOnboardingState.homeAirport)
   const [preferredDestinations, setPreferredDestinations] = useState(defaultOnboardingState.preferredDestinations.join(', '))
-  const [status, setStatus] = useState('Setup is optional. Save what you know now and update it later.')
+  const [status, setStatus] = useState('Verification is required first. Save profile details here after your airline employment request is submitted.')
   const [completedAt, setCompletedAt] = useState<string | undefined>()
 
   useEffect(() => {
@@ -49,7 +49,7 @@ export default function OnboardingPage() {
   function saveDraft() {
     const saved = saveOnboardingState(onboardingPreview, false)
     setCompletedAt(saved.completedAt)
-    setStatus('Saved draft. You can search now and finish profile details later.')
+    setStatus('Saved draft. Search unlocks after airline employee verification is approved.')
   }
 
   function completeOnboarding(event: FormEvent<HTMLFormElement>) {
@@ -61,7 +61,7 @@ export default function OnboardingPage() {
 
     const saved = saveOnboardingState(onboardingPreview, true)
     setCompletedAt(saved.completedAt)
-    setStatus('Traveler profile saved. Your searches can now use these profile details.')
+    setStatus('Traveler profile saved. Search unlocks after airline employee verification is approved.')
   }
 
   return (
@@ -77,7 +77,10 @@ export default function OnboardingPage() {
         <p style={{ color: '#38bdf8', fontWeight: 'bold', letterSpacing: 1, textTransform: 'uppercase' }}>Private beta setup</p>
         <h1 style={{ fontSize: 44, lineHeight: 1.05, margin: '8px 0 12px' }}>Set up your traveler profile.</h1>
         <p style={{ color: '#94a3b8', maxWidth: 820, fontSize: 18 }}>
-          Add the basics that affect nonrev planning. You can skip this and search first; profile and ZED details simply make recommendations more relevant.
+          Start with airline employee verification, then add profile and ZED details. Nonrevy search, results, saved trips, watchlist, and load-request tools unlock after verification.
+        </p>
+        <p style={{ marginTop: 12 }}>
+          <a href="/verify" style={{ color: '#38bdf8', fontWeight: 800 }}>Verify airline employment</a>
         </p>
 
         <div className="nonrevy-onboarding__grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.1fr) minmax(280px, 0.9fr)', gap: 18, marginTop: 28 }}>
@@ -123,7 +126,7 @@ export default function OnboardingPage() {
             </div>
             <p style={{ color: formReady ? '#22c55e' : '#facc15', marginBottom: 0 }}>{status}</p>
             <p style={{ color: '#94a3b8' }}>
-              ZED agreements are never guessed. If eligibility is missing or unknown, results will say so instead of treating a flight as confirmed.
+              Employment verification confirms affiliation only. ZED agreements are never guessed; if eligibility is missing or unknown, results say so instead of treating a flight as confirmed.
             </p>
           </form>
 

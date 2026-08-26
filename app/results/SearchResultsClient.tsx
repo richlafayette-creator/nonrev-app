@@ -133,6 +133,14 @@ export default function SearchResultsClient() {
           <Link className="nonrevy-primary-action nonrevy-primary-action--search" href="/"><span className="nonrevy-primary-action__label">New search</span></Link>
         </header>
 
+        {viewModel.publicPreview?.enabled ? (
+          <section className="nonrevy-results-page__notice nonrevy-results-page__notice--preview" aria-live="polite">
+            <strong>Public schedule preview</strong>
+            <p>{viewModel.publicPreview.lockedMessage}</p>
+            <Link href={`/verify?next=${encodeURIComponent('/results')}`}>Verify to unlock traveler features</Link>
+          </section>
+        ) : null}
+
         {!viewModel.cards.length && !viewModel.secondaryCards.length ? (
           <section className="nonrevy-production-empty" aria-live="polite">
             <p className="nonrevy-production-empty__eyebrow">No flight options yet</p>
@@ -144,7 +152,7 @@ export default function SearchResultsClient() {
           <>
             {viewModel.cards.length ? (
               <section className="nonrevy-itinerary-results-list" aria-label="Flight options">
-                {viewModel.cards.map((card, index) => <PlanCard key={card.key} card={card} displayRank={index + 1} />)}
+                {viewModel.cards.map((card, index) => <PlanCard key={card.key} card={card} displayRank={index + 1} publicPreview={viewModel.publicPreview?.enabled || false} />)}
               </section>
             ) : (
               <section className="nonrevy-results-page__notice" aria-live="polite">
@@ -160,7 +168,7 @@ export default function SearchResultsClient() {
                   <h2>Routes to investigate</h2>
                 </header>
                 <div className="nonrevy-itinerary-results-list nonrevy-itinerary-results-list--secondary">
-                  {viewModel.secondaryCards.map((card, index) => <PlanCard key={card.key} card={card} displayRank={index + 1} />)}
+                  {viewModel.secondaryCards.map((card, index) => <PlanCard key={card.key} card={card} displayRank={index + 1} publicPreview={viewModel.publicPreview?.enabled || false} />)}
                 </div>
               </section>
             ) : null}
@@ -217,7 +225,7 @@ function SearchTransparencyPanel({ viewModel }: { viewModel: ReturnType<typeof b
   )
 }
 
-function PlanCard({ card, displayRank }: { card: SearchPlanCardViewModel; displayRank: number }) {
+function PlanCard({ card, displayRank, publicPreview }: { card: SearchPlanCardViewModel; displayRank: number; publicPreview?: boolean }) {
   const [actionStatus, setActionStatus] = useState('')
   const [loadRequestPending, setLoadRequestPending] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -228,26 +236,49 @@ function PlanCard({ card, displayRank }: { card: SearchPlanCardViewModel; displa
   const expandedIdentity = buildExpandedItineraryIdentity(card)
   const legSummary = visibleLegSummary(card)
   const stopsSummary = compactStopsSummary(card, summary.stopsLabel)
+  const scoreLabel = publicPreview ? 'Lock' : String(card.finalScore)
+  const scoreAriaLabel = publicPreview ? 'Personalized score locked until verification' : `Score ${card.finalScore} out of 100`
+  const verifyHref = `/verify?next=${encodeURIComponent('/results')}`
+
+  function promptVerification(action: string) {
+    setActionStatus(`${action} unlocks after airline eligibility verification.`)
+  }
 
   function handleSave() {
+    if (publicPreview) {
+      promptVerification('Saving trips')
+      return
+    }
     const result = saveResultItinerary(card)
     setActionStatus(result.message)
     setSaved(true)
   }
 
   function handleUnsave() {
+    if (publicPreview) {
+      promptVerification('Saving trips')
+      return
+    }
     const result = removeResultItinerary(card)
     setActionStatus(result.message)
     setSaved(false)
   }
 
   function handleWatch() {
+    if (publicPreview) {
+      promptVerification('Watching trips')
+      return
+    }
     const result = watchResultItinerary(card)
     setActionStatus(result.message)
     setWatched(true)
   }
 
   async function handleLoadRequest() {
+    if (publicPreview) {
+      promptVerification('Load requests')
+      return
+    }
     if (loadRequestPending) return
     setLoadRequestPending(true)
     setActionStatus('Submitting load request...')
@@ -271,13 +302,13 @@ function PlanCard({ card, displayRank }: { card: SearchPlanCardViewModel; displa
             <span className="nonrevy-itinerary-row__times">{summary.timeSummary}</span>
           </span>
         </span>
-        <span className="nonrevy-itinerary-row__meta" aria-label={`${summary.durationLabel}, ${stopsSummary}, ${summary.zedLabel}, ${summary.loadLabel}`}>
+        <span className="nonrevy-itinerary-row__meta" aria-label={`${summary.durationLabel}, ${stopsSummary}, ${publicPreview ? 'ZED locked, load locked' : `${summary.zedLabel}, ${summary.loadLabel}`}`}>
           <span className="nonrevy-itinerary-row__duration">{summary.durationLabel}</span>
           <span className="nonrevy-itinerary-row__legs">{stopsSummary}</span>
-          <span className={`nonrevy-itinerary-row__zed nonrevy-itinerary-row__zed--${card.zedEligibilityStatus}`}>{summary.zedLabel}</span>
-          <span className="nonrevy-itinerary-row__load">{summary.loadLabel}</span>
+          <span className={`nonrevy-itinerary-row__zed nonrevy-itinerary-row__zed--${card.zedEligibilityStatus}`}>{publicPreview ? 'ZED locked' : summary.zedLabel}</span>
+          <span className="nonrevy-itinerary-row__load">{publicPreview ? 'Load locked' : summary.loadLabel}</span>
         </span>
-        <span className="nonrevy-itinerary-row__score" aria-label={`Score ${card.finalScore} out of 100`}>{card.finalScore}</span>
+        <span className="nonrevy-itinerary-row__score" aria-label={scoreAriaLabel}>{scoreLabel}</span>
         {legSummary ? <span className="nonrevy-itinerary-row__leg-summary">{legSummary}</span> : null}
       </summary>
 
@@ -288,16 +319,16 @@ function PlanCard({ card, displayRank }: { card: SearchPlanCardViewModel; displa
             <AirlineCodeBadge code={summary.airlineCode} name={summary.airlineName} />
             <h2 title={summary.flightSummary}>{summary.flightSummary}</h2>
           </div>
-          <div className="nonrevy-itinerary-row__expanded-meta" aria-label={`${expandedIdentity.requestedJourneyLabel}, ${summary.durationLabel}, ${stopsSummary}, score ${card.finalScore}`}>
+          <div className="nonrevy-itinerary-row__expanded-meta" aria-label={`${expandedIdentity.requestedJourneyLabel}, ${summary.durationLabel}, ${stopsSummary}, ${publicPreview ? 'score locked' : `score ${card.finalScore}`}`}>
             <span>{expandedIdentity.requestedJourneyLabel}</span>
             <span>{summary.durationLabel}</span>
             <span>{stopsSummary}</span>
-            <strong aria-label={`Score ${card.finalScore} out of 100`}>{card.finalScore}</strong>
+            <strong aria-label={scoreAriaLabel}>{scoreLabel}</strong>
             <span className={`nonrevy-itinerary-card__zed nonrevy-itinerary-card__zed--${card.zedEligibilityStatus}`}>
-              {expandedZedLabel(card)}
-              {card.zedEligibilityAction ? <> · <Link href="/profile">{card.zedEligibilityAction}</Link></> : null}
+              {publicPreview ? 'ZED compatibility locked' : expandedZedLabel(card)}
+              {publicPreview ? <> · <Link href={verifyHref}>Verify</Link></> : card.zedEligibilityAction ? <> · <Link href="/profile">{card.zedEligibilityAction}</Link></> : null}
             </span>
-            <span>{summary.loadLabel}</span>
+            <span>{publicPreview ? 'Load intelligence locked' : summary.loadLabel}</span>
           </div>
           {card.resultClass !== 'scheduled' ? <p className="nonrevy-itinerary-card__classification">{card.resultClassSummary}</p> : null}
         </header>
@@ -335,7 +366,13 @@ function PlanCard({ card, displayRank }: { card: SearchPlanCardViewModel; displa
           ))}
         </section>
 
-        {availability.canSave || availability.canWatch || availability.canRequestLoad ? (
+        {publicPreview ? (
+          <div className="nonrevy-itinerary-card__actions" aria-label={`${summary.optionLabel} locked traveler actions`}>
+            <a href={verifyHref}>Verify to unlock</a>
+            <button type="button" onClick={() => promptVerification('Load requests')}>Request load</button>
+            <button type="button" onClick={() => promptVerification('Saving and watching trips')}>Save / Watch</button>
+          </div>
+        ) : availability.canSave || availability.canWatch || availability.canRequestLoad ? (
           <div className="nonrevy-itinerary-card__actions" aria-label={`${summary.optionLabel} traveler actions`}>
             <button type="button" onClick={handleLoadRequest} disabled={!availability.canRequestLoad || loadRequestPending}>{loadRequestPending ? 'Requesting...' : 'Request load'}</button>
             {saved ? (
@@ -356,10 +393,10 @@ function PlanCard({ card, displayRank }: { card: SearchPlanCardViewModel; displa
         <summary>Why this ranking?</summary>
 
         <dl className="nonrevy-route-details__snapshot">
-          <div className="nonrevy-ranked-result-card__field"><span>Score</span><strong>{card.finalScore}/100</strong></div>
-          <div className="nonrevy-ranked-result-card__field"><span>Confidence</span><strong>{card.confidence}/100</strong></div>
+          <div className="nonrevy-ranked-result-card__field"><span>Score</span><strong>{publicPreview ? 'Locked' : `${card.finalScore}/100`}</strong></div>
+          <div className="nonrevy-ranked-result-card__field"><span>Confidence</span><strong>{publicPreview ? 'Locked' : `${card.confidence}/100`}</strong></div>
           <div className="nonrevy-ranked-result-card__field"><span>Data quality</span><strong>{card.dataQualityLevel}</strong></div>
-          <div className="nonrevy-ranked-result-card__field"><span>ZED</span><strong>{expandedZedLabel(card)}</strong></div>
+          <div className="nonrevy-ranked-result-card__field"><span>ZED</span><strong>{publicPreview ? 'Locked' : expandedZedLabel(card)}</strong></div>
         </dl>
 
         <div className="nonrevy-route-details__grid">

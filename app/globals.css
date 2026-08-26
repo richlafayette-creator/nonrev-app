@@ -10008,3 +10008,39 @@ select {
     padding-inline: 0.42rem;
   }
 }
+
+.nonrevy-home__steps {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.45rem;
+  width: min(100%, 42rem);
+  margin: 0.35rem auto 0;
+}
+
+.nonrevy-home__steps span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2rem;
+  padding: 0.36rem 0.72rem;
+  border: 1px solid var(--nonrevy-border);
+  border-radius: 999px;
+  background: var(--nonrevy-surface);
+  color: var(--nonrevy-text);
+  font-size: 0.82rem;
+  font-weight: 850;
+  box-shadow: var(--nonrevy-shadow-soft);
+}
+
+.nonrevy-results-page__notice--preview {
+  border-color: #bfdbfe !important;
+  background: #eff6ff !important;
+  color: var(--nonrevy-text) !important;
+}
+
+.nonrevy-results-page__notice--preview a {
+  display: inline-flex;
+  margin-top: 0.45rem;
+  color: var(--nonrevy-accent-blue) !important;
+  font-weight: 900;
+}

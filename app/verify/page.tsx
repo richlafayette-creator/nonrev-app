@@ -5,7 +5,11 @@ import { accountPersistenceHeaders } from '../../lib/accountPersistenceClient'
 
 type AirlineOption = {
   code: string
+  icao?: string
   name: string
+  aliases?: string[]
+  domainsKnown?: boolean
+  verificationMethods?: string[]
 }
 
 type VerificationStatus = {
@@ -54,8 +58,9 @@ export default function VerifyPage() {
   const [airlines, setAirlines] = useState<AirlineOption[]>(defaultAirlines)
   const [verification, setVerification] = useState<VerificationStatus>({ status: 'unverified' })
   const [airlineCode, setAirlineCode] = useState('UA')
+  const [airlineQuery, setAirlineQuery] = useState('United Airlines (UA)')
   const [workEmail, setWorkEmail] = useState('')
-  const [status, setStatus] = useState('Verification is required before using Nonrevy search and traveler tools.')
+  const [status, setStatus] = useState('Preview schedules now, then verify airline eligibility when you need member-only non-rev tools.')
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
@@ -71,7 +76,10 @@ export default function VerifyPage() {
         if (cancelled) return
         setVerification(data.verification || { status: 'unverified' })
         setAirlines(data.airlines?.length ? data.airlines : defaultAirlines)
-        setAirlineCode(data.verification?.airlineCode || data.airlines?.[0]?.code || 'UA')
+        const nextCode = data.verification?.airlineCode || data.airlines?.[0]?.code || 'UA'
+        const nextAirline = (data.airlines?.length ? data.airlines : defaultAirlines).find((airline) => airline.code === nextCode)
+        setAirlineCode(nextCode)
+        setAirlineQuery(nextAirline ? `${nextAirline.name} (${nextAirline.code})` : nextCode)
         setStatus(data.detail || data.disclosure || 'Verification status loaded.')
       } catch {
         if (!cancelled) setStatus('Verification status could not be loaded. You can still submit a request.')
@@ -84,8 +92,36 @@ export default function VerifyPage() {
   }, [])
 
   const selectedAirline = useMemo(() => airlines.find((airline) => airline.code === airlineCode), [airlines, airlineCode])
+  const filteredAirlines = useMemo(() => {
+    const query = airlineQuery.trim().toLowerCase().replace(/[^a-z0-9]/g, '')
+    if (!query) return airlines.slice(0, 12)
+    return airlines.filter((airline) => {
+      const haystack = [airline.code, airline.icao || '', airline.name].join(' ').toLowerCase()
+      const compact = haystack.replace(/[^a-z0-9]/g, '')
+      return haystack.includes(airlineQuery.trim().toLowerCase()) || compact.includes(query)
+    }).slice(0, 12)
+  }, [airlineQuery, airlines])
+  const companyEmailAvailable = selectedAirline?.verificationMethods?.includes('company_email') || selectedAirline?.domainsKnown
   const verified = verification.status === 'verified'
   const pending = verification.status === 'pending'
+
+  function updateAirline(value: string) {
+    setAirlineQuery(value)
+    const normalized = value.trim().toLowerCase().replace(/[^a-z0-9]/g, '')
+    const matches = airlines.filter((airline) => {
+      const names = [airline.name, ...(airline.aliases || [])]
+      const codes = [airline.code, airline.icao || ''].filter(Boolean)
+      return codes.some((code) => code.toLowerCase() === value.trim().toLowerCase() || code.toLowerCase() === normalized) ||
+        names.some((name) => name.toLowerCase() === value.trim().toLowerCase() || name.toLowerCase().replace(/[^a-z0-9]/g, '') === normalized) ||
+        `${airline.name} (${airline.code})`.toLowerCase() === value.trim().toLowerCase()
+    })
+    const partialMatches = matches.length ? matches : airlines.filter((airline) => {
+      const values = [airline.name, ...(airline.aliases || []), airline.code, airline.icao || ''].map((item) => item.toLowerCase().replace(/[^a-z0-9]/g, ''))
+      return normalized.length >= 3 && values.some((item) => item.includes(normalized))
+    })
+    const selected = partialMatches.length === 1 ? partialMatches[0] : matches[0]
+    if (selected) setAirlineCode(selected.code)
+  }
 
   async function submit(action: 'submit-company-email' | 'request-manual-review') {
     setLoading(true)
@@ -127,9 +163,9 @@ export default function VerifyPage() {
           Airline employee verification
         </p>
         <header>
-          <h1 style={{ fontSize: 38, lineHeight: 1.05, margin: '8px 0 12px' }}>Verify before using Nonrevy.</h1>
+          <h1 style={{ fontSize: 38, lineHeight: 1.05, margin: '8px 0 12px' }}>Unlock Nonrevy traveler features</h1>
           <p style={{ color: '#334155', maxWidth: 760, fontSize: 17 }}>
-            Nonrevy is for airline employees and eligible non-rev travelers. Verification helps protect the community and does not confirm any specific ZED agreement or imply airline endorsement.
+            Nonrevy verifies airline eligibility before providing member-only non-rev tools and community intelligence. You can preview public schedules first, then verify when you need ZED-aware planning, load intelligence, saved trips, watchlists, and load requests.
           </p>
         </header>
 
@@ -143,7 +179,7 @@ export default function VerifyPage() {
           </div>
           {verification.airlineName ? <p style={{ color: '#334155', margin: '10px 0 0' }}>{verification.airlineName} · {verification.method?.replaceAll('_', ' ') || 'verification'}</p> : null}
           {verification.verifiedAt ? <p style={{ color: '#166534', margin: '8px 0 0' }}>Verified {formatDate(verification.verifiedAt)}</p> : null}
-          {pending ? <p style={{ color: '#92400e', margin: '8px 0 0' }}>Your request is pending review. Full search, saved trips, watchlist, results, and load-request tools unlock after approval.</p> : null}
+          {pending ? <p style={{ color: '#92400e', margin: '8px 0 0' }}>Your request is pending review. Public schedule preview remains available; saved trips, watchlist, ZED details, and load-request tools unlock after approval.</p> : null}
           <p style={{ color: '#475569', marginBottom: 0 }}>{status}</p>
         </section>
 
@@ -152,23 +188,39 @@ export default function VerifyPage() {
             <h2 style={{ marginTop: 0 }}>Verify with company email</h2>
             <form className="nonrevy-traveler-form" onSubmit={submitEmail} style={{ display: 'grid', gap: 14 }}>
               <label style={{ color: '#111827', fontWeight: 700 }}>
-                Employing airline
-                <select value={airlineCode} onChange={(event) => setAirlineCode(event.target.value)} style={{ boxSizing: 'border-box', width: '100%', marginTop: 6, padding: 12, borderRadius: 12, border: '1px solid #cbd5e1', background: '#ffffff', color: '#111827' }}>
-                  {airlines.map((airline) => (
-                    <option key={airline.code} value={airline.code}>{airline.code} · {airline.name}</option>
+                Employing or benefited airline
+                <input
+                  value={airlineQuery}
+                  onChange={(event) => updateAirline(event.target.value)}
+                  list="nonrevy-airline-employers"
+                  placeholder="Search airline name, IATA, or ICAO"
+                  autoComplete="off"
+                  style={{ boxSizing: 'border-box', width: '100%', marginTop: 6, padding: 12, borderRadius: 12, border: '1px solid #cbd5e1', background: '#ffffff', color: '#111827' }}
+                />
+                <datalist id="nonrevy-airline-employers">
+                  {filteredAirlines.map((airline) => (
+                    <option key={airline.code} value={`${airline.name} (${airline.code})`}>{airline.icao ? `${airline.code} / ${airline.icao}` : airline.code}</option>
                   ))}
-                </select>
+                </datalist>
+                <small style={{ display: 'block', color: '#475569', marginTop: 6 }}>
+                  Selected: {selectedAirline ? `${selectedAirline.name} (${selectedAirline.code}${selectedAirline.icao ? ` / ${selectedAirline.icao}` : ''})` : 'Choose an airline from the list.'}
+                </small>
               </label>
               <label style={{ color: '#111827', fontWeight: 700 }}>
                 Work email
-                <input value={workEmail} onChange={(event) => setWorkEmail(event.target.value)} type="email" inputMode="email" placeholder="name@airline.com" style={{ boxSizing: 'border-box', width: '100%', marginTop: 6, padding: 12, borderRadius: 12, border: '1px solid #cbd5e1', background: '#ffffff', color: '#111827' }} />
+                <input value={workEmail} onChange={(event) => setWorkEmail(event.target.value)} type="email" inputMode="email" placeholder="name@airline.com" disabled={!companyEmailAvailable} style={{ boxSizing: 'border-box', width: '100%', marginTop: 6, padding: 12, borderRadius: 12, border: '1px solid #cbd5e1', background: companyEmailAvailable ? '#ffffff' : '#f8fafc', color: '#111827' }} />
+                <small style={{ display: 'block', color: '#475569', marginTop: 6 }}>
+                  {companyEmailAvailable
+                    ? 'Company-email verification is available for this airline.'
+                    : 'Company-email verification is not mapped for this airline yet. Use manual review.'}
+                </small>
               </label>
-              <button type="submit" disabled={loading || !workEmail.trim()} style={{ justifySelf: 'start', padding: '12px 16px', borderRadius: 999, border: 'none', background: loading || !workEmail.trim() ? '#94a3b8' : '#2563eb', color: '#ffffff', fontWeight: 800 }}>
+              <button type="submit" disabled={loading || !workEmail.trim() || !companyEmailAvailable} style={{ justifySelf: 'start', padding: '12px 16px', borderRadius: 999, border: 'none', background: loading || !workEmail.trim() || !companyEmailAvailable ? '#94a3b8' : '#2563eb', color: '#ffffff', fontWeight: 800 }}>
                 Send verification
               </button>
             </form>
             <div style={{ borderTop: '1px solid #e5e7eb', marginTop: 18, paddingTop: 18 }}>
-              <h3 style={{ margin: '0 0 8px' }}>Can’t verify with work email?</h3>
+              <h3 style={{ margin: '0 0 8px' }}>Cannot verify with work email?</h3>
               <p style={{ color: '#475569' }}>
                 Request manual review. Nonrevy will ask for the least sensitive airline-affiliation proof needed and should delete temporary evidence after review.
               </p>

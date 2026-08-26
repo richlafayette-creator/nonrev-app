@@ -3,9 +3,12 @@ import { readFileSync } from 'node:fs'
 import { describe, it } from 'node:test'
 import {
   airlineEmployers,
+  airlineOptionsForSelect,
   companyEmailDomainAllowed,
   createPendingCompanyEmailVerification,
   createPendingManualVerification,
+  searchAirlineEmployers,
+  verificationMethodsForAirline,
   reviewEmployeeVerification
 } from './employeeVerification'
 import {
@@ -31,6 +34,29 @@ describe('employee verification access', () => {
     assert.equal(companyEmailDomainAllowed('UA', 'tester@united.com').allowed, true)
     assert.equal(companyEmailDomainAllowed('UA', 'tester@example.com').allowed, false)
     assert.equal(companyEmailDomainAllowed('United Airlines', 'tester@united.com').allowed, true)
+  })
+
+  it('supports a searchable employing-airline catalog including regional airlines', () => {
+    assert.equal(searchAirlineEmployers('SkyWest')[0]?.code, 'OO')
+    assert.equal(searchAirlineEmployers('SkyWest Airlines')[0]?.code, 'OO')
+    assert.equal(searchAirlineEmployers('OO')[0]?.name, 'SkyWest Airlines')
+    assert.equal(searchAirlineEmployers('SKW')[0]?.name, 'SkyWest Airlines')
+    assert.ok(airlineOptionsForSelect().length > 40)
+  })
+
+  it('does not reject selectable airlines just because a company-email domain is not mapped', () => {
+    assert.deepEqual(verificationMethodsForAirline('OO'), ['manual_review'])
+    assert.equal(companyEmailDomainAllowed('OO', 'tester@skywest.example').allowed, false)
+    assert.equal(companyEmailDomainAllowed('OO', 'tester@skywest.example').reason, 'no-approved-domain')
+    const manual = createPendingManualVerification({ userId: 'user:skywest', airlineCode: 'SkyWest' })
+    assert.equal(manual.ok, true)
+    if (!manual.ok) return
+    assert.equal(manual.record.airlineCode, 'OO')
+    assert.equal(manual.record.airlineName, 'SkyWest Airlines')
+    const email = createPendingCompanyEmailVerification({ userId: 'user:skywest', airlineCode: 'OO', workEmail: 'tester@skywest.example' })
+    assert.equal(email.ok, false)
+    if (email.ok) return
+    assert.match(email.error, /manual review/i)
   })
 
   it('creates pending records with minimal retained identity data', () => {
@@ -78,18 +104,30 @@ describe('employee verification access', () => {
     assert.doesNotMatch(JSON.stringify(reviewed.record), /zedAgreements|eligibleTravelerTypes/)
   })
 
-  it('denies unverified and pending travelers from protected routes', () => {
+  it('allows public preview surfaces while denying unverified travelers from protected member routes', () => {
     assert.deepEqual(
       verificationAccessDecision({ pathname: '/', env }).authorized,
+      true
+    )
+    assert.deepEqual(
+      verificationAccessDecision({ pathname: '/results', env }).protected,
       false
     )
     assert.deepEqual(
-      verificationAccessDecision({ pathname: '/results', env }).redirectTo,
-      '/verify?next=%2Fresults'
+      verificationAccessDecision({ pathname: '/api/search', env }).protected,
+      false
     )
     assert.equal(
       verificationAccessDecision({ pathname: '/api/load-requests', env }).api,
       true
+    )
+    assert.equal(
+      verificationAccessDecision({ pathname: '/api/load-requests', env }).authorized,
+      false
+    )
+    assert.equal(
+      verificationAccessDecision({ pathname: '/watchlist', env }).redirectTo,
+      '/verify?next=%2Fwatchlist'
     )
   })
 
@@ -105,8 +143,8 @@ describe('employee verification access', () => {
     assert.ok(cookie)
     assert.equal(employeeVerificationCookieIsValid(cookie, env), true)
     assert.equal(employeeVerificationCookieIsValid(`${cookie.slice(0, -3)}abc`, env), false)
-    assert.equal(verificationAccessDecision({ pathname: '/', verifiedCookie: cookie, accountCookie, env }).authorized, true)
-    assert.equal(verificationAccessDecision({ pathname: '/', verifiedCookie: cookie, env }).authorized, false)
+    assert.equal(verificationAccessDecision({ pathname: '/api/load-requests', verifiedCookie: cookie, accountCookie, env }).authorized, true)
+    assert.equal(verificationAccessDecision({ pathname: '/api/load-requests', verifiedCookie: cookie, env }).authorized, false)
   })
 
   it('rejects a copied User A verification cookie for User B account binding', () => {
@@ -118,7 +156,7 @@ describe('employee verification access', () => {
       updatedAt: '2026-08-24T00:00:00.000Z'
     }, env)
     const userBBinding = makeEmployeeVerificationAccountCookieValue('user:b', env)
-    assert.equal(verificationAccessDecision({ pathname: '/', verifiedCookie: userACookie, accountCookie: userBBinding, env }).authorized, false)
+    assert.equal(verificationAccessDecision({ pathname: '/api/load-requests', verifiedCookie: userACookie, accountCookie: userBBinding, env }).authorized, false)
   })
 
   it('fails closed when the dedicated cookie secret is missing and does not use service-role fallback', () => {
@@ -189,7 +227,7 @@ describe('employee verification access', () => {
 
   it('allows operator/admin independently of traveler verification', () => {
     assert.equal(
-      verificationAccessDecision({ pathname: '/', operatorToken: 'operator-token-for-tests', env }).reason,
+      verificationAccessDecision({ pathname: '/api/load-requests', operatorToken: 'operator-token-for-tests', env }).reason,
       'operator'
     )
     assert.equal(
@@ -207,9 +245,6 @@ describe('employee verification access', () => {
   it('covers direct URL and API entry in the proxy matcher', () => {
     const proxy = readFileSync(new URL('../proxy.ts', import.meta.url), 'utf8')
     ;[
-      "'/'",
-      "'/results/:path*'",
-      "'/api/search/:path*'",
       "'/api/load-requests/:path*'",
       "'/api/employee-verification/:path*'"
     ].forEach((matcher) => {
@@ -227,5 +262,18 @@ describe('employee verification access', () => {
     assert.doesNotMatch(verifyPage, /NONREVY_VERIFICATION_COOKIE_SECRET|NONREVY_OPERATOR_ACCESS_TOKEN|SUPABASE_SERVICE_ROLE_KEY/)
     assert.doesNotMatch(navigation, /NONREVY_VERIFICATION_COOKIE_SECRET|NONREVY_OPERATOR_ACCESS_TOKEN|SUPABASE_SERVICE_ROLE_KEY/)
     assert.match(navigation, /unverifiedNavItems/)
+  })
+
+  it('uses value-first verification copy and searchable airline selection', () => {
+    const verifyPage = readFileSync(new URL('../app/verify/page.tsx', import.meta.url), 'utf8')
+    const homePage = readFileSync(new URL('../app/page.tsx', import.meta.url), 'utf8')
+    const conversationalHome = readFileSync(new URL('../app/ConversationalTripWorkspace.tsx', import.meta.url), 'utf8')
+    assert.match(verifyPage, /Unlock Nonrevy traveler features/)
+    assert.match(verifyPage, /list="nonrevy-airline-employers"/)
+    assert.match(verifyPage, /Company-email verification is not mapped/)
+    assert.match(homePage, /Find the non-rev route most likely to get you there/)
+    assert.match(conversationalHome, /Find the non-rev route most likely to get you there/)
+    assert.match(homePage, /Search your trip/)
+    assert.match(conversationalHome, /Search your trip - Compare your chances - Know your backups/)
   })
 })

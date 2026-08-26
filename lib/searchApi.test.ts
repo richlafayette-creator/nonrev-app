@@ -9,6 +9,8 @@ import { runSearchPipeline } from './searchPipeline.ts'
 // @ts-expect-error Node's experimental TypeScript test runner resolves the .ts extension directly.
 import { type SearchExecutionProvider } from './searchExecutionEngine.ts'
 // @ts-expect-error Node's experimental TypeScript test runner resolves the .ts extension directly.
+import { redactSearchResponseForPublicPreview } from './publicSearchPreview.ts'
+// @ts-expect-error Node's experimental TypeScript test runner resolves the .ts extension directly.
 import { validateSearchRequest } from './searchValidation.ts'
 // @ts-expect-error Node's experimental TypeScript test runner resolves the .ts extension directly.
 import { normalizeTravelerProfile, type TravelerProfileScaffold } from './travelerProfile.ts'
@@ -70,6 +72,22 @@ describe('/api/search beta search API', () => {
     assert.ok(response.body.timeline.length > 0)
     assert.ok(response.body.summary)
     assert.ok(response.body.fallbacks.length > 0)
+  })
+
+  it('redacts protected ZED, load, community, and personalized score signals for public preview', () => {
+    const response = executeSearchApi(validBody(), { now })
+
+    assert.equal(response.status, 200)
+    if (response.status !== 200) return
+    const preview = redactSearchResponseForPublicPreview(response.body)
+    const serialized = JSON.stringify(preview)
+    assert.equal(preview.publicPreview?.enabled, true)
+    assert.match(preview.publicPreview?.lockedMessage || '', /Verify airline eligibility/)
+    assert.equal(preview.confidence.score, 0)
+    assert.equal(preview.recommendations.ranked.every((recommendation) => recommendation.finalScore === 0 && recommendation.estimatedSuccess === 0), true)
+    assert.equal(preview.itineraries.every((itinerary) => itinerary.zedEligibility?.label === 'Verify to unlock ZED compatibility'), true)
+    assert.doesNotMatch(serialized, /eligibleZedAirlines":\["[A-Z0-9]/)
+    assert.doesNotMatch(serialized, /wholePartyZedEligible":true/)
   })
 
   it('does not fabricate flight numbers, times, seats, or current live availability', () => {

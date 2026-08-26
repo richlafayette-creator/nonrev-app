@@ -25,11 +25,11 @@ const overflowItems = [
   ['Feedback', '/beta-feedback'],
   ['Verification', '/verify'],
   ['Onboarding', '/onboarding'],
-  ['Account', '/account'],
-  ['Notifications', '/notification-preferences']
+  ['Account', '/account']
 ]
 
 const unverifiedNavItems: NavItem[] = [
+  { label: 'Search', href: '/', icon: 'search' },
   { label: 'Verify', href: '/verify', icon: 'verify', aliases: ['/onboarding'] },
   { label: 'Profile', href: '/profile', icon: 'profile', aliases: ['/account', '/preferences'] },
   { label: 'Billing', href: '/billing', icon: 'saved', aliases: ['/membership', '/credits'] },

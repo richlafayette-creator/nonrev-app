@@ -7,8 +7,10 @@ export type EmployeeVerificationMethod = 'company_email' | 'manual_review' | 'op
 
 export type AirlineEmployer = {
   code: string
+  icao?: string
   name: string
   domains: string[]
+  aliases?: string[]
   manualReviewAvailable?: boolean
 }
 
@@ -48,25 +50,67 @@ const verificationTableName = 'nonrevy_employee_verification'
 const localStorePath = process.env.NONREVY_EMPLOYEE_VERIFICATION_LOCAL_STORE || join('/tmp', 'nonrevy-employee-verification.json')
 
 export const airlineEmployers: AirlineEmployer[] = [
-  { code: 'AA', name: 'American Airlines', domains: ['aa.com', 'americanairlines.com'] },
+  { code: 'AA', icao: 'AAL', name: 'American Airlines', domains: ['aa.com', 'americanairlines.com'] },
+  { code: 'A3', icao: 'AEE', name: 'Aegean Airlines', domains: [] },
   { code: 'AC', name: 'Air Canada', domains: ['aircanada.ca', 'aircanada.com'] },
-  { code: 'AF', name: 'Air France', domains: ['airfrance.fr', 'airfrance.com'] },
-  { code: 'AS', name: 'Alaska Airlines', domains: ['alaskaair.com'] },
-  { code: 'BA', name: 'British Airways', domains: ['ba.com', 'britishairways.com'] },
-  { code: 'B6', name: 'JetBlue', domains: ['jetblue.com'] },
-  { code: 'DL', name: 'Delta Air Lines', domains: ['delta.com'] },
-  { code: 'EK', name: 'Emirates', domains: ['emirates.com'] },
-  { code: 'F9', name: 'Frontier Airlines', domains: ['flyfrontier.com'] },
-  { code: 'HA', name: 'Hawaiian Airlines', domains: ['hawaiianair.com'] },
-  { code: 'JL', name: 'Japan Airlines', domains: ['jal.com'] },
-  { code: 'KL', name: 'KLM Royal Dutch Airlines', domains: ['klm.com'] },
-  { code: 'LH', name: 'Lufthansa', domains: ['dlh.de', 'lufthansa.com'] },
-  { code: 'NH', name: 'All Nippon Airways', domains: ['ana.co.jp'] },
-  { code: 'NK', name: 'Spirit Airlines', domains: ['spirit.com'] },
-  { code: 'QF', name: 'Qantas', domains: ['qantas.com.au', 'qantas.com'] },
-  { code: 'QR', name: 'Qatar Airways', domains: ['qatarairways.com.qa', 'qatarairways.com'] },
-  { code: 'UA', name: 'United Airlines', domains: ['united.com', 'unitedairlines.com'] },
-  { code: 'WN', name: 'Southwest Airlines', domains: ['wnco.com', 'southwest.com'] }
+  { code: 'AF', icao: 'AFR', name: 'Air France', domains: ['airfrance.fr', 'airfrance.com'] },
+  { code: 'AI', icao: 'AIC', name: 'Air India', domains: [] },
+  { code: 'AM', icao: 'AMX', name: 'Aeromexico', domains: [], aliases: ['AeroMexico'] },
+  { code: 'AS', icao: 'ASA', name: 'Alaska Airlines', domains: ['alaskaair.com'] },
+  { code: 'AV', icao: 'AVA', name: 'Avianca', domains: [] },
+  { code: 'AY', icao: 'FIN', name: 'Finnair', domains: [] },
+  { code: 'AZ', icao: 'ITY', name: 'ITA Airways', domains: [] },
+  { code: 'BA', icao: 'BAW', name: 'British Airways', domains: ['ba.com', 'britishairways.com'] },
+  { code: 'B6', icao: 'JBU', name: 'JetBlue', domains: ['jetblue.com'], aliases: ['JetBlue Airways'] },
+  { code: 'BR', icao: 'EVA', name: 'EVA Air', domains: [] },
+  { code: 'CA', icao: 'CCA', name: 'Air China', domains: [] },
+  { code: 'CI', icao: 'CAL', name: 'China Airlines', domains: [] },
+  { code: 'CM', icao: 'CMP', name: 'Copa Airlines', domains: [] },
+  { code: 'CX', icao: 'CPA', name: 'Cathay Pacific', domains: [] },
+  { code: 'CZ', icao: 'CSN', name: 'China Southern Airlines', domains: [] },
+  { code: 'DL', icao: 'DAL', name: 'Delta Air Lines', domains: ['delta.com'], aliases: ['Delta Airlines'] },
+  { code: 'EI', icao: 'EIN', name: 'Aer Lingus', domains: [] },
+  { code: 'EK', icao: 'UAE', name: 'Emirates', domains: ['emirates.com'] },
+  { code: 'ET', icao: 'ETH', name: 'Ethiopian Airlines', domains: [] },
+  { code: 'EY', icao: 'ETD', name: 'Etihad Airways', domains: [] },
+  { code: 'F9', icao: 'FFT', name: 'Frontier Airlines', domains: ['flyfrontier.com'] },
+  { code: 'FI', icao: 'ICE', name: 'Icelandair', domains: [] },
+  { code: 'FR', icao: 'RYR', name: 'Ryanair', domains: [] },
+  { code: 'G4', icao: 'AAY', name: 'Allegiant Air', domains: [] },
+  { code: 'HA', icao: 'HAL', name: 'Hawaiian Airlines', domains: ['hawaiianair.com'] },
+  { code: 'IB', icao: 'IBE', name: 'Iberia', domains: [] },
+  { code: 'JL', icao: 'JAL', name: 'Japan Airlines', domains: ['jal.com'] },
+  { code: 'KE', icao: 'KAL', name: 'Korean Air', domains: [] },
+  { code: 'KL', icao: 'KLM', name: 'KLM Royal Dutch Airlines', domains: ['klm.com'], aliases: ['KLM'] },
+  { code: 'LA', icao: 'LAN', name: 'LATAM Airlines', domains: [] },
+  { code: 'LH', icao: 'DLH', name: 'Lufthansa', domains: ['dlh.de', 'lufthansa.com'] },
+  { code: 'LO', icao: 'LOT', name: 'LOT Polish Airlines', domains: [] },
+  { code: 'LX', icao: 'SWR', name: 'SWISS', domains: [], aliases: ['Swiss International Air Lines'] },
+  { code: 'MF', icao: 'CXA', name: 'XiamenAir', domains: [] },
+  { code: 'MU', icao: 'CES', name: 'China Eastern Airlines', domains: [] },
+  { code: 'NH', icao: 'ANA', name: 'All Nippon Airways', domains: ['ana.co.jp'], aliases: ['ANA'] },
+  { code: 'NK', icao: 'NKS', name: 'Spirit Airlines', domains: ['spirit.com'] },
+  { code: 'NZ', icao: 'ANZ', name: 'Air New Zealand', domains: [] },
+  { code: 'OO', icao: 'SKW', name: 'SkyWest Airlines', domains: [], aliases: ['SkyWest'] },
+  { code: 'OS', icao: 'AUA', name: 'Austrian Airlines', domains: [] },
+  { code: 'OZ', icao: 'AAR', name: 'Asiana Airlines', domains: [] },
+  { code: 'PD', icao: 'POE', name: 'Porter Airlines', domains: [] },
+  { code: 'QF', icao: 'QFA', name: 'Qantas', domains: ['qantas.com.au', 'qantas.com'] },
+  { code: 'QR', icao: 'QTR', name: 'Qatar Airways', domains: ['qatarairways.com.qa', 'qatarairways.com'] },
+  { code: 'RJ', icao: 'RJA', name: 'Royal Jordanian', domains: [] },
+  { code: 'SK', icao: 'SAS', name: 'Scandinavian Airlines', domains: [], aliases: ['SAS'] },
+  { code: 'SN', icao: 'BEL', name: 'Brussels Airlines', domains: [] },
+  { code: 'SQ', icao: 'SIA', name: 'Singapore Airlines', domains: [] },
+  { code: 'TK', icao: 'THY', name: 'Turkish Airlines', domains: [] },
+  { code: 'TP', icao: 'TAP', name: 'TAP Air Portugal', domains: [] },
+  { code: 'UA', icao: 'UAL', name: 'United Airlines', domains: ['united.com', 'unitedairlines.com'] },
+  { code: 'VS', icao: 'VIR', name: 'Virgin Atlantic', domains: [] },
+  { code: 'VY', icao: 'VLG', name: 'Vueling', domains: [] },
+  { code: 'WN', icao: 'SWA', name: 'Southwest Airlines', domains: ['wnco.com', 'southwest.com'] },
+  { code: 'WS', icao: 'WJA', name: 'WestJet', domains: [] },
+  { code: 'Y4', icao: 'VOI', name: 'Volaris', domains: [] },
+  { code: 'YX', icao: 'RPA', name: 'Republic Airways', domains: [] },
+  { code: 'ZH', icao: 'CSZ', name: 'Shenzhen Airlines', domains: [] }
 ]
 
 function nowIso() {
@@ -94,23 +138,69 @@ function emailDomain(email: string) {
 export function findAirlineEmployer(value: string) {
   const normalizedCode = normalizeCode(value)
   const normalizedName = value.trim().toLowerCase()
+  const normalizedSearchName = normalizedName.replace(/[^a-z0-9]/g, '')
   return airlineEmployers.find((employer) => (
     employer.code === normalizedCode ||
+    employer.icao === normalizedCode ||
     employer.name.toLowerCase() === normalizedName ||
-    employer.name.toLowerCase().replace(/[^a-z0-9]/g, '') === normalizedName.replace(/[^a-z0-9]/g, '')
+    employer.name.toLowerCase().replace(/[^a-z0-9]/g, '') === normalizedSearchName ||
+    (employer.aliases || []).some((alias) => alias.toLowerCase() === normalizedName || alias.toLowerCase().replace(/[^a-z0-9]/g, '') === normalizedSearchName)
   )) || null
 }
 
 export function airlineOptionsForSelect() {
-  return airlineEmployers.map((employer) => ({ code: employer.code, name: employer.name }))
+  return airlineEmployers.map((employer) => ({
+      code: employer.code,
+      icao: employer.icao || '',
+      name: employer.name,
+      aliases: employer.aliases || [],
+      domainsKnown: employer.domains.length > 0,
+      verificationMethods: verificationMethodsForAirline(employer.code)
+  }))
+}
+
+export function searchAirlineEmployers(query: string, limit = 25) {
+  const normalizedQuery = query.trim().toLowerCase()
+  const compactQuery = normalizedQuery.replace(/[^a-z0-9]/g, '')
+  if (!normalizedQuery) return airlineOptionsForSelect().slice(0, limit)
+  return airlineEmployers
+    .map((employer) => {
+      const names = [employer.name, ...(employer.aliases || [])]
+      const codes = [employer.code, employer.icao || ''].filter(Boolean)
+      const exactCode = codes.some((code) => code.toLowerCase() === normalizedQuery || code.toLowerCase() === compactQuery)
+      const exactName = names.some((name) => name.toLowerCase() === normalizedQuery || name.toLowerCase().replace(/[^a-z0-9]/g, '') === compactQuery)
+      const partialName = names.some((name) => name.toLowerCase().includes(normalizedQuery) || name.toLowerCase().replace(/[^a-z0-9]/g, '').includes(compactQuery))
+      const score = exactCode ? 0 : exactName ? 1 : partialName ? 2 : 99
+      return { employer, score }
+    })
+    .filter((item) => item.score < 99)
+    .sort((left, right) => left.score - right.score || left.employer.name.localeCompare(right.employer.name))
+    .slice(0, Math.max(1, Math.min(100, limit)))
+    .map((item) => ({
+      code: item.employer.code,
+      icao: item.employer.icao || '',
+      name: item.employer.name,
+      aliases: item.employer.aliases || [],
+      domainsKnown: item.employer.domains.length > 0,
+      verificationMethods: verificationMethodsForAirline(item.employer.code)
+    }))
+}
+
+export function verificationMethodsForAirline(airlineCode: string) {
+  const employer = findAirlineEmployer(airlineCode)
+  if (!employer) return []
+  return employer.domains.length ? ['company_email', 'manual_review'] : ['manual_review']
 }
 
 export function companyEmailDomainAllowed(airlineCode: string, workEmail: string) {
   const employer = findAirlineEmployer(airlineCode)
   const domain = emailDomain(workEmail)
-  if (!employer || !domain) return { allowed: false, domain, employer }
+  if (!employer) return { allowed: false, reason: 'unknown-airline' as const, domain, employer }
+  if (!employer.domains.length) return { allowed: false, reason: 'no-approved-domain' as const, domain, employer }
+  if (!domain) return { allowed: false, reason: 'missing-domain' as const, domain, employer }
   return {
     allowed: employer.domains.some((allowedDomain) => domain === allowedDomain || domain.endsWith(`.${allowedDomain}`)),
+    reason: employer.domains.some((allowedDomain) => domain === allowedDomain || domain.endsWith(`.${allowedDomain}`)) ? 'approved-domain' as const : 'domain-not-approved' as const,
     domain,
     employer
   }
@@ -281,6 +371,7 @@ function rowToRecord(row: any): EmployeeVerificationRecord | null {
 export function createPendingCompanyEmailVerification(input: { userId: string; airlineCode: string; workEmail: string }) {
   const allowed = companyEmailDomainAllowed(input.airlineCode, input.workEmail)
   if (!allowed.employer) return { ok: false as const, error: 'Choose a supported airline or request manual review.' }
+  if (!allowed.allowed && allowed.reason === 'no-approved-domain') return { ok: false as const, error: 'Company email verification is not mapped for this airline yet. Request manual review instead.' }
   if (!allowed.allowed) return { ok: false as const, error: 'That work email domain is not approved for the selected airline. Request manual review if your airline uses another system.' }
   const now = nowIso()
   const record: EmployeeVerificationRecord = {

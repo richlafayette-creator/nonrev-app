@@ -49,7 +49,7 @@ export default function OnboardingPage() {
   function saveDraft() {
     const saved = saveOnboardingState(onboardingPreview, false)
     setCompletedAt(saved.completedAt)
-    setStatus('Saved draft. Search unlocks after airline employee verification is approved.')
+    setStatus('Saved draft. Public schedule preview is available now; member tools unlock after airline employee verification is approved.')
   }
 
   function completeOnboarding(event: FormEvent<HTMLFormElement>) {
@@ -61,7 +61,7 @@ export default function OnboardingPage() {
 
     const saved = saveOnboardingState(onboardingPreview, true)
     setCompletedAt(saved.completedAt)
-    setStatus('Traveler profile saved. Search unlocks after airline employee verification is approved.')
+    setStatus('Traveler profile saved. Public schedule preview is available now; member tools unlock after airline employee verification is approved.')
   }
 
   return (
@@ -77,7 +77,7 @@ export default function OnboardingPage() {
         <p style={{ color: '#38bdf8', fontWeight: 'bold', letterSpacing: 1, textTransform: 'uppercase' }}>Private beta setup</p>
         <h1 style={{ fontSize: 44, lineHeight: 1.05, margin: '8px 0 12px' }}>Set up your traveler profile.</h1>
         <p style={{ color: '#94a3b8', maxWidth: 820, fontSize: 18 }}>
-          Start with airline employee verification, then add profile and ZED details. Nonrevy search, results, saved trips, watchlist, and load-request tools unlock after verification.
+          Preview public schedules first, then verify airline employment to unlock ZED-aware planning, saved trips, watchlist, and load-request tools. Profile and ZED details stay separate from employment verification.
         </p>
         <p style={{ marginTop: 12 }}>
           <a href="/verify" style={{ color: '#38bdf8', fontWeight: 800 }}>Verify airline employment</a>

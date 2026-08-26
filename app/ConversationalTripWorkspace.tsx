@@ -142,7 +142,7 @@ export default function ConversationalTripWorkspace({ initialPrompt = '' }: { in
     {
       id: 'assistant-welcome',
       role: 'assistant',
-      text: 'Tell me where you need to go. I’ll search real schedules, keep standby loads separate from schedule data, and use your profile when it helps.'
+      text: 'Find the non-rev route most likely to get you there. Search your trip, compare your chances, and know your backups. Public schedule preview is available first; verify airline eligibility to unlock ZED compatibility, load intelligence, personalized scoring, saved trips, watchlists, and load requests.'
     }
   ])
   const [prompt, setPrompt] = useState(initialPrompt)
@@ -367,6 +367,7 @@ export default function ConversationalTripWorkspace({ initialPrompt = '' }: { in
         <header className="nonrevy-conversation__header">
           <a href="/" className="nonrevy-conversation__brand nonrevy-logo">NONREVY</a>
           <p>Private Beta</p>
+          <p>Search your trip - Compare your chances - Know your backups</p>
         </header>
 
         <ContextStrip context={context} />

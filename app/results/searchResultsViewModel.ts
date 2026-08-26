@@ -4,6 +4,11 @@ import { type SearchApiSuccessResponse } from '../../lib/searchResponse'
 export type SearchResultsViewModel = {
   title: string
   subtitle: string
+  publicPreview?: {
+    enabled: boolean
+    lockedMessage: string
+    lockedFeatures: string[]
+  }
   dataQualityLabel: string
   staticOnlyNotice: string
   providerReadinessLabel: string
@@ -612,6 +617,7 @@ export function buildSearchResultsViewModel(stored: BetaSearchStoredResult | nul
     return {
       title: 'No beta search result found',
       subtitle: 'Run a search from the homepage to see ranked beta recommendations.',
+      publicPreview: undefined,
       dataQualityLabel: 'Data quality: unavailable',
       staticOnlyNotice: 'No stored search result is available.',
       providerReadinessLabel: 'Schedule source readiness unavailable.',
@@ -660,6 +666,7 @@ export function buildSearchResultsViewModel(stored: BetaSearchStoredResult | nul
     subtitle: stored.destination.mode === 'region'
       ? `Region-based search from ${stored.request.origin}; final destination remains ${stored.destination.label}.${routeResolutionSubtitle(stored)}`
       : `Airport search from ${stored.request.origin} to ${stored.destination.label}.${routeResolutionSubtitle(stored)}`,
+    publicPreview: result.publicPreview,
     dataQualityLabel: dataQualityLabel(result.dataQuality),
     staticOnlyNotice: staticOnlyNotice(result),
     providerReadinessLabel: providerReadinessLabel(result),

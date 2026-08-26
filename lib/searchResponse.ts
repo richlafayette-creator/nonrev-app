@@ -23,6 +23,11 @@ export type SearchProviderReadiness = {
 
 export type SearchApiSuccessResponse = {
   id: string
+  publicPreview?: {
+    enabled: boolean
+    lockedMessage: string
+    lockedFeatures: string[]
+  }
   generatedAt: string
   tripType: SearchResult['tripType']
   planA?: SearchResult['recommendations']['planA']

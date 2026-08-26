@@ -56,7 +56,10 @@ export default function Home() {
               <span />
             </div>
             <p className="nonrevy-home__intro">
-              Search real schedules, compare standby-friendly options, and request load help when a flight is confirmed. Profile and ZED details improve recommendations, but you can search first.
+              Find the non-rev route most likely to get you there.
+            </p>
+            <p className="nonrevy-home__intro">
+              Nonrevy compares flights, ZED access, load signals and backup routes so you can make a smarter decision before you go.
             </p>
           </header>
 
@@ -163,8 +166,13 @@ export default function Home() {
               <button key={example} type="button" onClick={() => setSearch(example)}>{example}</button>
             ))}
           </div>
+          <div className="nonrevy-home__steps" aria-label="How Nonrevy helps">
+            <span>Search your trip</span>
+            <span>Compare your chances</span>
+            <span>Know your backups</span>
+          </div>
           <p className="nonrevy-home__expectation">
-            Schedules are not live standby loads. Use Request load when you need a current human answer.
+            Public schedule preview is available first. Verify airline eligibility to unlock ZED compatibility, load intelligence, personalized scoring and member tools.
           </p>
         </div>
       </section>

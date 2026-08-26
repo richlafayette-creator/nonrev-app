@@ -12,6 +12,14 @@ import {
   reviewEmployeeVerification
 } from './employeeVerification'
 import {
+  emailVerificationCodeAttemptLimit,
+  getEmailVerificationChallenge,
+  startEmailVerificationChallenge,
+  verifyEmailChallengeCode,
+  verifyEmailMagicLink,
+  type EmailVerificationPublicChallenge
+} from './employeeEmailVerification'
+import {
   employeeVerificationCookieMaxAgeSeconds,
   employeeVerificationCookieIsValid,
   makeEmployeeVerificationAccountCookieValue,
@@ -23,9 +31,32 @@ import { internalRouteAccessDecision } from './internalRouteAccess'
 
 const env = {
   NONREVY_VERIFICATION_COOKIE_SECRET: 'verification-cookie-secret-for-tests',
+  NONREVY_EMAIL_VERIFICATION_SECRET: 'email-verification-secret-for-tests',
+  NONREVY_PUBLIC_APP_URL: 'https://beta.nonrevy.test',
   NONREVY_OPERATOR_ACCESS_TOKEN: 'operator-token-for-tests',
   NONREVY_ADMIN_ACCESS_TOKEN: undefined,
   SUPABASE_SERVICE_ROLE_KEY: undefined
+}
+
+function captureEmailProvider(capture: { code?: string; magicLinkUrl?: string; count?: number }, fail = false) {
+  return {
+    name: 'test-provider',
+    async sendVerificationEmail(message: { code: string; magicLinkUrl: string }) {
+      capture.code = message.code
+      capture.magicLinkUrl = message.magicLinkUrl
+      capture.count = (capture.count || 0) + 1
+      if (fail) return { ok: false as const, provider: 'test-provider', reason: 'provider-error' as const, detail: 'Provider failed safely.' }
+      return { ok: true as const, provider: 'test-provider', messageId: `message-${capture.count}` }
+    }
+  }
+}
+
+function magicLinkParts(value: string) {
+  const url = new URL(value)
+  return {
+    challengeId: url.searchParams.get('challenge') || '',
+    token: url.searchParams.get('token') || ''
+  }
 }
 
 describe('employee verification access', () => {
@@ -72,6 +103,253 @@ describe('employee verification access', () => {
     assert.equal(created.record.emailDomain, 'united.com')
     assert.ok(created.record.workEmailHash)
     assert.doesNotMatch(JSON.stringify(created.record), /Tester@United\.com/i)
+  })
+
+  it('starts a code and magic-link challenge for a recognized airline/domain', async () => {
+    const capture: { code?: string; magicLinkUrl?: string; count?: number } = {}
+    const started = await startEmailVerificationChallenge({
+      userId: 'user:email-start',
+      airlineCode: 'UA',
+      workEmail: 'Tester@United.com',
+      env,
+      provider: captureEmailProvider(capture)
+    })
+    assert.equal(started.ok, true)
+    if (!started.ok) return
+    assert.equal(started.verification.status, 'pending')
+    assert.equal(started.verification.airlineCode, 'UA')
+    assert.equal(started.challenge.emailDomain, 'united.com')
+    assert.match(capture.code || '', /^\d{6}$/)
+    assert.match(capture.magicLinkUrl || '', /^https:\/\/beta\.nonrevy\.test\/verify\/email\?/)
+    assert.doesNotMatch(JSON.stringify(started), /Tester@United\.com|magicTokenHash|codeHmac|RESEND_API_KEY/i)
+  })
+
+  it('does not auto-verify unknown or mismatched company email domains', async () => {
+    const unknown = await startEmailVerificationChallenge({
+      userId: 'user:unknown-domain',
+      airlineCode: 'OO',
+      workEmail: 'tester@skywest.example',
+      env,
+      provider: captureEmailProvider({})
+    })
+    assert.equal(unknown.ok, false)
+    if (!unknown.ok) assert.match(unknown.error, /manual review/i)
+
+    const mismatch = await startEmailVerificationChallenge({
+      userId: 'user:mismatch-domain',
+      airlineCode: 'UA',
+      workEmail: 'tester@delta.com',
+      env,
+      provider: captureEmailProvider({})
+    })
+    assert.equal(mismatch.ok, false)
+    if (!mismatch.ok) assert.match(mismatch.error, /manual review|selected airline/i)
+  })
+
+  it('verifies a correct six-digit code and grants protected access', async () => {
+    const capture: { code?: string; magicLinkUrl?: string; count?: number } = {}
+    const started = await startEmailVerificationChallenge({
+      userId: 'user:code-success',
+      airlineCode: 'AA',
+      workEmail: 'person@aa.com',
+      env,
+      provider: captureEmailProvider(capture)
+    })
+    assert.equal(started.ok, true)
+    if (!started.ok) return
+    const verified = await verifyEmailChallengeCode({
+      userId: 'user:code-success',
+      challengeId: started.challenge.challengeId,
+      code: capture.code || '',
+      env
+    })
+    assert.equal(verified.ok, true)
+    if (!verified.ok) return
+    assert.equal(verified.verification?.status, 'verified')
+    assert.equal(verified.verification?.reviewSource, 'company_email_challenge')
+    const verifiedCookie = makeEmployeeVerificationCookieValue(verified.verification!, env)
+    const accountCookie = makeEmployeeVerificationAccountCookieValue('user:code-success', env)
+    assert.equal(verificationAccessDecision({ pathname: '/results', verifiedCookie, accountCookie, env }).authorized, true)
+  })
+
+  it('rejects incorrect, expired, and reused code challenges', async () => {
+    const capture: { code?: string; magicLinkUrl?: string; count?: number } = {}
+    const started = await startEmailVerificationChallenge({
+      userId: 'user:code-failures',
+      airlineCode: 'UA',
+      workEmail: 'person@united.com',
+      env,
+      provider: captureEmailProvider(capture)
+    })
+    assert.equal(started.ok, true)
+    if (!started.ok) return
+    const wrong = await verifyEmailChallengeCode({
+      userId: 'user:code-failures',
+      challengeId: started.challenge.challengeId,
+      code: '000000',
+      env
+    })
+    assert.equal(wrong.ok, false)
+
+    const originalNow = Date.now
+    try {
+      Date.now = () => originalNow() + 20 * 60 * 1000
+      const expired = await startEmailVerificationChallenge({
+        userId: 'user:code-expired',
+        airlineCode: 'UA',
+        workEmail: 'expired@united.com',
+        env,
+        provider: captureEmailProvider(capture)
+      })
+      assert.equal(expired.ok, true)
+      if (!expired.ok) return
+      Date.now = () => originalNow() + 40 * 60 * 1000
+      const expiredResult = await verifyEmailChallengeCode({
+        userId: 'user:code-expired',
+        challengeId: expired.challenge.challengeId,
+        code: capture.code || '',
+        env
+      })
+      assert.equal(expiredResult.ok, false)
+      if (!expiredResult.ok) assert.match(expiredResult.error, /expired/i)
+    } finally {
+      Date.now = originalNow
+    }
+
+    const successCapture: { code?: string; magicLinkUrl?: string; count?: number } = {}
+    const oneUse = await startEmailVerificationChallenge({
+      userId: 'user:code-reuse',
+      airlineCode: 'UA',
+      workEmail: 'reuse@united.com',
+      env,
+      provider: captureEmailProvider(successCapture)
+    })
+    assert.equal(oneUse.ok, true)
+    if (!oneUse.ok) return
+    assert.equal((await verifyEmailChallengeCode({ userId: 'user:code-reuse', challengeId: oneUse.challenge.challengeId, code: successCapture.code || '', env })).ok, true)
+    assert.equal((await verifyEmailChallengeCode({ userId: 'user:code-reuse', challengeId: oneUse.challenge.challengeId, code: successCapture.code || '', env })).ok, false)
+  })
+
+  it('locks a code challenge after too many failed attempts', async () => {
+    const capture: { code?: string; magicLinkUrl?: string; count?: number } = {}
+    const started = await startEmailVerificationChallenge({
+      userId: 'user:code-lock',
+      airlineCode: 'UA',
+      workEmail: 'lock@united.com',
+      env,
+      provider: captureEmailProvider(capture)
+    })
+    assert.equal(started.ok, true)
+    if (!started.ok) return
+    let last: Awaited<ReturnType<typeof verifyEmailChallengeCode>> | null = null
+    for (let index = 0; index < emailVerificationCodeAttemptLimit; index += 1) {
+      last = await verifyEmailChallengeCode({
+        userId: 'user:code-lock',
+        challengeId: started.challenge.challengeId,
+        code: '111111',
+        env
+      })
+    }
+    assert.equal(last?.ok, false)
+    if (last && !last.ok) assert.equal(last.status, 429)
+  })
+
+  it('verifies a magic link and rejects reused, expired, or copied challenges', async () => {
+    const capture: { code?: string; magicLinkUrl?: string; count?: number } = {}
+    const started = await startEmailVerificationChallenge({
+      userId: 'user:magic-success',
+      airlineCode: 'DL',
+      workEmail: 'person@delta.com',
+      env,
+      provider: captureEmailProvider(capture)
+    })
+    assert.equal(started.ok, true)
+    if (!started.ok) return
+    const link = magicLinkParts(capture.magicLinkUrl || '')
+    const verified = await verifyEmailMagicLink({ userId: 'user:magic-success', challengeId: link.challengeId, token: link.token, env })
+    assert.equal(verified.ok, true)
+    assert.equal((await verifyEmailMagicLink({ userId: 'user:magic-success', challengeId: link.challengeId, token: link.token, env })).ok, false)
+
+    const copiedCapture: { code?: string; magicLinkUrl?: string; count?: number } = {}
+    const copied = await startEmailVerificationChallenge({
+      userId: 'user:magic-a',
+      airlineCode: 'UA',
+      workEmail: 'a@united.com',
+      env,
+      provider: captureEmailProvider(copiedCapture)
+    })
+    assert.equal(copied.ok, true)
+    if (!copied.ok) return
+    const copiedLink = magicLinkParts(copiedCapture.magicLinkUrl || '')
+    assert.equal((await verifyEmailMagicLink({ userId: 'user:magic-b', challengeId: copiedLink.challengeId, token: copiedLink.token, env })).ok, false)
+
+    const originalNow = Date.now
+    try {
+      const expiredCapture: { code?: string; magicLinkUrl?: string; count?: number } = {}
+      const expired = await startEmailVerificationChallenge({
+        userId: 'user:magic-expired',
+        airlineCode: 'UA',
+        workEmail: 'magic-expired@united.com',
+        env,
+        provider: captureEmailProvider(expiredCapture)
+      })
+      assert.equal(expired.ok, true)
+      if (!expired.ok) return
+      const expiredLink = magicLinkParts(expiredCapture.magicLinkUrl || '')
+      Date.now = () => originalNow() + 20 * 60 * 1000
+      const expiredResult = await verifyEmailMagicLink({ userId: 'user:magic-expired', challengeId: expiredLink.challengeId, token: expiredLink.token, env })
+      assert.equal(expiredResult.ok, false)
+      if (!expiredResult.ok) assert.match(expiredResult.error, /expired/i)
+    } finally {
+      Date.now = originalNow
+    }
+  })
+
+  it('keeps provider failure and missing email secret fail-closed without verification', async () => {
+    const providerFailure = await startEmailVerificationChallenge({
+      userId: 'user:provider-failure',
+      airlineCode: 'UA',
+      workEmail: 'failure@united.com',
+      env,
+      provider: captureEmailProvider({}, true)
+    })
+    assert.equal(providerFailure.ok, false)
+    if (!providerFailure.ok) {
+      assert.match(providerFailure.error, /failed/i)
+      assert.notEqual(providerFailure.verification?.status, 'verified')
+    }
+
+    const missingSecret = await startEmailVerificationChallenge({
+      userId: 'user:missing-email-secret',
+      airlineCode: 'UA',
+      workEmail: 'missing@united.com',
+      env: { ...env, NONREVY_EMAIL_VERIFICATION_SECRET: undefined },
+      provider: captureEmailProvider({})
+    })
+    assert.equal(missingSecret.ok, false)
+    if (!missingSecret.ok) assert.match(missingSecret.error, /not configured/i)
+  })
+
+  it('does not expose raw code, token, email, or hashes in public challenge responses', async () => {
+    const capture: { code?: string; magicLinkUrl?: string; count?: number } = {}
+    const started = await startEmailVerificationChallenge({
+      userId: 'user:no-secret-output',
+      airlineCode: 'UA',
+      workEmail: 'secret-output@united.com',
+      env,
+      provider: captureEmailProvider(capture)
+    })
+    assert.equal(started.ok, true)
+    if (!started.ok) return
+    const publicPayload = JSON.stringify({ challenge: started.challenge })
+    assert.doesNotMatch(publicPayload, /secret-output@united\.com/i)
+    assert.doesNotMatch(publicPayload, new RegExp(capture.code || 'unmatchable'))
+    assert.doesNotMatch(publicPayload, /magicTokenHash|codeHmac|workEmailHash/)
+    assert.doesNotMatch(publicPayload, /token=/)
+    const loaded = await getEmailVerificationChallenge((started.challenge as EmailVerificationPublicChallenge).challengeId)
+    assert.equal(loaded.data?.status, 'pending')
+    assert.notEqual(loaded.data?.magicTokenHash, '')
+    assert.notEqual(loaded.data?.codeHmac, '')
   })
 
   it('supports manual review without public evidence storage', () => {

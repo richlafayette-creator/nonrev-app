@@ -1,8 +1,12 @@
 import { NextResponse } from 'next/server'
 import { persistentUserId } from '../../../lib/apiIdentity'
 import {
+  resendEmailVerificationChallenge,
+  startEmailVerificationChallenge,
+  verifyEmailChallengeCode
+} from '../../../lib/employeeEmailVerification'
+import {
   airlineOptionsForSelect,
-  createPendingCompanyEmailVerification,
   createPendingManualVerification,
   getEmployeeVerification,
   listPendingEmployeeVerifications,
@@ -27,9 +31,11 @@ import {
 export const dynamic = 'force-dynamic'
 
 type VerificationBody = {
-  action?: 'submit-company-email' | 'request-manual-review' | 'approve' | 'reject' | 'request-resubmission'
+  action?: 'submit-company-email' | 'start-email-verification' | 'verify-code' | 'resend-email-verification' | 'request-manual-review' | 'approve' | 'reject' | 'request-resubmission'
   airlineCode?: string
   workEmail?: string
+  challengeId?: string
+  code?: string
   targetUserId?: string
   reasonCategory?: string
 }
@@ -161,20 +167,54 @@ export async function POST(request: Request) {
   }
 
   const userId = persistentUserId(request)
-  if (body.action === 'submit-company-email') {
-    const pending = createPendingCompanyEmailVerification({
+  if (body.action === 'submit-company-email' || body.action === 'start-email-verification') {
+    const started = await startEmailVerificationChallenge({
       userId,
       airlineCode: String(body.airlineCode || ''),
       workEmail: String(body.workEmail || '')
     })
-    if (!pending.ok) return NextResponse.json({ error: pending.error }, { status: 400 })
-    const result = await upsertEmployeeVerification(pending.record)
+    if (!started.ok) {
+      return responseWithVerificationCookie(request, {
+        error: started.error,
+        verification: started.verification ? publicRecord(started.verification) : undefined,
+        challenge: started.challenge,
+        emailSent: false,
+        manualReviewAvailable: true
+      }, started.verification || null, userId, started.status)
+    }
     return responseWithVerificationCookie(request, {
-      verification: publicRecord(result.data),
-      storageMode: result.storageMode,
-      status: result.status,
-      detail: 'Work email domain accepted. Transactional email is not configured in this beta environment, so this request is pending operator review.'
-    }, result.data, userId, 202)
+      verification: publicRecord(started.verification),
+      challenge: started.challenge,
+      emailSent: true,
+      detail: 'We sent a verification email to your work address. Enter the six-digit code here or use the secure link in the email.'
+    }, started.verification, userId, 202)
+  }
+
+  if (body.action === 'verify-code') {
+    const verified = await verifyEmailChallengeCode({
+      userId,
+      challengeId: String(body.challengeId || ''),
+      code: String(body.code || '')
+    })
+    if (!verified.ok) return NextResponse.json({ error: verified.error }, { status: verified.status })
+    return responseWithVerificationCookie(request, {
+      verification: publicRecord(verified.verification),
+      detail: 'Your airline employment has been verified.'
+    }, verified.verification, userId)
+  }
+
+  if (body.action === 'resend-email-verification') {
+    const resent = await resendEmailVerificationChallenge({
+      userId,
+      challengeId: String(body.challengeId || ''),
+      workEmail: String(body.workEmail || '')
+    })
+    if (!resent.ok) return NextResponse.json({ error: resent.error, challenge: resent.challenge }, { status: resent.status })
+    return NextResponse.json({
+      challenge: resent.challenge,
+      emailSent: true,
+      detail: 'We sent a new verification email to your work address.'
+    }, { status: 202 })
   }
 
   if (body.action === 'request-manual-review') {

@@ -26,8 +26,19 @@ type VerificationStatus = {
 type VerificationResponse = {
   verification: VerificationStatus
   airlines: AirlineOption[]
+  challenge?: EmailChallenge
+  emailSent?: boolean
   detail?: string
   disclosure?: string
+}
+
+type EmailChallenge = {
+  challengeId: string
+  airlineCode: string
+  airlineName: string
+  emailDomain: string
+  expiresAt: string
+  sendCount: number
 }
 
 const defaultAirlines: AirlineOption[] = [
@@ -54,14 +65,22 @@ function formatDate(value?: string) {
   return parsed.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
+function safeNextRoute(value: string | null) {
+  if (!value || !value.startsWith('/') || value.startsWith('//')) return '/'
+  return value
+}
+
 export default function VerifyPage() {
   const [airlines, setAirlines] = useState<AirlineOption[]>(defaultAirlines)
   const [verification, setVerification] = useState<VerificationStatus>({ status: 'unverified' })
   const [airlineCode, setAirlineCode] = useState('UA')
   const [airlineQuery, setAirlineQuery] = useState('United Airlines (UA)')
   const [workEmail, setWorkEmail] = useState('')
+  const [emailChallenge, setEmailChallenge] = useState<EmailChallenge | null>(null)
+  const [verificationCode, setVerificationCode] = useState('')
   const [status, setStatus] = useState('Preview schedules now, then verify airline eligibility when you need member-only non-rev tools.')
   const [loading, setLoading] = useState(false)
+  const [nextRoute, setNextRoute] = useState('/')
 
   useEffect(() => {
     let cancelled = false
@@ -80,7 +99,12 @@ export default function VerifyPage() {
         const nextAirline = (data.airlines?.length ? data.airlines : defaultAirlines).find((airline) => airline.code === nextCode)
         setAirlineCode(nextCode)
         setAirlineQuery(nextAirline ? `${nextAirline.name} (${nextAirline.code})` : nextCode)
-        setStatus(data.detail || data.disclosure || 'Verification status loaded.')
+        const params = new URLSearchParams(window.location.search)
+        const emailStatus = params.get('email')
+        if (emailStatus === 'verified') setStatus('Your airline employment has been verified.')
+        else if (emailStatus === 'expired') setStatus('That verification link expired. Send a new verification email.')
+        else if (emailStatus === 'invalid') setStatus('That verification link could not be used. Send a new email or request manual review.')
+        else setStatus(data.detail || data.disclosure || 'Verification status loaded.')
       } catch {
         if (!cancelled) setStatus('Verification status could not be loaded. You can still submit a request.')
       }
@@ -89,6 +113,11 @@ export default function VerifyPage() {
     return () => {
       cancelled = true
     }
+  }, [])
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    setNextRoute(safeNextRoute(params.get('next')))
   }, [])
 
   const selectedAirline = useMemo(() => airlines.find((airline) => airline.code === airlineCode), [airlines, airlineCode])
@@ -123,9 +152,9 @@ export default function VerifyPage() {
     if (selected) setAirlineCode(selected.code)
   }
 
-  async function submit(action: 'submit-company-email' | 'request-manual-review') {
+  async function submit(action: 'start-email-verification' | 'request-manual-review') {
     setLoading(true)
-    setStatus(action === 'submit-company-email' ? 'Checking work email domain...' : 'Submitting manual review request...')
+    setStatus(action === 'start-email-verification' ? 'Checking work email domain...' : 'Submitting manual review request...')
     try {
       const response = await fetch('/api/employee-verification', {
         method: 'POST',
@@ -140,9 +169,11 @@ export default function VerifyPage() {
       const data = await response.json() as Partial<VerificationResponse> & { error?: string }
       if (!response.ok) {
         setStatus(data.error || 'Verification request could not be submitted.')
+        if (data.challenge) setEmailChallenge(data.challenge)
         return
       }
       setVerification(data.verification || { status: 'pending', airlineCode, airlineName: selectedAirline?.name })
+      if (data.challenge) setEmailChallenge(data.challenge)
       setStatus(data.detail || 'Verification request submitted.')
     } catch {
       setStatus('Verification request failed. Please try again.')
@@ -153,7 +184,65 @@ export default function VerifyPage() {
 
   function submitEmail(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    submit('submit-company-email')
+    submit('start-email-verification')
+  }
+
+  async function verifyCode(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!emailChallenge) return
+    setLoading(true)
+    setStatus('Checking verification code...')
+    try {
+      const response = await fetch('/api/employee-verification', {
+        method: 'POST',
+        headers: await accountPersistenceHeaders(),
+        body: JSON.stringify({
+          action: 'verify-code',
+          challengeId: emailChallenge.challengeId,
+          code: verificationCode
+        })
+      })
+      const data = await response.json() as Partial<VerificationResponse> & { error?: string }
+      if (!response.ok) {
+        setStatus(data.error || 'Verification code was not accepted.')
+        return
+      }
+      setVerification(data.verification || { status: 'verified', airlineCode, airlineName: selectedAirline?.name })
+      setStatus(data.detail || 'Your airline employment has been verified.')
+      if (nextRoute && nextRoute !== '/verify') window.location.assign(nextRoute)
+    } catch {
+      setStatus('Verification code could not be checked. Please try again.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function resendEmail() {
+    if (!emailChallenge) return
+    setLoading(true)
+    setStatus('Resending verification email...')
+    try {
+      const response = await fetch('/api/employee-verification', {
+        method: 'POST',
+        headers: await accountPersistenceHeaders(),
+        body: JSON.stringify({
+          action: 'resend-email-verification',
+          challengeId: emailChallenge.challengeId,
+          workEmail
+        })
+      })
+      const data = await response.json() as Partial<VerificationResponse> & { error?: string }
+      if (!response.ok) {
+        setStatus(data.error || 'Verification email could not be resent.')
+        return
+      }
+      if (data.challenge) setEmailChallenge(data.challenge)
+      setStatus(data.detail || 'We sent a new verification email to your work address.')
+    } catch {
+      setStatus('Verification email could not be resent. Please try again.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -216,9 +305,37 @@ export default function VerifyPage() {
                 </small>
               </label>
               <button type="submit" disabled={loading || !workEmail.trim() || !companyEmailAvailable} style={{ justifySelf: 'start', padding: '12px 16px', borderRadius: 999, border: 'none', background: loading || !workEmail.trim() || !companyEmailAvailable ? '#94a3b8' : '#2563eb', color: '#ffffff', fontWeight: 800 }}>
-                Send verification
+                Send verification code
               </button>
             </form>
+            {emailChallenge ? (
+              <form className="nonrevy-traveler-form" onSubmit={verifyCode} style={{ display: 'grid', gap: 12, marginTop: 18, borderTop: '1px solid #e5e7eb', paddingTop: 18 }}>
+                <div>
+                  <h3 style={{ margin: '0 0 6px' }}>Enter your six-digit code</h3>
+                  <p style={{ color: '#475569', margin: 0 }}>We sent a verification email to your work address. You can also use the secure link in that email.</p>
+                </div>
+                <label style={{ color: '#111827', fontWeight: 700 }}>
+                  Verification code
+                  <input
+                    value={verificationCode}
+                    onChange={(event) => setVerificationCode(event.target.value.replace(/\D/g, '').slice(0, 6))}
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    placeholder="123456"
+                    style={{ boxSizing: 'border-box', width: '100%', marginTop: 6, padding: 12, borderRadius: 12, border: '1px solid #cbd5e1', background: '#ffffff', color: '#111827', letterSpacing: 4, fontWeight: 800 }}
+                  />
+                </label>
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                  <button type="submit" disabled={loading || verificationCode.length !== 6} style={{ padding: '11px 14px', borderRadius: 999, border: 'none', background: loading || verificationCode.length !== 6 ? '#94a3b8' : '#2563eb', color: '#ffffff', fontWeight: 800 }}>
+                    Verify
+                  </button>
+                  <button type="button" disabled={loading} onClick={resendEmail} style={{ padding: '11px 14px', borderRadius: 999, border: '1px solid #cbd5e1', background: '#ffffff', color: '#2563eb', fontWeight: 800 }}>
+                    Resend code
+                  </button>
+                </div>
+                <small style={{ color: '#475569' }}>The code expires at {formatDate(emailChallenge.expiresAt)}. Request manual review if you cannot access this work email.</small>
+              </form>
+            ) : null}
             <div style={{ borderTop: '1px solid #e5e7eb', marginTop: 18, paddingTop: 18 }}>
               <h3 style={{ margin: '0 0 8px' }}>Cannot verify with work email?</h3>
               <p style={{ color: '#475569' }}>

@@ -111,11 +111,11 @@ describe('employee verification access', () => {
     )
     assert.deepEqual(
       verificationAccessDecision({ pathname: '/results', env }).protected,
-      false
+      true
     )
     assert.deepEqual(
       verificationAccessDecision({ pathname: '/api/search', env }).protected,
-      false
+      true
     )
     assert.equal(
       verificationAccessDecision({ pathname: '/api/load-requests', env }).api,

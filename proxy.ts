@@ -104,6 +104,8 @@ export const config = {
     '/requests/:path*',
     '/api/data-health/:path*',
     '/api/internal/:path*',
+    '/api/search/:path*',
+    '/results/:path*',
     '/saved-searches/:path*',
     '/watchlist/:path*',
     '/my-requests/:path*',

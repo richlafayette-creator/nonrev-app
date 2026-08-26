@@ -31,6 +31,7 @@ export type VerificationAccessDecision = {
 }
 
 export const verificationProtectedPagePrefixes = [
+  '/results',
   '/saved-searches',
   '/watchlist',
   '/my-requests',
@@ -41,6 +42,7 @@ export const verificationProtectedPagePrefixes = [
 ]
 
 export const verificationProtectedApiPrefixes = [
+  '/api/search',
   '/api/saved-searches',
   '/api/watchlist',
   '/api/load-requests',

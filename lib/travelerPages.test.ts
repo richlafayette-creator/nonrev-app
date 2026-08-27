@@ -25,21 +25,21 @@ describe('traveler page presentation', () => {
   })
 
   it('keeps traveler forms labeled, compact, and mobile spaced', () => {
-    assert.match(profile, /<label[\s\S]*Employee airline[\s\S]*<select/)
-    assert.match(saved, /<label[\s\S]*Search type[\s\S]*<select/)
-    assert.match(watchlist, /<label[\s\S]*Watch type[\s\S]*<select/)
-    assert.match(feedback, /<label>[\s\S]*What happened\?[\s\S]*<textarea/)
+    assert.match(profile, /<label[\s\S]*t\('employeeAirline'\)[\s\S]*<select/)
+    assert.match(saved, /<label[\s\S]*t\('searchType'\)[\s\S]*<select/)
+    assert.match(watchlist, /<label[\s\S]*t\('watchType'\)[\s\S]*<select/)
+    assert.match(feedback, /<label>[\s\S]*t\('whatHappened'\)[\s\S]*<textarea/)
     assert.match(css, /\.nonrevy-traveler-form input,[\s\S]*min-height:\s*2\.55rem/)
     assert.match(css, /\.nonrevy-traveler-page button:disabled,[\s\S]*opacity:\s*0\.55/)
     assert.match(css, /@media \(max-width: 760px\)[\s\S]*\.nonrevy-traveler-list\s*{[\s\S]*grid-template-columns:\s*minmax\(0,\s*1fr\) !important/)
   })
 
   it('renders polished empty states for saved, watchlist, requests, feedback, and profile ZED', () => {
-    assert.match(saved, /No saved searches yet\./)
-    assert.match(watchlist, /No watched trips yet\./)
-    assert.match(requests, /No load requests yet\./)
-    assert.match(feedback, /No feedback captured yet/)
-    assert.match(profile, /No ZED agreements added yet\./)
+    assert.match(saved, /t\('noSavedSearches'\)/)
+    assert.match(watchlist, /t\('noWatchedTrips'\)/)
+    assert.match(requests, /t\('noLoadRequests'\)/)
+    assert.match(feedback, /t\('noFeedbackTitle'\)/)
+    assert.match(profile, /t\('noZedAgreements'\)/)
     assert.match(css, /\.nonrevy-traveler-empty\s*{[\s\S]*border-style:\s*dashed !important/)
   })
 
@@ -55,9 +55,9 @@ describe('traveler page presentation', () => {
     assert.match(requests, /if \(request\.status === 'expired'\) return 'Expired'/)
     assert.match(requests, /if \(requestIsAnswered\(request\)\) return 'Answered'/)
     assert.match(requests, /return 'Open'/)
-    assert.match(requests, /<option value="open">Active<\/option>/)
+    assert.match(requests, /<option value="open">\{t\('active'\)\}<\/option>/)
     assert.match(requests, /className="nonrevy-request-response"/)
-    assert.match(requests, /Load response/)
+    assert.match(requests, /t\('loadResponse'\)/)
   })
 
   it('keeps request lifecycle hooks intact while changing presentation only', () => {

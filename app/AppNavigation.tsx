@@ -5,35 +5,38 @@ import { usePathname } from 'next/navigation'
 import { supabase } from '../lib/supabase'
 import { useI18n } from './I18nProvider'
 import { accountPersistenceHeaders } from '../lib/accountPersistenceClient'
+import LanguageSelector from './LanguageSelector'
+import type { CommonTranslationKey } from '../lib/i18n/messages'
 
 type NavItem = {
   label: string
+  labelKey: CommonTranslationKey
   href: string
   icon: 'search' | 'saved' | 'watchlist' | 'requests' | 'profile' | 'verify'
   aliases?: string[]
 }
 
 const travelerNavItems: NavItem[] = [
-  { label: 'Search', href: '/', icon: 'search' },
-  { label: 'Saved', href: '/saved-searches', icon: 'saved' },
-  { label: 'Watchlist', href: '/watchlist', icon: 'watchlist' },
-  { label: 'Requests', href: '/my-requests', icon: 'requests' },
-  { label: 'Profile', href: '/profile', icon: 'profile', aliases: ['/account', '/preferences', '/notification-preferences'] }
+  { label: 'Search', labelKey: 'search', href: '/', icon: 'search' },
+  { label: 'Saved', labelKey: 'saved', href: '/saved-searches', icon: 'saved' },
+  { label: 'Watchlist', labelKey: 'watchlist', href: '/watchlist', icon: 'watchlist' },
+  { label: 'Requests', labelKey: 'requests', href: '/my-requests', icon: 'requests' },
+  { label: 'Profile', labelKey: 'profile', href: '/profile', icon: 'profile', aliases: ['/account', '/preferences', '/notification-preferences'] }
 ]
 
 const overflowItems = [
-  ['Feedback', '/beta-feedback'],
-  ['Verification', '/verify'],
-  ['Onboarding', '/onboarding'],
-  ['Account', '/account']
-]
+  { label: 'Feedback', labelKey: 'feedback' as const, href: '/beta-feedback' },
+  { label: 'Verification', labelKey: 'verify' as const, href: '/verify' },
+  { label: 'Onboarding', labelKey: 'verify' as const, href: '/onboarding' },
+  { label: 'Account', labelKey: 'account' as const, href: '/account' }
+] satisfies Array<{ label: string; labelKey: CommonTranslationKey; href: string }>
 
 const unverifiedNavItems: NavItem[] = [
-  { label: 'Search', href: '/', icon: 'search' },
-  { label: 'Verify', href: '/verify', icon: 'verify', aliases: ['/onboarding'] },
-  { label: 'Profile', href: '/profile', icon: 'profile', aliases: ['/account', '/preferences'] },
-  { label: 'Billing', href: '/billing', icon: 'saved', aliases: ['/membership', '/credits'] },
-  { label: 'Feedback', href: '/beta-feedback', icon: 'requests' }
+  { label: 'Search', labelKey: 'search', href: '/', icon: 'search' },
+  { label: 'Verify', labelKey: 'verify', href: '/verify', icon: 'verify', aliases: ['/onboarding'] },
+  { label: 'Profile', labelKey: 'profile', href: '/profile', icon: 'profile', aliases: ['/account', '/preferences'] },
+  { label: 'Billing', labelKey: 'billing', href: '/billing', icon: 'saved', aliases: ['/membership', '/credits'] },
+  { label: 'Feedback', labelKey: 'feedback', href: '/beta-feedback', icon: 'requests' }
 ]
 
 function itemIsActive(pathname: string | null, item: NavItem) {
@@ -125,7 +128,7 @@ export default function AppNavigation() {
 
   function renderNavItem(item: NavItem, variant: 'top' | 'mobile') {
     const active = itemIsActive(pathname, item)
-    const label = item.label === 'Search' ? t('search') : item.label
+    const label = t(item.labelKey) || item.label
 
     return (
       <a
@@ -152,16 +155,17 @@ export default function AppNavigation() {
         </nav>
 
         <div className="nonrevy-global-nav__actions">
+          <LanguageSelector compact />
           <button
             className="nonrevy-global-nav__menu-button"
             type="button"
-            aria-label={open ? 'Close NONREVY menu' : 'Open NONREVY menu'}
+            aria-label={open ? `${t('close')} NONREVY ${t('menu')}` : `Open NONREVY ${t('menu')}`}
             aria-expanded={open}
             aria-controls="nonrevy-overflow-menu"
             onClick={() => setOpen((value) => !value)}
           >
             <span aria-hidden="true">{open ? <NavIcon name="close" /> : <NavIcon name="menu" />}</span>
-            <span>Menu</span>
+            <span>{t('menu')}</span>
           </button>
         </div>
       </div>
@@ -169,23 +173,25 @@ export default function AppNavigation() {
       {open ? (
         <div id="nonrevy-overflow-menu" className="nonrevy-overflow-menu" role="dialog" aria-modal="false" aria-label="NONREVY menu">
           <div className="nonrevy-overflow-menu__account">
-            <span>Account</span>
-            <strong>{userEmail || 'Guest'}</strong>
+            <span>{t('account')}</span>
+            <strong>{userEmail || t('guest')}</strong>
             <div>
-              {!userEmail ? <a href="/login">Login</a> : <button type="button" onClick={logout}>Logout</button>}
-              <a href="/account">Account</a>
+              {!userEmail ? <a href="/login">{t('login')}</a> : <button type="button" onClick={logout}>{t('logout')}</button>}
+              <a href="/account">{t('account')}</a>
             </div>
             {message ? <small>{message}</small> : null}
           </div>
 
+          <LanguageSelector />
+
           <nav className="nonrevy-overflow-menu__links" aria-label="Secondary traveler links">
-            {overflowItems.map(([label, href]) => (
-              <a key={href} href={href} aria-current={pathname?.startsWith(href) ? 'page' : undefined}>{label}</a>
+            {overflowItems.map(({ label, labelKey, href }) => (
+              <a key={href} href={href} aria-current={pathname?.startsWith(href) ? 'page' : undefined}>{t(labelKey) || label}</a>
             ))}
           </nav>
 
           <button className="nonrevy-overflow-menu__close" type="button" onClick={() => setOpen(false)}>
-            Close
+            {t('close')}
           </button>
         </div>
       ) : null}

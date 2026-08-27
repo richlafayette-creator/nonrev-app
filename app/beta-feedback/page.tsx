@@ -15,6 +15,7 @@ import {
   type BetaFeedbackRecord,
   type BetaFeedbackSentiment
 } from '../../lib/betaFeedback'
+import { useI18n } from '../I18nProvider'
 
 function timeLabel(value: string) {
   if (!value) return 'No feedback yet'
@@ -38,6 +39,7 @@ function feedbackMailto(records: BetaFeedbackRecord[]) {
 }
 
 export default function BetaFeedbackPage() {
+  const { t } = useI18n()
   const [records, setRecords] = useState<BetaFeedbackRecord[]>([])
   const [category, setCategory] = useState<BetaFeedbackCategory>('Wrong flight/time')
   const [sentiment, setSentiment] = useState<BetaFeedbackSentiment>('Neutral')
@@ -45,7 +47,7 @@ export default function BetaFeedbackPage() {
   const [contact, setContact] = useState('')
   const [pageUrl, setPageUrl] = useState('')
   const [deviceClass, setDeviceClass] = useState('')
-  const [status, setStatus] = useState('Feedback history is ready.')
+  const [status, setStatus] = useState(t('feedbackStatusReady'))
 
   function refreshFeedback() {
     setRecords(loadBetaFeedback())
@@ -57,7 +59,7 @@ export default function BetaFeedbackPage() {
     setDeviceClass(`${window.innerWidth <= 640 ? 'mobile' : window.innerWidth <= 1024 ? 'tablet' : 'desktop'} · ${window.innerWidth}x${window.innerHeight}`)
     void syncBetaFeedback().then((result) => {
       setRecords(result.records)
-      setStatus(result.records.length ? 'Feedback history refreshed.' : 'No feedback captured yet.')
+      setStatus(result.records.length ? t('feedbackHistoryRefreshed') : t('noFeedbackTitle'))
     })
     window.addEventListener('nonrevy-beta-feedback-updated', refreshFeedback)
     window.addEventListener('storage', refreshFeedback)
@@ -73,50 +75,50 @@ export default function BetaFeedbackPage() {
   function submitFeedback(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!formReady) {
-      setStatus('Add a short note so the beta feedback is useful.')
+      setStatus(t('feedbackAddNote'))
       return
     }
     const saved = submitBetaFeedback({ category, sentiment, message, contact, pageUrl, deviceClass })
     refreshFeedback()
     setMessage('')
-    setStatus(saved ? 'Feedback captured. Thanks for helping shape the beta.' : 'Feedback could not be saved. Try again with a short note.')
+    setStatus(saved ? t('feedbackCaptured') : t('feedbackSaveFailed'))
   }
 
   async function copyFeedback() {
     try {
       await navigator.clipboard.writeText(betaFeedbackExportText(records))
-      setStatus('Feedback copied. Paste it into email, chat, or an issue when ready.')
+      setStatus(t('feedbackCopied'))
     } catch {
-      setStatus('Copy was blocked. Use email export instead.')
+      setStatus(t('feedbackCopyBlocked'))
     }
   }
 
   function markReviewed(id: string) {
     setRecords(markBetaFeedbackReviewed(id))
-    setStatus('Marked feedback resolved.')
+    setStatus(t('feedbackMarkedResolved'))
   }
 
   function clearAll() {
     setRecords(clearBetaFeedback())
-    setStatus('Cleared feedback history.')
+    setStatus(t('feedbackHistoryCleared'))
   }
 
   return (
     <main className="app-shell nonrevy-traveler-page nonrevy-feedback-page" style={{ minHeight: '100vh', background: '#020617', color: 'white', padding: 40, fontFamily: 'Arial' }}>
       <nav className="top-nav" style={{ marginBottom: 24 }}>
-        <a href="/" style={{ marginRight: 16, color: '#38bdf8' }}>Search</a>
-        <a href="/saved-searches" style={{ marginRight: 16, color: '#67e8f9' }}>Saved</a>
-        <a href="/watchlist" style={{ marginRight: 16, color: '#facc15' }}>Watchlist</a>
-        <a href="/my-requests" style={{ marginRight: 16, color: '#facc15' }}>My Requests</a>
-        <a href="/profile" style={{ color: '#22c55e' }}>Profile</a>
+        <a href="/" style={{ marginRight: 16, color: '#38bdf8' }}>{t('search')}</a>
+        <a href="/saved-searches" style={{ marginRight: 16, color: '#67e8f9' }}>{t('saved')}</a>
+        <a href="/watchlist" style={{ marginRight: 16, color: '#facc15' }}>{t('watchlist')}</a>
+        <a href="/my-requests" style={{ marginRight: 16, color: '#facc15' }}>{t('requests')}</a>
+        <a href="/profile" style={{ color: '#22c55e' }}>{t('profile')}</a>
       </nav>
 
       <section className="nonrevy-beta-feedback__hero">
         <div>
-          <p className="nonrevy-beta-feedback__eyebrow">Private beta</p>
-          <h1>Feedback capture</h1>
+          <p className="nonrevy-beta-feedback__eyebrow">{t('privateBeta')}</p>
+          <h1>{t('feedbackTitle')}</h1>
           <p>
-            Send wrong flight data, missing routes, ZED issues, load-request problems, and confusing screens with useful page context attached.
+            {t('feedbackIntro')}
           </p>
           <p className="nonrevy-beta-feedback__status">{status}</p>
         </div>
@@ -137,46 +139,46 @@ export default function BetaFeedbackPage() {
 
       <section className="nonrevy-beta-feedback__grid">
         <form onSubmit={submitFeedback} className="nonrevy-beta-feedback__card nonrevy-traveler-form">
-          <h2>Send beta note</h2>
+          <h2>{t('sendBetaNote')}</h2>
           <div className="nonrevy-beta-feedback__form-grid">
             <label>
-              Category
+              {t('category')}
               <select value={category} onChange={(event) => setCategory(event.target.value as BetaFeedbackCategory)}>
                 {betaFeedbackCategories.map((item) => <option key={item}>{item}</option>)}
               </select>
             </label>
             <label>
-              Impact
+              {t('impact')}
               <select value={sentiment} onChange={(event) => setSentiment(event.target.value as BetaFeedbackSentiment)}>
                 {betaFeedbackSentiments.map((item) => <option key={item}>{item}</option>)}
               </select>
             </label>
           </div>
           <label>
-            What happened?
+            {t('whatHappened')}
             <textarea value={message} onChange={(event) => setMessage(event.target.value)} rows={5} placeholder="Example: HND route looked best, but the load explanation was unclear." />
           </label>
           <label>
-            Page or route optional
+            {t('pageOrRouteOptional')}
             <input value={pageUrl} onChange={(event) => setPageUrl(event.target.value)} placeholder="/results, route, flight, or page URL" />
           </label>
           <label>
-            Contact optional
+            {t('contactOptional')}
             <input value={contact} onChange={(event) => setContact(event.target.value)} placeholder="Email, handle, or blank" />
           </label>
-          <button type="submit" disabled={!formReady}>Capture feedback</button>
+          <button type="submit" disabled={!formReady}>{t('captureFeedback')}</button>
         </form>
 
         <aside className="nonrevy-beta-feedback__card">
-          <h2>Share a copy</h2>
-          <p>Your beta account is the main feedback history when available. Export creates a plain-text copy if you need to send it another way.</p>
+          <h2>{t('shareCopy')}</h2>
+          <p>{t('shareCopyFeedback')}</p>
           <div className="nonrevy-beta-feedback__actions">
-            <button type="button" onClick={copyFeedback} disabled={!records.length}>Copy feedback</button>
-            <a href={feedbackMailto(records)} aria-disabled={!records.length}>Export email</a>
-            <button type="button" onClick={clearAll} disabled={!records.length}>Clear history</button>
+            <button type="button" onClick={copyFeedback} disabled={!records.length}>{t('copyFeedback')}</button>
+            <a href={feedbackMailto(records)} aria-disabled={!records.length}>{t('exportEmail')}</a>
+            <button type="button" onClick={clearAll} disabled={!records.length}>{t('clearHistory')}</button>
           </div>
           <details className="nonrevy-beta-feedback__details">
-            <summary>What to report</summary>
+            <summary>{t('whatToReport')}</summary>
             <ul>
               <li>Incorrect flight, schedule, time, or route data.</li>
               <li>Recommendations that feel confusing or unsafe.</li>
@@ -189,7 +191,7 @@ export default function BetaFeedbackPage() {
 
       <section className="nonrevy-beta-feedback__history">
         <div className="nonrevy-beta-feedback__history-head">
-          <h2>Feedback history</h2>
+          <h2>{t('feedbackHistory')}</h2>
           <span>{records.length} saved</span>
         </div>
         {records.length ? (
@@ -209,8 +211,8 @@ export default function BetaFeedbackPage() {
           </div>
         ) : (
           <article className="nonrevy-beta-feedback__empty nonrevy-traveler-empty">
-            <h3>No feedback captured yet</h3>
-            <p>Use this whenever something blocks trust, looks wrong, or would make the beta easier to use.</p>
+            <h3>{t('noFeedbackTitle')}</h3>
+            <p>{t('noFeedbackCopy')}</p>
           </article>
         )}
       </section>

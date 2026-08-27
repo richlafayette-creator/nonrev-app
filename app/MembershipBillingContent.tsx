@@ -1,61 +1,65 @@
-const coreFeatures = [
-  'Flight search',
-  'Itinerary refinements',
-  'ZED-aware planning',
-  'Destination and place resolution for flight search',
-  'Saved searches',
-  'Watchlist',
-  'Load requests',
-  'My Requests',
-  'Brief flight-specific explanations'
-]
+'use client'
 
-const conciergeFeatures = [
-  'Everything in Core',
-  'Broader travel-focused AI conversation',
-  'Destination research',
-  'Personalized trip planning',
-  'Current travel-information assistance',
-  'Monthly metered AI credits and fair-use allowance'
-]
-
-const tripPasses = [
-  {
-    name: 'Core 30-day Trip Pass',
-    price: '$14.99',
-    detail: 'Planned short-trip access for core flight planning.'
-  },
-  {
-    name: 'Concierge 30-day Trip Pass',
-    price: '$24.99',
-    detail: 'Planned short-trip access with the AI Concierge allowance.'
-  }
-]
+import { useI18n } from './I18nProvider'
 
 export default function MembershipBillingContent({ context = 'membership' }: { context?: 'membership' | 'billing' }) {
+  const { t } = useI18n()
+  const coreFeatures = [
+    t('coreFeatureSearch'),
+    t('coreFeatureRefinements'),
+    t('coreFeatureZed'),
+    t('coreFeaturePlaces'),
+    t('coreFeatureSaved'),
+    t('coreFeatureWatchlist'),
+    t('coreFeatureLoads'),
+    t('coreFeatureRequests'),
+    t('coreFeatureExplanations')
+  ]
+
+  const conciergeFeatures = [
+    t('conciergeFeatureCore'),
+    t('conciergeFeatureConversation'),
+    t('conciergeFeatureResearch'),
+    t('conciergeFeaturePlanning'),
+    t('conciergeFeatureCurrentInfo'),
+    t('conciergeFeatureCredits')
+  ]
+
+  const tripPasses = [
+    {
+      name: t('coreTripPass'),
+      price: '$14.99',
+      detail: t('coreTripPassDetail')
+    },
+    {
+      name: t('conciergeTripPass'),
+      price: '$24.99',
+      detail: t('conciergeTripPassDetail')
+    }
+  ]
+
   return (
     <main className="app-shell nonrevy-traveler-page nonrevy-membership-page" style={{ minHeight: '100vh', background: '#020617', color: 'white', padding: 32, fontFamily: 'Arial' }}>
       <section className="nonrevy-traveler-page__inner" style={{ maxWidth: 1120, margin: '0 auto' }}>
         <p className="nonrevy-traveler-page__eyebrow" style={{ color: '#2563eb', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1 }}>
-          Membership
+          {t('membership')}
         </p>
-        <h1 style={{ fontSize: 44, margin: '8px 0' }}>Membership & Billing</h1>
+        <h1 style={{ fontSize: 44, margin: '8px 0' }}>{t('membershipBillingTitle')}</h1>
         <p style={{ color: '#4B5563', maxWidth: 760 }}>
-          Private beta access is currently complimentary. Founding-member pricing is planned for the paid beta.
-          Payment details will be requested only when paid memberships launch.
+          {t('membershipBillingIntro')}
         </p>
         {context === 'billing' ? (
           <p style={{ color: '#4B5563', maxWidth: 760 }}>
-            Billing details live with Membership for the private beta so there is one clear source of truth.
+            {t('billingCanonicalCopy')}
           </p>
         ) : null}
 
         <section className="nonrevy-traveler-card nonrevy-current-access-card" style={{ border: '1px solid #334155', borderRadius: 22, padding: 22, background: '#0f172a', marginTop: 24 }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14 }}>
             {[
-              ['Current plan', 'Private Beta'],
-              ['Price', 'Complimentary'],
-              ['Status', 'Active']
+              [t('currentPlan'), t('privateBetaPlan')],
+              [t('price'), t('complimentary')],
+              [t('status'), t('active')]
             ].map(([label, value]) => (
               <article key={label} style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#020617' }}>
                 <small style={{ color: '#6b7280' }}>{label}</small>
@@ -64,26 +68,26 @@ export default function MembershipBillingContent({ context = 'membership' }: { c
             ))}
           </div>
           <p style={{ color: '#4B5563', marginBottom: 0 }}>
-            Core beta features are available to invited private-beta travelers now. Paid memberships and trip passes are not active yet.
+            {t('currentAccessCopy')}
           </p>
         </section>
 
         <section className="nonrevy-traveler-page__grid nonrevy-membership-plans" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 18, marginTop: 24 }}>
           <article className="nonrevy-traveler-card" style={{ border: '1px solid #334155', borderRadius: 22, padding: 22, background: '#0f172a' }}>
-            <small style={{ color: '#2563eb', fontWeight: 800, textTransform: 'uppercase', letterSpacing: 1 }}>Planned paid beta</small>
-            <h2 style={{ margin: '8px 0' }}>Core Founding Membership</h2>
+            <small style={{ color: '#2563eb', fontWeight: 800, textTransform: 'uppercase', letterSpacing: 1 }}>{t('plannedPaidBeta')}</small>
+            <h2 style={{ margin: '8px 0' }}>{t('coreFoundingMembership')}</h2>
             <p style={{ color: '#111827', fontSize: 28, fontWeight: 900, margin: '8px 0' }}>$49/year</p>
-            <p style={{ color: '#4B5563' }}>The planned foundation for everyday nonrev flight planning.</p>
+            <p style={{ color: '#4B5563' }}>{t('coreFoundingCopy')}</p>
             <ul style={{ color: '#4B5563', paddingLeft: 18 }}>
               {coreFeatures.map((feature) => <li key={feature}>{feature}</li>)}
             </ul>
           </article>
 
           <article className="nonrevy-traveler-card" style={{ border: '1px solid #2563eb', borderRadius: 22, padding: 22, background: '#0f172a' }}>
-            <small style={{ color: '#2563eb', fontWeight: 800, textTransform: 'uppercase', letterSpacing: 1 }}>Planned paid beta</small>
-            <h2 style={{ margin: '8px 0' }}>AI Travel Concierge Founding Membership</h2>
+            <small style={{ color: '#2563eb', fontWeight: 800, textTransform: 'uppercase', letterSpacing: 1 }}>{t('plannedPaidBeta')}</small>
+            <h2 style={{ margin: '8px 0' }}>{t('conciergeFoundingMembership')}</h2>
             <p style={{ color: '#111827', fontSize: 28, fontWeight: 900, margin: '8px 0' }}>$99/year</p>
-            <p style={{ color: '#4B5563' }}>Core plus broader travel help with a monthly usage allowance.</p>
+            <p style={{ color: '#4B5563' }}>{t('conciergeFoundingCopy')}</p>
             <ul style={{ color: '#4B5563', paddingLeft: 18 }}>
               {conciergeFeatures.map((feature) => <li key={feature}>{feature}</li>)}
             </ul>
@@ -91,7 +95,7 @@ export default function MembershipBillingContent({ context = 'membership' }: { c
         </section>
 
         <section className="nonrevy-traveler-card" style={{ border: '1px solid #334155', borderRadius: 22, padding: 22, background: '#0f172a', marginTop: 24 }}>
-          <h2 style={{ marginTop: 0 }}>Planned trip passes</h2>
+          <h2 style={{ marginTop: 0 }}>{t('plannedTripPasses')}</h2>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
             {tripPasses.map((pass) => (
               <article key={pass.name} style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#020617' }}>
@@ -102,36 +106,31 @@ export default function MembershipBillingContent({ context = 'membership' }: { c
             ))}
           </div>
           <p style={{ color: '#4B5563', marginBottom: 0 }}>
-            These are planned founding paid-beta prices, not active charges.
+            {t('tripPassPricingNote')}
           </p>
         </section>
 
         <section className="nonrevy-traveler-card" style={{ border: '1px solid #334155', borderRadius: 22, padding: 22, background: '#0f172a', marginTop: 24 }}>
-          <h2 style={{ marginTop: 0 }}>AI Concierge</h2>
+          <h2 style={{ marginTop: 0 }}>{t('aiConcierge')}</h2>
           <p style={{ color: '#4B5563' }}>
-            Core flight-search conversation remains part of Core. Broader travel conversation, destination research,
-            personalized planning, and current travel-information help are planned for Concierge with a monthly
-            usage allowance.
+            {t('aiConciergeCopy')}
           </p>
           <p style={{ color: '#4B5563', marginBottom: 0 }}>
-            If a premium travel-chat question is unavailable during beta, Nonrevy should preserve the active flight search
-            and keep the trip state intact.
+            {t('aiConciergeFallbackCopy')}
           </p>
         </section>
 
         <section className="nonrevy-traveler-empty" style={{ border: '1px dashed #cbd5e1', borderRadius: 22, padding: 22, background: '#ffffff', marginTop: 24 }}>
-          <h2 style={{ marginTop: 0 }}>Billing status</h2>
+          <h2 style={{ marginTop: 0 }}>{t('billingStatus')}</h2>
           <p style={{ color: '#4B5563' }}>
-            No paid-account controls are shown because paid memberships are not live.
-            Future paid beta billing can connect secure checkout, billing management, verified webhooks, and server-side
-            membership entitlement.
+            {t('billingStatusCopy')}
           </p>
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
             <a className="nonrevy-traveler-link-action" href="/profile" style={{ border: '1px solid #d1d5db', borderRadius: 999, padding: '10px 14px', color: '#111827', fontWeight: 800, textDecoration: 'none' }}>
-              Back to Profile
+              {t('backToProfile')}
             </a>
             <a className="nonrevy-traveler-link-action" href="/" style={{ border: '1px solid #2563eb', borderRadius: 999, padding: '10px 14px', color: '#2563eb', fontWeight: 800, textDecoration: 'none' }}>
-              Search Flights
+              {t('searchFlights')}
             </a>
           </div>
         </section>

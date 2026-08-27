@@ -24,7 +24,7 @@ describe('phase 2A compact result row layout', () => {
     assert.match(css, /\.nonrevy-itinerary-row__score\s*{[\s\S]*grid-area:\s*score/)
     assert.match(css, /\.nonrevy-itinerary-row__score\s*{[\s\S]*width:\s*2\.45rem/)
     assert.match(css, /\.nonrevy-itinerary-row__score\s*{[\s\S]*max-width:\s*2\.45rem/)
-    assert.match(client, /const scoreAriaLabel = publicPreview \? 'Personalized score locked until verification' : `Score \$\{card\.finalScore\} out of 100`/)
+    assert.match(client, /const scoreAriaLabel = publicPreview \? t\('previewLockedMessage'\) : `Score \$\{card\.finalScore\} out of 100`/)
     assert.match(client, /className="nonrevy-itinerary-row__score" aria-label=\{scoreAriaLabel\}/)
   })
 

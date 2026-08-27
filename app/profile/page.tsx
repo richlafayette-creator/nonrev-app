@@ -15,16 +15,18 @@ import ActivationProgressCard from '../ActivationProgressCard'
 import ReferralProgramCard from '../ReferralProgramCard'
 import BillingStatusCard from '../BillingStatusCard'
 import { accountPersistenceHeaders } from '../../lib/accountPersistenceClient'
+import { useI18n } from '../I18nProvider'
 
 const travelerTypes: TravelerType[] = ['Employee', 'Retiree', 'Companion', 'Buddy Pass']
 
 export default function ProfilePage() {
+  const { t } = useI18n()
   const [employeeAirline, setEmployeeAirline] = useState(defaultTravelerProfile.employeeAirline)
   const [travelerType, setTravelerType] = useState<TravelerType>(defaultTravelerProfile.travelerType)
   const [passPriority, setPassPriority] = useState(defaultTravelerProfile.passPriority)
   const [homeAirport, setHomeAirport] = useState(defaultTravelerProfile.homeAirport)
   const [preferredAirports, setPreferredAirports] = useState(defaultTravelerProfile.preferredAirports.join(', '))
-  const [saveStatus, setSaveStatus] = useState('Profile ready. Update these details whenever your travel access changes.')
+  const [saveStatus, setSaveStatus] = useState(t('profileStatusReady'))
   const [verification, setVerification] = useState({
     status: 'unverified',
     airlineCode: '',
@@ -80,7 +82,7 @@ export default function ProfilePage() {
   function saveProfile(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     saveTravelerProfileToStorage(profilePreview)
-    setSaveStatus('Profile saved. Searches will use these traveler details when available.')
+    setSaveStatus(t('profileStatusSaved'))
   }
 
   function resetProfile() {
@@ -90,28 +92,28 @@ export default function ProfilePage() {
     setPassPriority(defaultTravelerProfile.passPriority)
     setHomeAirport(defaultTravelerProfile.homeAirport)
     setPreferredAirports(defaultTravelerProfile.preferredAirports.join(', '))
-    setSaveStatus('Profile reset to beta defaults.')
+    setSaveStatus(t('profileStatusReset'))
   }
 
   return (
     <main className="app-shell nonrevy-traveler-page nonrevy-profile-page" style={{ minHeight: '100vh', background: '#020617', color: 'white', padding: 32, fontFamily: 'Arial' }}>
       <nav className="top-nav" style={{ marginBottom: 24 }}>
-        <a href="/" style={{ marginRight: 16, color: '#38bdf8' }}>Search</a>
+        <a href="/" style={{ marginRight: 16, color: '#38bdf8' }}>{t('search')}</a>
         <a href="/onboarding" style={{ marginRight: 16, color: '#38bdf8' }}>Setup</a>
-        <a href="/profile" style={{ marginRight: 16, color: '#22c55e' }}>Profile</a>
-        <a href="/my-requests" style={{ marginRight: 16, color: '#facc15' }}>My Requests</a>
-        <a href="/beta-feedback" style={{ color: '#c084fc' }}>Feedback</a>
+        <a href="/profile" style={{ marginRight: 16, color: '#22c55e' }}>{t('profile')}</a>
+        <a href="/my-requests" style={{ marginRight: 16, color: '#facc15' }}>{t('requests')}</a>
+        <a href="/beta-feedback" style={{ color: '#c084fc' }}>{t('feedback')}</a>
       </nav>
 
       <section className="nonrevy-traveler-page__inner" style={{ maxWidth: 1120, margin: '0 auto' }}>
         <p className="nonrevy-traveler-page__eyebrow" style={{ color: '#22c55e', fontWeight: 'bold', letterSpacing: 1, textTransform: 'uppercase' }}>
-          Traveler profile
+          {t('profileEyebrow')}
         </p>
         <h1 style={{ fontSize: 44, lineHeight: 1.05, margin: '8px 0 12px' }}>
-          Your travel access
+          {t('profileTitle')}
         </h1>
         <p style={{ color: '#94a3b8', maxWidth: 760, fontSize: 18 }}>
-          Keep your employee airline, pass type, home airport, and preferred airports current. Nonrevy uses this to label ZED eligibility as confirmed, partial, unavailable, or unknown.
+          {t('profileIntro')}
         </p>
 
         <div style={{ marginTop: 24 }}>
@@ -129,33 +131,33 @@ export default function ProfilePage() {
         <section className="nonrevy-traveler-card nonrevy-employee-verification-card" style={{ border: '1px solid #dbe3ef', borderRadius: 18, padding: 18, background: '#ffffff', color: '#111827', marginTop: 18 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
             <div>
-              <small style={{ color: '#64748b', fontWeight: 800, textTransform: 'uppercase' }}>Airline employee verification</small>
+              <small style={{ color: '#64748b', fontWeight: 800, textTransform: 'uppercase' }}>{t('employeeVerification')}</small>
               <h2 style={{ margin: '4px 0 0' }}>
-                {verification.status === 'verified' ? 'Verified' : verification.status === 'pending' ? 'Pending review' : verification.status === 'rejected' ? 'Needs resubmission' : 'Verification required'}
+                {verification.status === 'verified' ? t('verified') : verification.status === 'pending' ? t('pendingReview') : verification.status === 'rejected' ? t('needsResubmission') : t('verificationRequired')}
               </h2>
             </div>
-            <span className="nonrevy-traveler-badge">{verification.airlineCode || 'Not verified'}</span>
+            <span className="nonrevy-traveler-badge">{verification.airlineCode || t('notVerified')}</span>
           </div>
           <p style={{ color: '#334155', margin: '10px 0 0' }}>
             {verification.status === 'verified'
               ? `${verification.airlineName || verification.airlineCode} · ${verification.method.replaceAll('_', ' ') || 'verified'}${verification.verifiedAt ? ` · ${new Date(verification.verifiedAt).toLocaleDateString()}` : ''}`
               : verification.status === 'pending'
-                ? `${verification.airlineName || 'Airline'} review is pending. Full product access unlocks after approval.`
-                : 'Verify airline affiliation before using search, results, saved trips, watchlist, or load-request tools.'}
+                ? t('profilePendingVerification')
+                : t('profileVerifyBeforeTools')}
           </p>
           <p style={{ color: '#475569', margin: '8px 0 0' }}>
-            Employment verification is separate from ZED agreement eligibility. ZED access still needs its own profile review.
+            {t('verificationZedSeparate')}
           </p>
-          <a href="/verify" style={{ display: 'inline-block', color: '#2563eb', fontWeight: 800, marginTop: 12 }}>Manage verification</a>
+          <a href="/verify" style={{ display: 'inline-block', color: '#2563eb', fontWeight: 800, marginTop: 12 }}>{t('manageVerification')}</a>
         </section>
 
         <div className="nonrevy-traveler-page__grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 18, marginTop: 28 }}>
           <details className="nonrevy-traveler-card nonrevy-traveler-disclosure">
-            <summary>Edit traveler details</summary>
+            <summary>{t('editTravelerDetails')}</summary>
           <form className="nonrevy-traveler-form" onSubmit={saveProfile} style={{ border: '1px solid #334155', borderRadius: 22, padding: 22, background: '#0f172a' }}>
-            <h2 style={{ marginTop: 0 }}>Airline and travel access</h2>
+            <h2 style={{ marginTop: 0 }}>{t('airlineTravelAccess')}</h2>
             <label style={{ display: 'block', color: '#cbd5e1', marginBottom: 12 }}>
-              Employee airline
+              {t('employeeAirline')}
               <select
                 value={employeeAirline}
                 onChange={(event) => setEmployeeAirline(event.target.value)}
@@ -167,7 +169,7 @@ export default function ProfilePage() {
               </select>
             </label>
             <label style={{ display: 'block', color: '#cbd5e1', marginBottom: 12 }}>
-              Traveler type
+              {t('travelerType')}
               <select
                 value={travelerType}
                 onChange={(event) => setTravelerType(event.target.value as TravelerType)}
@@ -179,7 +181,7 @@ export default function ProfilePage() {
               </select>
             </label>
             <label style={{ display: 'block', color: '#cbd5e1', marginBottom: 12 }}>
-              Pass priority
+              {t('passPriority')}
               <input
                 value={passPriority}
                 onChange={(event) => setPassPriority(event.target.value.toUpperCase())}
@@ -188,7 +190,7 @@ export default function ProfilePage() {
               />
             </label>
             <label style={{ display: 'block', color: '#cbd5e1', marginBottom: 12 }}>
-              Home airport
+              {t('homeAirport')}
               <input
                 value={homeAirport}
                 onChange={(event) => setHomeAirport(event.target.value.toUpperCase())}
@@ -198,7 +200,7 @@ export default function ProfilePage() {
               />
             </label>
             <label style={{ display: 'block', color: '#cbd5e1', marginBottom: 12 }}>
-              Preferred airports
+              {t('preferredAirports')}
               <input
                 value={preferredAirports}
                 onChange={(event) => setPreferredAirports(event.target.value)}
@@ -211,14 +213,14 @@ export default function ProfilePage() {
                 type="submit"
                 style={{ padding: 12, borderRadius: 10, border: 'none', background: '#38bdf8', color: '#020617', fontWeight: 'bold' }}
               >
-                Save profile
+                {t('saveProfile')}
               </button>
               <button
                 type="button"
                 onClick={resetProfile}
                 style={{ padding: 12, borderRadius: 10, border: '1px solid #475569', background: '#020617', color: '#cbd5e1', fontWeight: 'bold' }}
               >
-                Reset defaults
+                {t('resetDefaults')}
               </button>
             </div>
             <p className="nonrevy-traveler-status" style={{ color: '#94a3b8', marginBottom: 0 }}>{saveStatus}</p>
@@ -226,14 +228,14 @@ export default function ProfilePage() {
           </details>
 
           <aside className="nonrevy-traveler-card" style={{ border: '1px solid #334155', borderRadius: 22, padding: 22, background: '#0f172a' }}>
-            <h2 style={{ marginTop: 0 }}>Profile summary</h2>
+            <h2 style={{ marginTop: 0 }}>{t('profileSummary')}</h2>
             <div className="nonrevy-traveler-list" style={{ display: 'grid', gap: 12 }}>
               {[
-                ['Employee airline', profilePreview.employeeAirline],
-                ['Traveler type', profilePreview.travelerType],
-                ['Pass priority', profilePreview.passPriority],
-                ['Home airport', profilePreview.homeAirport],
-                ['Preferred airports', profilePreview.preferredAirports.join(', ')]
+                [t('employeeAirline'), profilePreview.employeeAirline],
+                [t('travelerType'), profilePreview.travelerType],
+                [t('passPriority'), profilePreview.passPriority],
+                [t('homeAirport'), profilePreview.homeAirport],
+                [t('preferredAirports'), profilePreview.preferredAirports.join(', ')]
               ].map(([label, value]) => (
                 <article className="nonrevy-traveler-row" key={label} style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#020617' }}>
                   <small style={{ color: '#94a3b8' }}>{label}</small>
@@ -242,9 +244,9 @@ export default function ProfilePage() {
               ))}
             </div>
             <section className="nonrevy-traveler-card nonrevy-zed-profile" style={{ border: '1px solid #334155', borderRadius: 14, padding: 14, background: '#020617', marginTop: 14 }}>
-              <strong style={{ color: '#38bdf8' }}>ZED agreements</strong>
+              <strong style={{ color: '#38bdf8' }}>{t('zedAgreements')}</strong>
               <p style={{ color: '#94a3b8', margin: '8px 0 0' }}>
-                Current profile signals only. Missing carriers remain unconfirmed until reviewed.
+                {t('zedAgreementsProfileCopy')}
               </p>
               <div className="nonrevy-zed-profile__badges" aria-label="Supported carrier eligibility">
                 {Object.entries(profilePreview.supportedCarrierEligibility).map(([carrier, eligibility]) => (
@@ -269,17 +271,17 @@ export default function ProfilePage() {
                 </div>
               ) : (
                 <article className="nonrevy-traveler-empty nonrevy-traveler-empty--compact">
-                  <h3>No ZED agreements added yet.</h3>
-                  <p>Add agreement details when they are available so search results can show clearer eligibility.</p>
+                  <h3>{t('noZedAgreements')}</h3>
+                  <p>{t('noZedAgreementsCopy')}</p>
                 </article>
               )}
             </section>
             <a href="/" style={{ display: 'inline-block', color: '#38bdf8', marginTop: 16 }}>
-              Search with this profile
+              {t('searchWithProfile')}
             </a>
             <br />
             <a href="/beta-feedback" style={{ display: 'inline-block', color: '#facc15', marginTop: 10 }}>
-              Send beta feedback
+              {t('sendBetaFeedback')}
             </a>
           </aside>
         </div>

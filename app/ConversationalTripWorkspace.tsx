@@ -22,6 +22,7 @@ import {
 } from '../lib/conversationalTripWorkspace'
 import { markActivationStep } from '../lib/onboardingActivation'
 import { loadTravelerProfileFromStorage } from '../lib/travelerProfile'
+import { useI18n } from './I18nProvider'
 
 type ChatMessage = {
   id: string
@@ -32,12 +33,7 @@ type ChatMessage = {
 
 const storageKey = 'nonrevy-conversational-workspace-v1'
 
-const examplePrompts = [
-  'LAX to HND tomorrow',
-  'Show only one-stop routes',
-  'Avoid SFO',
-  'Which arrives earliest?'
-]
+const examplePromptKeys = ['exampleLaxTokyo', 'exampleSbaHnl', 'exampleLongview', 'exampleMaldives'] as const
 
 const verifiedLiveUnavailableMessage = "I couldn't retrieve verified live itineraries from the currently connected sources."
 let generatedId = 0
@@ -137,12 +133,13 @@ function initialFiltersFromContext(context: TripContext): WorkspaceFilters {
 }
 
 export default function ConversationalTripWorkspace({ initialPrompt = '' }: { initialPrompt?: string }) {
+  const { t, locale } = useI18n()
   const [context, setContext] = useState<TripContext>(() => emptyTripContext())
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: 'assistant-welcome',
       role: 'assistant',
-      text: 'Find the non-rev route most likely to get you there. Search your trip, compare your chances, and know your backups. Public schedule preview is available first; verify airline eligibility to unlock ZED compatibility, load intelligence, personalized scoring, saved trips, watchlists, and load requests.'
+      text: ''
     }
   ])
   const [prompt, setPrompt] = useState(initialPrompt)
@@ -197,6 +194,14 @@ export default function ConversationalTripWorkspace({ initialPrompt = '' }: { in
       compareIds
     }))
   }, [context, messages, results, activeResultId, workspaceMode, filters, expandedCards, compareIds])
+
+  useEffect(() => {
+    setMessages((current) => {
+      const welcome = `${t('homeHeadline')} ${t('homeSupport')} ${t('homePreviewMessage')}`
+      if (current.length !== 1 || current[0]?.id !== 'assistant-welcome') return current
+      return [{ ...current[0], text: welcome }]
+    })
+  }, [locale, t])
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
@@ -284,7 +289,7 @@ export default function ConversationalTripWorkspace({ initialPrompt = '' }: { in
   async function submitPrompt(nextPrompt = prompt) {
     const trimmed = nextPrompt.trim()
     if (!trimmed) {
-      setError('Ask for a route, destination, date, or itinerary refinement.')
+      setError(t('enterTripRequest'))
       return
     }
     setPrompt('')
@@ -366,8 +371,15 @@ export default function ConversationalTripWorkspace({ initialPrompt = '' }: { in
       <section className="nonrevy-conversation__chat" aria-label="Conversational trip workspace">
         <header className="nonrevy-conversation__header">
           <a href="/" className="nonrevy-conversation__brand nonrevy-logo">NONREVY</a>
-          <p>Private Beta</p>
-          <p>Search your trip - Compare your chances - Know your backups</p>
+          <p>{t('privateBeta')}</p>
+          <h1>{t('homeHeadline')}</h1>
+          <p className="nonrevy-conversation__support">{t('homeSupport')}</p>
+          <div className="nonrevy-home__steps nonrevy-home__steps--workflow" aria-label="How Nonrevy helps">
+            <span><strong>{t('homeStepSearch')}</strong><small>{t('homeWorkflowSearch')}</small></span>
+            <span><strong>{t('homeStepCompare')}</strong><small>{t('homeWorkflowCompare')}</small></span>
+            <span><strong>{t('homeStepBackups')}</strong><small>{t('homeWorkflowGo')}</small></span>
+          </div>
+          <p className="nonrevy-conversation__preview">{t('homePreviewMessage')}</p>
         </header>
 
         <ContextStrip context={context} />
@@ -403,23 +415,26 @@ export default function ConversationalTripWorkspace({ initialPrompt = '' }: { in
         </div>
 
         <div className="nonrevy-conversation__examples" aria-label="Example prompts">
-          {examplePrompts.map((example) => (
+          {examplePromptKeys.map((key) => {
+            const example = t(key)
+            return (
             <button key={example} type="button" onClick={() => void submitPrompt(example)}>{example}</button>
-          ))}
+            )
+          })}
         </div>
 
         <form className="nonrevy-conversation__composer" onSubmit={onSubmit}>
-          <label className="nonrevy-conversation__composer-label" htmlFor="conversation-trip-prompt">Trip request</label>
+          <label className="nonrevy-conversation__composer-label" htmlFor="conversation-trip-prompt">{t('tripRequest')}</label>
           <div>
             <textarea
               id="conversation-trip-prompt"
               value={prompt}
               onChange={(event) => setPrompt(event.target.value)}
-              placeholder="Where do you need to go?"
+              placeholder={t('whereNeedGo')}
               rows={1}
             />
             <button type="submit" disabled={loading}>
-              <span>{loading ? 'Searching' : 'Send'}</span>
+              <span>{loading ? t('searching') : t('send')}</span>
               <SendIcon />
             </button>
           </div>

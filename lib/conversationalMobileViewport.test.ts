@@ -44,7 +44,7 @@ describe('conversational mobile viewport CSS', () => {
 
   it('keeps the composer compact with one visible input and a send icon', () => {
     assert.match(component, /className="nonrevy-conversation__composer-label"/)
-    assert.match(component, /placeholder="Where do you need to go\?"/)
+    assert.match(component, /placeholder=\{t\('whereNeedGo'\)\}/)
     assert.match(component, /rows=\{1\}/)
     assert.match(component, /function SendIcon/)
     assert.match(css, /\.nonrevy-conversation__composer textarea\s*{[\s\S]*min-height:\s*42px/)

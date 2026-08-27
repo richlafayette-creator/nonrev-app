@@ -1219,6 +1219,34 @@ html body .nonrevy-conversation__brand {
   line-height: 0.95 !important;
 }
 
+html body .nonrevy-conversation__header h1 {
+  max-width: 48rem;
+  margin: 0.12rem auto 0;
+  color: var(--nonrevy-text, #111827);
+  font-size: clamp(1.45rem, 5.5vw, 2.45rem);
+  line-height: 1.08;
+  text-align: center;
+  letter-spacing: 0;
+}
+
+html body .nonrevy-conversation__support,
+html body .nonrevy-conversation__preview {
+  max-width: 42rem;
+  margin-inline: auto !important;
+  color: var(--nonrevy-text-secondary, #334155) !important;
+  font-size: clamp(0.88rem, 2.9vw, 1rem) !important;
+  font-weight: 650 !important;
+  line-height: 1.42;
+  letter-spacing: 0 !important;
+  text-align: center;
+  text-transform: none !important;
+}
+
+html body .nonrevy-conversation__preview {
+  max-width: 39rem;
+  color: var(--nonrevy-text-muted, #64748b) !important;
+}
+
 html body main.nonrevy-home .nonrevy-home__hero {
   padding-top: clamp(1rem, 3vw, 1.6rem) !important;
   padding-bottom: clamp(1rem, 3vw, 1.6rem) !important;

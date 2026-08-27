@@ -16,6 +16,7 @@ import {
   watchResultItinerary
 } from '../../lib/resultWorkflowActions'
 import { buildCompactItinerarySummary, buildExpandedItineraryIdentity, buildSearchResultsViewModel, layoverLabelBetweenSegments, type SearchPlanCardViewModel, type SearchSegmentViewModel } from './searchResultsViewModel'
+import { useI18n } from '../I18nProvider'
 
 type ResultsState =
   | { status: 'loading' }
@@ -59,6 +60,7 @@ function normalizeResultsDate(value: string | null) {
 }
 
 export default function SearchResultsClient() {
+  const { t } = useI18n()
   const [state, setState] = useState<ResultsState>({ status: 'loading' })
 
   useEffect(() => {
@@ -135,9 +137,9 @@ export default function SearchResultsClient() {
 
         {viewModel.publicPreview?.enabled ? (
           <section className="nonrevy-results-page__notice nonrevy-results-page__notice--preview" aria-live="polite">
-            <strong>Public schedule preview</strong>
-            <p>{viewModel.publicPreview.lockedMessage}</p>
-            <Link href={`/verify?next=${encodeURIComponent('/results')}`}>Verify to unlock traveler features</Link>
+            <strong>{t('publicSchedulePreview')}</strong>
+            <p>{t('previewLockedMessage')}</p>
+            <Link href={`/verify?next=${encodeURIComponent('/results')}`}>{t('verifyUnlockTravelerFeatures')}</Link>
           </section>
         ) : null}
 
@@ -226,6 +228,7 @@ function SearchTransparencyPanel({ viewModel }: { viewModel: ReturnType<typeof b
 }
 
 function PlanCard({ card, displayRank, publicPreview }: { card: SearchPlanCardViewModel; displayRank: number; publicPreview?: boolean }) {
+  const { t } = useI18n()
   const [actionStatus, setActionStatus] = useState('')
   const [loadRequestPending, setLoadRequestPending] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -237,7 +240,7 @@ function PlanCard({ card, displayRank, publicPreview }: { card: SearchPlanCardVi
   const legSummary = visibleLegSummary(card)
   const stopsSummary = compactStopsSummary(card, summary.stopsLabel)
   const scoreLabel = publicPreview ? 'Lock' : String(card.finalScore)
-  const scoreAriaLabel = publicPreview ? 'Personalized score locked until verification' : `Score ${card.finalScore} out of 100`
+  const scoreAriaLabel = publicPreview ? t('previewLockedMessage') : `Score ${card.finalScore} out of 100`
   const verifyHref = `/verify?next=${encodeURIComponent('/results')}`
 
   function promptVerification(action: string) {
@@ -368,7 +371,7 @@ function PlanCard({ card, displayRank, publicPreview }: { card: SearchPlanCardVi
 
         {publicPreview ? (
           <div className="nonrevy-itinerary-card__actions" aria-label={`${summary.optionLabel} locked traveler actions`}>
-            <a href={verifyHref}>Verify to unlock</a>
+              <a href={verifyHref}>{t('verifyUnlockTravelerFeatures')}</a>
             <button type="button" onClick={() => promptVerification('Load requests')}>Request load</button>
             <button type="button" onClick={() => promptVerification('Saving and watching trips')}>Save / Watch</button>
           </div>

@@ -5,8 +5,12 @@ import { type FormEvent, useState } from 'react'
 import ConversationalTripWorkspace from './ConversationalTripWorkspace'
 import { isConversationalWorkspaceEnabled } from '../lib/featureFlags'
 import { markActivationStep } from '../lib/onboardingActivation'
+import { useI18n } from './I18nProvider'
+
+const fallbackExampleKeys = ['exampleLaxTokyo', 'exampleSbaHnl', 'exampleLongview', 'exampleMaldives'] as const
 
 export default function Home() {
+  const { t } = useI18n()
   const conversationalWorkspaceEnabled = isConversationalWorkspaceEnabled()
   const [search, setSearch] = useState('')
   const [travelDate, setTravelDate] = useState('')
@@ -24,7 +28,7 @@ export default function Home() {
     event.preventDefault()
     const normalized = search.trim()
     if (!normalized) {
-      setMessage('Enter a route or trip request to search.')
+      setMessage(t('enterTripRequest'))
       return
     }
 
@@ -52,14 +56,14 @@ export default function Home() {
             <h1 className="nonrevy-home__logo nonrevy-logo">NONREVY</h1>
             <div className="nonrevy-home__subtitle" aria-label="Fly Smarter">
               <span />
-              <p>Private Beta</p>
+              <p>{t('privateBeta')}</p>
               <span />
             </div>
             <p className="nonrevy-home__intro">
-              Find the non-rev route most likely to get you there.
+              {t('homeHeadline')}
             </p>
             <p className="nonrevy-home__intro">
-              Nonrevy compares flights, ZED access, load signals and backup routes so you can make a smarter decision before you go.
+              {t('homeSupport')}
             </p>
           </header>
 
@@ -67,19 +71,19 @@ export default function Home() {
             <div className="nonrevy-home__search-main">
               <div className="nonrevy-home__field nonrevy-home__field--route">
                 <label htmlFor="homepage-ai-search" className="nonrevy-home__search-label">
-                  Search
+                  {t('search')}
                 </label>
                 <input
                   id="homepage-ai-search"
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
-                  placeholder="LAX to HND tomorrow"
+                  placeholder={t('exampleLaxTokyo')}
                   autoComplete="off"
                   className="nonrevy-home__input nonrevy-home__input--simple"
                 />
               </div>
 
-              <button type="submit" className="nonrevy-home__primary">Search</button>
+              <button type="submit" className="nonrevy-home__primary">{t('search')}</button>
             </div>
 
             <details className="nonrevy-home__filters">
@@ -162,17 +166,18 @@ export default function Home() {
             {message ? <p className="nonrevy-home__message">{message}</p> : null}
           </form>
           <div className="nonrevy-home__examples" aria-label="Example searches">
-            {['LAX to HND tomorrow', 'Get me to Europe Friday', 'SFO to NRT next week'].map((example) => (
-              <button key={example} type="button" onClick={() => setSearch(example)}>{example}</button>
-            ))}
+            {fallbackExampleKeys.map((key) => {
+              const example = t(key)
+              return <button key={key} type="button" onClick={() => setSearch(example)}>{example}</button>
+            })}
           </div>
-          <div className="nonrevy-home__steps" aria-label="How Nonrevy helps">
-            <span>Search your trip</span>
-            <span>Compare your chances</span>
-            <span>Know your backups</span>
+          <div className="nonrevy-home__steps nonrevy-home__steps--workflow" aria-label="How Nonrevy helps">
+            <span><strong>{t('homeStepSearch')}</strong><small>{t('homeWorkflowSearch')}</small></span>
+            <span><strong>{t('homeStepCompare')}</strong><small>{t('homeWorkflowCompare')}</small></span>
+            <span><strong>{t('homeStepBackups')}</strong><small>{t('homeWorkflowGo')}</small></span>
           </div>
           <p className="nonrevy-home__expectation">
-            Public schedule preview is available first. Verify airline eligibility to unlock ZED compatibility, load intelligence, personalized scoring and member tools.
+            {t('homePreviewMessage')}
           </p>
         </div>
       </section>

@@ -13,6 +13,7 @@ import {
   type SavedSearch,
   type SavedSearchKind
 } from '../../lib/savedSearches'
+import { useI18n } from '../I18nProvider'
 
 function formatDate(value?: string) {
   if (!value) return 'Never run'
@@ -26,12 +27,13 @@ function kindLabel(kind: SavedSearchKind) {
 }
 
 export default function SavedSearchesPage() {
+  const { t } = useI18n()
   const [savedSearches, setSavedSearches] = useState<SavedSearch[]>([])
   const [kind, setKind] = useState<SavedSearchKind>('route-search')
   const [query, setQuery] = useState('LAX to HNL tomorrow')
   const [label, setLabel] = useState('')
   const [carrier, setCarrier] = useState('all')
-  const [status, setStatus] = useState('Saved searches are ready. Add routes or trip prompts you rerun often.')
+  const [status, setStatus] = useState(t('savedSearchesStatusReady'))
   const [editingId, setEditingId] = useState('')
   const [editingLabel, setEditingLabel] = useState('')
 
@@ -43,7 +45,7 @@ export default function SavedSearchesPage() {
     refreshSavedSearches()
     void syncSavedSearches().then((result) => {
       setSavedSearches(result.searches)
-      setStatus(result.searches.length ? 'Saved searches refreshed.' : 'No saved searches yet.')
+      setStatus(result.searches.length ? t('savedSearchesRefreshed') : t('noSavedSearches'))
     })
     window.addEventListener('nonrevy-saved-searches-updated', refreshSavedSearches)
     window.addEventListener('storage', refreshSavedSearches)
@@ -69,7 +71,7 @@ export default function SavedSearchesPage() {
       label
     })
     if (!saved) {
-      setStatus('Add a route, flight number, or AI trip prompt before saving.')
+      setStatus(t('savedSearchesAddPromptFirst'))
       return
     }
     setSavedSearches(loadSavedSearches())
@@ -103,26 +105,26 @@ export default function SavedSearchesPage() {
   return (
     <main className="app-shell nonrevy-traveler-page nonrevy-saved-searches-page" style={{ minHeight: '100vh', background: '#020617', color: 'white', padding: 40, fontFamily: 'Arial' }}>
       <nav className="top-nav" style={{ marginBottom: 24 }}>
-        <a href="/" style={{ marginRight: 16, color: '#38bdf8' }}>Search</a>
-        <a href="/saved-searches" style={{ marginRight: 16, color: '#67e8f9' }}>Saved</a>
-        <a href="/watchlist" style={{ marginRight: 16, color: '#facc15' }}>Watchlist</a>
-        <a href="/my-requests" style={{ marginRight: 16, color: '#facc15' }}>My Requests</a>
-        <a href="/beta-feedback" style={{ color: '#c084fc' }}>Feedback</a>
+        <a href="/" style={{ marginRight: 16, color: '#38bdf8' }}>{t('search')}</a>
+        <a href="/saved-searches" style={{ marginRight: 16, color: '#67e8f9' }}>{t('saved')}</a>
+        <a href="/watchlist" style={{ marginRight: 16, color: '#facc15' }}>{t('watchlist')}</a>
+        <a href="/my-requests" style={{ marginRight: 16, color: '#facc15' }}>{t('requests')}</a>
+        <a href="/beta-feedback" style={{ color: '#c084fc' }}>{t('feedback')}</a>
       </nav>
 
       <section className="nonrevy-traveler-page__inner" style={{ maxWidth: 1120, margin: '0 auto' }}>
-        <p className="nonrevy-traveler-page__eyebrow" style={{ color: '#67e8f9', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1 }}>Saved searches</p>
-        <h1 style={{ fontSize: 44, margin: '8px 0 12px' }}>Rerun your frequent nonrev searches.</h1>
+        <p className="nonrevy-traveler-page__eyebrow" style={{ color: '#67e8f9', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1 }}>{t('savedSearchesEyebrow')}</p>
+        <h1 style={{ fontSize: 44, margin: '8px 0 12px' }}>{t('savedSearchesTitle')}</h1>
         <p style={{ color: '#94a3b8', fontSize: 18, maxWidth: 820 }}>
-          Save common routes, flight-number checks, and trip prompts so you can relaunch planning quickly.
+          {t('savedSearchesIntro')}
         </p>
 
         <section className="nonrevy-traveler-metrics" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14, margin: '24px 0' }}>
           {[
-            { labelText: 'Saved Searches', value: savedSearches.length, color: '#67e8f9' },
-            { labelText: 'Route Searches', value: summary.routeSearches, color: '#38bdf8' },
-            { labelText: 'AI Trip Prompts', value: summary.aiTrips, color: '#c084fc' },
-            { labelText: 'Total Reruns', value: summary.totalRuns, color: '#22c55e' }
+            { labelText: t('savedSearchesMetricTotal'), value: savedSearches.length, color: '#67e8f9' },
+            { labelText: t('savedSearchesMetricRoutes'), value: summary.routeSearches, color: '#38bdf8' },
+            { labelText: t('savedSearchesMetricAi'), value: summary.aiTrips, color: '#c084fc' },
+            { labelText: t('savedSearchesMetricRuns'), value: summary.totalRuns, color: '#22c55e' }
           ].map((metric) => (
             <article className="nonrevy-traveler-metric" key={metric.labelText} style={{ border: '1px solid #334155', borderRadius: 18, padding: 18, background: '#0f172a' }}>
               <small style={{ color: '#94a3b8' }}>{metric.labelText}</small>
@@ -132,23 +134,23 @@ export default function SavedSearchesPage() {
         </section>
 
         <section className="nonrevy-traveler-card" style={{ border: '1px solid #334155', borderRadius: 22, padding: 20, background: '#0f172a', marginBottom: 22 }}>
-          <h2 style={{ marginTop: 0 }}>Add a saved search</h2>
+          <h2 style={{ marginTop: 0 }}>{t('addSavedSearch')}</h2>
           <form className="nonrevy-traveler-form" onSubmit={addSavedSearch} style={{ display: 'grid', gap: 12 }}>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
               <label style={{ color: '#cbd5e1' }}>
-                Search type
+                {t('searchType')}
                 <select value={kind} onChange={(event) => setKind(event.target.value as SavedSearchKind)} style={{ display: 'block', boxSizing: 'border-box', width: '100%', marginTop: 6, padding: 12, borderRadius: 12, border: '1px solid #334155', background: '#020617', color: 'white' }}>
                   <option value="route-search">Route search</option>
                   <option value="ai-trip">AI trip prompt</option>
                 </select>
               </label>
               <label style={{ color: '#cbd5e1' }}>
-                Optional label
+                {t('optionalLabel')}
                 <input value={label} onChange={(event) => setLabel(event.target.value)} placeholder="Morning Hawaii check" style={{ display: 'block', boxSizing: 'border-box', width: '100%', marginTop: 6, padding: 12, borderRadius: 12, border: '1px solid #334155', background: '#020617', color: 'white' }} />
               </label>
               {kind === 'route-search' ? (
                 <label style={{ color: '#cbd5e1' }}>
-                  Carrier scope
+                  {t('carrierScope')}
                   <select value={carrier} onChange={(event) => setCarrier(event.target.value)} style={{ display: 'block', boxSizing: 'border-box', width: '100%', marginTop: 6, padding: 12, borderRadius: 12, border: '1px solid #334155', background: '#020617', color: 'white' }}>
                     {supportedCarrierOptions.map((option) => (
                       <option key={option.value} value={option.value}>{option.label}</option>
@@ -158,11 +160,11 @@ export default function SavedSearchesPage() {
               ) : null}
             </div>
             <label style={{ color: '#cbd5e1' }}>
-              {kind === 'ai-trip' ? 'AI trip prompt' : 'Route, airport pair, or flight number'}
+              {kind === 'ai-trip' ? t('aiTripPrompt') : t('routeAirportOrFlight')}
               <textarea value={query} onChange={(event) => setQuery(event.target.value)} rows={3} placeholder={kind === 'ai-trip' ? 'best Maui option from LAX this weekend' : 'LAX to HNL tomorrow'} style={{ display: 'block', boxSizing: 'border-box', width: '100%', marginTop: 6, padding: 14, borderRadius: 16, border: '1px solid #334155', background: '#020617', color: 'white' }} />
             </label>
             <button type="submit" style={{ justifySelf: 'start', padding: '13px 18px', borderRadius: 999, border: 'none', background: '#67e8f9', color: '#020617', fontWeight: 'bold' }}>
-              Save search
+              {t('saveSearch')}
             </button>
           </form>
           <p className="nonrevy-traveler-status" style={{ color: '#67e8f9', marginBottom: 0 }}>{status}</p>
@@ -171,9 +173,9 @@ export default function SavedSearchesPage() {
         <section className="nonrevy-traveler-list" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
           {savedSearches.length === 0 ? (
             <article className="nonrevy-traveler-empty" style={{ border: '1px dashed #475569', borderRadius: 20, padding: 22, background: '#0f172a' }}>
-              <h2 style={{ marginTop: 0 }}>No saved searches yet.</h2>
-              <p style={{ color: '#cbd5e1' }}>Save a frequent route or trip prompt so it is ready for a quick rerun.</p>
-              <a className="nonrevy-traveler-link-action" href="/" style={{ color: '#38bdf8', fontWeight: 'bold' }}>Search</a>
+              <h2 style={{ marginTop: 0 }}>{t('noSavedSearches')}</h2>
+              <p style={{ color: '#cbd5e1' }}>{t('noSavedSearchesCopy')}</p>
+              <a className="nonrevy-traveler-link-action" href="/" style={{ color: '#38bdf8', fontWeight: 'bold' }}>{t('search')}</a>
             </article>
           ) : null}
           {savedSearches.map((search) => (
@@ -198,35 +200,35 @@ export default function SavedSearchesPage() {
               <dl style={{ display: 'grid', gap: 8, margin: '0 0 16px' }}>
                 {search.carrier ? (
                   <div>
-                    <dt style={{ color: '#94a3b8', fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.8 }}>Carrier scope</dt>
+                    <dt style={{ color: '#94a3b8', fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.8 }}>{t('carrierScope')}</dt>
                     <dd style={{ margin: '3px 0 0', color: '#e2e8f0' }}>{search.carrier}</dd>
                   </div>
                 ) : null}
                 <div>
-                  <dt style={{ color: '#94a3b8', fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.8 }}>Last run</dt>
+                  <dt style={{ color: '#94a3b8', fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.8 }}>{t('lastRun')}</dt>
                   <dd style={{ margin: '3px 0 0', color: '#e2e8f0' }}>{formatDate(search.lastRunAt)}</dd>
                 </div>
               </dl>
               <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                 <button type="button" onClick={() => runSearch(search)} style={{ padding: '10px 14px', borderRadius: 999, border: 'none', background: '#38bdf8', color: '#020617', fontWeight: 'bold' }}>
-                  Run search
+                  {t('runSearch')}
                 </button>
                 {editingId === search.id ? (
                   <>
                     <button type="button" onClick={() => saveRename(search)} style={{ padding: '10px 14px', borderRadius: 999, border: 'none', background: '#22c55e', color: '#052e16', fontWeight: 'bold' }}>
-                      Save rename
+                      {t('saveRename')}
                     </button>
                     <button type="button" onClick={() => setEditingId('')} style={{ padding: '10px 14px', borderRadius: 999, border: '1px solid #475569', background: '#020617', color: '#cbd5e1', fontWeight: 'bold' }}>
-                      Cancel
+                      {t('cancel')}
                     </button>
                   </>
                 ) : (
                   <button type="button" onClick={() => startRename(search)} style={{ padding: '10px 14px', borderRadius: 999, border: '1px solid #67e8f9', background: '#020617', color: '#67e8f9', fontWeight: 'bold' }}>
-                    Rename
+                    {t('rename')}
                   </button>
                 )}
                 <button type="button" onClick={() => deleteSearch(search)} style={{ padding: '10px 14px', borderRadius: 999, border: '1px solid #fb7185', background: '#020617', color: '#fda4af', fontWeight: 'bold' }}>
-                  Remove
+                  {t('remove')}
                 </button>
               </div>
             </article>

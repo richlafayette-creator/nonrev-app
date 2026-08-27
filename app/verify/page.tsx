@@ -2,6 +2,8 @@
 
 import { type FormEvent, useEffect, useMemo, useState } from 'react'
 import { accountPersistenceHeaders } from '../../lib/accountPersistenceClient'
+import { useI18n } from '../I18nProvider'
+import type { CommonTranslationKey } from '../../lib/i18n/messages'
 
 type AirlineOption = {
   code: string
@@ -49,13 +51,13 @@ const defaultAirlines: AirlineOption[] = [
   { code: 'WN', name: 'Southwest Airlines' }
 ]
 
-function statusLabel(status: string) {
+function statusLabel(status: string, t: (key: CommonTranslationKey) => string) {
   if (status === 'verified') return 'Verified'
-  if (status === 'pending') return 'Pending review'
-  if (status === 'rejected') return 'Needs resubmission'
-  if (status === 'reverify_required') return 'Reverification needed'
-  if (status === 'expired') return 'Expired'
-  return 'Not verified'
+  if (status === 'pending') return t('pendingReview')
+  if (status === 'rejected') return t('needsResubmission')
+  if (status === 'reverify_required') return t('reverifyNeeded')
+  if (status === 'expired') return t('expired')
+  return t('notVerified')
 }
 
 function formatDate(value?: string) {
@@ -71,6 +73,7 @@ function safeNextRoute(value: string | null) {
 }
 
 export default function VerifyPage() {
+  const { t } = useI18n()
   const [airlines, setAirlines] = useState<AirlineOption[]>(defaultAirlines)
   const [verification, setVerification] = useState<VerificationStatus>({ status: 'unverified' })
   const [airlineCode, setAirlineCode] = useState('UA')
@@ -78,7 +81,7 @@ export default function VerifyPage() {
   const [workEmail, setWorkEmail] = useState('')
   const [emailChallenge, setEmailChallenge] = useState<EmailChallenge | null>(null)
   const [verificationCode, setVerificationCode] = useState('')
-  const [status, setStatus] = useState('Preview schedules now, then verify airline eligibility when you need member-only non-rev tools.')
+  const [status, setStatus] = useState(t('homePreviewMessage'))
   const [loading, setLoading] = useState(false)
   const [nextRoute, setNextRoute] = useState('/')
 
@@ -101,12 +104,12 @@ export default function VerifyPage() {
         setAirlineQuery(nextAirline ? `${nextAirline.name} (${nextAirline.code})` : nextCode)
         const params = new URLSearchParams(window.location.search)
         const emailStatus = params.get('email')
-        if (emailStatus === 'verified') setStatus('Your airline employment has been verified.')
-        else if (emailStatus === 'expired') setStatus('That verification link expired. Send a new verification email.')
-        else if (emailStatus === 'invalid') setStatus('That verification link could not be used. Send a new email or request manual review.')
-        else setStatus(data.detail || data.disclosure || 'Verification status loaded.')
+        if (emailStatus === 'verified') setStatus(t('verificationLinkVerified'))
+        else if (emailStatus === 'expired') setStatus(t('verificationLinkExpired'))
+        else if (emailStatus === 'invalid') setStatus(t('verificationLinkInvalid'))
+        else setStatus(data.disclosure || t('homePreviewMessage'))
       } catch {
-        if (!cancelled) setStatus('Verification status could not be loaded. You can still submit a request.')
+        if (!cancelled) setStatus(t('verificationStatusLoadFailed'))
       }
     }
     loadVerification()
@@ -134,6 +137,12 @@ export default function VerifyPage() {
   const verified = verification.status === 'verified'
   const pending = verification.status === 'pending'
 
+  function localizedVerificationMessage(message?: string) {
+    if (!message) return ''
+    if (/not configured|provider|could not be sent/i.test(message)) return t('emailVerificationUnavailable')
+    return message
+  }
+
   function updateAirline(value: string) {
     setAirlineQuery(value)
     const normalized = value.trim().toLowerCase().replace(/[^a-z0-9]/g, '')
@@ -154,7 +163,7 @@ export default function VerifyPage() {
 
   async function submit(action: 'start-email-verification' | 'request-manual-review') {
     setLoading(true)
-    setStatus(action === 'start-email-verification' ? 'Checking work email domain...' : 'Submitting manual review request...')
+    setStatus(action === 'start-email-verification' ? t('checkingWorkEmail') : t('submittingManualReview'))
     try {
       const response = await fetch('/api/employee-verification', {
         method: 'POST',
@@ -168,15 +177,15 @@ export default function VerifyPage() {
       })
       const data = await response.json() as Partial<VerificationResponse> & { error?: string }
       if (!response.ok) {
-        setStatus(data.error || 'Verification request could not be submitted.')
+        setStatus(localizedVerificationMessage(data.error) || t('verificationRequestCouldNotSubmit'))
         if (data.challenge) setEmailChallenge(data.challenge)
         return
       }
       setVerification(data.verification || { status: 'pending', airlineCode, airlineName: selectedAirline?.name })
       if (data.challenge) setEmailChallenge(data.challenge)
-      setStatus(data.detail || 'Verification request submitted.')
+      setStatus(data.emailSent ? t('verificationEmailSent') : localizedVerificationMessage(data.detail) || t('verificationRequestSubmitted'))
     } catch {
-      setStatus('Verification request failed. Please try again.')
+      setStatus(t('verificationRequestFailed'))
     } finally {
       setLoading(false)
     }
@@ -191,7 +200,7 @@ export default function VerifyPage() {
     event.preventDefault()
     if (!emailChallenge) return
     setLoading(true)
-    setStatus('Checking verification code...')
+    setStatus(t('checkingVerificationCode'))
     try {
       const response = await fetch('/api/employee-verification', {
         method: 'POST',
@@ -204,14 +213,14 @@ export default function VerifyPage() {
       })
       const data = await response.json() as Partial<VerificationResponse> & { error?: string }
       if (!response.ok) {
-        setStatus(data.error || 'Verification code was not accepted.')
+        setStatus(localizedVerificationMessage(data.error) || t('verificationCodeRejected'))
         return
       }
       setVerification(data.verification || { status: 'verified', airlineCode, airlineName: selectedAirline?.name })
-      setStatus(data.detail || 'Your airline employment has been verified.')
+      setStatus(localizedVerificationMessage(data.detail) || t('verificationLinkVerified'))
       if (nextRoute && nextRoute !== '/verify') window.location.assign(nextRoute)
     } catch {
-      setStatus('Verification code could not be checked. Please try again.')
+      setStatus(t('verificationCodeCheckFailed'))
     } finally {
       setLoading(false)
     }
@@ -220,7 +229,7 @@ export default function VerifyPage() {
   async function resendEmail() {
     if (!emailChallenge) return
     setLoading(true)
-    setStatus('Resending verification email...')
+    setStatus(t('resendingVerificationEmail'))
     try {
       const response = await fetch('/api/employee-verification', {
         method: 'POST',
@@ -233,13 +242,13 @@ export default function VerifyPage() {
       })
       const data = await response.json() as Partial<VerificationResponse> & { error?: string }
       if (!response.ok) {
-        setStatus(data.error || 'Verification email could not be resent.')
+        setStatus(localizedVerificationMessage(data.error) || t('verificationEmailCouldNotResend'))
         return
       }
       if (data.challenge) setEmailChallenge(data.challenge)
-      setStatus(data.detail || 'We sent a new verification email to your work address.')
+      setStatus(data.emailSent ? t('verificationEmailResent') : localizedVerificationMessage(data.detail) || t('verificationEmailResent'))
     } catch {
-      setStatus('Verification email could not be resent. Please try again.')
+      setStatus(t('verificationEmailResendFailed'))
     } finally {
       setLoading(false)
     }
@@ -249,22 +258,22 @@ export default function VerifyPage() {
     <main className="app-shell nonrevy-traveler-page nonrevy-verification-page" style={{ minHeight: '100vh', background: '#020617', color: 'white', padding: 32, fontFamily: 'Arial' }}>
       <section className="nonrevy-traveler-page__inner" style={{ maxWidth: 980, margin: '0 auto', display: 'grid', gap: 18 }}>
         <p className="nonrevy-traveler-page__eyebrow" style={{ color: '#2563eb', fontWeight: 800, textTransform: 'uppercase', letterSpacing: 1 }}>
-          Airline employee verification
+          {t('verifyEyebrow')}
         </p>
         <header>
-          <h1 style={{ fontSize: 38, lineHeight: 1.05, margin: '8px 0 12px' }}>Unlock Nonrevy traveler features</h1>
+          <h1 style={{ fontSize: 38, lineHeight: 1.05, margin: '8px 0 12px' }}>{t('verifyHeadline')}</h1>
           <p style={{ color: '#334155', maxWidth: 760, fontSize: 17 }}>
-            Nonrevy verifies airline eligibility before providing member-only non-rev tools and community intelligence. You can preview public schedules first, then verify when you need ZED-aware planning, load intelligence, saved trips, watchlists, and load requests.
+            {t('verifyIntro')}
           </p>
         </header>
 
         <section className="nonrevy-traveler-card" style={{ border: '1px solid #dbe3ef', borderRadius: 18, padding: 18, background: '#ffffff', color: '#111827' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
             <div>
-              <small style={{ color: '#64748b', fontWeight: 800, textTransform: 'uppercase' }}>Current status</small>
-              <h2 style={{ margin: '4px 0 0', fontSize: 24 }}>{statusLabel(verification.status)}</h2>
+              <small style={{ color: '#64748b', fontWeight: 800, textTransform: 'uppercase' }}>{t('currentStatus')}</small>
+              <h2 style={{ margin: '4px 0 0', fontSize: 24 }}>{statusLabel(verification.status, t)}</h2>
             </div>
-            <span className="nonrevy-traveler-badge">{verification.airlineCode || 'Airline pending'}</span>
+            <span className="nonrevy-traveler-badge">{verification.airlineCode || t('airlinePending')}</span>
           </div>
           {verification.airlineName ? <p style={{ color: '#334155', margin: '10px 0 0' }}>{verification.airlineName} · {verification.method?.replaceAll('_', ' ') || 'verification'}</p> : null}
           {verification.verifiedAt ? <p style={{ color: '#166534', margin: '8px 0 0' }}>Verified {formatDate(verification.verifiedAt)}</p> : null}
@@ -274,15 +283,15 @@ export default function VerifyPage() {
 
         {!verified ? (
           <section className="nonrevy-traveler-card" style={{ border: '1px solid #dbe3ef', borderRadius: 18, padding: 18, background: '#ffffff', color: '#111827' }}>
-            <h2 style={{ marginTop: 0 }}>Verify with company email</h2>
+            <h2 style={{ marginTop: 0 }}>{t('verifyWithCompanyEmail')}</h2>
             <form className="nonrevy-traveler-form" onSubmit={submitEmail} style={{ display: 'grid', gap: 14 }}>
               <label style={{ color: '#111827', fontWeight: 700 }}>
-                Employing or benefited airline
+                {t('employingAirline')}
                 <input
                   value={airlineQuery}
                   onChange={(event) => updateAirline(event.target.value)}
                   list="nonrevy-airline-employers"
-                  placeholder="Search airline name, IATA, or ICAO"
+                  placeholder={t('airlineSearchPlaceholder')}
                   autoComplete="off"
                   style={{ boxSizing: 'border-box', width: '100%', marginTop: 6, padding: 12, borderRadius: 12, border: '1px solid #cbd5e1', background: '#ffffff', color: '#111827' }}
                 />
@@ -292,30 +301,30 @@ export default function VerifyPage() {
                   ))}
                 </datalist>
                 <small style={{ display: 'block', color: '#475569', marginTop: 6 }}>
-                  Selected: {selectedAirline ? `${selectedAirline.name} (${selectedAirline.code}${selectedAirline.icao ? ` / ${selectedAirline.icao}` : ''})` : 'Choose an airline from the list.'}
+                  {t('selected')}: {selectedAirline ? `${selectedAirline.name} (${selectedAirline.code}${selectedAirline.icao ? ` / ${selectedAirline.icao}` : ''})` : t('chooseAirline')}
                 </small>
               </label>
               <label style={{ color: '#111827', fontWeight: 700 }}>
-                Work email
+                {t('workEmail')}
                 <input value={workEmail} onChange={(event) => setWorkEmail(event.target.value)} type="email" inputMode="email" placeholder="name@airline.com" disabled={!companyEmailAvailable} style={{ boxSizing: 'border-box', width: '100%', marginTop: 6, padding: 12, borderRadius: 12, border: '1px solid #cbd5e1', background: companyEmailAvailable ? '#ffffff' : '#f8fafc', color: '#111827' }} />
                 <small style={{ display: 'block', color: '#475569', marginTop: 6 }}>
                   {companyEmailAvailable
-                    ? 'Company-email verification is available for this airline.'
-                    : 'Company-email verification is not mapped for this airline yet. Use manual review.'}
+                    ? t('companyEmailAvailable')
+                    : t('companyEmailNotMapped')}
                 </small>
               </label>
               <button type="submit" disabled={loading || !workEmail.trim() || !companyEmailAvailable} style={{ justifySelf: 'start', padding: '12px 16px', borderRadius: 999, border: 'none', background: loading || !workEmail.trim() || !companyEmailAvailable ? '#94a3b8' : '#2563eb', color: '#ffffff', fontWeight: 800 }}>
-                Send verification code
+                {t('sendVerificationCode')}
               </button>
             </form>
             {emailChallenge ? (
               <form className="nonrevy-traveler-form" onSubmit={verifyCode} style={{ display: 'grid', gap: 12, marginTop: 18, borderTop: '1px solid #e5e7eb', paddingTop: 18 }}>
                 <div>
-                  <h3 style={{ margin: '0 0 6px' }}>Enter your six-digit code</h3>
-                  <p style={{ color: '#475569', margin: 0 }}>We sent a verification email to your work address. You can also use the secure link in that email.</p>
+                  <h3 style={{ margin: '0 0 6px' }}>{t('enterSixDigitCode')}</h3>
+                  <p style={{ color: '#475569', margin: 0 }}>{t('verificationEmailSent')}</p>
                 </div>
                 <label style={{ color: '#111827', fontWeight: 700 }}>
-                  Verification code
+                  {t('verificationCode')}
                   <input
                     value={verificationCode}
                     onChange={(event) => setVerificationCode(event.target.value.replace(/\D/g, '').slice(0, 6))}
@@ -327,40 +336,40 @@ export default function VerifyPage() {
                 </label>
                 <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                   <button type="submit" disabled={loading || verificationCode.length !== 6} style={{ padding: '11px 14px', borderRadius: 999, border: 'none', background: loading || verificationCode.length !== 6 ? '#94a3b8' : '#2563eb', color: '#ffffff', fontWeight: 800 }}>
-                    Verify
+                    {t('verify')}
                   </button>
                   <button type="button" disabled={loading} onClick={resendEmail} style={{ padding: '11px 14px', borderRadius: 999, border: '1px solid #cbd5e1', background: '#ffffff', color: '#2563eb', fontWeight: 800 }}>
-                    Resend code
+                    {t('resendCode')}
                   </button>
                 </div>
-                <small style={{ color: '#475569' }}>The code expires at {formatDate(emailChallenge.expiresAt)}. Request manual review if you cannot access this work email.</small>
+                <small style={{ color: '#475569' }}>{t('codeExpiresManualFallback').replace('{date}', formatDate(emailChallenge.expiresAt))}</small>
               </form>
             ) : null}
             <div style={{ borderTop: '1px solid #e5e7eb', marginTop: 18, paddingTop: 18 }}>
-              <h3 style={{ margin: '0 0 8px' }}>Cannot verify with work email?</h3>
+              <h3 style={{ margin: '0 0 8px' }}>{t('cannotVerifyEmail')}</h3>
               <p style={{ color: '#475569' }}>
-                Request manual review. Nonrevy will ask for the least sensitive airline-affiliation proof needed and should delete temporary evidence after review.
+                {t('manualReviewCopy')}
               </p>
               <button type="button" disabled={loading} onClick={() => submit('request-manual-review')} style={{ padding: '11px 14px', borderRadius: 999, border: '1px solid #cbd5e1', background: '#ffffff', color: '#2563eb', fontWeight: 800 }}>
-                Request manual review
+                {t('requestManualReview')}
               </button>
             </div>
           </section>
         ) : (
           <section className="nonrevy-traveler-card" style={{ border: '1px solid #bfdbfe', borderRadius: 18, padding: 18, background: '#eff6ff', color: '#111827' }}>
-            <h2 style={{ marginTop: 0 }}>You’re ready to use Nonrevy.</h2>
+            <h2 style={{ marginTop: 0 }}>{t('readyToUse')}</h2>
             <p style={{ color: '#334155' }}>Search, saved trips, watchlist, results, and load-request tools are now available.</p>
-            <a href="/" style={{ display: 'inline-block', borderRadius: 999, padding: '12px 16px', background: '#2563eb', color: '#ffffff', fontWeight: 800, textDecoration: 'none' }}>Start searching</a>
+            <a href="/" style={{ display: 'inline-block', borderRadius: 999, padding: '12px 16px', background: '#2563eb', color: '#ffffff', fontWeight: 800, textDecoration: 'none' }}>{t('startSearching')}</a>
           </section>
         )}
 
         <section className="nonrevy-traveler-card" style={{ border: '1px solid #dbe3ef', borderRadius: 18, padding: 18, background: '#ffffff', color: '#111827' }}>
-          <h2 style={{ marginTop: 0 }}>What Nonrevy keeps</h2>
+          <h2 style={{ marginTop: 0 }}>{t('whatNonrevyKeeps')}</h2>
           <p style={{ color: '#334155' }}>
-            Nonrevy stores verification status, airline, method, dates, and a work-email domain/hash when used. It does not retain government ID images by default, does not publish evidence, and does not treat employment verification as ZED eligibility.
+            {t('verificationRetentionCopy')}
           </p>
           <p style={{ color: '#334155', marginBottom: 0 }}>
-            By requesting access, you confirm you are authorized to use the airline/non-rev benefits you represent and agree not to post confidential airline information. Access may be suspended for misuse or false verification.
+            {t('verificationAcknowledgment')}
           </p>
         </section>
       </section>

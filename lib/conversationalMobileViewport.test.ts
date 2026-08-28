@@ -33,13 +33,17 @@ describe('conversational mobile viewport CSS', () => {
   })
 
   it('reserves safe-area spacing for the docked composer and bottom navigation without covering content', () => {
-    assert.match(globals, /--nonrevy-chat-composer-height:\s*5\.2rem/)
+    assert.match(globals, /--nonrevy-chat-composer-height:\s*4\.85rem/)
     assert.match(globals, /--nonrevy-mobile-nav-bottom-inset:\s*0\.45rem/)
-    assert.match(globals, /--nonrevy-mobile-dock-offset:\s*2rem/)
+    assert.match(globals, /--nonrevy-mobile-dock-offset:\s*0\.9rem/)
     assert.match(globals, /--nonrevy-mobile-control-stack:\s*calc\(var\(--nonrevy-mobile-nav-height\) \+ var\(--nonrevy-mobile-nav-bottom-inset\) \+ var\(--nonrevy-mobile-dock-offset\) \+ var\(--nonrevy-chat-composer-height\) \+ \(var\(--nonrevy-mobile-control-gap\) \* 2\)\)/)
     assert.match(css, /\.nonrevy-conversation\s*\{[\s\S]*padding:[\s\S]*var\(--nonrevy-mobile-control-stack/)
     assert.match(css, /\.nonrevy-conversation__messages\s*\{[\s\S]*padding:[\s\S]*var\(--nonrevy-chat-composer-height/)
-    assert.match(css, /@media \(max-width: 720px\)[\s\S]*\.nonrevy-conversation__composer\s*{[\s\S]*position:\s*fixed[\s\S]*bottom:\s*calc\(var\(--nonrevy-mobile-nav-height, 4\.05rem\) \+ var\(--nonrevy-mobile-nav-bottom-inset, 0\.45rem\) \+ var\(--nonrevy-mobile-dock-offset, 2rem\)/)
+    assert.match(css, /@media \(max-width: 720px\)[\s\S]*\.nonrevy-conversation__composer\s*{[\s\S]*position:\s*fixed[\s\S]*bottom:\s*calc\(var\(--nonrevy-mobile-nav-height, 4\.05rem\) \+ var\(--nonrevy-mobile-nav-bottom-inset, 0\.45rem\) \+ var\(--nonrevy-mobile-dock-offset, 0\.9rem\)/)
+    assert.match(css, /@media \(max-width: 760px\)[\s\S]*html body \.nonrevy-conversation__composer\s*{[\s\S]*position:\s*fixed !important[\s\S]*bottom:\s*calc\(var\(--nonrevy-mobile-nav-height, 4\.05rem\) \+ var\(--nonrevy-mobile-nav-bottom-inset, 0\.45rem\) \+ var\(--nonrevy-mobile-dock-offset, 0\.9rem\)/)
+    assert.match(css, /\.nonrevy-conversation__composer\s*{[\s\S]*box-sizing:\s*border-box/)
+    assert.match(css, /\.nonrevy-conversation__composer\s*{[\s\S]*width:\s*min\(calc\(100% - 1rem\),\s*720px\)/)
+    assert.match(css, /\.nonrevy-conversation__chat\s*{[\s\S]*backdrop-filter:\s*none !important/)
   })
 
   it('keeps the composer compact with one visible input and a send icon', () => {
@@ -49,6 +53,15 @@ describe('conversational mobile viewport CSS', () => {
     assert.match(component, /function SendIcon/)
     assert.match(css, /\.nonrevy-conversation__composer textarea\s*{[\s\S]*min-height:\s*42px/)
     assert.match(css, /\.nonrevy-conversation__message\s*{[\s\S]*padding:\s*9px 11px/)
+  })
+
+  it('lets longer localized hero copy wrap without clipping behind the composer', () => {
+    assert.match(css, /\.nonrevy-conversation__header\s*{[\s\S]*overflow:\s*visible/)
+    assert.match(css, /html body \.nonrevy-conversation__header\s*{[\s\S]*overflow:\s*visible !important/)
+    assert.match(css, /html body \.nonrevy-conversation__header h1\s*{[\s\S]*font-size:\s*clamp\(1\.45rem,\s*3\.7vw,\s*2\.2rem\)/)
+    assert.match(css, /html body \.nonrevy-conversation__header h1\s*{[\s\S]*overflow-wrap:\s*anywhere/)
+    assert.match(css, /html body \.nonrevy-conversation__header h1\s*{[\s\S]*text-wrap:\s*balance/)
+    assert.match(css, /@media \(max-height: 760px\)[\s\S]*\.nonrevy-home__steps span small\s*{[\s\S]*display:\s*none/)
   })
 
   it('does not render provider validation failures twice as chat text and a large error panel', () => {

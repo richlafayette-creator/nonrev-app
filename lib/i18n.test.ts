@@ -153,6 +153,8 @@ describe('traveler localization foundation', () => {
   it('keeps mobile language and explainer layout bounded by structure rather than clipping content', () => {
     assert.match(globals, /\.nonrevy-language-selector select\s*{[\s\S]*max-width:\s*10\.5rem/)
     assert.match(globals, /@media \(max-width: 760px\)[\s\S]*\.nonrevy-home__steps span\s*{[\s\S]*flex:\s*1 1 8\.4rem/)
-    assert.match(globals, /\.nonrevy-conversation__header h1\s*{[\s\S]*font-size:\s*clamp\(1\.45rem/)
+    assert.match(globals, /\.nonrevy-conversation__header h1\s*{[\s\S]*font-size:\s*clamp\(1\.45rem,\s*3\.7vw,\s*2\.2rem\)/)
+    assert.match(globals, /\.nonrevy-conversation__header h1\s*{[\s\S]*overflow-wrap:\s*anywhere/)
+    assert.match(globals, /@media \(max-height: 760px\)[\s\S]*\.nonrevy-home__steps span small\s*{[\s\S]*display:\s*none/)
   })
 })

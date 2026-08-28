@@ -59,7 +59,7 @@ describe('global traveler app shell navigation', () => {
     it('reserves mobile bottom-nav space and keeps the content safe-area aware', () => {
       assert.match(css, /--nonrevy-mobile-nav-height:\s*4\.05rem/)
       assert.match(css, /--nonrevy-mobile-nav-bottom-inset:\s*0\.45rem/)
-      assert.match(css, /--nonrevy-mobile-dock-offset:\s*2rem/)
+      assert.match(css, /--nonrevy-mobile-dock-offset:\s*0\.9rem/)
       assert.match(css, /--nonrevy-mobile-control-stack:\s*calc\(var\(--nonrevy-mobile-nav-height\) \+ var\(--nonrevy-mobile-nav-bottom-inset\) \+ var\(--nonrevy-mobile-dock-offset\) \+ var\(--nonrevy-chat-composer-height\) \+ \(var\(--nonrevy-mobile-control-gap\) \* 2\)\)/)
       assert.match(css, /padding-bottom:\s*calc\(var\(--nonrevy-mobile-nav-height\) \+ var\(--nonrevy-mobile-nav-bottom-inset\) \+ var\(--nonrevy-mobile-control-gap\) \+ env\(safe-area-inset-bottom/)
       assert.match(css, /\.nonrevy-mobile-nav\s*{[\s\S]*display:\s*none/)
@@ -69,6 +69,8 @@ describe('global traveler app shell navigation', () => {
   it('uses a dark primary text token and restrained blue active state', () => {
     assert.match(css, /--nonrevy-text:\s*#111827/)
     assert.match(css, /--nonrevy-primary-blue:\s*#2563eb/)
+    assert.match(css, /\.nonrevy-global-nav__menu-button,[\s\S]*color:\s*var\(--nonrevy-text\) !important/)
+    assert.match(css, /\.nonrevy-global-nav__menu-button\s*{[\s\S]*background:\s*var\(--nonrevy-surface\) !important/)
     assert.match(css, /\.nonrevy-top-nav__link\[aria-current="page"\],[\s\S]*background:\s*var\(--nonrevy-primary-blue-soft\)/)
   })
 

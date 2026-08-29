@@ -156,6 +156,7 @@ export default function AppNavigation() {
 
         <div className="nonrevy-global-nav__actions">
           <LanguageSelector compact />
+          <LanguageSelector mobile />
           <button
             className="nonrevy-global-nav__menu-button"
             type="button"

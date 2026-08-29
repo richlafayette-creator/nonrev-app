@@ -95,10 +95,26 @@ describe('traveler localization foundation', () => {
     assert.match(provider, /localeStorageKey/)
     assert.match(provider, /document\.documentElement\.lang/)
     assert.match(navigation, /<LanguageSelector compact \/>/)
+    assert.match(navigation, /<LanguageSelector mobile \/>/)
     assert.match(navigation, /<LanguageSelector \/>/)
     for (const label of ['English', 'Español', 'Français', 'Deutsch', 'Italiano', 'Português', '日本語', '한국어', '简体中文']) {
       assert.match(messagesModule, new RegExp(label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
     }
+  })
+
+  it('provides a mobile language selector with all launch languages and immediate selection', () => {
+    assert.match(selector, /mobile = false/)
+    assert.match(selector, /className="nonrevy-mobile-language"/)
+    assert.match(selector, /aria-haspopup="listbox"/)
+    assert.match(selector, /role="listbox"/)
+    assert.match(selector, /role="option"/)
+    assert.match(selector, /localeLabels\[item\]/)
+    assert.match(selector, /item\.toUpperCase\(\)/)
+    assert.match(selector, /setLocale\(item\)/)
+    assert.match(selector, /setOpen\(false\)/)
+    assert.match(globals, /\.nonrevy-mobile-language\s*{[\s\S]*display:\s*none/)
+    assert.match(globals, /@media \(max-width: 760px\)[\s\S]*\.nonrevy-global-nav__actions \.nonrevy-mobile-language\s*{[\s\S]*display:\s*block/)
+    assert.match(globals, /\.nonrevy-mobile-language__sheet\s*{[\s\S]*width:\s*min\(18rem,\s*calc\(100vw - 1\.5rem\)\)/)
   })
 
   it('localizes the homepage value proposition and compact explainer', () => {
@@ -152,6 +168,8 @@ describe('traveler localization foundation', () => {
 
   it('keeps mobile language and explainer layout bounded by structure rather than clipping content', () => {
     assert.match(globals, /\.nonrevy-language-selector select\s*{[\s\S]*max-width:\s*10\.5rem/)
+    assert.match(globals, /\.nonrevy-mobile-language__button\s*{[\s\S]*min-height:\s*2\.35rem/)
+    assert.match(globals, /\.nonrevy-mobile-language__option\s*{[\s\S]*min-height:\s*2\.6rem/)
     assert.match(globals, /@media \(max-width: 760px\)[\s\S]*\.nonrevy-home__steps span\s*{[\s\S]*flex:\s*1 1 8\.4rem/)
     assert.match(globals, /\.nonrevy-conversation__header h1\s*{[\s\S]*font-size:\s*clamp\(1\.45rem,\s*3\.7vw,\s*2\.2rem\)/)
     assert.match(globals, /\.nonrevy-conversation__header h1\s*{[\s\S]*overflow-wrap:\s*anywhere/)

@@ -10302,3 +10302,16 @@ select {
   .nonrevy-mobile-language__button:focus-visible {
   color: #ffffff !important;
 }
+.nonrevy-mobile-language .nonrevy-mobile-language__button {
+  background: #2563eb !important;
+  border-color: #2563eb !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+.nonrevy-mobile-language .nonrevy-mobile-language__button span,
+.nonrevy-mobile-language .nonrevy-mobile-language__button svg {
+  color: #ffffff !important;
+  stroke: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}

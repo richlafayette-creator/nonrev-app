@@ -39,6 +39,7 @@ describe('global traveler app shell navigation', () => {
   it('keeps mobile language selection separate from the five-item bottom navigation', () => {
     assert.match(navigation, /<LanguageSelector compact \/>/)
     assert.match(navigation, /<LanguageSelector mobile \/>/)
+    assert.match(navigation, /<\/header>\s*<nav className="nonrevy-mobile-nav"/)
     assert.match(css, /\.nonrevy-mobile-nav\s*{[\s\S]*display:\s*none/)
     assert.match(css, /grid-template-columns:\s*repeat\(5,\s*minmax\(0,\s*1fr\)\)/)
     assert.match(css, /@media \(max-width: 760px\)[\s\S]*\.nonrevy-global-nav__actions \.nonrevy-language-selector\s*{[\s\S]*display:\s*none/)

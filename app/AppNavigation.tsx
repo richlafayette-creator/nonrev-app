@@ -144,6 +144,7 @@ export default function AppNavigation() {
   }
 
   return (
+    <>
     <header ref={shellRef} className="nonrevy-global-nav" aria-label="NONREVY traveler navigation">
       <div className="nonrevy-global-nav__bar">
         <a className="nonrevy-global-nav__brand" href="/" aria-label="NONREVY Search">
@@ -197,10 +198,11 @@ export default function AppNavigation() {
         </div>
       ) : null}
 
-      <nav className="nonrevy-mobile-nav" aria-label="Mobile traveler navigation">
-        {visibleNavItems.map((item) => renderNavItem(item, 'mobile'))}
-      </nav>
     </header>
+    <nav className="nonrevy-mobile-nav" aria-label="Mobile traveler navigation">
+      {visibleNavItems.map((item) => renderNavItem(item, 'mobile'))}
+    </nav>
+    </>
   )
 }
 

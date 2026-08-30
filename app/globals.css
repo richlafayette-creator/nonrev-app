@@ -9090,7 +9090,16 @@ summary:focus-visible {
   background: var(--nonrevy-primary-blue-soft) !important;
   color: var(--nonrevy-primary-blue-hover) !important;
 }
-
+.nonrevy-mobile-language__option span,
+.nonrevy-mobile-language__option strong,
+.nonrevy-mobile-language__option:hover span,
+.nonrevy-mobile-language__option:hover strong,
+.nonrevy-mobile-language__option:focus-visible span,
+.nonrevy-mobile-language__option:focus-visible strong,
+.nonrevy-mobile-language__option[aria-selected="true"] span,
+.nonrevy-mobile-language__option[aria-selected="true"] strong {
+  color: #ffffff !important;
+}
 .nonrevy-global-nav__menu-button {
   display: inline-flex;
   align-items: center;

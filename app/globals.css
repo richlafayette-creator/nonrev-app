@@ -10296,3 +10296,9 @@ select {
     display: none;
   }
 }
+.nonrevy-mobile-language:not([data-open="true"])
+  .nonrevy-mobile-language__button:hover,
+.nonrevy-mobile-language:not([data-open="true"])
+  .nonrevy-mobile-language__button:focus-visible {
+  color: #ffffff !important;
+}

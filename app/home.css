@@ -1326,3 +1326,18 @@ html body main.nonrevy-home .nonrevy-home__logo {
     display: none;
   }
 }
+
+/* Keep the mobile search action readable in Safari. */
+html body .nonrevy-conversation__composer button,
+html body .nonrevy-conversation__composer button:disabled {
+  background: var(--nonrevy-accent-gradient, #111827) !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  font-weight: 800 !important;
+  opacity: 1 !important;
+}
+
+html body .nonrevy-conversation__composer button svg {
+  color: #ffffff !important;
+  stroke: #ffffff !important;
+}

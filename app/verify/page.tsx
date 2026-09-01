@@ -48,6 +48,7 @@ const defaultAirlines: AirlineOption[] = [
   { code: 'AA', name: 'American Airlines' },
   { code: 'DL', name: 'Delta Air Lines' },
   { code: 'AS', name: 'Alaska Airlines' },
+  { code: 'OO', icao: 'SKW', name: 'SkyWest Airlines' },
   { code: 'WN', name: 'Southwest Airlines' }
 ]
 
@@ -76,8 +77,8 @@ export default function VerifyPage() {
   const { t } = useI18n()
   const [airlines, setAirlines] = useState<AirlineOption[]>(defaultAirlines)
   const [verification, setVerification] = useState<VerificationStatus>({ status: 'unverified' })
-  const [airlineCode, setAirlineCode] = useState('UA')
-  const [airlineQuery, setAirlineQuery] = useState('United Airlines (UA)')
+  const [airlineCode, setAirlineCode] = useState('')
+  const [airlineQuery, setAirlineQuery] = useState('')
   const [workEmail, setWorkEmail] = useState('')
   const [emailChallenge, setEmailChallenge] = useState<EmailChallenge | null>(null)
   const [verificationCode, setVerificationCode] = useState('')
@@ -98,7 +99,7 @@ export default function VerifyPage() {
         if (cancelled) return
         setVerification(data.verification || { status: 'unverified' })
         setAirlines(data.airlines?.length ? data.airlines : defaultAirlines)
-        const nextCode = data.verification?.airlineCode || data.airlines?.[0]?.code || 'UA'
+        const nextCode = data.verification?.airlineCode || ''
         const nextAirline = (data.airlines?.length ? data.airlines : defaultAirlines).find((airline) => airline.code === nextCode)
         setAirlineCode(nextCode)
         setAirlineQuery(nextAirline ? `${nextAirline.name} (${nextAirline.code})` : nextCode)

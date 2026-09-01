@@ -75,19 +75,18 @@ describe('employee verification access', () => {
     assert.ok(airlineOptionsForSelect().length > 40)
   })
 
-  it('does not reject selectable airlines just because a company-email domain is not mapped', () => {
-    assert.deepEqual(verificationMethodsForAirline('OO'), ['manual_review'])
+  it('supports SkyWest company email and manual review', () => {
+    assert.deepEqual(verificationMethodsForAirline('OO'), ['company_email', 'manual_review'])
+    assert.equal(companyEmailDomainAllowed('OO', 'tester@skywest.com').allowed, true)
     assert.equal(companyEmailDomainAllowed('OO', 'tester@skywest.example').allowed, false)
-    assert.equal(companyEmailDomainAllowed('OO', 'tester@skywest.example').reason, 'no-approved-domain')
+    assert.equal(companyEmailDomainAllowed('OO', 'tester@skywest.example').reason, 'domain-not-approved')
     const manual = createPendingManualVerification({ userId: 'user:skywest', airlineCode: 'SkyWest' })
     assert.equal(manual.ok, true)
     if (!manual.ok) return
     assert.equal(manual.record.airlineCode, 'OO')
     assert.equal(manual.record.airlineName, 'SkyWest Airlines')
-    const email = createPendingCompanyEmailVerification({ userId: 'user:skywest', airlineCode: 'OO', workEmail: 'tester@skywest.example' })
-    assert.equal(email.ok, false)
-    if (email.ok) return
-    assert.match(email.error, /manual review/i)
+    const email = createPendingCompanyEmailVerification({ userId: 'user:skywest', airlineCode: 'OO', workEmail: 'tester@skywest.com' })
+    assert.equal(email.ok, true)
   })
 
   it('creates pending records with minimal retained identity data', () => {

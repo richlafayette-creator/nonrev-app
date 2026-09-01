@@ -91,7 +91,7 @@ export const airlineEmployers: AirlineEmployer[] = [
   { code: 'NH', icao: 'ANA', name: 'All Nippon Airways', domains: ['ana.co.jp'], aliases: ['ANA'] },
   { code: 'NK', icao: 'NKS', name: 'Spirit Airlines', domains: ['spirit.com'] },
   { code: 'NZ', icao: 'ANZ', name: 'Air New Zealand', domains: [] },
-  { code: 'OO', icao: 'SKW', name: 'SkyWest Airlines', domains: [], aliases: ['SkyWest'] },
+  { code: 'OO', icao: 'SKW', name: 'SkyWest Airlines', domains: ['skywest.com'], aliases: ['SkyWest'] },
   { code: 'OS', icao: 'AUA', name: 'Austrian Airlines', domains: [] },
   { code: 'OZ', icao: 'AAR', name: 'Asiana Airlines', domains: [] },
   { code: 'PD', icao: 'POE', name: 'Porter Airlines', domains: [] },

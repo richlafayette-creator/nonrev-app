@@ -167,6 +167,17 @@ export async function POST(request: Request) {
   }
 
   const userId = persistentUserId(request)
+  const accountRequiredActions = new Set<string>([
+    'submit-company-email',
+    'start-email-verification',
+    'verify-code',
+    'resend-email-verification',
+    'request-manual-review'
+  ])
+  if (body.action && accountRequiredActions.has(body.action) && !userId.startsWith("user:")) {
+    return NextResponse.json({ error: 'Sign in is required before airline verification.' }, { status: 401 })
+  }
+
   if (body.action === 'submit-company-email' || body.action === 'start-email-verification') {
     const started = await startEmailVerificationChallenge({
       userId,

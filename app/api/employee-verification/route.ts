@@ -34,6 +34,7 @@ type VerificationBody = {
   action?: 'submit-company-email' | 'start-email-verification' | 'verify-code' | 'resend-email-verification' | 'request-manual-review' | 'approve' | 'reject' | 'request-resubmission'
   airlineCode?: string
   workEmail?: string
+verificationConsent?: boolean
   challengeId?: string
   code?: string
   targetUserId?: string
@@ -179,6 +180,12 @@ export async function POST(request: Request) {
   }
 
   if (body.action === 'submit-company-email' || body.action === 'start-email-verification') {
+if (body.verificationConsent !== true) {
+      return NextResponse.json(
+        { error: 'Confirm that you control this work email before continuing.' },
+        { status: 400 }
+      )
+    }
     const started = await startEmailVerificationChallenge({
       userId,
       airlineCode: String(body.airlineCode || ''),

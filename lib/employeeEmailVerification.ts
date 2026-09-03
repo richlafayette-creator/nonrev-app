@@ -281,6 +281,42 @@ async function upsertChallenge(challenge: EmailVerificationChallenge): Promise<C
   }
 }
 
+async function recentVerificationSendCount(input: {
+  userId?: string
+  workEmailHash?: string
+}) {
+  const since = new Date(Date.now() - 60 * 60 * 1000).toISOString()
+  const localCount = () => readLocalChallenges()
+    .filter((row) =>
+      row.createdAt >= since &&
+      (!input.userId || row.userId === input.userId) &&
+      (!input.workEmailHash || row.workEmailHash === input.workEmailHash)
+    )
+    .reduce((total, row) => total + row.sendCount, 0)
+
+  const config = supabaseConfig()
+  if (!config) return localCount()
+
+  const filters = [
+    'select=send_count',
+    `created_at=gte.${encodeFilterValue(since)}`,
+    ...(input.userId ? [`user_id=eq.${encodeFilterValue(input.userId)}`] : []),
+    ...(input.workEmailHash ? [`work_email_hash=eq.${encodeFilterValue(input.workEmailHash)}`] : [])
+  ]
+  try {
+    const rows = await supabaseFetch(
+      config,
+      `${challengeTableName}?${filters.join('&')}`
+    ) as any[]
+    return rows.reduce(
+      (total, row) => total + Number(row.send_count || row.sendCount || 0),
+      0
+    )
+  } catch {
+    return localCount()
+  }
+}
+
 export async function getEmailVerificationChallenge(challengeId: string): Promise<ChallengeStoreResult<EmailVerificationChallenge | null>> {
   const config = supabaseConfig()
   if (!config) return localResult(readLocalChallenges().find((row) => row.id === challengeId) || null)
@@ -377,6 +413,20 @@ export async function startEmailVerificationChallenge(input: {
     return { ok: false as const, status: 400, reason: 'missing-domain' as const, error: 'Enter a valid work email address.' }
   }
 
+  const workEmailHash = hashWorkEmail(normalizedEmail, env)
+  const [accountSendCount, addressSendCount] = await Promise.all([
+    recentVerificationSendCount({ userId: input.userId }),
+    recentVerificationSendCount({ workEmailHash })
+  ])
+  if (accountSendCount >= emailVerificationSendLimitPerHour || addressSendCount >= emailVerificationSendLimitPerHour) {
+    return {
+      ok: false as const,
+      status: 429,
+      reason: 'send-limit' as const,
+      error: 'Too many verification emails were requested. Try again in one hour or request manual review.'
+    }
+  }
+
   const now = nowIso()
   const verificationRecordId = `${input.userId}:employee-verification`
   const record: EmployeeVerificationRecord = {
@@ -387,7 +437,7 @@ export async function startEmailVerificationChallenge(input: {
     airlineName: decision.employer.name,
     method: 'company_email',
     emailDomain: decision.domain,
-    workEmailHash: hashWorkEmail(normalizedEmail, env),
+    workEmailHash,
     submittedAt: now,
     createdAt: now,
     updatedAt: now,
@@ -404,7 +454,7 @@ export async function startEmailVerificationChallenge(input: {
     airlineCode: decision.employer.code,
     airlineName: decision.employer.name,
     emailDomain: decision.domain,
-    workEmailHash: hashWorkEmail(normalizedEmail, env),
+    workEmailHash,
     magicTokenHash: tokenHash(token),
     codeHmac: codeHmac({ challengeId, userId: input.userId, airlineCode: decision.employer.code, emailDomain: decision.domain, code }, env),
     status: 'pending',

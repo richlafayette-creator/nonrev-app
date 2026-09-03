@@ -37,8 +37,8 @@ function verificationEmailHtml(message: VerificationEmailMessage) {
   const magicLinkUrl = htmlEscape(message.magicLinkUrl)
   return `
     <div style="font-family: Arial, sans-serif; color: #111827; line-height: 1.5;">
-      <h1 style="font-size: 22px; margin: 0 0 12px;">Verify your airline employment for Nonrevy</h1>
-      <p>You requested verification for <strong>${airlineName}</strong>.</p>
+      <h1 style="font-size: 22px; margin: 0 0 12px;">Your Nonrevy verification code</h1>
+      <p>You requested this code to verify your airline affiliation with <strong>${airlineName}</strong>.</p>
       <p>Your verification code is:</p>
       <p style="font-size: 28px; letter-spacing: 6px; font-weight: 800;">${code}</p>
       <p>
@@ -46,23 +46,23 @@ function verificationEmailHtml(message: VerificationEmailMessage) {
           Verify Email
         </a>
       </p>
-      <p>This code and link expire soon. Ignore this email if you did not request Nonrevy verification.</p>
-      <p style="color: #475569; font-size: 13px;">Nonrevy is independent and is not endorsed by the airline.</p>
+      <p>This code and link expire in 15 minutes and can be used once. If you did not request it, ignore this email and contact support@nonrevy.com.</p>
+      <p style="color: #475569; font-size: 13px;">Nonrevy is an independent service and is not affiliated with or endorsed by ${airlineName} or any airline.</p>
     </div>
   `
 }
 
 function verificationEmailText(message: VerificationEmailMessage) {
   return [
-    'Verify your airline employment for Nonrevy',
+    'Your Nonrevy verification code',
     '',
-    `You requested verification for ${message.airlineName}.`,
+    `You requested this code to verify your airline affiliation with ${message.airlineName}.`,
     `Verification code: ${message.code}`,
     `Magic link: ${message.magicLinkUrl}`,
     '',
-    'This code and link expire soon.',
-    'Nonrevy is independent and is not endorsed by the airline.',
-    'Ignore this email if you did not request Nonrevy verification.'
+    'This code and link expire in 15 minutes and can be used once.',
+    'Nonrevy is an independent service and is not affiliated with or endorsed by ${message.airlineName} or any airline.',
+    'If you did not request this, ignore it and contact support@nonrevy.com.'
   ].join('\n')
 }
 
@@ -106,7 +106,7 @@ export function getVerificationEmailProvider(env: Record<string, string | undefi
           body: JSON.stringify({
             from,
             to: message.to,
-            subject: 'Verify your airline employment for Nonrevy',
+            subject: 'Your Nonrevy verification code',
             html: verificationEmailHtml(message),
             text: verificationEmailText(message)
           })

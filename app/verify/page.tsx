@@ -80,6 +80,7 @@ export default function VerifyPage() {
   const [airlineCode, setAirlineCode] = useState('')
   const [airlineQuery, setAirlineQuery] = useState('')
   const [workEmail, setWorkEmail] = useState('')
+const [verificationConsent, setVerificationConsent] = useState(false)
   const [emailChallenge, setEmailChallenge] = useState<EmailChallenge | null>(null)
   const [verificationCode, setVerificationCode] = useState('')
   const [status, setStatus] = useState(t('homePreviewMessage'))
@@ -163,6 +164,10 @@ export default function VerifyPage() {
   }
 
   async function submit(action: 'start-email-verification' | 'request-manual-review') {
+if (action === 'start-email-verification' && !verificationConsent) {
+      setStatus('Confirm that you control this work email before continuing.')
+      return
+    }
     setLoading(true)
     setStatus(action === 'start-email-verification' ? t('checkingWorkEmail') : t('submittingManualReview'))
     try {
@@ -173,6 +178,7 @@ export default function VerifyPage() {
           action,
           airlineCode,
           workEmail,
+verificationConsent: action === 'start-email-verification' ? verificationConsent : undefined,
           reasonCategory: action === 'request-manual-review' ? 'cannot-use-work-email' : undefined
         })
       })
@@ -314,7 +320,12 @@ export default function VerifyPage() {
                     : t('companyEmailNotMapped')}
                 </small>
               </label>
-              <button type="submit" disabled={loading || !workEmail.trim() || !companyEmailAvailable} style={{ justifySelf: 'start', padding: '12px 16px', borderRadius: 999, border: 'none', background: loading || !workEmail.trim() || !companyEmailAvailable ? '#94a3b8' : '#2563eb', color: '#ffffff', fontWeight: 800 }}>
+<label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', color: '#334155' }}>
+                <input type="checkbox" checked={verificationConsent} onChange={(event) => setVerificationConsent(event.target.checked)} />
+                <span>I control this work address and authorize Nonrevy to send one verification message. Nonrevy is independent and is not affiliated with or endorsed by my airline. See <a href="/privacy">Privacy Notice</a> and <a href="/terms">Terms</a>.</span>
+              </label>
+              <p role="status" aria-live="polite" style={{ margin: 0, color: '#334155' }}>{status}</p>
+              <button type="submit" disabled={loading || !verificationConsent || !workEmail.trim() || !companyEmailAvailable} style={{ justifySelf: 'start', padding: '12px 16px', borderRadius: 999, border: 'none', background: loading || !verificationConsent || !workEmail.trim() || !companyEmailAvailable ? '#94a3b8' : '#2563eb', color: '#ffffff', fontWeight: 800 }}>
                 {t('sendVerificationCode')}
               </button>
             </form>
